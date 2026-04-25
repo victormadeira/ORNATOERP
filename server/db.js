@@ -800,6 +800,9 @@ const migrations = [
   // ═══ IA config ═══
   "ALTER TABLE empresa_config ADD COLUMN ia_provider TEXT DEFAULT 'anthropic'",
   "ALTER TABLE empresa_config ADD COLUMN ia_api_key TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN ia_api_key_anthropic TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN ia_api_key_gemini TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN ia_api_key_openai TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN ia_model TEXT DEFAULT 'claude-sonnet-4'",
   "ALTER TABLE empresa_config ADD COLUMN ia_system_prompt TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN ia_temperatura REAL DEFAULT 0.7",

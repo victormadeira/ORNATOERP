@@ -84,7 +84,7 @@ router.get('/empresa', requireAuth, (req, res) => {
     // Campos sensíveis — mascarar antes de retornar (mostra apenas últimos 4 chars
     // para o admin confirmar que o campo está preenchido, sem expor o valor real)
     const SENSITIVE_FIELDS = [
-        'ia_api_key', 'wa_api_key', 'gdrive_client_secret',
+        'ia_api_key', 'ia_api_key_anthropic', 'ia_api_key_gemini', 'ia_api_key_openai', 'wa_api_key', 'gdrive_client_secret',
         'fb_access_token', 'n8n_webhook_secret', 'gdrive_credentials',
         'wa_webhook_token', 'n8n_webhook_url',
     ];
@@ -115,7 +115,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         gdrive_credentials, gdrive_folder_id,
         gdrive_client_id, gdrive_client_secret,
         wa_instance_url, wa_instance_name, wa_api_key, wa_webhook_token, wa_owner_phone,
-        ia_provider, ia_api_key, ia_model, ia_system_prompt, ia_temperatura, ia_ativa, ia_blocked_phones,
+        ia_provider, ia_api_key, ia_api_key_anthropic, ia_api_key_gemini, ia_api_key_openai,
+        ia_model, ia_system_prompt, ia_temperatura, ia_ativa, ia_blocked_phones,
         ia_sugestoes_ativa,
         upmobb_ativo,
         etapas_template_json,
@@ -144,12 +145,16 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
 
     // Campos sensíveis: se vier valor mascarado (••••), manter o que está no banco
     const isMasked = (v) => typeof v === 'string' && v.startsWith('••••');
-    const cur = db.prepare(`SELECT ia_api_key, wa_api_key, gdrive_client_secret,
+    const cur = db.prepare(`SELECT ia_api_key, ia_api_key_anthropic, ia_api_key_gemini, ia_api_key_openai,
+        wa_api_key, gdrive_client_secret,
         fb_access_token, n8n_webhook_secret, gdrive_credentials,
         wa_webhook_token, n8n_webhook_url FROM empresa_config WHERE id = 1`).get() || {};
     const safe = (incoming, field) => isMasked(incoming) ? cur[field] : incoming;
 
-    const ia_api_key_s        = safe(ia_api_key,        'ia_api_key');
+    const ia_api_key_s            = safe(ia_api_key,             'ia_api_key');
+    const ia_api_key_anthropic_s  = safe(ia_api_key_anthropic,   'ia_api_key_anthropic');
+    const ia_api_key_gemini_s     = safe(ia_api_key_gemini,      'ia_api_key_gemini');
+    const ia_api_key_openai_s     = safe(ia_api_key_openai,      'ia_api_key_openai');
     const wa_api_key_s        = safe(wa_api_key,        'wa_api_key');
     const gdrive_client_secret_s = safe(gdrive_client_secret, 'gdrive_client_secret');
     const fb_access_token_s   = safe(fb_access_token,   'fb_access_token');
@@ -170,7 +175,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       gdrive_credentials=?, gdrive_folder_id=?,
       gdrive_client_id=?, gdrive_client_secret=?,
       wa_instance_url=?, wa_instance_name=?, wa_api_key=?, wa_webhook_token=?, wa_owner_phone=?,
-      ia_provider=?, ia_api_key=?, ia_model=?, ia_system_prompt=?, ia_temperatura=?, ia_ativa=?, ia_blocked_phones=?,
+      ia_provider=?, ia_api_key=?, ia_api_key_anthropic=?, ia_api_key_gemini=?, ia_api_key_openai=?,
+      ia_model=?, ia_system_prompt=?, ia_temperatura=?, ia_ativa=?, ia_blocked_phones=?,
       ia_sugestoes_ativa=?,
       upmobb_ativo=?,
       etapas_template_json=?,
@@ -214,7 +220,9 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         gdrive_client_id !== undefined ? gdrive_client_id : '',
         gdrive_client_secret_s !== undefined ? gdrive_client_secret_s : '',
         wa_instance_url || '', wa_instance_name || '', wa_api_key_s || '', wa_webhook_token_s || '', wa_owner_phone || '',
-        ia_provider || 'anthropic', ia_api_key_s || '', ia_model || 'claude-sonnet-4',
+        ia_provider || 'anthropic', ia_api_key_s || '',
+        ia_api_key_anthropic_s || '', ia_api_key_gemini_s || '', ia_api_key_openai_s || '',
+        ia_model || 'claude-sonnet-4',
         ia_system_prompt !== undefined ? ia_system_prompt : '', ia_temperatura ?? 0.7, ia_ativa ?? 0,
         ia_blocked_phones !== undefined ? ia_blocked_phones : '',
         ia_sugestoes_ativa ?? 1,
@@ -270,7 +278,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     // Mascarar campos sensíveis também na resposta do PUT
     const SENSITIVE_FIELDS = [
-        'ia_api_key', 'wa_api_key', 'gdrive_client_secret',
+        'ia_api_key', 'ia_api_key_anthropic', 'ia_api_key_gemini', 'ia_api_key_openai', 'wa_api_key', 'gdrive_client_secret',
         'fb_access_token', 'n8n_webhook_secret', 'gdrive_credentials',
         'wa_webhook_token', 'n8n_webhook_url',
     ];

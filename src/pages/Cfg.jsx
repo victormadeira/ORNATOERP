@@ -159,7 +159,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         gdrive_credentials: '', gdrive_folder_id: '',
         gdrive_client_id: '', gdrive_client_secret: '',
         wa_instance_url: '', wa_instance_name: '', wa_api_key: '', wa_webhook_token: '', wa_owner_phone: '',
-        ia_provider: 'anthropic', ia_api_key: '', ia_model: 'claude-sonnet-4',
+        ia_provider: 'anthropic', ia_api_key: '', ia_api_key_anthropic: '', ia_api_key_gemini: '', ia_api_key_openai: '', ia_model: 'claude-sonnet-4',
         ia_system_prompt: '', ia_temperatura: 0.7, ia_ativa: 0, ia_blocked_phones: '',
         ia_sugestoes_ativa: 1,
         upmobb_ativo: 0,
@@ -333,6 +333,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 wa_owner_phone: d.wa_owner_phone || '',
                 ia_provider: d.ia_provider || 'anthropic',
                 ia_api_key: d.ia_api_key || '',
+                ia_api_key_anthropic: d.ia_api_key_anthropic || '',
+                ia_api_key_gemini: d.ia_api_key_gemini || '',
+                ia_api_key_openai: d.ia_api_key_openai || '',
                 ia_model: d.ia_model || 'claude-sonnet-4',
                 ia_system_prompt: d.ia_system_prompt || '',
                 ia_temperatura: d.ia_temperatura ?? 0.7,
@@ -523,6 +526,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 wa_owner_phone: emp.wa_owner_phone,
                 ia_provider: emp.ia_provider,
                 ia_api_key: emp.ia_api_key,
+                ia_api_key_anthropic: emp.ia_api_key_anthropic,
+                ia_api_key_gemini: emp.ia_api_key_gemini,
+                ia_api_key_openai: emp.ia_api_key_openai,
                 ia_model: emp.ia_model,
                 ia_system_prompt: emp.ia_system_prompt,
                 ia_temperatura: emp.ia_temperatura,
@@ -2233,17 +2239,44 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className={Z.lbl}>API Key</label>
-                                    <input
-                                        type="password"
-                                        value={emp.ia_api_key}
-                                        onChange={e => setEmp({ ...emp, ia_api_key: e.target.value })}
-                                        disabled={!isGerente}
-                                        placeholder={emp.ia_provider === 'anthropic' ? 'sk-ant-...' : emp.ia_provider === 'gemini' ? 'AIza...' : 'sk-...'}
-                                        className={Z.inp}
-                                        style={{ fontFamily: 'monospace', fontSize: 12 }}
-                                    />
+                                <div className="space-y-2">
+                                    <label className={Z.lbl}>Chaves de API por Provider</label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-24 text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Anthropic</span>
+                                        <input
+                                            type="password"
+                                            value={emp.ia_api_key_anthropic}
+                                            onChange={e => setEmp({ ...emp, ia_api_key_anthropic: e.target.value })}
+                                            disabled={!isGerente}
+                                            placeholder="sk-ant-..."
+                                            className={Z.inp}
+                                            style={{ fontFamily: 'monospace', fontSize: 12 }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-24 text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Gemini</span>
+                                        <input
+                                            type="password"
+                                            value={emp.ia_api_key_gemini}
+                                            onChange={e => setEmp({ ...emp, ia_api_key_gemini: e.target.value })}
+                                            disabled={!isGerente}
+                                            placeholder="AIza..."
+                                            className={Z.inp}
+                                            style={{ fontFamily: 'monospace', fontSize: 12 }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-24 text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>OpenAI</span>
+                                        <input
+                                            type="password"
+                                            value={emp.ia_api_key_openai}
+                                            onChange={e => setEmp({ ...emp, ia_api_key_openai: e.target.value })}
+                                            disabled={!isGerente}
+                                            placeholder="sk-..."
+                                            className={Z.inp}
+                                            style={{ fontFamily: 'monospace', fontSize: 12 }}
+                                        />
+                                    </div>
                                 </div>
 
                                 <div>

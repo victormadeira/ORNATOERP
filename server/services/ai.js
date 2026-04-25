@@ -10,9 +10,13 @@ import sofia from './sofia.js';
 
 function getConfig() {
     const cfg = db.prepare(
-        'SELECT ia_provider, ia_api_key, ia_model, ia_system_prompt, ia_temperatura, ia_ativa FROM empresa_config WHERE id = 1'
+        'SELECT ia_provider, ia_api_key, ia_api_key_anthropic, ia_api_key_gemini, ia_api_key_openai, ia_model, ia_system_prompt, ia_temperatura, ia_ativa FROM empresa_config WHERE id = 1'
     ).get();
-    return cfg || {};
+    if (!cfg) return {};
+    // Resolve ia_api_key: usa a chave específica do provider se disponível, senão fallback para ia_api_key legado
+    const keyMap = { anthropic: cfg.ia_api_key_anthropic, gemini: cfg.ia_api_key_gemini, openai: cfg.ia_api_key_openai };
+    cfg.ia_api_key = keyMap[cfg.ia_provider] || cfg.ia_api_key || '';
+    return cfg;
 }
 
 function getContextEntries() {
