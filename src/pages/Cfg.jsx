@@ -2217,22 +2217,26 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         >
                                             {emp.ia_provider === 'anthropic' ? (
                                                 <>
-                                                    <option value="claude-sonnet-4">Claude Sonnet 4</option>
-                                                    <option value="claude-haiku-4">Claude Haiku 4</option>
-                                                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (20250514)</option>
+                                                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 ⚡ (rápido, econômico)</option>
+                                                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (balanceado)</option>
+                                                    <option value="claude-sonnet-4">Claude Sonnet 4 (latest)</option>
+                                                    <option value="claude-opus-4">Claude Opus 4 (máxima qualidade)</option>
                                                 </>
                                             ) : emp.ia_provider === 'gemini' ? (
                                                 <>
-                                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (recomendado)</option>
-                                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (descontinuado)</option>
-                                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                                    <option value="gemini-3-flash-preview">Gemini 3 Flash Preview 🆕 (mais capaz)</option>
+                                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash ⭐ (recomendado)</option>
+                                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro (alta qualidade)</option>
+                                                    <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (econômico, preview)</option>
+                                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (estável, barato)</option>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <option value="gpt-4o">GPT-4o</option>
-                                                    <option value="gpt-4o-mini">GPT-4o Mini</option>
-                                                    <option value="gpt-4.1">GPT-4.1</option>
+                                                    <option value="gpt-4o-mini">GPT-4o Mini ⚡ (rápido, econômico)</option>
+                                                    <option value="gpt-4.1-mini">GPT-4.1 Mini (mais novo, econômico)</option>
+                                                    <option value="gpt-4o">GPT-4o (balanceado)</option>
+                                                    <option value="gpt-4.1">GPT-4.1 (mais novo, capaz)</option>
+                                                    <option value="o4-mini">o4-mini (raciocínio avançado)</option>
                                                 </>
                                             )}
                                         </select>

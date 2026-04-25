@@ -200,16 +200,27 @@ const INTENCAO_ALTA = [
     /\bvou fechar\b/i, /\bquero fechar\b/i, /\bfechar com voc[êe]s?\b/i,
     /\best(ou|amos) cert[oa]\b/i, /\bcerteza que\b.*\b(fechar|contrat)/i,
     /\bdecidid[oa]\b/i, /\bcontratar voc[êe]s\b/i,
+    /\bquero contratar\b/i, /\bvou contratar\b/i,
+    /\bquero fazer com voc[êe]s?\b/i, /\bvou fazer com voc[êe]s?\b/i,
+    /\bfecha(r|mos) neg[oó]cio\b/i, /\bfirmar contrato\b/i,
 ];
 const INTENCAO_MEDIA = [
     /\bmand(a|e|em) (a )?proposta\b/i, /\bmand(a|e|em) (o )?or[çc]amento\b/i,
     /\bquando (voc[êe]s?|podemos|come[çc]a)\b/i, /\bpr[óo]ximo passo\b/i,
     /\bquanto tempo\b.*\b(pra|para) come[çc]ar\b/i,
     /\bvamos marcar\b/i, /\bagendar (visita|reuni[ãa]o)\b/i,
+    /\bpode me (ligar|chamar|contatar)\b/i, /\bme liga\b/i,
+    /\bquero (marcar|agendar)\b/i, /\bcomo (fa[çc]o|funciona|come[çc]a)\b/i,
+    /\bquando voc[êe]s? (podem|conseguem|v[eê]m)\b/i,
+    /\bpode vir (medir|ver|visitar)\b/i, /\bvisita t[eé]cnica\b/i,
+    /\bquero avan[çc]ar\b/i, /\bvamos (avan[çc]ar|continuar|seguir)\b/i,
 ];
 const INTENCAO_BAIXA = [
     /\bme interess(o|ei|a)\b/i, /\bgostei\b/i, /\bqual o passo\b/i,
-    /\btenho interesse\b/i,
+    /\btenho interesse\b/i, /\bquero (saber|entender|conhecer)\b/i,
+    /\bme fala mais\b/i, /\bpode me (explicar|contar)\b/i,
+    /\bpode me ligar\b/i, /\bmeu (nome|n[uú]mero|celular|whatsapp)\b/i,
+    /\bpode (me )?chamar\b/i,
 ];
 
 export function calcularIntencao(mensagensCliente = []) {
