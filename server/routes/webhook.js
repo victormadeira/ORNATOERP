@@ -337,45 +337,53 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
                     evolution.sendPresence(dest, 'composing', 1500).catch(() => { });
                     await new Promise(r => setTimeout(r, 800));
                 }
+                // Salva no banco ANTES de tentar enviar — assim a resposta nunca se perde
+                // mesmo que a Evolution rejeite (ex: contato @lid sem número real)
+                const aiInsert = db.prepare(`
+                    INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, status_envio, criado_em)
+                    VALUES (?, 'saida', 'texto', ?, 'ia', 'pendente', CURRENT_TIMESTAMP)
+                `).run(conversa.id, part);
                 try {
-                    await evolution.sendText(dest, part);
-                    const aiInsert = db.prepare(`
-                        INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
-                        VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
-                    `).run(conversa.id, part);
-                    try {
-                        wsBroadcast?.('chat.message', {
-                            conversa_id: conversa.id,
-                            mensagem_id: aiInsert.lastInsertRowid,
-                            direcao: 'saida',
-                            tipo: 'texto',
-                            remetente: 'ia',
-                        });
-                    } catch (_) { /* silencioso */ }
+                    const evoResult = await evolution.sendText(dest, part);
+                    const waId = evoResult?.key?.id || '';
+                    db.prepare(`UPDATE chat_mensagens SET status_envio = 'enviado', wa_message_id = ? WHERE id = ?`).run(waId, aiInsert.lastInsertRowid);
                 } catch (e) {
                     console.error('[WH] Erro enviar parte:', e.message);
-                    break;
+                    db.prepare(`UPDATE chat_mensagens SET status_envio = 'falhou' WHERE id = ?`).run(aiInsert.lastInsertRowid);
+                    // Não interrompe loop — tenta enviar as demais partes (mesmo que falhe, ficam salvas)
                 }
+                try {
+                    wsBroadcast?.('chat.message', {
+                        conversa_id: conversa.id,
+                        mensagem_id: aiInsert.lastInsertRowid,
+                        direcao: 'saida',
+                        tipo: 'texto',
+                        remetente: 'ia',
+                    });
+                } catch (_) { /* silencioso */ }
             }
 
             // Se escalou e não havia texto, manda fallback
             if (result.action === 'escalate' && parts.length === 0) {
                 const fallback = 'Um momento! Vou transferir seu atendimento para nossa equipe comercial. Retornamos em breve.';
+                const fbInsert = db.prepare(`
+                    INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, status_envio, criado_em)
+                    VALUES (?, 'saida', 'texto', ?, 'ia', 'pendente', CURRENT_TIMESTAMP)
+                `).run(conversa.id, fallback);
                 try {
                     await evolution.sendText(dest, fallback);
-                    const fbInsert = db.prepare(`
-                        INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
-                        VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
-                    `).run(conversa.id, fallback);
-                    try {
-                        wsBroadcast?.('chat.message', {
-                            conversa_id: conversa.id,
-                            mensagem_id: fbInsert.lastInsertRowid,
-                            direcao: 'saida',
-                            tipo: 'texto',
-                            remetente: 'ia',
-                        });
-                    } catch (_) { /* silencioso */ }
+                    db.prepare(`UPDATE chat_mensagens SET status_envio = 'enviado' WHERE id = ?`).run(fbInsert.lastInsertRowid);
+                } catch (_) {
+                    db.prepare(`UPDATE chat_mensagens SET status_envio = 'falhou' WHERE id = ?`).run(fbInsert.lastInsertRowid);
+                }
+                try {
+                    wsBroadcast?.('chat.message', {
+                        conversa_id: conversa.id,
+                        mensagem_id: fbInsert.lastInsertRowid,
+                        direcao: 'saida',
+                        tipo: 'texto',
+                        remetente: 'ia',
+                    });
                 } catch (_) { /* silencioso */ }
             }
         } catch (err) {
