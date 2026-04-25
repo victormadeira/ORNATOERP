@@ -1994,13 +1994,13 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         />
                                     </div>
                                     <div>
-                                        <label className={Z.lbl}>API Key</label>
+                                        <label className={Z.lbl}>API Key (Global Key da Evolution)</label>
                                         <input
                                             type="password"
                                             value={emp.wa_api_key}
                                             onChange={e => setEmp({ ...emp, wa_api_key: e.target.value })}
                                             disabled={!isGerente}
-                                            placeholder="Chave de autenticação"
+                                            placeholder="Chave global da Evolution API (AUTHENTICATION_API_KEY)"
                                             className={Z.inp}
                                         />
                                     </div>
@@ -2059,15 +2059,25 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 </div>
 
                                 {waStatus && (
-                                    <div className="mt-3 flex items-center gap-2">
-                                        <div style={{
-                                            width: 10, height: 10, borderRadius: '50%',
-                                            background: waStatus.connected ? 'var(--success)' : 'var(--danger)',
-                                        }} />
-                                        <span className="text-sm" style={{ color: waStatus.connected ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-                                            {waStatus.connected ? 'Conectado' : 'Desconectado'}
-                                        </span>
-                                        {waStatus.error && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({waStatus.error})</span>}
+                                    <div className="mt-3">
+                                        <div className="flex items-center gap-2">
+                                            <div style={{
+                                                width: 10, height: 10, borderRadius: '50%',
+                                                flexShrink: 0,
+                                                background: waStatus.connected ? 'var(--success)' : 'var(--danger)',
+                                            }} />
+                                            <span className="text-sm" style={{ color: waStatus.connected ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                                                {waStatus.connected ? `Conectado${waStatus.state ? ` (${waStatus.state})` : ''}` : 'Desconectado'}
+                                            </span>
+                                        </div>
+                                        {(waStatus.error || waStatus.reason) && (
+                                            <div className="mt-1 text-[11px] rounded px-2 py-1" style={{ background: 'var(--bg-muted)', color: 'var(--danger)' }}>
+                                                {waStatus.reason === 'not_configured' && '⚠️ URL da instância ou nome não preenchidos'}
+                                                {waStatus.reason === 'api_error' && `⚠️ Evolution API rejeitou: ${waStatus.error || ''}`}
+                                                {waStatus.reason === 'connection_failed' && `⚠️ Sem resposta da Evolution API: ${waStatus.error || ''}`}
+                                                {!waStatus.reason && waStatus.error && `⚠️ ${waStatus.error}`}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

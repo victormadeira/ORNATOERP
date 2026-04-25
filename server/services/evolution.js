@@ -84,20 +84,29 @@ export async function sendMedia(phone, mediaUrl, caption, mediatype = 'image') {
 export async function getConnectionStatus() {
     const cfg = getConfig();
     if (!cfg.wa_instance_url || !cfg.wa_instance_name) {
-        return { connected: false, reason: 'not_configured' };
+        return { connected: false, reason: 'not_configured', error: 'URL da instância ou nome não configurados' };
     }
     try {
         const url = `${cfg.wa_instance_url}/instance/connectionState/${cfg.wa_instance_name}`;
+        console.log(`[Evolution] Verificando status: ${url}`);
         const res = await fetch(url, {
-            headers: { 'apikey': cfg.wa_api_key },
+            headers: { 'apikey': cfg.wa_api_key || '' },
+            signal: AbortSignal.timeout(5000),
         });
-        if (!res.ok) return { connected: false, reason: 'api_error' };
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            console.warn(`[Evolution] API retornou ${res.status}: ${body.slice(0, 200)}`);
+            return { connected: false, reason: 'api_error', error: `HTTP ${res.status}${body ? ': ' + body.slice(0, 100) : ''}` };
+        }
         const data = await res.json();
+        console.log(`[Evolution] Estado: ${JSON.stringify(data?.instance || data)}`);
+        const state = data.instance?.state || data.state || 'unknown';
         return {
-            connected: data.instance?.state === 'open',
-            state: data.instance?.state || 'unknown',
+            connected: state === 'open',
+            state,
         };
     } catch (e) {
+        console.warn(`[Evolution] Falha na conexão: ${e.message}`);
         return { connected: false, reason: 'connection_failed', error: e.message };
     }
 }
