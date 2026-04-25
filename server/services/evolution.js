@@ -47,7 +47,7 @@ export async function sendText(phoneOrJid, text) {
         },
         body: JSON.stringify({
             number: dest,
-            text,
+            textMessage: { text },
         }),
     });
     if (!res.ok) {
