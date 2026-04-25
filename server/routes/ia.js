@@ -1169,7 +1169,7 @@ router.post('/simulate', requireAuth, async (req, res) => {
 
         // Importar utilitários dinamicamente pra evitar ciclo
         const { default: sofia } = await import('../services/sofia.js');
-        const { default: aiSvc, SOFIA_DEFAULT_PROMPT } = await import('../services/ai.js');
+        const { default: aiSvc, SOFIA_DEFAULT_PROMPT, buildSystemPromptParts } = await import('../services/ai.js');
 
         // ═══ ANTI-ABUSO (aplicado também na sandbox, para refletir produção) ═══
         const abusoMotivo = sofia.detectarAbuso(message);
@@ -1224,7 +1224,7 @@ router.post('/simulate', requireAuth, async (req, res) => {
         }
 
         // Buildar system prompt com partes separadas (estático cacheável + dinâmico por chamada)
-        const system = aiSvc.buildSystemPromptParts(contextoExtra);
+        const system = buildSystemPromptParts(contextoExtra);
 
         // Montar histórico para callAI
         const aiMessages = (history || []).map(h => ({
