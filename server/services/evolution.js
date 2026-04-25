@@ -28,14 +28,14 @@ export async function sendText(phoneOrJid, text) {
     if (!isConfigured()) throw new Error('WhatsApp não configurado');
 
     // Se vier @lid, tentar resolver para número real via banco (wa_phone da conversa)
+    // Se não tiver número real, envia direto pro @lid — Evolution API consegue entregar
     let dest = phoneOrJid;
     if (dest.includes('@lid')) {
         const conv = db.prepare('SELECT wa_phone FROM chat_conversas WHERE wa_jid = ?').get(dest);
         if (conv?.wa_phone && /^55\d{10,11}$/.test(conv.wa_phone)) {
             dest = conv.wa_phone;
-        } else {
-            throw new Error('Número real do contato não encontrado. Vincule o telefone a esta conversa e tente novamente.');
         }
+        // else: mantém o @lid e tenta enviar assim mesmo via Evolution
     }
 
     const url = `${cfg.wa_instance_url}/message/sendText/${cfg.wa_instance_name}`;
