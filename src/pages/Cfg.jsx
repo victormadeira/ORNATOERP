@@ -2039,7 +2039,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="rounded-lg p-3 border-l-2" style={{ background: 'var(--bg-muted)', borderColor: 'var(--success)' }}>
                                     <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--success)' }}>URL do Webhook</div>
                                     <code className="text-xs" style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>
-                                        http://SEU_IP:3001/api/webhook/whatsapp
+                                        {`${window.location.origin}/api/webhook/whatsapp`}
                                     </code>
                                     <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                         Configure esta URL no painel da Evolution API para receber mensagens.
@@ -2116,7 +2116,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div>
                                     <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>3. Configurar Webhook</div>
                                     No painel da instância, configure o webhook para:<br />
-                                    <code className="text-[10px] px-1 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--primary)' }}>http://SEU_IP:3001/api/webhook/whatsapp</code>
+                                    <code className="text-[10px] px-1 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--primary)' }}>{`${window.location.origin}/api/webhook/whatsapp`}</code>
                                 </div>
                                 <div>
                                     <div className="font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>4. Parear WhatsApp</div>
