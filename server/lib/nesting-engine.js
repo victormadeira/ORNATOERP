@@ -2502,10 +2502,10 @@ export function runStripPacking(pieces, binW, binH, kerf, spacing, splitDir) {
 }
 
 // ─── BRKGA — Biased Random-Key Genetic Algorithm ─────────────────
-export function runBRKGA(pieces, binW, binH, spacing, binType, kerf, maxGen = 80, splitDir = 'auto') {
+export function runBRKGA(pieces, binW, binH, spacing, binType, kerf, maxGen = 150, splitDir = 'auto') {
     if (pieces.length <= 3) return null;
     const n = pieces.length;
-    const POP_SIZE = Math.min(60, Math.max(30, n * 3));     // Larger population (was min 20, max 40)
+    const POP_SIZE = Math.min(150, Math.max(50, n * 4));    // Industrial population (was min 30 max 60 × n*3)
     const ELITE_FRAC = 0.20;
     const MUTANT_FRAC = 0.15;
     const INHERIT_PROB = 0.70;
@@ -2580,7 +2580,7 @@ export function runBRKGA(pieces, binW, binH, spacing, binType, kerf, maxGen = 80
             newPop.push({ keys: childKeys, fitness: Infinity });
         }
         population = newPop;
-        if (bestFitness < 10001) break;  // Tighter convergence threshold
+        // Removed premature early-stop: let all generations run for better convergence
     }
 
     if (!bestResult) return null;
@@ -2649,8 +2649,12 @@ export function ruinAndRecreate(pieces, binW, binH, spacing, binType, kerf, maxI
     const lahcWindow = new Array(windowSize).fill(bestScore.score);
     let noImproveCount = 0;
     const maxNoImprove = Math.min(maxIter * 0.75, 400);
-    let temperature = bestScore.score * 0.12;
-    const coolingRate = 0.996;                      // Slower cooling (was 0.993) — more exploration time
+    const T0 = bestScore.score * 0.12;
+    const Tmin = T0 * 0.01;                         // Cool to 1% of initial temperature
+    // Analytical rate: T0 * rate^maxIter = Tmin → rate = (Tmin/T0)^(1/maxIter)
+    // Adapts automatically when maxIter changes — no more hardcoded magic number
+    const coolingRate = Math.pow(Tmin / T0, 1 / maxIter);
+    let temperature = T0;
 
     for (let iter = 0; iter < maxIter; iter++) {
         temperature *= coolingRate;

@@ -626,8 +626,17 @@ class GcodeGenerator:
         if not op.contour_path or len(op.contour_path) < 4:
             return
 
-        # Pontos do contorno (4 cantos) com compensacao de ferramenta
-        pts = op.contour_path  # [(x,y), (x,y), (x,y), (x,y)]
+        # Pontos do contorno (4 cantos) — aplicar compensacao de raio de ferramenta
+        # O centro da fresa deve percorrer FORA da borda da peca por tool_r
+        # Expande cada canto para fora do centroide (funciona para retangulos axis-aligned e rotacionados)
+        raw_pts = op.contour_path
+        cx_c = sum(p[0] for p in raw_pts) / len(raw_pts)
+        cy_c = sum(p[1] for p in raw_pts) / len(raw_pts)
+        pts = [
+            (p[0] + tool_r * (1.0 if p[0] >= cx_c else -1.0),
+             p[1] + tool_r * (1.0 if p[1] >= cy_c else -1.0))
+            for p in raw_pts
+        ]
 
         climb = self.machine.contorno_direcao == "climb"
         if not climb:

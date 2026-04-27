@@ -1716,25 +1716,20 @@ class LayoutBuilder:
                 vacuum_aware=self.config.vacuum_aware,
             )
 
-            # So aceitar se TODAS as pecas cabem num unico bin
-            if (result.bins and len(result.bins) == 1 and
-                not result.unplaced_pieces and
-                result.total_pieces_placed == len(sorted_remaining)):
-                # Todas cabem no retalho!
-                remaining = []
-                used_remnants.append(remnant)
-                break
-
-            # Se nao todas, tentar colocar o maximo possivel
+            # Aceitar fit parcial: usar retalho para as pecas que cabem,
+            # continuar com as restantes em outras chapas.
+            # Antes: exigia 100% das pecas → retalho quase nunca era usado.
             if result.bins and result.bins[0].placements:
                 placed_ids = {
                     p.piece_persistent_id
                     for p in result.bins[0].placements
                 }
-                if len(placed_ids) > 0 and len(placed_ids) == len(sorted_remaining):
-                    remaining = []
+                if placed_ids:
+                    # Remove pecas ja alocadas no retalho
+                    remaining = [p for p in remaining if p.persistent_id not in placed_ids]
                     used_remnants.append(remnant)
-                    break
+                    if not remaining:
+                        break  # Todas as pecas foram alocadas
 
         return remaining, used_remnants
 
