@@ -158,7 +158,9 @@ router.get('/nao-lidas', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.get('/conversas', requireAuth, (req, res) => {
     const u = req.user;
-    const { filtro = 'todas', categoria = '', q = '' } = req.query;
+    const { filtro = 'todas', categoria = '', q = '', limit: limitParam = '100', offset: offsetParam = '0' } = req.query;
+    const pageLimit = Math.min(Math.max(1, parseInt(limitParam) || 100), 200); // máx 200 por página
+    const pageOffset = Math.max(0, parseInt(offsetParam) || 0);
 
     const where = [];
     const params = [];
@@ -205,9 +207,15 @@ router.get('/conversas', requireAuth, (req, res) => {
         LEFT JOIN users ua ON cc.atribuido_user_id = ua.id
         ${whereSQL}
         ORDER BY cc.ultimo_msg_em DESC
-        LIMIT 500
-    `).all(...params);
-    res.json(conversas);
+        LIMIT ? OFFSET ?
+    `).all(...params, pageLimit, pageOffset);
+
+    // Total para paginação no frontend
+    const totalRow = db.prepare(
+        `SELECT COUNT(*) as total FROM chat_conversas cc ${whereSQL}`
+    ).get(...params);
+
+    res.json({ conversas, total: totalRow.total, limit: pageLimit, offset: pageOffset });
 });
 
 // ═══════════════════════════════════════════════════════
@@ -216,13 +224,21 @@ router.get('/conversas', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.get('/conversas/contadores', requireAuth, (req, res) => {
     const u = req.user;
-    const base = canSeeAll(u) ? '1=1' : `(atribuido_user_id = ${Number(u.id)} OR atribuido_user_id IS NULL)`;
-    const contador = (sql) => db.prepare(`SELECT COUNT(*) as c FROM chat_conversas WHERE ${base} AND arquivada = 0 AND ${sql}`).get().c;
+    const userId = Number(u.id);
+    // Parametrizado — sem interpolação de u.id em template string
+    const verTudo = canSeeAll(u);
+    const base = verTudo ? '1=1' : '(atribuido_user_id = ? OR atribuido_user_id IS NULL)';
+    const baseParams = verTudo ? [] : [userId];
+
+    const count = (extra, extraParams = []) =>
+        db.prepare(`SELECT COUNT(*) as c FROM chat_conversas WHERE ${base} AND ${extra}`)
+          .get(...baseParams, ...extraParams).c;
+
     res.json({
-        minhas: contador(`atribuido_user_id = ${Number(u.id)}`),
-        nao_atribuidas: contador('atribuido_user_id IS NULL'),
-        todas: contador('1=1'),
-        arquivadas: db.prepare(`SELECT COUNT(*) as c FROM chat_conversas WHERE ${base} AND arquivada = 1`).get().c,
+        minhas:           count('arquivada = 0 AND atribuido_user_id = ?', [userId]),
+        nao_atribuidas:   count('arquivada = 0 AND atribuido_user_id IS NULL'),
+        todas:            count('arquivada = 0'),
+        arquivadas:       count('arquivada = 1'),
     });
 });
 

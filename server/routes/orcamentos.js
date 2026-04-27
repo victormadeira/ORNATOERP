@@ -25,7 +25,9 @@ function parseOrcData(row) {
             row.prazo_execucao = data.prazo_execucao || null;
             row.endereco_obra = data.endereco_obra || '';
             row.validade_proposta = data.validade_proposta || '';
-            row.validade_dias = data.validade_dias || parseInt(data.validade_proposta) || 15;
+            // Clamp: entre 1 e 730 dias (2 anos max) — sem isso, "999999" era aceito
+            const rawDias = parseInt(data.validade_dias) || parseInt(data.validade_proposta) || 15;
+            row.validade_dias = Math.min(Math.max(1, rawDias), 730);
             row.mods = []; // compat
         } else if (Array.isArray(data)) {
             // Legacy format: mods_json was just an array of modules
@@ -330,10 +332,11 @@ router.put('/bulk-status', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Status (kb_col) inválido' });
 
     try {
+        // user_id obrigatório: impede que usuário mova orçamentos de outros (IDOR)
         const placeholders = ids.map(() => '?').join(',');
         const result = db.prepare(
-            `UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`
-        ).run(status, ...ids);
+            `UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders}) AND user_id = ?`
+        ).run(status, ...ids, req.user.id);
 
         res.json({ ok: true, updated: result.changes });
     } catch (e) {

@@ -159,6 +159,16 @@ function _inferToolFromCode(tc) {
     return { nome, tipo, diametro, tipo_corte };
 }
 
+// Sanitiza strings vindas do plugin: remove tags HTML e limita tamanho
+function sanitizePluginStr(val, maxLen = 200) {
+    if (val == null) return '';
+    return String(val)
+        .replace(/<[^>]*>/g, '') // strip HTML tags (XSS stored prevention)
+        .replace(/[<>"']/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+        .trim()
+        .slice(0, maxLen);
+}
+
 export function parsePluginJSON(json) {
     const data = typeof json === 'string' ? JSON.parse(json) : json;
     const details = data.details_project || {};
@@ -166,10 +176,10 @@ export function parsePluginJSON(json) {
     const entities = data.model_entities || {};
 
     const loteInfo = {
-        cliente: details.client_name || details.cliente || details.client || '',
-        projeto: details.project_name || details.projeto || details.project || '',
-        codigo: details.project_code || details.codigo || details.my_code || '',
-        vendedor: details.seller_name || details.vendedor || details.seller || '',
+        cliente: sanitizePluginStr(details.client_name || details.cliente || details.client || ''),
+        projeto: sanitizePluginStr(details.project_name || details.projeto || details.project || ''),
+        codigo: sanitizePluginStr(details.project_code || details.codigo || details.my_code || '', 50),
+        vendedor: sanitizePluginStr(details.seller_name || details.vendedor || details.seller || ''),
     };
 
     const pecas = [];
@@ -1128,7 +1138,7 @@ router.delete('/lotes/:id', requireAuth, (req, res) => {
 
         db.exec('PRAGMA foreign_keys = OFF');
         try {
-            db.exec(`DELETE FROM cnc_lotes WHERE id = ${id}`);
+            db.prepare('DELETE FROM cnc_lotes WHERE id = ?').run(id);
         } finally {
             db.exec('PRAGMA foreign_keys = ON');
         }
@@ -6269,17 +6279,16 @@ router.delete('/chapas/:id', requireAuth, (req, res) => {
 
         // Nuclear: exec com SQL puro — PRAGMA foreign_keys só funciona fora de transaction
         // e db.exec() roda fora do wrapper de transaction do better-sqlite3
-        db.exec(`PRAGMA foreign_keys = OFF`);
+        db.exec('PRAGMA foreign_keys = OFF');
         try {
-            // Limpar TUDO que referencia esta chapa
-            db.exec(`DELETE FROM cnc_retalhos WHERE chapa_ref_id = ${id}`);
-            db.exec(`DELETE FROM cnc_estoque_mov WHERE chapa_id = ${id}`);
-            db.exec(`DELETE FROM cnc_material_consumo WHERE chapa_id = ${id}`);
-            db.exec(`DELETE FROM cnc_reserva_material WHERE chapa_id = ${id}`);
-            // Agora deletar a chapa
-            db.exec(`DELETE FROM cnc_chapas WHERE id = ${id}`);
+            // Parametrizado — sem interpolação de template string
+            db.prepare('DELETE FROM cnc_retalhos WHERE chapa_ref_id = ?').run(id);
+            db.prepare('DELETE FROM cnc_estoque_mov WHERE chapa_id = ?').run(id);
+            db.prepare('DELETE FROM cnc_material_consumo WHERE chapa_id = ?').run(id);
+            db.prepare('DELETE FROM cnc_reserva_material WHERE chapa_id = ?').run(id);
+            db.prepare('DELETE FROM cnc_chapas WHERE id = ?').run(id);
         } finally {
-            db.exec(`PRAGMA foreign_keys = ON`);
+            db.exec('PRAGMA foreign_keys = ON');
         }
         res.json({ ok: true });
     } catch (err) {

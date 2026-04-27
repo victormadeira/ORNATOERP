@@ -152,8 +152,10 @@ router.post('/signer/:signerId/enviar-whatsapp', requireAuth, async (req, res) =
 
         res.json({ ok: true, enviado_em: new Date().toISOString() });
     } catch (err) {
-        console.error('[assinaturas/enviar-whatsapp] Erro:', err.message);
-        res.status(500).json({ error: err.message || 'Erro ao enviar WhatsApp' });
+        console.error('[assinaturas/enviar-whatsapp] Erro:', err);
+        // Não expor err.message ao cliente — pode conter detalhes de infra (API keys, endpoints)
+        const clientMsg = err?.status === 400 ? 'Número inválido ou não está no WhatsApp' : 'Erro ao enviar mensagem via WhatsApp';
+        res.status(500).json({ error: clientMsg });
     }
 });
 
@@ -216,7 +218,7 @@ router.get('/public/:signerToken', async (req, res) => {
             signatarios_status: todosSig,
         });
     } catch (err) {
-        console.error('Assinatura public GET erro:', err.message);
+        console.error('Assinatura public GET erro:', err);
         res.status(500).json({ error: 'Erro ao carregar dados da assinatura' });
     }
 });
@@ -257,26 +259,32 @@ router.post('/public/:signerToken/assinar', async (req, res) => {
         const agora = new Date().toISOString();
         const hashSig = hashAssinatura(doc.hash_documento, cpfDigits, agora, ip);
 
-        // Salvar assinatura (strip data URL prefix)
+        // Salvar assinatura e atualizar status do documento em transação atômica
+        // (evita race condition: dois signatários assinando simultaneamente marcam status errado)
         const imgData = assinatura_img.split(',')[1] || '';
-        db.prepare(`
-            UPDATE assinatura_signatarios SET
-                status='assinado', assinado_em=?, ip_assinatura=?, user_agent=?,
-                dispositivo=?, navegador=?, os_name=?,
-                cidade=?, estado=?, pais=?, lat=?, lon=?,
-                assinatura_img=?, hash_assinatura=?
-            WHERE id=?
-        `).run(agora, ip, ua, dispositivo, navegador, os_name,
-            geo.cidade, geo.estado, geo.pais, geo.lat, geo.lon,
-            imgData, hashSig, signer.id);
+        const { novoStatus, pendentes } = db.transaction(() => {
+            db.prepare(`
+                UPDATE assinatura_signatarios SET
+                    status='assinado', assinado_em=?, ip_assinatura=?, user_agent=?,
+                    dispositivo=?, navegador=?, os_name=?,
+                    cidade=?, estado=?, pais=?, lat=?, lon=?,
+                    assinatura_img=?, hash_assinatura=?
+                WHERE id=? AND status = 'pendente'
+            `).run(agora, ip, ua, dispositivo, navegador, os_name,
+                geo.cidade, geo.estado, geo.pais, geo.lat, geo.lon,
+                imgData, hashSig, signer.id);
 
-        // Verificar se todos assinaram
-        const pendentes = db.prepare(`
-            SELECT COUNT(*) as c FROM assinatura_signatarios WHERE documento_id = ? AND status = 'pendente'
-        `).get(doc.id);
+            const pendentes = db.prepare(
+                `SELECT COUNT(*) as c FROM assinatura_signatarios WHERE documento_id = ? AND status = 'pendente'`
+            ).get(doc.id);
 
-        const novoStatus = pendentes.c === 0 ? 'concluido' : 'parcial';
-        db.prepare(`UPDATE documento_assinaturas SET status=?${novoStatus === 'concluido' ? ', concluido_em=CURRENT_TIMESTAMP' : ''} WHERE id=?`).run(novoStatus, doc.id);
+            const novoStatus = pendentes.c === 0 ? 'concluido' : 'parcial';
+            db.prepare(
+                `UPDATE documento_assinaturas SET status=?${novoStatus === 'concluido' ? ', concluido_em=CURRENT_TIMESTAMP' : ''} WHERE id=?`
+            ).run(novoStatus, doc.id);
+
+            return { novoStatus, pendentes };
+        })();
 
         // Notificação
         try {
@@ -300,7 +308,7 @@ router.post('/public/:signerToken/assinar', async (req, res) => {
             nome: signer.nome,
         });
     } catch (err) {
-        console.error('Assinatura assinar erro:', err.message);
+        console.error('Assinatura assinar erro:', err);
         res.status(500).json({ error: 'Erro ao processar assinatura' });
     }
 });
@@ -375,7 +383,7 @@ router.get('/comprovante-publico/:codigo', async (req, res) => {
         });
         res.send(pdfBuffer);
     } catch (err) {
-        console.error('[assinaturas/comprovante-publico] Erro:', err.message);
+        console.error('[assinaturas/comprovante-publico] Erro:', err);
         res.status(500).json({ error: 'Erro ao gerar comprovante' });
     }
 });
@@ -561,7 +569,7 @@ function comprovanteHandler(req, res) {
 
         res.json({ html });
     } catch (err) {
-        console.error('[assinaturas/comprovante] Erro:', err.message);
+        console.error('[assinaturas/comprovante] Erro:', err);
         res.status(500).json({ error: 'Erro ao gerar comprovante' });
     }
 }
