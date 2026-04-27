@@ -3613,10 +3613,15 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
 
 // ─── Config de etiquetas GET/PUT ─────────────────────
 router.get('/etiqueta-config', requireAuth, (req, res) => {
-    let cfg = db.prepare('SELECT * FROM cnc_etiqueta_config WHERE id = 1').get();
+    // Busca config do usuário; fallback para a linha legada (id=1) se ainda não tiver a própria
+    let cfg = db.prepare('SELECT * FROM cnc_etiqueta_config WHERE user_id = ? LIMIT 1').get(req.user.id);
     if (!cfg) {
-        db.prepare('INSERT INTO cnc_etiqueta_config (id) VALUES (1)').run();
         cfg = db.prepare('SELECT * FROM cnc_etiqueta_config WHERE id = 1').get();
+    }
+    if (!cfg) {
+        // Cria config padrão para o usuário
+        db.prepare('INSERT INTO cnc_etiqueta_config (id, user_id) VALUES (NULL, ?)').run(req.user.id);
+        cfg = db.prepare('SELECT * FROM cnc_etiqueta_config WHERE user_id = ? LIMIT 1').get(req.user.id);
     }
     res.json(cfg);
 });
@@ -3632,16 +3637,7 @@ router.put('/etiqueta-config', requireAuth, (req, res) => {
         fonte_tamanho, empresa_nome, empresa_logo_url, cor_borda_fita, cor_controle,
     } = req.body;
 
-    db.prepare(`UPDATE cnc_etiqueta_config SET
-        formato=?, orientacao=?, colunas_impressao=?, margem_pagina=?, gap_etiquetas=?,
-        mostrar_usia=?, mostrar_usib=?, mostrar_material=?, mostrar_espessura=?,
-        mostrar_cliente=?, mostrar_projeto=?, mostrar_codigo=?, mostrar_modulo=?,
-        mostrar_peca=?, mostrar_dimensoes=?, mostrar_bordas_diagrama=?, mostrar_fita_resumo=?,
-        mostrar_acabamento=?, mostrar_id_modulo=?, mostrar_controle=?, mostrar_produto_final=?,
-        mostrar_observacao=?, mostrar_codigo_barras=?,
-        fonte_tamanho=?, empresa_nome=?, empresa_logo_url=?, cor_borda_fita=?, cor_controle=?,
-        atualizado_em=CURRENT_TIMESTAMP
-        WHERE id = 1`).run(
+    const vals = [
         formato ?? '100x70', orientacao ?? 'paisagem', colunas_impressao ?? 2,
         margem_pagina ?? 8, gap_etiquetas ?? 4,
         mostrar_usia ?? 1, mostrar_usib ?? 1, mostrar_material ?? 1, mostrar_espessura ?? 1,
@@ -3650,7 +3646,33 @@ router.put('/etiqueta-config', requireAuth, (req, res) => {
         mostrar_acabamento ?? 1, mostrar_id_modulo ?? 1, mostrar_controle ?? 1, mostrar_produto_final ?? 0,
         mostrar_observacao ?? 1, mostrar_codigo_barras ?? 1,
         fonte_tamanho ?? 'medio', empresa_nome ?? '', empresa_logo_url ?? '', cor_borda_fita ?? '#22c55e', cor_controle ?? '',
-    );
+    ];
+
+    // Tenta atualizar a linha do usuário; se não existir, cria
+    const upd = db.prepare(`UPDATE cnc_etiqueta_config SET
+        formato=?, orientacao=?, colunas_impressao=?, margem_pagina=?, gap_etiquetas=?,
+        mostrar_usia=?, mostrar_usib=?, mostrar_material=?, mostrar_espessura=?,
+        mostrar_cliente=?, mostrar_projeto=?, mostrar_codigo=?, mostrar_modulo=?,
+        mostrar_peca=?, mostrar_dimensoes=?, mostrar_bordas_diagrama=?, mostrar_fita_resumo=?,
+        mostrar_acabamento=?, mostrar_id_modulo=?, mostrar_controle=?, mostrar_produto_final=?,
+        mostrar_observacao=?, mostrar_codigo_barras=?,
+        fonte_tamanho=?, empresa_nome=?, empresa_logo_url=?, cor_borda_fita=?, cor_controle=?,
+        atualizado_em=CURRENT_TIMESTAMP
+        WHERE user_id = ?`).run(...vals, req.user.id);
+
+    if (upd.changes === 0) {
+        // Linha do usuário ainda não existe — insere (NULL id = autoincrement)
+        db.prepare(`INSERT INTO cnc_etiqueta_config
+            (id, user_id, formato, orientacao, colunas_impressao, margem_pagina, gap_etiquetas,
+             mostrar_usia, mostrar_usib, mostrar_material, mostrar_espessura,
+             mostrar_cliente, mostrar_projeto, mostrar_codigo, mostrar_modulo,
+             mostrar_peca, mostrar_dimensoes, mostrar_bordas_diagrama, mostrar_fita_resumo,
+             mostrar_acabamento, mostrar_id_modulo, mostrar_controle, mostrar_produto_final,
+             mostrar_observacao, mostrar_codigo_barras,
+             fonte_tamanho, empresa_nome, empresa_logo_url, cor_borda_fita, cor_controle)
+            VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).run(req.user.id, ...vals);
+    }
     res.json({ ok: true });
 });
 
@@ -3670,7 +3692,7 @@ router.get('/etiqueta-templates', requireAuth, (req, res) => {
 router.get('/etiqueta-templates/:id', requireAuth, (req, res) => {
     const t = db.prepare('SELECT * FROM cnc_etiqueta_templates WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!t) return res.status(404).json({ error: 'Template não encontrado' });
-    t.elementos = JSON.parse(t.elementos || '[]');
+    try { t.elementos = JSON.parse(t.elementos || '[]'); } catch { t.elementos = []; }
     res.json(t);
 });
 

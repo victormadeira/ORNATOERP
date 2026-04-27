@@ -485,7 +485,10 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
     try {
       const resp = await api.get(`/cnc/etiqueta-templates/${id}`);
       const data = resp.data || resp;
-      if (typeof data.elementos === 'string') data.elementos = JSON.parse(data.elementos);
+      if (typeof data.elementos === 'string') {
+        try { data.elementos = JSON.parse(data.elementos); }
+        catch { data.elementos = []; console.warn('[EditorEtiquetas] elementos JSON inválido — usando array vazio'); }
+      }
       setTemplate(data);
       setElementos(data.elementos || []);
       setSelecionado(null);

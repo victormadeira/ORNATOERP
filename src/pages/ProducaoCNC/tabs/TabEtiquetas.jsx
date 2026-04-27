@@ -60,10 +60,16 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     const load = useCallback(() => {
         if (!loteAtual) return;
         setLoading(true);
-        api.get(`/cnc/etiquetas/${loteAtual.id}`).then(setEtiquetas).catch(e => notify(e.error || 'Erro ao carregar etiquetas')).finally(() => setLoading(false));
-    }, [loteAtual]);
+        // AbortController evita race condition quando lote muda antes da resposta chegar
+        const ctrl = new AbortController();
+        api.get(`/cnc/etiquetas/${loteAtual.id}`, { signal: ctrl.signal })
+            .then(data => { if (!ctrl.signal.aborted) setEtiquetas(data); })
+            .catch(e => { if (!ctrl.signal.aborted) notify(e.error || 'Erro ao carregar etiquetas'); })
+            .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
+        return () => ctrl.abort();
+    }, [loteAtual, notify]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => { return load(); }, [load]);
 
     // Carregar template padrão para preview
     const loadTemplatePadrao = useCallback(async () => {

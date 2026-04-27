@@ -67,7 +67,7 @@ export function generateZPL(elementos, et, cfg, opts = {}) {
                 const mag = Math.max(2, Math.round(w / mmToDots(3, dpi)));
                 zpl += `^FO${x},${y}\n`;
                 zpl += `^BQN,2,${mag}\n`; // QR Code, model 2, magnification
-                zpl += `^FDLA,${escapeZPL(val)}^FS\n`; // L=Low EC, A=auto
+                zpl += `^FDMA,${escapeZPL(val)}^FS\n`; // M=Medium EC (15%) — tolerância a sujeira/desgaste
                 break;
             }
             case 'retangulo': {
@@ -143,5 +143,7 @@ function resolveVar(text, variavel, et, cfg) {
 }
 
 function resolveSimpleVar(key, et, cfg) {
-    return String(et?.[key] || cfg?.[key] || key || '');
+    // Bug fix: antes retornava `key` como fallback (ex: "controle") quando a variável era vazia
+    const val = et?.[key] ?? cfg?.[key];
+    return val != null && val !== '' ? String(val) : '';
 }
