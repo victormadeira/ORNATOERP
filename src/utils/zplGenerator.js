@@ -21,6 +21,7 @@ function mmToDots(mm, dpi = 203) {
  * @returns {string} ZPL code
  */
 export function generateZPL(elementos, et, cfg, opts = {}) {
+    try {
     const { largura = 100, altura = 70, dpi = 203 } = opts;
     const wDots = mmToDots(largura, dpi);
     const hDots = mmToDots(altura, dpi);
@@ -103,6 +104,10 @@ export function generateZPL(elementos, et, cfg, opts = {}) {
 
     zpl += '^XZ\n'; // End format
     return zpl;
+    } catch (err) {
+        console.error('[ZPL] Erro ao gerar etiqueta:', err);
+        return '^XA^FO10,10^A0N,20,15^FDErro ao gerar etiqueta^FS^XZ\n';
+    }
 }
 
 /**
@@ -135,11 +140,15 @@ function escapeZPL(text) {
 
 function resolveVar(text, variavel, et, cfg) {
     if (variavel && et) {
-        const val = et[variavel] || cfg?.[variavel] || '';
+        // Usa ?? para não mascarar valores falsy legítimos (0, false)
+        const val = et[variavel] ?? cfg?.[variavel] ?? '';
         return String(val);
     }
     if (!text) return '';
-    return text.replace(/\{\{(\w+)\}\}/g, (_, key) => et?.[key] || cfg?.[key] || '');
+    return text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+        const v = et?.[key] ?? cfg?.[key];
+        return v != null ? String(v) : '';
+    });
 }
 
 function resolveSimpleVar(key, et, cfg) {

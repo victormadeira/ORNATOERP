@@ -57,7 +57,7 @@ export function CfgEtiquetas({ notify, setEditorMode, setEditorTemplateId }) {
 
     const criarNovo = async () => {
         try {
-            const resp = await api.post('/cnc/etiqueta-templates', { nome: 'Nova Etiqueta', largura: 100, altura: 70, elementos: '[]' });
+            const resp = await api.post('/cnc/etiqueta-templates', { nome: 'Nova Etiqueta', largura: 100, altura: 70, elementos: [] });
             const newId = resp?.id || resp?.data?.id;
             if (newId) openEditor(newId);
             else { load(); notify('Template criado'); }

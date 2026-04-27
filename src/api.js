@@ -125,9 +125,9 @@ function uploadFile(path, file, onProgress) {
 }
 
 const api = {
-    get: (path) => request('GET', path),
+    get: (path, opts) => request('GET', path, null, 1, opts),  // opts aceita { signal } para AbortController
     post: (path, body, opts) => request('POST', path, body, 1, opts),
-    put: (path, body) => request('PUT', path, body),
+    put: (path, body, opts) => request('PUT', path, body, 1, opts),
     del: (path) => request('DELETE', path),
     postBlob: (path, body) => requestBlob('POST', path, body),
     upload: uploadFile,

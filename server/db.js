@@ -656,6 +656,8 @@ db.exec(`
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_plano_versions_lote ON cnc_plano_versions(lote_id);
+  CREATE INDEX IF NOT EXISTS idx_etiqueta_templates_user ON cnc_etiqueta_templates(user_id);
+  CREATE INDEX IF NOT EXISTS idx_etiqueta_templates_padrao ON cnc_etiqueta_templates(user_id, padrao);
 
   -- ═══ Ponto / RH ═══
   CREATE TABLE IF NOT EXISTS funcionarios (

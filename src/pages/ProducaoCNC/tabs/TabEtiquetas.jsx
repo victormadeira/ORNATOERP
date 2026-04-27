@@ -71,24 +71,27 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
 
     useEffect(() => { return load(); }, [load]);
 
-    // Carregar template padrão para preview
-    const loadTemplatePadrao = useCallback(async () => {
-        setTemplateLoading(true);
-        try {
-            const resp = await api.get('/cnc/etiqueta-templates');
-            const lista = resp.data || resp;
-            if (Array.isArray(lista) && lista.length > 0) {
+    // Carregar template padrão para preview (cleanup cancela se componente desmontar)
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setTemplateLoading(true);
+            try {
+                const lista = await api.get('/cnc/etiqueta-templates');
+                if (cancelled || !Array.isArray(lista) || lista.length === 0) return;
                 const def = lista.find(t => t.padrao) || lista[0];
-                const full = await api.get(`/cnc/etiqueta-templates/${def.id}`);
-                const tmpl = full.data || full;
-                if (typeof tmpl.elementos === 'string') tmpl.elementos = JSON.parse(tmpl.elementos);
+                const tmpl = await api.get(`/cnc/etiqueta-templates/${def.id}`);
+                if (cancelled) return;
+                if (typeof tmpl.elementos === 'string') {
+                    try { tmpl.elementos = JSON.parse(tmpl.elementos); }
+                    catch { tmpl.elementos = []; }
+                }
                 setTemplatePadrao(tmpl);
-            }
-        } catch (e) { console.error('Erro ao carregar template:', e); }
-        setTemplateLoading(false);
+            } catch (e) { console.error('Erro ao carregar template:', e); }
+            if (!cancelled) setTemplateLoading(false);
+        })();
+        return () => { cancelled = true; };
     }, []);
-
-    useEffect(() => { loadTemplatePadrao(); }, [loadTemplatePadrao]);
 
     // (impressão e ZPL agora são por chapa — definidos após filtros)
 
