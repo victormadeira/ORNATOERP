@@ -16,6 +16,7 @@ let _vacuumAware = false;
 
 export function setVacuumAware(v) { _vacuumAware = !!v; }
 export function getVacuumAware() { return _vacuumAware; }
+export function resetVacuumAware() { _vacuumAware = false; } // reset entre requests
 
 // ─── Contour / Polygon Utilities ────────────────────────────────
 // Shoelace formula for polygon area

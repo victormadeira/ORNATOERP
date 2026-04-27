@@ -11,7 +11,7 @@ import {
     classifyBySize, scoreResult, scoreResultV5, verifyNoOverlaps, repairOverlaps, compactBin, clampBinBounds, finalSafetyCheck,
     runNestingPass, runFillFirst, runFillFirstV2, runIndustrialOptimizer, runTwoPhase, runStripPacking, runBRKGA, ruinAndRecreate,
     simulatedAnnealing, cascadeRemnants, crossBinGapFill, runAggressivePack, runLargeFirstGlobalFill,
-    gerarSequenciaCortes, setVacuumAware, getVacuumAware,
+    gerarSequenciaCortes, setVacuumAware, getVacuumAware, resetVacuumAware,
     optimizeLastBin, crossBinOptimize,
     calculatePolygonArea, isPointInPolygon, contourBoundingBox,
 } from '../lib/nesting-engine.js';
@@ -988,13 +988,15 @@ try {
 
 router.get('/machine-assignments/:loteId', requireAuth, (req, res) => {
     try {
+        const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
         const assignments = db.prepare(`
             SELECT a.chapa_idx, a.maquina_id, m.nome as maquina_nome
             FROM cnc_machine_assignments a
             LEFT JOIN cnc_maquinas m ON a.maquina_id = m.id
             WHERE a.lote_id = ?
             ORDER BY a.chapa_idx
-        `).all(req.params.loteId);
+        `).all(lote.id);
         res.json(assignments);
     } catch (err) {
         console.error('Erro ao buscar atribuições:', err);
@@ -1139,7 +1141,9 @@ router.delete('/lotes/:id', requireAuth, (req, res) => {
 });
 
 router.get('/pecas/:loteId', requireAuth, (req, res) => {
-    const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_id, id').all(req.params.loteId);
+    const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+    const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_id, id').all(lote.id);
     // Sanitize old machining data on-the-fly for consistent frontend rendering
     const needsUpdate = [];
     for (const p of pecas) {
@@ -2050,6 +2054,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
         // Set vacuum-aware module state
         const vacuumAwareMulti = bodyConfig.vacuum_aware !== false;
+        resetVacuumAware();
         setVacuumAware(vacuumAwareMulti);
 
         // Agrupar pela CHAPA RESOLVIDA (não pelo material_code da peça)
@@ -5761,9 +5766,23 @@ router.post('/gcode/:loteId', requireAuth, async (req, res) => {
         const ctx = loadGcodeContext(req, req.params.loteId);
         if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
 
-        // ═══ PYTHON G-CODE (único motor) ═══════════════════════════
-        if (!(await isPythonAvailable())) {
-            return res.status(503).json({ error: 'Motor Python (CNC Optimizer) indisponível. Verifique se o serviço está rodando na porta 8000.' });
+        // ═══ PYTHON G-CODE (motor principal) — com fallback JS ═════
+        const pythonOk = await isPythonAvailable();
+        if (!pythonOk) {
+            // Fallback: gerar G-code chapa por chapa usando o motor JS
+            console.warn('[CNC] Python indisponível — usando fallback JS para G-code');
+            const results = [];
+            for (let i = 0; i < ctx.plano.chapas.length; i++) {
+                try {
+                    const gcodeResult = generateGcodeForChapa(ctx.plano.chapas[i], ctx.maquina, ctx.toolMap, ctx.usinagemTipos, ctx.overrideMap, ctx.overridePecaMap, ctx.plano, ctx.lote);
+                    const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(i + 1).padStart(2, '0')}`;
+                    const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
+                    results.push({ idx: i, gcode: gcodeResult.gcode, filename, stats: gcodeResult.stats || {}, alertas: gcodeResult.alertas || [] });
+                } catch (e) {
+                    results.push({ idx: i, gcode: '', filename: `Chapa${i + 1}${ctx.extensao}`, stats: {}, alertas: [`Erro JS: ${e.message}`] });
+                }
+            }
+            return res.json({ ok: true, chapas: results, extensao: ctx.extensao, motor: 'js_fallback' });
         }
         console.log(`  [CNC] Usando G-code Python para lote ${ctx.lote.id}`);
         {
@@ -9254,8 +9273,9 @@ router.get('/sugestao-agrupamento/:loteId', requireAuth, (req, res) => {
 // ─── Relatório de Bordas / Fitagem por lote ─────────────────────────
 router.get('/relatorio-bordas/:loteId', requireAuth, (req, res) => {
     try {
-        const loteId = req.params.loteId;
-        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY id').all(loteId);
+        const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY id').all(lote.id);
         if (!pecas || pecas.length === 0) return res.json({ bordas: [] });
 
         const bordaMap = {};
@@ -10102,7 +10122,9 @@ router.delete('/lotes/:loteId/operacoes-overrides', requireAuth, (req, res) => {
 
 // GET conferência de um lote
 router.get('/conferencia/:loteId', requireAuth, (req, res) => {
-    const rows = db.prepare('SELECT * FROM cnc_conferencia WHERE lote_id = ? ORDER BY chapa_idx, peca_idx').all(req.params.loteId);
+    const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+    const rows = db.prepare('SELECT * FROM cnc_conferencia WHERE lote_id = ? ORDER BY chapa_idx, peca_idx').all(lote.id);
     res.json(rows);
 });
 
@@ -10287,18 +10309,24 @@ router.get('/estoque-alertas', requireAuth, (req, res) => {
 // POST calcular custeio para um lote
 router.post('/custeio/:loteId', requireAuth, (req, res) => {
     try {
-        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(req.params.loteId);
+        const lote = db.prepare('SELECT id, nome, plano_json FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
         if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
         let plano;
         try { plano = JSON.parse(lote.plano_json || '{}'); } catch { return res.status(400).json({ error: 'Plano inválido' }); }
         if (!plano.chapas?.length) return res.status(400).json({ error: 'Sem chapas' });
 
-        // Buscar custo da chapa de referência
-        const materialCode = plano.chapas[0]?.material || '';
-        const chapaRef = materialCode ? db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(materialCode) : null;
-        const custoChapa = chapaRef?.custo_unitario || chapaRef?.preco || 0;
-        const areaChapa = (chapaRef?.comprimento || 2750) * (chapaRef?.largura || 1850) / 1e6; // m²
-        const custoM2 = areaChapa > 0 ? custoChapa / areaChapa : 0;
+        // Pré-carrega mapa de custo por material (uma query por material único, não por chapa)
+        const materiaisUnicos = [...new Set(plano.chapas.map(c => c.material).filter(Boolean))];
+        const custoM2Map = {};
+        for (const mat of materiaisUnicos) {
+            const chapaRef = db.prepare('SELECT custo_unitario, preco, comprimento, largura FROM cnc_chapas WHERE material_code = ? AND ativo = 1 LIMIT 1').get(mat);
+            const custoChapa = chapaRef?.custo_unitario || chapaRef?.preco || 0;
+            const areaChapa = (chapaRef?.comprimento || 2750) * (chapaRef?.largura || 1850) / 1e6;
+            custoM2Map[mat] = areaChapa > 0 ? custoChapa / areaChapa : 0;
+        }
+        // fallback genérico (primeiro material ou zero)
+        const custoM2Padrao = custoM2Map[materiaisUnicos[0]] || 0;
+        const custoM2 = custoM2Padrao; // mantido para params de retorno
 
         // Custo máquina (R$/min) — configurável, default R$2/min
         const custoMaqMin = req.body.custo_maquina_min || 2.0;
@@ -10317,11 +10345,12 @@ router.post('/custeio/:loteId', requireAuth, (req, res) => {
         db.prepare('DELETE FROM cnc_custeio_peca WHERE lote_id = ?').run(req.params.loteId);
 
         for (const chapa of plano.chapas) {
+            const custoM2Chapa = custoM2Map[chapa.material] ?? custoM2Padrao;
             for (const peca of (chapa.pecas || [])) {
                 const dbp = pecasMap[peca.pecaId];
                 const w = peca.w || 0, h = peca.h || 0;
                 const areaM2 = (w * h) / 1e6;
-                const custoMat = custoM2 * areaM2;
+                const custoMat = custoM2Chapa * areaM2;
 
                 // Tempo máquina estimado: 3s base + 1s por usinagem
                 let nOps = 0;
@@ -10334,18 +10363,13 @@ router.post('/custeio/:loteId', requireAuth, (req, res) => {
                 const tempoMin = (3 + nOps) / 60;
                 const custoMaq = custoMaqMin * tempoMin;
 
-                // Borda: somar perímetros com borda aplicada
+                // Borda: somar perímetros com borda aplicada (usando colunas reais da tabela)
                 let perimBorda = 0;
                 if (dbp) {
-                    try {
-                        const bordas = JSON.parse(dbp.bordas_json || '{}');
-                        for (const [face, b] of Object.entries(bordas)) {
-                            if (b && b !== 'nenhuma' && b !== 'sem_borda') {
-                                if (face === 'frente' || face === 'fundo') perimBorda += w;
-                                else if (face === 'esquerda' || face === 'direita') perimBorda += h;
-                            }
-                        }
-                    } catch (_) {}
+                    if (dbp.borda_frontal && dbp.borda_frontal !== 'nenhuma' && dbp.borda_frontal !== 'sem_borda') perimBorda += w;
+                    if (dbp.borda_traseira && dbp.borda_traseira !== 'nenhuma' && dbp.borda_traseira !== 'sem_borda') perimBorda += w;
+                    if (dbp.borda_dir && dbp.borda_dir !== 'nenhuma' && dbp.borda_dir !== 'sem_borda') perimBorda += h;
+                    if (dbp.borda_esq && dbp.borda_esq !== 'nenhuma' && dbp.borda_esq !== 'sem_borda') perimBorda += h;
                 }
                 const custoBorda = (perimBorda / 1000) * custoBordaM;
                 const custoTotal = custoMat + custoMaq + custoBorda;
@@ -10388,7 +10412,9 @@ router.post('/custeio/:loteId', requireAuth, (req, res) => {
 
 // GET custeio salvo
 router.get('/custeio/:loteId', requireAuth, (req, res) => {
-    const rows = db.prepare('SELECT * FROM cnc_custeio_peca WHERE lote_id = ? ORDER BY peca_desc').all(req.params.loteId);
+    const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+    if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+    const rows = db.prepare('SELECT * FROM cnc_custeio_peca WHERE lote_id = ? ORDER BY peca_desc').all(lote.id);
     const totalMat = rows.reduce((s, r) => s + r.custo_material, 0);
     const totalMaq = rows.reduce((s, r) => s + r.custo_maquina, 0);
     const totalBorda = rows.reduce((s, r) => s + r.custo_borda, 0);
