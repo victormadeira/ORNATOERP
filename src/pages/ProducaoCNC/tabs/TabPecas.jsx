@@ -455,10 +455,11 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                                 <td style={{ padding: '6px 8px', fontSize: 10 }}>{p.usi_b || '-'}</td>
                                                 <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{p.observacao || '-'}</td>
                                                 <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>
+                                                    {/* P24: botões de ação sempre visíveis com fundo sutil */}
                                                     <div style={{ display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
                                                         <button onClick={() => setPecaSel(sel ? null : p)} title="Ver 3D (preview)"
                                                             style={{
-                                                                background: sel ? 'var(--primary)' : 'none',
+                                                                background: sel ? 'var(--primary)' : 'var(--primary-alpha)',
                                                                 border: sel ? 'none' : '1px solid var(--border)',
                                                                 cursor: 'pointer',
                                                                 color: sel ? '#fff' : 'var(--primary)',
@@ -467,29 +468,31 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                                             }}>
                                                             <Eye size={13} />
                                                         </button>
-                                                        <button onClick={() => onOpen3DCSG?.(p)} title="Abrir 3D CSG (furos reais + G-Code)"
+                                                        {/* P22: tooltip mais descritivo para CSG */}
+                                                        <button onClick={() => onOpen3DCSG?.(p)}
+                                                            title="3D Avançado — visualização CSG com furos reais e toolpath"
                                                             style={{
-                                                                background: 'none', border: '1px solid var(--accent, #C9A574)',
+                                                                background: 'rgba(201,169,110,0.12)', border: '1px solid var(--accent, #C9A574)',
                                                                 cursor: 'pointer', color: 'var(--accent, #C9A574)',
                                                                 padding: '2px 5px', borderRadius: 4,
                                                                 display: 'flex', alignItems: 'center',
                                                             }}>
                                                             <Maximize size={13} />
                                                         </button>
-                                                        <button onClick={() => setEditorPeca(p)} title="Editar"
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 2 }}>
+                                                        <button onClick={() => setEditorPeca(p)} title="Editar peça"
+                                                            style={{ background: 'var(--primary-alpha)', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: '2px 5px', borderRadius: 4 }}>
                                                             <Edit size={13} />
                                                         </button>
-                                                        <button onClick={() => handleDuplicarPeca(p)} title="Duplicar"
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
+                                                        <button onClick={() => handleDuplicarPeca(p)} title="Duplicar peça"
+                                                            style={{ background: 'var(--bg-subtle)', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px 5px', borderRadius: 4 }}>
                                                             <Copy size={13} />
                                                         </button>
-                                                        <button onClick={() => handleDxfUsiImport(p)} title="Importar DXF Usinagem"
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0891b2', padding: 2 }}>
+                                                        <button onClick={() => handleDxfUsiImport(p)} title="Importar usinagem via DXF"
+                                                            style={{ background: 'rgba(8,145,178,0.1)', border: 'none', cursor: 'pointer', color: '#0891b2', padding: '2px 5px', borderRadius: 4 }}>
                                                             <FileUp size={13} />
                                                         </button>
-                                                        <button onClick={() => setTemplateApplyTarget(p)} title="Aplicar Template"
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b5cf6', padding: 2 }}>
+                                                        <button onClick={() => setTemplateApplyTarget(p)} title="Aplicar template de usinagem"
+                                                            style={{ background: 'rgba(139,92,246,0.1)', border: 'none', cursor: 'pointer', color: '#8b5cf6', padding: '2px 5px', borderRadius: 4 }}>
                                                             <Zap size={13} />
                                                         </button>
                                                         <button onClick={async () => {
@@ -500,12 +503,12 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                                                 await api.post(`/cnc/machining-templates/from-peca/${p.id}`, { nome, categoria: cat || 'Geral' });
                                                                 notify('Template criado com sucesso');
                                                             } catch (err) { notify('Erro: ' + (err.error || err.message), 'error'); }
-                                                        }} title="Salvar como Template"
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f59e0b', padding: 2 }}>
+                                                        }} title="Salvar usinagens como template reutilizável"
+                                                            style={{ background: 'rgba(245,158,11,0.1)', border: 'none', cursor: 'pointer', color: '#f59e0b', padding: '2px 5px', borderRadius: 4 }}>
                                                             <Star size={13} />
                                                         </button>
-                                                        <button onClick={() => handleDeletePeca(p)} title="Excluir"
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
+                                                        <button onClick={() => handleDeletePeca(p)} title="Excluir peça"
+                                                            style={{ background: 'rgba(239,68,68,0.1)', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px 5px', borderRadius: 4 }}>
                                                             <Trash2 size={13} />
                                                         </button>
                                                     </div>
@@ -561,6 +564,21 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                             </div>
                         </div>
                     )}
+
+                    {/* P25: legenda de cores do preview DXF */}
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                        {[
+                            { color: '#ef4444', label: 'Furo' },
+                            { color: '#3b82f6', label: 'Rasgo/Canal' },
+                            { color: '#f59e0b', label: 'Rebaixo' },
+                            { color: '#22c55e', label: 'Contorno' },
+                        ].map(({ color, label }) => (
+                            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                                {label}
+                            </div>
+                        ))}
+                    </div>
 
                     {/* 2D Preview */}
                     <div style={{ background: '#f8f8f8', border: '1px solid var(--border)', borderRadius: 6, padding: 8, marginBottom: 12, maxHeight: 300, overflow: 'auto' }}>

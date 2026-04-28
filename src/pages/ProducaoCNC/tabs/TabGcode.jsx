@@ -226,7 +226,8 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                                     </span>
                                 )}
                             </SectionHeader>
-                            <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {/* P27: maxHeight para não crescer infinitamente com muitas ferramentas */}
+                            <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
                                 {(result.validacao.ferramentas_necessarias || []).map((f, i) => {
                                     const color = f.ok ? 'var(--success)' : 'var(--danger)';
                                     const bg = f.ok ? 'var(--success-bg)' : 'var(--danger-bg)';
@@ -281,6 +282,22 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                             <Cpu size={14} />
                             {gerando ? 'Gerando…' : 'Gerar G-code'}
                         </button>
+                        {/* P26: badge de conflitos visível mesmo com seção fechada */}
+                        {gcodeValidation?.conflicts?.length > 0 && !showGcodeConflicts && (
+                            <button
+                                onClick={() => setShowGcodeConflicts(true)}
+                                title="Clique para ver os conflitos detectados"
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                    background: 'var(--danger-bg)', color: 'var(--danger)',
+                                    fontSize: 11, fontWeight: 700,
+                                }}
+                            >
+                                <AlertTriangle size={13} />
+                                {gcodeValidation.conflicts.length} conflito{gcodeValidation.conflicts.length > 1 ? 's' : ''} — ver
+                            </button>
+                        )}
                         {result?.ok && (
                             <>
                                 <button

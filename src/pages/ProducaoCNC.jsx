@@ -203,10 +203,14 @@ export default function ProducaoCNC({ notify }) {
                         }}
                     >
                         <ArrowLeft size={14} />
-                        <span style={{
-                            maxWidth: 180, overflow: 'hidden',
-                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
+                        {/* P3: title tooltip mostra nome completo quando truncado */}
+                        <span
+                            title={loteAtual.nome || `Lote #${loteAtual.id}`}
+                            style={{
+                                maxWidth: 280, overflow: 'hidden',
+                                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}
+                        >
                             {loteAtual.nome || `Lote #${loteAtual.id}`}
                         </span>
                     </button>
@@ -286,14 +290,15 @@ export default function ProducaoCNC({ notify }) {
                                     {a.retalhos_disponiveis > 0 && <>, retalhos: <b>{a.retalhos_disponiveis}</b></>}
                                     {noStock && <span style={{ fontWeight: 700, marginLeft: 6 }}>MATERIAL INDISPONÍVEL</span>}
                                 </span>
-                                {i === 0 && (
-                                    <button
-                                        onClick={() => setMaterialAlertsDismissed(true)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, opacity: 0.6 }}
-                                    >
-                                        <X size={14} />
-                                    </button>
-                                )}
+                                {/* P2: botão fechar em cada alerta, não apenas no primeiro */}
+                                <button
+                                    onClick={() => setMaterialAlertsDismissed(true)}
+                                    title="Dispensar alertas de material"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, opacity: 0.6, flexShrink: 0 }}
+                                    aria-label="Fechar alerta de material"
+                                >
+                                    <X size={14} />
+                                </button>
                             </div>
                         );
                     })}

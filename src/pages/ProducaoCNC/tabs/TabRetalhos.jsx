@@ -1,7 +1,7 @@
 // Tab "Retalhos" — gerenciamento de sobras reaproveitáveis de chapas.
 // Fase C: usa SectionHeader + EmptyState + ConfirmModal + Modal do design system.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../../api';
 import {
     Z, Modal, Spinner, SearchableSelect, SectionHeader, EmptyState, ConfirmModal,
@@ -14,7 +14,15 @@ import {
 export function TabRetalhos({ notify }) {
     const [retalhos, setRetalhos] = useState([]);
     const [loading, setLoading] = useState(true);
+    // P31: debounce na busca — evita re-render a cada keystroke
+    const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
+    const debounceRef = useRef(null);
+    const handleSearchChange = (val) => {
+        setSearchInput(val);
+        clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => setSearch(val), 220);
+    };
     const [filterMaterial, setFilterMaterial] = useState('');
     const [filterEspessura, setFilterEspessura] = useState('');
     const [selected, setSelected] = useState(new Set());
@@ -190,8 +198,8 @@ export function TabRetalhos({ notify }) {
                             }}
                         />
                         <input
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
+                            value={searchInput}
+                            onChange={e => handleSearchChange(e.target.value)}
                             placeholder="Buscar por nome, material ou dimensão…"
                             className={Z.inp}
                             style={{ paddingLeft: 34, fontSize: 13, width: '100%' }}
@@ -288,6 +296,7 @@ export function TabRetalhos({ notify }) {
                                         key={r.id}
                                         style={{
                                             background: selected.has(r.id) ? 'var(--primary-alpha)' : undefined,
+                                            transition: 'background .15s', // P35
                                         }}
                                     >
                                         <td className="td-glass" style={{ textAlign: 'center' }}>

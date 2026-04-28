@@ -46,6 +46,14 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
     useEffect(() => { load(); }, [load]);
 
     const updateStatus = async (id, status) => {
+        // P13: confirmação antes de mudanças críticas de status
+        const item = fila.find(f => f.id === id);
+        const loteLabel = item ? (item.lote_nome || `Lote #${item.lote_id}`) + ` · Chapa ${(item.chapa_idx ?? 0) + 1}` : '';
+        if (status === 'em_producao') {
+            if (!confirm(`Iniciar produção de ${loteLabel}?`)) return;
+        } else if (status === 'concluido') {
+            if (!confirm(`Marcar como concluída: ${loteLabel}?`)) return;
+        }
         try {
             await api.put(`/cnc/fila-producao/${id}`, { status });
             setFila(prev => prev.map(f => f.id === id ? { ...f, status } : f));
@@ -56,11 +64,13 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
     const atribuirMaquina = async (id, maquinaId) => {
         try {
             await api.put(`/cnc/fila-producao/${id}`, { maquina_id: maquinaId ? Number(maquinaId) : null });
+            const maq = maquinas.find(m => m.id === Number(maquinaId));
             setFila(prev => prev.map(f => {
                 if (f.id !== id) return f;
-                const maq = maquinas.find(m => m.id === Number(maquinaId));
                 return { ...f, maquina_id: maquinaId ? Number(maquinaId) : null, maquina_nome: maq?.nome || null };
             }));
+            // P14: feedback ao atribuir máquina
+            notify(maq ? `Máquina atribuída: ${maq.nome}` : 'Máquina removida');
         } catch (err) { notify(err.error || 'Erro ao atribuir máquina'); }
     };
 
@@ -100,8 +110,9 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
         }
     }
 
+    // P12: minHeight garante que colunas vazias não colapsam o layout
     const KanbanColumn = ({ title, icon: Icon, items, color, emptyMsg }) => (
-        <div style={{ flex: '1 1 260px', minWidth: 240, maxWidth: 380 }}>
+        <div style={{ flex: '1 1 260px', minWidth: 240, maxWidth: 380, minHeight: 320 }}>
             <div style={{
                 display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
                 padding: '8px 12px', borderRadius: 8,

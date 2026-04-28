@@ -290,8 +290,8 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                 </div>
             )}
 
-            {/* ── Materiais não cadastrados (card separado) ── */}
-            {preview && matCheck?.nao_cadastrados?.length > 0 && (
+            {/* ── Materiais não cadastrados — P19: só exibe enquanto há pendências ── */}
+            {preview && matCheck?.nao_cadastrados?.length > 0 && totalResolvidos < totalPendentes && (
                 <div className="glass-card" style={{
                     padding: 0, overflow: 'hidden',
                     borderLeft: '3px solid var(--warning)',

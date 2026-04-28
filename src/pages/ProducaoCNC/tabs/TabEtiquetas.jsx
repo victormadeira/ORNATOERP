@@ -373,13 +373,27 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                                         </code>
                                     </div>
                                 </div>
+                                {/* P11: maxLength + contador de caracteres */}
                                 <div>
-                                    <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                                        Observação extra (aparece em todas as etiquetas)
-                                    </label>
-                                    <input value={notasExtra} onChange={e => setNotasExtra(e.target.value)}
-                                        className={Z.inp} style={{ width: '100%', fontSize: 12 }}
-                                        placeholder="Ex: Turno B — Máquina 2 — Conferir antes de embalar" />
+                                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+                                        <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                            Observação extra (aparece em todas as etiquetas)
+                                        </label>
+                                        <span style={{
+                                            fontSize: 9, fontVariantNumeric: 'tabular-nums',
+                                            color: notasExtra.length > 55 ? 'var(--warning)' : 'var(--text-muted)',
+                                        }}>
+                                            {notasExtra.length}/60
+                                        </span>
+                                    </div>
+                                    <input
+                                        value={notasExtra}
+                                        onChange={e => setNotasExtra(e.target.value)}
+                                        maxLength={60}
+                                        className={Z.inp}
+                                        style={{ width: '100%', fontSize: 12 }}
+                                        placeholder="Ex: Turno B — Máquina 2 — Conferir antes de embalar"
+                                    />
                                 </div>
                             </div>
                         </div>

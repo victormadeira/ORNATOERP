@@ -273,13 +273,25 @@ export function TabDashboard({ notify }) {
                                         <td className="td-glass" style={{ textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
                                             {l.total_pecas || '—'}
                                         </td>
-                                        <td className="td-glass" style={{
-                                            textAlign: 'center',
-                                            fontWeight: 700,
-                                            color: l.aproveitamento ? aprovColor(l.aproveitamento) : 'var(--text-muted)',
-                                            fontVariantNumeric: 'tabular-nums',
-                                        }}>
-                                            {l.aproveitamento ? `${l.aproveitamento}%` : '—'}
+                                        {/* P7: badge com fundo semântico para melhor leitura */}
+                                        <td className="td-glass" style={{ textAlign: 'center' }}>
+                                            {l.aproveitamento ? (
+                                                <span style={{
+                                                    display: 'inline-block',
+                                                    padding: '2px 8px', borderRadius: 6,
+                                                    fontSize: 11, fontWeight: 700,
+                                                    fontVariantNumeric: 'tabular-nums',
+                                                    background: aprovColor(l.aproveitamento) === 'var(--success)'
+                                                        ? 'var(--success-bg)' : aprovColor(l.aproveitamento) === 'var(--warning)'
+                                                        ? 'var(--warning-bg)' : 'var(--danger-bg)',
+                                                    color: aprovColor(l.aproveitamento),
+                                                    border: `1px solid ${aprovColor(l.aproveitamento) === 'var(--success)'
+                                                        ? 'var(--success-border)' : aprovColor(l.aproveitamento) === 'var(--warning)'
+                                                        ? 'var(--warning-border)' : 'var(--danger-border)'}`,
+                                                }}>
+                                                    {l.aproveitamento}%
+                                                </span>
+                                            ) : '—'}
                                         </td>
                                         <td className="td-glass">
                                             <StatusBadge status={l.status || 'importado'} size="sm" />
@@ -310,30 +322,20 @@ function EfficiencyChart({ days }) {
             style={{ display: 'block' }}
             aria-label="Gráfico de eficiência diária"
         >
-            {/* Grid */}
-            {[0, 20, 40, 60, 80, 100].map(v => {
+            {/* Grid (sem linha META aqui — renderizada depois das barras para ficar na frente) */}
+            {[0, 20, 40, 60, 100].map(v => {
                 const y = baseY - v * 1.7;
-                const isMeta = v === META;
                 return (
                     <Fragment key={v}>
                         <line
                             x1={32} y1={y} x2={width - 6} y2={y}
-                            stroke={isMeta ? '#22c55e' : 'var(--border)'}
-                            strokeWidth={isMeta ? 1.5 : 0.5}
-                            strokeDasharray={isMeta ? '6 3' : (v > 0 ? '3 3' : '0')}
-                            opacity={isMeta ? 0.7 : 1}
+                            stroke="var(--border)" strokeWidth={0.5}
+                            strokeDasharray={v > 0 ? '3 3' : '0'}
                         />
                         <text x={28} y={y + 3} textAnchor="end" fontSize={10}
-                            fill={isMeta ? '#22c55e' : 'var(--text-muted)'}
-                            fontWeight={isMeta ? 700 : 400}>
+                            fill="var(--text-muted)" fontWeight={400}>
                             {v}%
                         </text>
-                        {isMeta && (
-                            <text x={width - 4} y={y - 3} textAnchor="end" fontSize={9}
-                                fill="#22c55e" fontWeight={700}>
-                                meta
-                            </text>
-                        )}
                     </Fragment>
                 );
             })}
@@ -380,6 +382,27 @@ function EfficiencyChart({ days }) {
                     </Fragment>
                 );
             })}
+            {/* P5: linha META renderizada por último para ficar sempre na frente das barras */}
+            {(() => {
+                const metaY = baseY - META * 1.7;
+                return (
+                    <g>
+                        <line
+                            x1={32} y1={metaY} x2={width - 6} y2={metaY}
+                            stroke="#22c55e" strokeWidth={1.5}
+                            strokeDasharray="6 3" opacity={0.85}
+                        />
+                        <text x={28} y={metaY + 3} textAnchor="end" fontSize={10}
+                            fill="#22c55e" fontWeight={700}>
+                            {META}%
+                        </text>
+                        <text x={width - 4} y={metaY - 3} textAnchor="end" fontSize={9}
+                            fill="#22c55e" fontWeight={700}>
+                            meta
+                        </text>
+                    </g>
+                );
+            })()}
         </svg>
     );
 }

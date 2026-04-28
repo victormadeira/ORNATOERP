@@ -114,6 +114,7 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                         style={{
                                             cursor: 'pointer',
                                             background: isSelected ? 'var(--primary-alpha)' : undefined,
+                                            transition: 'background .15s', // P35
                                         }}
                                     >
                                         <td
@@ -166,18 +167,20 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                         }}>
                                             {l.aproveitamento ? `${l.aproveitamento}%` : '—'}
                                         </td>
+                                        {/* P16: flex-wrap para badges não truncarem em colunas estreitas */}
                                         <td className="td-glass">
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                                                 <StatusBadge status={l.status || 'importado'} size="sm" />
                                                 {l.grupo_otimizacao && (
                                                     <span
-                                                        title="Otimizado em grupo"
+                                                        title="Otimizado em grupo com outros lotes"
                                                         style={{
                                                             fontSize: 9, padding: '2px 6px', borderRadius: 6,
                                                             background: 'var(--primary-alpha)',
                                                             color: 'var(--primary)',
                                                             border: '1px solid var(--primary)',
                                                             fontWeight: 800, letterSpacing: 0.3,
+                                                            whiteSpace: 'nowrap',
                                                         }}
                                                     >
                                                         MULTI
