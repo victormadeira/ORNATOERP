@@ -1,6 +1,6 @@
 // Constantes compartilhadas entre as tabs da Produção CNC.
 // Mantidas aqui pra evitar import circular entre tabs e o shell principal.
-import { Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu } from 'lucide-react';
+import { Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu, Workflow } from 'lucide-react';
 
 // Nível 1 — sempre visível na topbar
 export const TABS_MAIN = [
@@ -8,6 +8,7 @@ export const TABS_MAIN = [
     { id: 'lotes', lb: 'Lotes', ic: Package },
     { id: 'dashboard', lb: 'Dashboard', ic: BarChart3 },
     { id: 'retalhos', lb: 'Retalhos', ic: Box },
+    { id: 'fila', lb: 'Fila de Máquinas', ic: Workflow },
     { id: 'config', lb: 'Configurações', ic: Settings },
 ];
 

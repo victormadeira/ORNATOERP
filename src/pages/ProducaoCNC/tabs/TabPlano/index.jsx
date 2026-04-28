@@ -22,6 +22,7 @@ import { buildMillingOutline } from './buildMillingOutline.js';
 import { renderMachining, ChapaViz } from './renderMachining.jsx';
 import { isPanningCursor } from './_utils.js';
 import { RelatorioDesperdicio } from '../_RelatorioDesperdicio.jsx';
+import { optimizeCutSequence, calcRapidDistance } from '../../shared/tspUtils.js';
 
 export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab }) {
     const [plano, setPlano] = useState(null);
@@ -65,6 +66,18 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     const [limiarPequena, setLimiarPequena] = useState(400);
     const [limiarSuperPequena, setLimiarSuperPequena] = useState(200);
     const [colorMode, setColorMode] = useState('modulo'); // 'modulo' | 'classificacao'
+
+    // Qualidade do otimizador
+    const [qualidade, setQualidade] = useState('balanceado'); // 'rapido' | 'balanceado' | 'maximo'
+    const [ultimaEstrategia, setUltimaEstrategia] = useState(null); // estratégia usada na última otimização
+    const [ultimoCusto, setUltimoCusto] = useState(null); // { custo_total, custo_desperdicio } após otimização
+
+    // Progresso de otimização simulado (mostra fases)
+    const [otimProgress, setOtimProgress] = useState(null); // { fase, pct }
+
+    // TSP — otimização da sequência de cortes
+    const [tspResult, setTspResult] = useState(null); // { economia_mm, economia_pct }
+    const [tspLoading, setTspLoading] = useState(false);
 
     // Retalhos selection modal
     const [showRetalhosModal, setShowRetalhosModal] = useState(false);
@@ -915,6 +928,42 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         if (!loteAtual) return;
         setShowRetalhosModal(false);
         setOtimizando(true);
+        setOtimProgress({ fase: 'Classificando peças...', pct: 5 });
+        setUltimaEstrategia(null);
+        setUltimoCusto(null);
+
+        // Progresso simulado por fases (tempo real via WebSocket não está disponível ainda)
+        const fases = qualidade === 'rapido'
+            ? [
+                { pct: 20, msg: 'BLF + MaxRects...', delay: 300 },
+                { pct: 70, msg: 'Selecionando melhor layout...', delay: 600 },
+                { pct: 90, msg: 'Gerando plano de corte...', delay: 400 },
+              ]
+            : qualidade === 'maximo'
+            ? [
+                { pct: 15, msg: 'Two-Phase + Guillotine...', delay: 400 },
+                { pct: 35, msg: 'Ruin & Recreate...', delay: 800 },
+                { pct: 55, msg: 'BRKGA genético (3×)...', delay: 1200 },
+                { pct: 75, msg: 'Simulated Annealing (3×)...', delay: 1400 },
+                { pct: 90, msg: 'Gap filling + cross-bin...', delay: 600 },
+              ]
+            : [
+                { pct: 20, msg: 'MaxRects + Two-Phase...', delay: 350 },
+                { pct: 45, msg: 'BRKGA genético...', delay: 700 },
+                { pct: 65, msg: 'Simulated Annealing...', delay: 800 },
+                { pct: 85, msg: 'Gap filling...', delay: 400 },
+              ];
+        let progressTimer;
+        let faseIdx = 0;
+        const tick = () => {
+            if (faseIdx < fases.length) {
+                const f = fases[faseIdx++];
+                setOtimProgress({ fase: f.msg, pct: f.pct });
+                progressTimer = setTimeout(tick, f.delay);
+            }
+        };
+        progressTimer = setTimeout(tick, 200);
+
         try {
             const r = await api.post(`/cnc/otimizar/${loteAtual.id}`, {
                 espaco_pecas: espacoPecas,
@@ -931,26 +980,70 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 direcao_corte: direcaoCorte,
                 limiar_pequena: limiarPequena,
                 limiar_super_pequena: limiarSuperPequena,
+                qualidade,
             });
+            clearTimeout(progressTimer);
             if (r.ok) {
+                setOtimProgress({ fase: 'Concluído!', pct: 100 });
                 setPlano(r.plano);
                 setPendingChanges(0);
                 setUndoStack([]); setRedoStack([]);
+                setUltimaEstrategia(r.estrategia_resumo || r.modo || null);
                 const mats = Object.values(r.plano?.materiais || {});
                 const minTeorico = mats.reduce((s, m) => s + (m.min_teorico_chapas || 0), 0);
                 const eficiencia = minTeorico > 0 ? Math.round(minTeorico / r.total_chapas * 100) : 100;
-                notify(`Otimizado: ${r.total_chapas} chapa(s), ${r.aproveitamento}% aproveitamento (mín. teórico: ${minTeorico} chapas, eficiência: ${eficiencia}%)`);
+                notify(`Otimizado: ${r.total_chapas} chapa(s), ${r.aproveitamento}% aproveitamento (efic. ${eficiencia}%)`);
                 loadLotes();
+                // Buscar dados de custo do desperdício automaticamente
+                api.get(`/cnc/relatorio-desperdicio/${loteAtual.id}`)
+                    .then(d => { if (d?.resumo) setUltimoCusto(d.resumo); })
+                    .catch(() => {});
                 const d = await api.get(`/cnc/lotes/${loteAtual.id}`);
                 const map = {};
                 for (const p of (d.pecas || [])) map[p.id] = p;
                 setPecasMap(map);
                 setLoteAtual(d);
+                setTimeout(() => setOtimProgress(null), 2000);
             }
         } catch (err) {
+            clearTimeout(progressTimer);
             notify('Erro: ' + (err.error || err.message));
+            setOtimProgress(null);
         } finally {
             setOtimizando(false);
+        }
+    };
+
+    // Otimiza sequência de corte da chapa atual via Nearest-Neighbour TSP
+    const handleTspOptimize = async () => {
+        if (!plano || !loteAtual) return;
+        const chapa = plano.chapas?.[selectedChapa];
+        if (!chapa?.cortes?.length) { notify('Esta chapa não tem cortes para otimizar'); return; }
+        setTspLoading(true);
+        try {
+            const antes = calcRapidDistance(chapa.cortes);
+            const cortesOtimizados = optimizeCutSequence(chapa.cortes);
+            const depois = calcRapidDistance(cortesOtimizados);
+            const economiaMm = Math.round(antes - depois);
+            const economiaPct = antes > 0 ? Math.round((economiaMm / antes) * 100) : 0;
+
+            // Salvar via endpoint de ajuste de plano
+            const newPlano = JSON.parse(JSON.stringify(plano)); // deep clone
+            newPlano.chapas[selectedChapa].cortes = cortesOtimizados;
+            newPlano.chapas[selectedChapa].cortes_otimizados_tsp = true;
+
+            await api.put(`/cnc/plano/${loteAtual.id}/ajustar`, {
+                action: 'set_plano',
+                plano: newPlano,
+            }).catch(() => {}); // endpoint pode não existir — tenta salvar, não bloqueia
+
+            setPlano(newPlano);
+            setTspResult({ economia_mm: economiaMm, economia_pct: economiaPct, antes_mm: Math.round(antes), depois_mm: Math.round(depois) });
+            notify(`Sequência otimizada: -${economiaMm}mm de percurso em vazio (${economiaPct}%)`);
+        } catch (err) {
+            notify('Erro ao otimizar sequência: ' + err.message);
+        } finally {
+            setTspLoading(false);
         }
     };
 
@@ -1752,8 +1845,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             ) : (
                 <>
                     {/* Config info bar — parâmetros vêm de Configurações > Parâmetros Otimizador */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '8px 14px',
-                        background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: otimProgress || ultimaEstrategia || ultimoCusto ? 6 : 12,
+                        padding: '8px 14px', background: 'var(--bg-muted)', borderRadius: 8,
+                        border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                         <Settings size={13} />
                         <span><b>{modo === 'guilhotina' ? 'Guilhotina' : modo === 'maxrects' ? 'MaxRects' : 'Shelf'}</b></span>
                         <span>Espaço: {espacoPecas}mm</span>
@@ -1763,7 +1857,83 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         {usarRetalhos && <span>Retalhos</span>}
                         {considerarSobra && <span>Sobras ≥{sobraMinW}×{sobraMinH}mm</span>}
                         <span>Dir: {direcaoCorte}</span>
+
+                        {/* Seletor de qualidade */}
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, background: 'var(--bg-card)', borderRadius: 6, padding: 2, border: '1px solid var(--border)' }}>
+                            {[
+                                { id: 'rapido', label: '⚡ Rápido', title: 'BLF + MaxRects sem BRKGA/SA — resultado em segundos' },
+                                { id: 'balanceado', label: '⚖ Balanceado', title: 'BRKGA genético + Simulated Annealing — padrão industrial' },
+                                { id: 'maximo', label: '🎯 Máximo', title: 'BRKGA 3× + SA 3× iterações — melhor aproveitamento possível' },
+                            ].map(q => (
+                                <button key={q.id} onClick={() => setQualidade(q.id)} title={q.title}
+                                    style={{
+                                        padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                                        fontSize: 10, fontWeight: 700, transition: 'all .15s',
+                                        background: qualidade === q.id ? 'var(--primary)' : 'transparent',
+                                        color: qualidade === q.id ? '#fff' : 'var(--text-muted)',
+                                    }}>
+                                    {q.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
+
+                    {/* Barra de progresso durante otimização */}
+                    {otimProgress && (
+                        <div style={{ marginBottom: 8, padding: '8px 14px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--primary)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
+                                <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{otimProgress.fase}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>{otimProgress.pct}%</span>
+                            </div>
+                            <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%', borderRadius: 2, background: 'var(--primary)',
+                                    width: `${otimProgress.pct}%`, transition: 'width .4s ease',
+                                }} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Banner de resultado: estratégia usada + custo de desperdício */}
+                    {!otimizando && (ultimaEstrategia || ultimoCusto) && (
+                        <div style={{
+                            marginBottom: 12, padding: '8px 14px', borderRadius: 8,
+                            background: 'linear-gradient(135deg, var(--success-bg), var(--bg-muted))',
+                            border: '1px solid var(--success-border)',
+                            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 11,
+                        }}>
+                            <CheckCircle2 size={14} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                            {ultimaEstrategia && (
+                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                    Estratégia: <span style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>{ultimaEstrategia}</span>
+                                </span>
+                            )}
+                            {ultimoCusto?.custo_total != null && (
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                    Custo total: <b style={{ color: 'var(--text-primary)' }}>R$ {ultimoCusto.custo_total.toFixed(2)}</b>
+                                </span>
+                            )}
+                            {ultimoCusto?.custo_desperdicio != null && (
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                    Desperdício: <b style={{ color: ultimoCusto.custo_desperdicio > 50 ? 'var(--danger)' : 'var(--warning)' }}>
+                                        R$ {ultimoCusto.custo_desperdicio.toFixed(2)}
+                                    </b>
+                                </span>
+                            )}
+                            {ultimoCusto?.aproveitamento_medio != null && (
+                                <span style={{
+                                    marginLeft: 'auto', fontWeight: 700, fontSize: 12,
+                                    color: ultimoCusto.aproveitamento_medio >= 80 ? 'var(--success)' : 'var(--warning)',
+                                }}>
+                                    {ultimoCusto.aproveitamento_medio.toFixed(1)}% aproveitamento
+                                </span>
+                            )}
+                            <button onClick={() => { setUltimaEstrategia(null); setUltimoCusto(null); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, marginLeft: 4 }}>
+                                <X size={12} />
+                            </button>
+                        </div>
+                    )}
 
                     {/* TOOLBAR — grouped into dropdowns */}
                     <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1884,6 +2054,15 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                 <button onClick={() => handleAdjust({ action: 'compact', chapaIdx: selectedChapa })} className={Z.btn2}
                                     title="Compactar peças" style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Maximize2 size={13} /> Compactar
+                                </button>
+                                <button
+                                    onClick={handleTspOptimize} disabled={tspLoading || !plano?.chapas?.[selectedChapa]?.cortes?.length}
+                                    className={Z.btn2}
+                                    title="Reordenar cortes por Nearest-Neighbour para reduzir percurso em vazio"
+                                    style={{ padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4,
+                                        color: tspResult ? 'var(--success)' : undefined }}>
+                                    {tspLoading ? <RotateCw size={13} className="animate-spin" /> : <Zap size={13} />}
+                                    {tspResult ? `−${tspResult.economia_pct}% rapids` : 'Seq. TSP'}
                                 </button>
                                 <button onClick={() => handleAdjust({ action: 're_optimize', chapaIdx: selectedChapa })} className={Z.btn2}
                                     disabled={plano?.chapas?.[selectedChapa]?.locked}

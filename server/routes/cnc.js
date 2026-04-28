@@ -1594,6 +1594,9 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
             const limiarSuperPequena = body.limiar_super_pequena != null ? Number(body.limiar_super_pequena) : 200;
             const classificarPecas = body.classificar_pecas !== false;
             const isLargeBatch = pecas.length > 100;
+            // Qualidade: 'rapido' pula BRKGA+SA; 'maximo' usa 3× iterações
+            const skipAdvanced = body.qualidade === 'rapido';
+            const qualMult = body.qualidade === 'maximo' ? 3 : 1;
 
             // Classificação de peças
             const classifyPiece = (w, h) => {
@@ -1907,17 +1910,17 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                     }
                 }
 
-                // FASE 3.5: BRKGA (skip if already optimal)
-                if (pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas && !isOptimal()) {
-                    const brkgaGen = isLargeBatch ? Math.min(200, Math.max(80, pecasRestantes.length * 2)) : Math.min(100, Math.max(40, pecasRestantes.length * 3));
+                // FASE 3.5: BRKGA (skip if already optimal ou qualidade=rapido)
+                if (!skipAdvanced && pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas && !isOptimal()) {
+                    const brkgaGen = Math.min(600, (isLargeBatch ? Math.min(200, Math.max(80, pecasRestantes.length * 2)) : Math.min(100, Math.max(40, pecasRestantes.length * 3))) * qualMult);
                     const brkgaResult = runBRKGA(pecasRestantes, binW, binH, spacing, groupBinType, kerf, brkgaGen, groupSplitDir);
                     if (brkgaResult && brkgaResult.score.score < bestBinScore.score) { bestBinScore = brkgaResult.score; bestBins = brkgaResult.bins; bestStrategyName = `BRKGA`; bestBinType = groupBinType; }
                     totalCombinacoes += brkgaGen * 40;
                 }
 
-                // FASE 4: Simulated Annealing (skip if already optimal)
-                if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas && !isOptimal()) {
-                    const saIter = isLargeBatch ? Math.min(80000, pecasRestantes.length * 100) : Math.min(40000, pecasRestantes.length * 200);
+                // FASE 4: Simulated Annealing (skip if already optimal ou qualidade=rapido)
+                if (!skipAdvanced && bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas && !isOptimal()) {
+                    const saIter = Math.min(200000, (isLargeBatch ? Math.min(80000, pecasRestantes.length * 100) : Math.min(40000, pecasRestantes.length * 200)) * qualMult);
                     const saResult = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, groupSplitDir);
                     if (saResult && saResult.score.score < bestBinScore.score) {
                         console.log(`  [SA] ${bestBins.length}→${saResult.bins.length} chapas`);
@@ -2073,6 +2076,8 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                 ok: true, total_chapas: totalChapas, aproveitamento: aprovMedio,
                 total_combinacoes_testadas: totalCombinacoes, modo: binType,
                 motor: 'javascript_industrial', plano,
+                qualidade: body.qualidade || 'balanceado',
+                estrategia_resumo: Object.values(plano.materiais || {}).map(m => m.estrategia).filter(Boolean).join(', '),
             });
         }
 
@@ -2124,6 +2129,8 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
         const limiarPequena = bodyConfig.limiar_pequena != null ? Number(bodyConfig.limiar_pequena) : 400;
         const limiarSuperPequena = bodyConfig.limiar_super_pequena != null ? Number(bodyConfig.limiar_super_pequena) : 200;
         const classificarPecas = bodyConfig.classificar_pecas !== false;
+        const skipAdvancedMulti = bodyConfig.qualidade === 'rapido';
+        const qualMultMulti = bodyConfig.qualidade === 'maximo' ? 3 : 1;
         function classifyPieceMulti(w, h) {
             if (!classificarPecas) return 'normal';
             const minDim = Math.min(w, h);
@@ -2594,11 +2601,11 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 }
             }
 
-            // FASE 3.5: BRKGA (mais gerações para lotes grandes) (skip if already optimal)
-            if (pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas && !isOptimal()) {
-                const brkgaGen = isLargeBatch
+            // FASE 3.5: BRKGA (mais gerações para lotes grandes) (skip if already optimal ou qualidade=rapido)
+            if (!skipAdvancedMulti && pecasRestantes.length > 3 && bestBinScore.bins > minTeoricoChapas && !isOptimal()) {
+                const brkgaGen = Math.min(600, (isLargeBatch
                     ? Math.min(200, Math.max(80, pecasRestantes.length * 2))
-                    : Math.min(100, Math.max(40, pecasRestantes.length * 3));
+                    : Math.min(100, Math.max(40, pecasRestantes.length * 3))) * qualMultMulti);
                 const brkgaResult = runBRKGA(pecasRestantes, binW, binH, spacing, groupBinType, kerf, brkgaGen, groupSplitDir);
                 if (brkgaResult && brkgaResult.score.score < bestBinScore.score) {
                     bestBinScore = brkgaResult.score; bestBins = brkgaResult.bins;
@@ -2616,11 +2623,11 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                 }
             }
 
-            // FASE 4: SIMULATED ANNEALING — cross-bin (skip if already optimal)
-            if (bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas && !isOptimal()) {
-                const saIter = isLargeBatch
+            // FASE 4: SIMULATED ANNEALING — cross-bin (skip if already optimal ou qualidade=rapido)
+            if (!skipAdvancedMulti && bestBins && bestBins.length > 1 && bestBins.length > minTeoricoChapas && !isOptimal()) {
+                const saIter = Math.min(200000, (isLargeBatch
                     ? Math.max(40000, Math.min(80000, pecasRestantes.length * 120))
-                    : Math.max(15000, Math.min(40000, pecasRestantes.length * 80));
+                    : Math.max(15000, Math.min(40000, pecasRestantes.length * 80))) * qualMultMulti);
                 console.log(`  [SA] Iniciando Simulated Annealing: ${saIter} iterações, ${bestBins.length} bins (mín teórico: ${minTeoricoChapas})`);
                 const saStart = Date.now();
                 const saResult = simulatedAnnealing(bestBins, binW, binH, spacing, bestBinType, kerf, saIter, groupSplitDir);

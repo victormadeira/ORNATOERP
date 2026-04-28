@@ -40,6 +40,9 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     const [templatePadrao, setTemplatePadrao] = useState(null);
     const [templateLoading, setTemplateLoading] = useState(false);
     const [usarTemplate, setUsarTemplate] = useState(true); // toggle template vs legacy
+    const [qrPayloadTpl, setQrPayloadTpl] = useState('{{controle}}|{{descricao}}|{{comprimento}}x{{largura}}'); // template QR
+    const [showQrConfig, setShowQrConfig] = useState(false);
+    const [notasExtra, setNotasExtra] = useState(''); // observação extra adicionada a todas as etiquetas
 
     // Carregar config de etiquetas
     const loadCfg = useCallback(() => {
@@ -92,6 +95,65 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
         })();
         return () => { cancelled = true; };
     }, []);
+
+    // Resolve variáveis {{campo}} para uma etiqueta
+    const resolveQrPayload = (et) => {
+        const vars = {
+            controle: et.controle, descricao: et.descricao || et.upmcode || '',
+            comprimento: et.comprimento, largura: et.largura, espessura: et.espessura,
+            material: et.material || et.material_code || '', cliente: et.cliente || '',
+            projeto: et.projeto || '', codigo: et.codigo || '',
+            modulo: et.modulo_desc || '', chapa: et.chapa_idx != null ? et.chapa_idx + 1 : '-',
+            id: et.id || '', lote: loteAtual?.nome || '', data: new Date().toLocaleDateString('pt-BR'),
+        };
+        return qrPayloadTpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? k);
+    };
+
+    // Imprimir todas as chapas de uma vez
+    const imprimirTudo = () => {
+        const styleId = 'etiqueta-print-all-style';
+        let styleEl = document.getElementById(styleId);
+        if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
+        const cols = usarTemplate && templatePadrao ? (templatePadrao.colunas_impressao || 2) : (cfg?.colunas_impressao || 2);
+        const wMm = usarTemplate && templatePadrao ? (templatePadrao.largura || 100) : (FORMATOS_ETIQUETA[cfg?.formato]?.w || 100);
+        const hMm = usarTemplate && templatePadrao ? (templatePadrao.altura || 70) : (FORMATOS_ETIQUETA[cfg?.formato]?.h || 70);
+        const gap = (usarTemplate && templatePadrao ? templatePadrao.gap_etiquetas : cfg?.gap_etiquetas) || 4;
+        const margem = (usarTemplate && templatePadrao ? templatePadrao.margem_pagina : cfg?.margem_pagina) || 8;
+        styleEl.textContent = `
+            @media print {
+                body * { visibility: hidden !important; }
+                .etiqueta-print-all, .etiqueta-print-all * { visibility: visible !important; }
+                .etiqueta-print-all {
+                    position: absolute !important; left: 0 !important; top: 0 !important;
+                    width: 100% !important;
+                    display: grid !important;
+                    grid-template-columns: repeat(${cols}, ${wMm}mm) !important;
+                    gap: ${gap}mm !important; padding: 0 !important;
+                }
+                .etiqueta-print-all .etiqueta-svg-wrap, .etiqueta-print-all .etiqueta-card-print {
+                    width: ${wMm}mm !important; min-height: ${hMm}mm !important;
+                    page-break-inside: avoid !important; break-inside: avoid !important;
+                }
+                .etiqueta-print-all .etiqueta-svg-wrap svg { width: ${wMm}mm !important; height: ${hMm}mm !important; }
+                .no-print { display: none !important; }
+                @page { margin: ${margem}mm !important; size: A4 !important; }
+            }
+        `;
+        // Criar container temporário com todas as etiquetas
+        const existing = document.getElementById('etiqueta-print-all-container');
+        if (existing) existing.remove();
+        const container = document.createElement('div');
+        container.id = 'etiqueta-print-all-container';
+        container.className = 'etiqueta-print-all';
+        // Copiar conteúdo de todos os grupos
+        chapaGroups.forEach(g => {
+            const src = document.querySelector(`.print-chapa-${g.chapa_idx}`);
+            if (src) container.appendChild(src.cloneNode(true));
+        });
+        document.body.appendChild(container);
+        window.print();
+        setTimeout(() => container.remove(), 1000);
+    };
 
     // (impressão e ZPL agora são por chapa — definidos após filtros)
 
@@ -243,29 +305,92 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
             ) : (
                 <>
                     {/* Barra de ações global */}
-                    <div className="no-print" style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div className="no-print" style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         {/* Toggle template vs legacy */}
                         {templatePadrao && (
                             <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', padding: '6px 10px', background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)' }}>
                                 <input type="checkbox" checked={usarTemplate} onChange={e => setUsarTemplate(e.target.checked)} />
-                                Usar template personalizado
+                                Template personalizado
                             </label>
                         )}
 
                         {/* Filtros */}
                         {materiais.length > 1 && (
                             <select value={filtroMaterial} onChange={e => setFiltroMaterial(e.target.value)}
-                                className={Z.inp} style={{ width: 180, fontSize: 11, padding: '6px 8px' }}>
+                                className={Z.inp} style={{ width: 160, fontSize: 11, padding: '6px 8px' }}>
                                 <option value="">Todos os materiais</option>
                                 {materiais.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
                         )}
+
+                        {/* Imprimir Tudo */}
+                        <button onClick={imprimirTudo}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', fontSize: 11, fontWeight: 700,
+                                borderRadius: 6, border: 'none', cursor: 'pointer', background: 'var(--primary)', color: '#fff' }}>
+                            <Printer size={13} /> Imprimir Tudo
+                        </button>
+
+                        {/* Config QR */}
+                        <button onClick={() => setShowQrConfig(v => !v)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', fontSize: 11,
+                                borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer',
+                                background: showQrConfig ? 'var(--primary-alpha)' : 'var(--bg-muted)', color: showQrConfig ? 'var(--primary)' : 'var(--text-muted)' }}>
+                            <QrCode size={13} /> QR / Variáveis
+                        </button>
 
                         <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
                             {etiquetasFiltradas.length} etiqueta(s) em {totalChapas} chapa(s)
                             {templatePadrao && usarTemplate && <span style={{ color: 'var(--primary)', fontWeight: 600, marginLeft: 6 }}>| {templatePadrao.nome}</span>}
                         </span>
                     </div>
+
+                    {/* Painel de configuração QR + notas */}
+                    {showQrConfig && (
+                        <div className="glass-card no-print" style={{ marginBottom: 12, padding: '14px 16px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <QrCode size={13} /> Configuração de QR Code e Variáveis
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div>
+                                    <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                                        Template do payload QR — variáveis disponíveis:
+                                    </label>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'monospace' }}>
+                                        {['controle','descricao','comprimento','largura','espessura','material','cliente','projeto','codigo','modulo','chapa','lote','data'].map(v => (
+                                            <span key={v} onClick={() => setQrPayloadTpl(t => t + `{{${v}}}`)}
+                                                style={{ display: 'inline-block', margin: '1px 3px', padding: '1px 6px', background: 'var(--primary-alpha)', color: 'var(--primary)', borderRadius: 3, cursor: 'pointer', userSelect: 'none' }}
+                                                title={`Clique para inserir {{${v}}}`}>
+                                                {'{{' + v + '}}'}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <input value={qrPayloadTpl} onChange={e => setQrPayloadTpl(e.target.value)}
+                                        className={Z.inp} style={{ width: '100%', fontSize: 12, fontFamily: 'monospace' }}
+                                        placeholder="Ex: {{controle}}|{{descricao}}|{{comprimento}}x{{largura}}" />
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                                        Preview: <code style={{ color: 'var(--primary)' }}>
+                                            {etiquetasFiltradas[0] ? resolveQrPayload(etiquetasFiltradas[0]) : '(sem etiquetas)'}
+                                        </code>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                                        Observação extra (aparece em todas as etiquetas)
+                                    </label>
+                                    <input value={notasExtra} onChange={e => setNotasExtra(e.target.value)}
+                                        className={Z.inp} style={{ width: '100%', fontSize: 12 }}
+                                        placeholder="Ex: Turno B — Máquina 2 — Conferir antes de embalar" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Nota extra global — mostrada no topo de cada grupo */}
+                    {notasExtra && (
+                        <div className="no-print" style={{ marginBottom: 10, padding: '7px 14px', borderRadius: 6, background: 'var(--warning-bg)', border: '1px solid var(--warning-border)', fontSize: 11, fontWeight: 600, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <AlertTriangle size={13} /> {notasExtra}
+                        </div>
+                    )}
 
                     {/* Grupos por chapa */}
                     {chapaGroups.map((group) => {

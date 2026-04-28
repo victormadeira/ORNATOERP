@@ -9,6 +9,7 @@ import {
 } from '../../../ui';
 import {
     BarChart3, Layers, Package, Scissors, CheckCircle2, Target,
+    DollarSign, TrendingDown, TrendingUp, AlertTriangle,
 } from 'lucide-react';
 
 // Cor semântica de aproveitamento.
@@ -26,20 +27,25 @@ export function TabDashboard({ notify }) {
     const [stats, setStats] = useState(null);
     const [materiais, setMateriais] = useState([]);
     const [eficiencia, setEficiencia] = useState([]);
+    const [custos, setCustos] = useState(null); // { resumo, por_material }
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
+    const load = () => {
         setLoading(true);
         Promise.all([
             api.get('/cnc/dashboard/stats').catch(() => null),
             api.get('/cnc/dashboard/materiais').catch(() => []),
             api.get('/cnc/dashboard/eficiencia?days=30').catch(() => []),
-        ]).then(([s, m, e]) => {
+            api.get('/cnc/relatorio-desperdicio-historico').catch(() => null),
+        ]).then(([s, m, e, c]) => {
             setStats(s);
             setMateriais(Array.isArray(m) ? m : []);
             setEficiencia(Array.isArray(e) ? e : []);
+            setCustos(c);
         }).finally(() => setLoading(false));
-    }, []);
+    };
+
+    useEffect(() => { load(); }, []);
 
     if (loading) {
         return <Spinner size={32} text="Carregando dashboard…" />;
@@ -104,7 +110,40 @@ export function TabDashboard({ notify }) {
                             : null
                     }
                 />
+                {custos?.resumo?.custo_total != null && (
+                    <KpiCard
+                        label="Custo Total Material"
+                        value={`R$ ${(custos.resumo.custo_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        icon={DollarSign}
+                        accent="var(--primary)"
+                        sub="todos os lotes"
+                    />
+                )}
+                {custos?.resumo?.custo_desperdicio_total != null && (
+                    <KpiCard
+                        label="Custo Desperdício"
+                        value={`R$ ${(custos.resumo.custo_desperdicio_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        icon={TrendingDown}
+                        accent="var(--danger)"
+                        sub={custos.resumo.custo_total > 0
+                            ? `${Math.round((custos.resumo.custo_desperdicio_total / custos.resumo.custo_total) * 100)}% do custo total`
+                            : 'material descartado'}
+                    />
+                )}
             </div>
+
+            {/* ── Alerta de desperdício alto ── */}
+            {custos?.resumo?.custo_desperdicio_total > 500 && (
+                <div style={{
+                    padding: '10px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    background: 'var(--danger-bg)', border: '1px solid var(--danger-border)',
+                    color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                    <AlertTriangle size={14} />
+                    Alto custo de desperdício detectado: R$ {(custos.resumo.custo_desperdicio_total || 0).toFixed(2)}.
+                    Considere usar o modo <strong>Máximo</strong> na próxima otimização para melhorar o aproveitamento.
+                </div>
+            )}
 
             {/* ── Eficiência diária ── */}
             {chartDays.length > 0 && (
@@ -132,7 +171,7 @@ export function TabDashboard({ notify }) {
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>
-                                    {['Material', 'Chapas', 'Área Total (m²)', 'Desperdício'].map((h, i) => (
+                                    {['Material', 'Chapas', 'Área Total (m²)', 'Desperdício', 'Custo Desp.'].map((h, i) => (
                                         <th key={h} className="th-glass" style={{
                                             textAlign: i === 0 ? 'left' : 'center',
                                             whiteSpace: 'nowrap',
@@ -145,6 +184,10 @@ export function TabDashboard({ notify }) {
                             <tbody>
                                 {materiais.map((m, i) => {
                                     const w = wasteTone(m.desperdicio_medio || 0);
+                                    // Cruzar com dados de custo do relatorio-desperdicio-historico
+                                    const custoMat = custos?.por_material?.find(c =>
+                                        c.material === m.material || c.codigo === m.material
+                                    );
                                     return (
                                         <tr key={i}>
                                             <td className="td-glass" style={{ fontWeight: 600 }}>
@@ -166,6 +209,13 @@ export function TabDashboard({ notify }) {
                                                 }}>
                                                     {m.desperdicio_medio}%
                                                 </span>
+                                            </td>
+                                            <td className="td-glass" style={{ textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                                                {custoMat?.custo_desperdicio != null
+                                                    ? <span style={{ fontWeight: 700, color: custoMat.custo_desperdicio > 200 ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                                                        R$ {custoMat.custo_desperdicio.toFixed(2)}
+                                                      </span>
+                                                    : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                                             </td>
                                         </tr>
                                     );
@@ -245,12 +295,13 @@ export function TabDashboard({ notify }) {
     );
 }
 
-// ═══ SVG bar chart — eficiência diária ═════════════════
+// ═══ SVG bar chart — eficiência diária com linha de meta ═══
 function EfficiencyChart({ days }) {
     const width = Math.max(days.length * 56, 360);
-    const height = 220;
+    const height = 230;
     const barW = 32;
-    const baseY = 180;
+    const baseY = 185;
+    const META = 80; // meta de aproveitamento industrial
 
     return (
         <svg
@@ -261,60 +312,98 @@ function EfficiencyChart({ days }) {
         >
             {/* Grid */}
             {[0, 20, 40, 60, 80, 100].map(v => {
-                const y = baseY - v * 1.5;
+                const y = baseY - v * 1.7;
+                const isMeta = v === META;
                 return (
                     <Fragment key={v}>
                         <line
                             x1={32} y1={y} x2={width - 6} y2={y}
-                            stroke="var(--border)"
-                            strokeWidth={0.5}
-                            strokeDasharray={v > 0 ? '3 3' : '0'}
+                            stroke={isMeta ? '#22c55e' : 'var(--border)'}
+                            strokeWidth={isMeta ? 1.5 : 0.5}
+                            strokeDasharray={isMeta ? '6 3' : (v > 0 ? '3 3' : '0')}
+                            opacity={isMeta ? 0.7 : 1}
                         />
-                        <text x={28} y={y + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+                        <text x={28} y={y + 3} textAnchor="end" fontSize={10}
+                            fill={isMeta ? '#22c55e' : 'var(--text-muted)'}
+                            fontWeight={isMeta ? 700 : 400}>
                             {v}%
                         </text>
+                        {isMeta && (
+                            <text x={width - 4} y={y - 3} textAnchor="end" fontSize={9}
+                                fill="#22c55e" fontWeight={700}>
+                                meta
+                            </text>
+                        )}
                     </Fragment>
                 );
             })}
             {/* Bars */}
             {days.map((d, i) => {
                 const val = d.avgAprov || 0;
-                const barH = Math.max(2, val * 1.5);
+                const barH = Math.max(2, val * 1.7);
                 const barY = baseY - barH;
                 const bx = 40 + i * 56;
                 const color = aprovColor(val);
+                const aboveMeta = val >= META;
                 const dayLabel = d.date ? d.date.slice(5) : '';
                 return (
                     <Fragment key={i}>
                         <rect
                             x={bx} y={barY} width={barW} height={barH}
-                            fill={color} rx={6} opacity={0.92}
+                            fill={color} rx={6} opacity={0.88}
                         >
-                            <title>{`${dayLabel}: ${val}% (${d.chapas} chapas)`}</title>
+                            <title>{`${dayLabel}: ${val}% aproveit. — ${d.chapas} chapas, ${d.pecas || 0} peças`}</title>
                         </rect>
-                        <text
-                            x={bx + barW / 2} y={barY - 6}
-                            textAnchor="middle" fontSize={11}
-                            fill="var(--text-primary)" fontWeight={700}
-                        >
-                            {val}%
-                        </text>
-                        <text
-                            x={bx + barW / 2} y={198}
-                            textAnchor="middle" fontSize={10}
-                            fill="var(--text-secondary)" fontWeight={500}
-                        >
+                        {/* Indicador acima/abaixo da meta */}
+                        {d.chapas > 0 && (
+                            <text x={bx + barW / 2} y={barY - 8}
+                                textAnchor="middle" fontSize={10}
+                                fill={color} fontWeight={700}>
+                                {val}%
+                            </text>
+                        )}
+                        {d.chapas > 0 && !aboveMeta && (
+                            <text x={bx + barW / 2} y={barY - 19}
+                                textAnchor="middle" fontSize={8} fill="#ef4444">
+                                ▼
+                            </text>
+                        )}
+                        <text x={bx + barW / 2} y={203}
+                            textAnchor="middle" fontSize={9}
+                            fill="var(--text-secondary)" fontWeight={500}>
                             {dayLabel}
                         </text>
-                        <text
-                            x={bx + barW / 2} y={212}
-                            textAnchor="middle" fontSize={9}
-                            fill="var(--text-muted)"
-                        >
-                            {d.chapas}ch
+                        <text x={bx + barW / 2} y={215}
+                            textAnchor="middle" fontSize={8} fill="var(--text-muted)">
+                            {d.chapas > 0 ? `${d.chapas}ch` : '—'}
                         </text>
                     </Fragment>
                 );
+            })}
+        </svg>
+    );
+}
+
+// ═══ Mini sparkline de custo semanal ═══
+function CostSparkline({ days }) {
+    if (!days || days.length === 0) return null;
+    const maxV = Math.max(...days.map(d => d.custo_desperdicio || 0), 1);
+    const w = days.length * 28;
+    const h = 48;
+    const pts = days.map((d, i) => {
+        const x = 4 + i * 28;
+        const y = h - 4 - ((d.custo_desperdicio || 0) / maxV) * (h - 8);
+        return `${x},${y}`;
+    }).join(' ');
+    return (
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block' }}>
+            <polyline points={pts} fill="none" stroke="var(--danger)" strokeWidth={2} strokeLinejoin="round" />
+            {days.map((d, i) => {
+                const x = 4 + i * 28;
+                const y = h - 4 - ((d.custo_desperdicio || 0) / maxV) * (h - 8);
+                return <circle key={i} cx={x} cy={y} r={3} fill="var(--danger)" opacity={0.8}>
+                    <title>R$ {(d.custo_desperdicio || 0).toFixed(2)}</title>
+                </circle>;
             })}
         </svg>
     );

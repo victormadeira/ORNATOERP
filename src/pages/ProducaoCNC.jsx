@@ -38,6 +38,7 @@ const TabPecas     = lazy(() => import('./ProducaoCNC/tabs/TabPecas.jsx').then(m
 const TabPlano     = lazy(() => import('./ProducaoCNC/tabs/TabPlano/index.jsx').then(m => ({ default: m.TabPlano })));
 const TabEtiquetas = lazy(() => import('./ProducaoCNC/tabs/TabEtiquetas.jsx').then(m => ({ default: m.TabEtiquetas })));
 const TabGcode     = lazy(() => import('./ProducaoCNC/tabs/TabGcode.jsx').then(m => ({ default: m.TabGcode })));
+const TabFilaMaquinas = lazy(() => import('./ProducaoCNC/tabs/TabFilaMaquinas.jsx').then(m => ({ default: m.TabFilaMaquinas })));
 const TabConfig    = lazy(() => import('./ProducaoCNC/tabs/TabConfig/index.jsx').then(m => ({ default: m.TabConfig })));
 
 // ── Modais pesados (three.js + CSG + html5-qrcode) ────────
@@ -444,6 +445,9 @@ export default function ProducaoCNC({ notify }) {
                 )}
                 {tab === 'gcode' && isInsideLote && (
                     <TabGcode lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />
+                )}
+                {tab === 'fila' && !isInsideLote && (
+                    <TabFilaMaquinas notify={notify} />
                 )}
                 {tab === 'config' && (
                     <TabConfig
