@@ -1665,14 +1665,17 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             });
             setPendingChanges(prev => prev + 1);
 
-            // 2. Sync servidor em background — quando responder, reconcilia com o estado real
+            // 2. Sync servidor em background.
+            // NÃO chamamos setPlano(r.plano) no .then() — esse segundo re-render do canvas
+            // pesado é o que causava o "page refresh" visual.
+            // O estado otimista já está correto; só atualizamos aproveitamento (número leve).
+            // Se o servidor rejeitar (collision), o catch reverte para o snapshot de undo.
             api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).then(r => {
-                if (r?.ok && r.plano) {
-                    setPlano(r.plano);
-                    setBandeja(r.plano.bandeja || {});
-                    if (r.aproveitamento != null) {
-                        setLoteAtual(prev => prev ? { ...prev, aproveitamento: r.aproveitamento, total_chapas: r.plano?.chapas?.length || prev.total_chapas } : prev);
-                    }
+                if (r?.ok && r.aproveitamento != null) {
+                    setLoteAtual(prev => prev
+                        ? { ...prev, aproveitamento: r.aproveitamento, total_chapas: r.plano?.chapas?.length || prev.total_chapas }
+                        : prev
+                    );
                 }
             }).catch(err => {
                 if (err.collision) notify('Colisão! Peça não pode ser colocada nesta posição.');

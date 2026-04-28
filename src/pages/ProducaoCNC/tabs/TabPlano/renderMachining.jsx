@@ -741,23 +741,40 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
     };
 
     // ─── Bandeja drag: arrastar peça da bandeja de volta para a chapa ───
+    // Ref para sempre ter acesso ao handleBandejaDragEnd mais recente no listener global.
+    // Atualizado sincronamente no corpo do componente (abaixo de handleBandejaDragEnd).
+    const bandejaDragEndRef = useRef(null);
+    // Flag para garantir idempotência: o drop não executa duas vezes
+    // (onMouseUp do div + window listener podem ambos disparar).
+    const bandejaDragFiredRef = useRef(false);
+
     const handleBandejaDragStart = (e, bi, bp) => {
         if (e.button !== 0) return;
         e.stopPropagation();
         e.preventDefault();
         const mm = pixelToMM(e.clientX, e.clientY);
-        // Centro da peça = mouse, offset = metade da peça
         setDraggingBandeja({
             bandejaIdx: bi,
             materialKey: bp.fromMaterial || chapa.material_code || chapa.material,
             w: bp.w, h: bp.h, pecaId: bp.pecaId,
-            // Posição do mouse em mm (centro do ghost)
             mouseX: mm.x, mouseY: mm.y,
             newX: mm.x - bp.w / 2, newY: mm.y - bp.h / 2,
             inSheet: false,
         });
         setDragCollision(false);
         setSnapGuides([]);
+        bandejaDragFiredRef.current = false; // reseta flag a cada novo drag
+
+        // Listener global — captura mouseup mesmo quando o ponteiro sai do canvas.
+        // O flag bandejaDragFiredRef impede dupla execução se onMouseUp do div também disparar.
+        const onGlobalUp = () => {
+            if (!bandejaDragFiredRef.current) {
+                bandejaDragFiredRef.current = true;
+                bandejaDragEndRef.current?.();
+            }
+            window.removeEventListener('mouseup', onGlobalUp);
+        };
+        window.addEventListener('mouseup', onGlobalUp);
     };
 
     const handleBandejaDragMove = (e) => {
@@ -794,6 +811,9 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
 
     const handleBandejaDragEnd = () => {
         if (!draggingBandeja) return;
+        // Flag de idempotência — evita dupla execução (div onMouseUp + window listener)
+        if (bandejaDragFiredRef.current) return;
+        bandejaDragFiredRef.current = true;
         const db = draggingBandeja;
         setDraggingBandeja(null);
         setDragCollision(false);
@@ -815,6 +835,8 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
             y: snapped.y,
         });
     };
+    // Atualiza ref sincronamente no render — o listener global de mouseup usa o closure mais recente
+    bandejaDragEndRef.current = handleBandejaDragEnd;
 
     // ─── Right-click context menu ───
     const handleCtxMenu = (e, pecaIdx) => {
