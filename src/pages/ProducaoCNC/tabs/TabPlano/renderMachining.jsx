@@ -395,8 +395,23 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
     const [retSplitPreview, setRetSplitPreview] = useState(null); // {retIdx, axis:'h'|'v', pos}
     const containerRef = useRef(null);
     const svgRef = useRef(null);
+    const wheelDivRef = useRef(null); // ref para o div do canvas — wheel não-passivo
+    const onWheelRef = useRef(onWheel); // sempre aponta para o handler atual (evita closure stale)
     const [containerW, setContainerW] = useState(0);
     const marginDim = 30;
+
+    // Mantém onWheelRef atualizado a cada render
+    useEffect(() => { onWheelRef.current = onWheel; });
+
+    // Fix passive wheel: React 17+ registra wheel passivo na raiz — previne preventDefault.
+    // Registramos o listener diretamente no DOM com { passive: false }.
+    useEffect(() => {
+        const el = wheelDivRef.current;
+        if (!el) return;
+        const handler = (e) => onWheelRef.current?.(e);
+        el.addEventListener('wheel', handler, { passive: false });
+        return () => el.removeEventListener('wheel', handler);
+    }, []); // monta uma vez; onWheelRef sempre tem o handler atual
 
     // Medir container real para adaptar o SVG
     useEffect(() => {
@@ -1198,8 +1213,8 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
             )}
 
             {/* SVG Canvas with zoom/pan */}
-            <div style={{ overflow: 'hidden', border: `2px solid ${dragCollision ? '#ef4444' : (dragging || draggingBandeja) ? '#2563eb' : 'var(--border)'}`, background: '#f8f7f5', position: 'relative', cursor: (dragging || draggingBandeja) ? 'grabbing' : isPanningCursor(zoomLevel), transition: 'border-color .15s' }}
-                onWheel={onWheel}
+            {/* ref={wheelDivRef}: wheel é registrado via addEventListener { passive: false } no useEffect */}
+            <div ref={wheelDivRef} style={{ overflow: 'hidden', border: `2px solid ${dragCollision ? '#ef4444' : (dragging || draggingBandeja) ? '#2563eb' : 'var(--border)'}`, background: '#f8f7f5', position: 'relative', cursor: (dragging || draggingBandeja) ? 'grabbing' : isPanningCursor(zoomLevel), transition: 'border-color .15s' }}
                 onMouseDown={(dragging || draggingBandeja) ? undefined : onPanStart}
                 onMouseMove={draggingBandeja ? handleBandejaDragMove : dragging ? handleDragMove : onPanMove}
                 onMouseUp={draggingBandeja ? handleBandejaDragEnd : dragging ? handleDragEnd : onPanEnd}
@@ -1211,6 +1226,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                 }}>
                     <svg ref={svgRef} width={svgW + marginDim * 2 + 2 + trayGap + trayW} height={svgH + marginDim + 20}
                         viewBox={`-${marginDim} -14 ${svgW + marginDim * 2 + 2 + trayGap + trayW} ${svgH + marginDim + 20}`}
+                        draggable="false"
                         style={{ display: 'block', userSelect: 'none' }}>
 
                         {/* Defs: grain pattern + text shadow filter */}
@@ -2004,7 +2020,8 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                     return (
                                         <g key={`bp-${bi}`}
                                             style={{ cursor: 'grab', opacity: isBeingDragged ? 0.3 : 1 }}
-                                            onMouseDown={e => handleBandejaDragStart(e, bi, bp)}>
+                                            onMouseDown={e => handleBandejaDragStart(e, bi, bp)}
+                                            onDragStart={e => e.preventDefault()} /* impede drag nativo do navegador */>
                                             {/* Piece rect — cor mais forte */}
                                             <rect x={rx} y={ry} width={rw} height={rh}
                                                 rx={3} fill="#bfdbfe" stroke="#2563eb" strokeWidth={1.2} />

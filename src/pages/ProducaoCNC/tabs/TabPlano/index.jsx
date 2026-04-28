@@ -1636,6 +1636,57 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             return;
         }
 
+        // ═══ from_bandeja: update otimista — elimina o "page refresh" visual ═══
+        // Sem update otimista, caia no path genérico (await + setPlano full) que parecia um refresh.
+        if (params.action === 'from_bandeja') {
+            const { materialKey, bandejaIdx, targetChapaIdx, x, y } = params;
+            const bandejaArr = (bandeja[materialKey] || []);
+            const bp = bandejaArr[bandejaIdx];
+            if (!bp) return;
+
+            // Constrói peça nova sem metadados de bandeja
+            const { fromChapaIdx: _fc, fromMaterial: _fm, ...cleanPeca } = bp;
+            const newPeca = { ...cleanPeca, x, y };
+
+            // 1. Update local imediato (sem await)
+            setPlano(prev => {
+                if (!prev?.chapas) return prev;
+                const chapas = prev.chapas.map((ch, ci) => {
+                    if (ci !== targetChapaIdx) return ch;
+                    return { ...ch, pecas: [...ch.pecas, newPeca] };
+                });
+                return { ...prev, chapas };
+            });
+            setBandeja(prev => {
+                const nb = { ...prev };
+                nb[materialKey] = (nb[materialKey] || []).filter((_, i) => i !== bandejaIdx);
+                if (nb[materialKey].length === 0) delete nb[materialKey];
+                return nb;
+            });
+            setPendingChanges(prev => prev + 1);
+
+            // 2. Sync servidor em background — quando responder, reconcilia com o estado real
+            api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).then(r => {
+                if (r?.ok && r.plano) {
+                    setPlano(r.plano);
+                    setBandeja(r.plano.bandeja || {});
+                    if (r.aproveitamento != null) {
+                        setLoteAtual(prev => prev ? { ...prev, aproveitamento: r.aproveitamento, total_chapas: r.plano?.chapas?.length || prev.total_chapas } : prev);
+                    }
+                }
+            }).catch(err => {
+                if (err.collision) notify('Colisão! Peça não pode ser colocada nesta posição.');
+                else notify('Erro ao posicionar peça: ' + (err.error || err.message));
+                // Reverte para snapshot anterior
+                setUndoStack(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last) { const restored = JSON.parse(last); setPlano(restored); setBandeja(restored.bandeja || {}); }
+                    return prev.slice(0, -1);
+                });
+            });
+            return;
+        }
+
         // ═══ Non-move actions: keep server round-trip with scroll preservation ═══
         const mainEl = document.querySelector('main');
         const savedScroll = mainEl?.scrollTop ?? 0;
