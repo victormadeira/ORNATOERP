@@ -140,6 +140,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         portal_mostrar_pagamento,
         clarity_project_id,
         fb_pixel_id, google_ads_id, fb_access_token,
+        google_ads_dev_token, google_ads_conversion_label,
         n8n_webhook_url, n8n_webhook_secret,
     } = req.body;
 
@@ -200,6 +201,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       portal_mostrar_pagamento=?,
       clarity_project_id=?,
       fb_pixel_id=?, google_ads_id=?, fb_access_token=?,
+      google_ads_dev_token=?, google_ads_conversion_label=?,
       n8n_webhook_url=?, n8n_webhook_secret=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
@@ -272,6 +274,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         fb_pixel_id !== undefined ? fb_pixel_id : '',
         google_ads_id !== undefined ? google_ads_id : '',
         fb_access_token_s !== undefined ? fb_access_token_s : '',
+        google_ads_dev_token !== undefined ? google_ads_dev_token : '',
+        google_ads_conversion_label !== undefined ? google_ads_conversion_label : '',
         n8n_webhook_url_s !== undefined ? n8n_webhook_url_s : '',
         n8n_webhook_secret_s !== undefined ? n8n_webhook_secret_s : '',
     );

@@ -7,6 +7,7 @@ import { parseUA, geolocateIP, getClientIP, validarCPF } from '../lib/tracking-u
 import { htmlToPdf } from '../pdf.js';
 import evolution from '../services/evolution.js';
 import { mensagemEnvioInicial } from '../services/assinaturas_templates.js';
+import * as gdrive from '../services/gdrive.js';
 
 const router = Router();
 
@@ -286,7 +287,7 @@ router.post('/public/:signerToken/assinar', async (req, res) => {
             return { novoStatus, pendentes };
         })();
 
-        // Notificação
+        // Notificação in-app
         try {
             const orc = db.prepare('SELECT numero, cliente_nome FROM orcamentos WHERE id = ?').get(doc.orc_id);
             const totalSig = db.prepare('SELECT COUNT(*) as c FROM assinatura_signatarios WHERE documento_id = ?').get(doc.id);
@@ -297,6 +298,51 @@ router.post('/public/:signerToken/assinar', async (req, res) => {
                 `${orc?.numero || ''} — ${assinados}/${totalSig.c} assinatura(s)${novoStatus === 'concluido' ? ' ✅ Completo!' : ''}`,
                 doc.orc_id, 'orcamento', orc?.cliente_nome || '', null
             );
+
+            // WhatsApp para o criador do documento quando 100% dos signatários concluírem
+            if (novoStatus === 'concluido' && doc.criado_por) {
+                (async () => {
+                    try {
+                        if (!evolution.isConfigured()) return;
+                        const criador = db.prepare('SELECT telefone FROM users WHERE id = ?').get(doc.criado_por);
+                        const tel = (criador?.telefone || '').replace(/\D/g, '');
+                        if (!tel) return;
+                        const dest = evolution.formatPhone(tel);
+                        const msg = [
+                            `✅ *Documento assinado por todos!*`,
+                            ``,
+                            `📄 ${doc.tipo_documento.charAt(0).toUpperCase() + doc.tipo_documento.slice(1)} *${orc?.numero || doc.id}*`,
+                            orc?.cliente_nome ? `👤 Cliente: ${orc.cliente_nome}` : '',
+                            `📝 Último signatário: ${signer.nome}`,
+                            ``,
+                            `Todos os ${totalSig.c} signatário(s) concluíram. O documento está disponível no sistema.`,
+                        ].filter(Boolean).join('\n');
+                        await evolution.sendText(dest, msg);
+                    } catch (wErr) {
+                        // Non-critical: não deve derrubar a resposta de sucesso
+                        console.error('[assinaturas] Erro ao notificar criador via WhatsApp:', wErr.message);
+                    }
+                })();
+
+                // Google Drive — arquivar PDF do documento concluído
+                (async () => {
+                    try {
+                        if (!gdrive.isConfigured()) return;
+                        const pdfBuffer = await htmlToPdf(doc.html_documento);
+                        const safeName = `Contrato_${orc?.numero || doc.id}_${orc?.cliente_nome || 'cliente'}_${new Date().toISOString().slice(0, 10)}.pdf`
+                            .replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+                        const folderId = db.prepare('SELECT gdrive_folder_id FROM empresa_config WHERE id = 1').get()?.gdrive_folder_id;
+                        if (!folderId) return;
+                        const result = await gdrive.uploadFile(folderId, safeName, 'application/pdf', pdfBuffer);
+                        // Salvar file_id no documento para referência futura
+                        db.prepare('UPDATE documento_assinaturas SET gdrive_file_id = ? WHERE id = ?')
+                            .run(result?.id || '', doc.id);
+                        console.log(`[assinaturas] Drive: ${safeName} → ${result?.id}`);
+                    } catch (driveErr) {
+                        console.error('[assinaturas] Erro ao arquivar no Drive:', driveErr.message);
+                    }
+                })();
+            }
         } catch (_) {}
 
         res.json({

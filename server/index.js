@@ -161,6 +161,16 @@ app.delete('/api/orcamentos/*', sensitiveLimiter);
 app.delete('/api/financeiro/*', sensitiveLimiter);
 app.delete('/api/estoque/*', sensitiveLimiter);
 
+// Assinatura pública: limitar submissões (anti-brute-force de CPF + prevenção de replay)
+// 5 tentativas por minuto por IP é mais que suficiente para uso legítimo
+app.post('/api/assinaturas/public/*/assinar', rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    message: { error: 'Muitas tentativas de assinatura. Tente novamente em 1 minuto.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+}));
+
 // ═══ Rotas caras (IA / mídia / backfill) ═══════════════════════════
 // IA: qualquer POST em /api/ia/* e sugestão/geração em whatsapp
 app.use('/api/ia', iaLimiter);

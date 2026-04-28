@@ -6,6 +6,7 @@ import { buildMateriaisOrcados } from './estoque.js';
 import { createNotification, logActivity } from '../services/notificacoes.js';
 import { sendCAPIEvent } from '../services/meta-capi.js';
 import { dispatchOutbound } from '../services/webhook_outbound.js';
+import { sendGadsConversion } from '../services/google-ads.js';
 
 const router = Router();
 
@@ -779,29 +780,40 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
 
     db.prepare('UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(kb_col, id);
 
-    // ═══ Webhook n8n: proposta_enviada (quando entra na coluna 'env') ═══
+    // ═══ Webhooks n8n por transição de coluna ════════════════════════════
+    const cliN8n = existing.cliente_id ? db.prepare('SELECT id, nome, tel, email FROM clientes WHERE id = ?').get(existing.cliente_id) : null;
+    const n8nBase = {
+        orc_id: existing.id,
+        numero: existing.numero,
+        cliente_id: existing.cliente_id,
+        cliente_nome: cliN8n?.nome || existing.cliente_nome,
+        telefone: cliN8n?.tel || '',
+        email: cliN8n?.email || '',
+        ambiente: existing.ambiente,
+        valor_venda: existing.valor_venda,
+        coluna_anterior: existing.kb_col,
+        coluna_nova: kb_col,
+        user_id: req.user.id,
+    };
+    // Proposta enviada
     if (kb_col === 'env' && existing.kb_col !== 'env') {
         try {
-            const cli = existing.cliente_id ? db.prepare('SELECT id, nome, tel, email FROM clientes WHERE id = ?').get(existing.cliente_id) : null;
             let ambientes = null;
             try { ambientes = JSON.parse(existing.mods_json || '{}').ambientes || null; } catch (_) {}
-            dispatchOutbound('proposta_enviada', {
-                proposta: {
-                    orc_id: existing.id,
-                    numero: existing.numero,
-                    cliente_id: existing.cliente_id,
-                    cliente_nome: cli?.nome || existing.cliente_nome,
-                    telefone: cli?.tel || '',
-                    email: cli?.email || '',
-                    ambiente: existing.ambiente,
-                    ambientes,
-                    valor_venda: existing.valor_venda,
-                    custo_material: existing.custo_material,
-                    enviada_em: new Date().toISOString(),
-                    user_id: req.user.id,
-                },
-            }).catch(() => {});
-        } catch (_) { /* fire-and-forget */ }
+            dispatchOutbound('proposta_enviada', { proposta: { ...n8nBase, ambientes, enviada_em: new Date().toISOString() } }).catch(() => {});
+        } catch (_) {}
+    }
+    // Lead qualificado (movido para 'prop' = proposta em andamento)
+    if (kb_col === 'prop' && existing.kb_col === 'lead') {
+        try { dispatchOutbound('lead_qualificado', n8nBase).catch(() => {}); } catch (_) {}
+    }
+    // Negócio perdido
+    if (kb_col === 'perdido' && !['perdido', 'arquivo'].includes(existing.kb_col)) {
+        try { dispatchOutbound('negocio_perdido', n8nBase).catch(() => {}); } catch (_) {}
+    }
+    // Orçamento aprovado (lead convertido)
+    if (kb_col === 'ok' && existing.kb_col !== 'ok') {
+        try { dispatchOutbound('orcamento_aprovado', { ...n8nBase, valor: existing.valor_venda }).catch(() => {}); } catch (_) {}
     }
 
     // ═══ Cascata: arquivo/perdido → mover aditivos e versões junto ═══
@@ -1015,6 +1027,17 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                     sourceUrl: process.env.PUBLIC_URL || '',
                     eventId:   `purchase_${id}`,
                 }).catch(() => {});
+
+                // ── Google Ads: Conversion (server-side) ───────────────────
+                const gadsLabel = db.prepare('SELECT google_ads_conversion_label FROM empresa_config WHERE id = 1').get()?.google_ads_conversion_label;
+                if (gadsLabel) {
+                    sendGadsConversion({
+                        conversionLabel: gadsLabel,
+                        userData: { phone: cliData?.tel || '', email: cliData?.email || '' },
+                        value: orc?.valor_venda || 0,
+                        orderId: `orc_${id}`,
+                    }).catch(() => {});
+                }
             } catch (_) {}
         }
         if (projeto_criado) {

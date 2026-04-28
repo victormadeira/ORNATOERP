@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { logActivity } from '../services/notificacoes.js';
+import { dispatchOutbound } from '../services/webhook_outbound.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1031,6 +1032,23 @@ router.put('/receber/:id', requireAuth, (req, res) => {
             logActivity(req.user.id, req.user.nome, acao,
                 `${acao === 'receber_pagamento' ? 'Registrou recebimento' : 'Editou conta a receber'} "${antes.descricao}" [${diff.campos_alterados.join(', ')}]`,
                 id, 'contas_receber', diff);
+
+            // n8n — webhook pagamento recebido
+            if (acao === 'receber_pagamento') {
+                const proj = depois.projeto_id
+                    ? db.prepare('SELECT nome, orc_id FROM projetos WHERE id = ?').get(depois.projeto_id)
+                    : null;
+                dispatchOutbound('pagamento_recebido', {
+                    conta_id: id,
+                    descricao: depois.descricao,
+                    valor: depois.valor,
+                    data_pagamento: depois.data_pagamento,
+                    meio_pagamento: depois.meio_pagamento || '',
+                    projeto_id: depois.projeto_id || null,
+                    projeto_nome: proj?.nome || '',
+                    user_id: req.user.id,
+                }).catch(() => {});
+            }
         }
     } catch (_) { }
 

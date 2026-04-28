@@ -29,6 +29,90 @@ function notifyCNC(db, userId, tipo, titulo, mensagem, refId, refTipo) {
     } catch (_) {}
 }
 
+// ─── Disparar CNC webhooks configurados pelo usuário ───────────────
+async function dispatchCncWebhooks(userId, evento, payload) {
+    try {
+        const hooks = db.prepare(
+            "SELECT * FROM cnc_webhooks WHERE user_id = ? AND ativo = 1 AND (eventos = '*' OR eventos LIKE ?)"
+        ).all(userId, `%${evento}%`);
+        if (hooks.length === 0) return;
+        const body = JSON.stringify({ evento, timestamp: new Date().toISOString(), ...payload });
+        for (const hook of hooks) {
+            fetch(hook.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body,
+                signal: AbortSignal.timeout(8000),
+            }).catch(e => console.error(`[CNC webhook] ${hook.url} falhou: ${e.message}`));
+        }
+    } catch (_) {}
+}
+
+// ─── Atualizar cnc_production_stats após lote finalizado ────────────
+function updateProductionStats(loteId) {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(loteId);
+        if (!lote || !lote.plano_json) return;
+        let plano;
+        try { plano = JSON.parse(lote.plano_json); } catch { return; }
+
+        const chapas = plano.chapas || [];
+        const pecasCount = chapas.reduce((sum, ch) => sum + (ch.pecas?.length || 0), 0);
+        const metrosLineares = chapas.reduce((sum, ch) => {
+            return sum + (ch.cortes || []).reduce((s2, c) => s2 + ((c.x2 - c.x) + (c.y2 - c.y)) / 1000, 0);
+        }, 0);
+        const aprovMedio = chapas.length > 0
+            ? chapas.reduce((sum, ch) => sum + (ch.aproveitamento || 0), 0) / chapas.length
+            : 0;
+
+        // Custo: chapas × preço por chapa (se disponível)
+        const custoMaterial = chapas.reduce((sum, ch) => sum + (ch.preco || 0), 0);
+
+        const periodo = new Date().toISOString().slice(0, 7); // YYYY-MM
+        db.prepare(`
+            INSERT INTO cnc_production_stats (periodo, tipo_periodo, chapas_cortadas, pecas_produzidas,
+                metros_lineares, aproveitamento_medio, custo_material)
+            VALUES (?, 'mensal', ?, ?, ?, ?, ?)
+            ON CONFLICT(periodo, tipo_periodo) DO UPDATE SET
+                chapas_cortadas = chapas_cortadas + excluded.chapas_cortadas,
+                pecas_produzidas = pecas_produzidas + excluded.pecas_produzidas,
+                metros_lineares = metros_lineares + excluded.metros_lineares,
+                aproveitamento_medio = (aproveitamento_medio + excluded.aproveitamento_medio) / 2,
+                custo_material = custo_material + excluded.custo_material,
+                atualizado_em = CURRENT_TIMESTAMP
+        `).run(periodo, chapas.length, pecasCount, Math.round(metrosLineares * 100) / 100, Math.round(aprovMedio * 100) / 100, custoMaterial);
+    } catch (e) {
+        console.error('[CNC stats] Erro ao atualizar stats:', e.message);
+    }
+}
+
+// ─── Verificar alerta de manutenção após atualizar desgaste ─────────
+function checkToolMaintenanceAlert(toolId, userId) {
+    try {
+        const tool = db.prepare('SELECT * FROM cnc_ferramentas WHERE id = ?').get(toolId);
+        if (!tool || !tool.metros_limite || tool.metros_limite <= 0) return;
+        const pct = (tool.metros_acumulados || 0) / tool.metros_limite;
+        // Alertas em 80% e 100%
+        if (pct >= 1.0) {
+            notifyCNC(db, userId, 'ferramenta_limite',
+                `⚠️ Ferramenta ${tool.codigo} no limite`,
+                `${tool.nome || tool.codigo} atingiu ${Math.round(pct * 100)}% do limite de desgaste (${tool.metros_acumulados?.toFixed(0)}m / ${tool.metros_limite}m). Substitua antes de usar.`,
+                toolId, 'cnc_ferramenta');
+        } else if (pct >= 0.8) {
+            // Só notifica 1x ao atingir 80% (evita spam — verifica última notificação)
+            const ultimaNotif = db.prepare(
+                "SELECT id FROM notificacoes WHERE referencia_id = ? AND referencia_tipo = 'cnc_ferramenta' AND tipo = 'ferramenta_alerta' AND criado_em > datetime('now', '-1 day')"
+            ).get(toolId);
+            if (!ultimaNotif) {
+                notifyCNC(db, userId, 'ferramenta_alerta',
+                    `🔧 Ferramenta ${tool.codigo} com ${Math.round(pct * 100)}% de desgaste`,
+                    `${tool.nome || tool.codigo} está em ${Math.round(pct * 100)}% do limite (${tool.metros_acumulados?.toFixed(0)}m / ${tool.metros_limite}m). Planeje substituição.`,
+                    toolId, 'cnc_ferramenta');
+            }
+        }
+    } catch (_) {}
+}
+
 // ─── Gerar cortes de separação para retalhos (pós-processamento) ───
 // Para cada retalho, verifica se existe um corte horizontal ou vertical
 // nas bordas do retalho que não cruza nenhuma peça.
@@ -1981,6 +2065,10 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
 
             notifyCNC(db, req.user.id, 'cnc_otimizado', 'Plano otimizado', `Lote ${lote.id} otimizado: ${totalChapas} chapas, ${aprovMedio}% aproveitamento`, lote.id, 'cnc_lote');
 
+            // Atualizar stats de produção + disparar webhooks (fire-and-forget)
+            updateProductionStats(lote.id);
+            dispatchCncWebhooks(req.user.id, 'lote_otimizado', { lote_id: lote.id, total_chapas: totalChapas, aproveitamento: aprovMedio });
+
             return res.json({
                 ok: true, total_chapas: totalChapas, aproveitamento: aprovMedio,
                 total_combinacoes_testadas: totalCombinacoes, modo: binType,
@@ -3267,7 +3355,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             }
 
             // Chamar Python para cada grupo de material
-            const { isPythonAvailable, callPythonOptimizer } = require('../lib/python-bridge');
+            // isPythonAvailable e callPython já importados no topo do arquivo
             const pyAvail = await isPythonAvailable();
             if (!pyAvail) {
                 return res.status(503).json({ error: 'Servidor de otimização indisponível. Verifique se o serviço Python está rodando.' });
@@ -3320,7 +3408,7 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
                 };
 
                 try {
-                    const pyResult = await callPythonOptimizer('optimize', payload);
+                    const pyResult = await callPython('optimize', payload);
                     if (pyResult.chapas) {
                         for (const ch of pyResult.chapas) {
                             ch.material_code = matKey;
@@ -5601,7 +5689,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 }
 
 // ─── Helper: Atualizar desgaste de ferramentas após G-code ───
-function updateToolWear(toolMap, toolWearMap, loteId) {
+function updateToolWear(toolMap, toolWearMap, loteId, userId) {
     const stmtUpdate = db.prepare('UPDATE cnc_ferramentas SET metros_acumulados = metros_acumulados + ? WHERE id = ?');
     const stmtLog = db.prepare('INSERT INTO cnc_tool_wear_log (ferramenta_id, lote_id, metros_lineares, num_operacoes) VALUES (?,?,?,?)');
     for (const [toolCode, distMm] of Object.entries(toolWearMap)) {
@@ -5610,6 +5698,8 @@ function updateToolWear(toolMap, toolWearMap, loteId) {
         const metros = distMm / 1000; // mm → m
         stmtUpdate.run(metros, tool.id);
         stmtLog.run(tool.id, loteId || null, metros, 1);
+        // Verificar alerta de manutenção preventiva
+        if (userId) checkToolMaintenanceAlert(tool.id, userId);
     }
 }
 
@@ -5711,7 +5801,7 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
 
         // Atualizar desgaste de ferramentas
         if (result.tool_wear) {
-            updateToolWear(ctx.toolMap, result.tool_wear, ctx.lote.id);
+            updateToolWear(ctx.toolMap, result.tool_wear, ctx.lote.id, req.user?.id);
         }
 
         const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
@@ -10519,7 +10609,7 @@ router.post('/gcode-batch/:loteId', requireAuth, async (req, res) => {
                     continue;
                 }
 
-                if (result.tool_wear) updateToolWear(ctx.toolMap, result.tool_wear, ctx.lote.id);
+                if (result.tool_wear) updateToolWear(ctx.toolMap, result.tool_wear, ctx.lote.id, req.user?.id);
 
                 const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
                 const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
@@ -10905,21 +10995,20 @@ router.delete('/reservar-material/:loteId', requireAuth, (req, res) => {
 // GRUPO 21: Backup automático
 // ═══════════════════════════════════════════════════════
 
-router.post('/backup', requireAuth, (req, res) => {
+router.post('/backup', requireAuth, async (req, res) => {
     try {
-        const fs = require('fs');
-        const backupDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'backups');
-        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+        const { statSync } = await import('fs');
+        const backupDir = join(__cncDirname, '..', 'backups');
+        if (!existsSync(backupDir)) mkdirSync(backupDir, { recursive: true });
 
         const ts = new Date().toISOString().replace(/[:.]/g, '-');
-        const backupFile = path.join(backupDir, `ornato_cnc_${ts}.db`);
+        const backupFile = join(backupDir, `ornato_cnc_${ts}.db`);
 
-        db.backup(backupFile).then(() => {
-            const stats = fs.statSync(backupFile);
-            db.prepare('INSERT INTO cnc_backups (tipo, arquivo, tamanho_bytes, user_id) VALUES (?,?,?,?)')
-                .run(req.body.tipo || 'manual', backupFile, stats.size, req.user.id);
-            res.json({ ok: true, arquivo: backupFile, tamanho: stats.size });
-        }).catch(err => res.status(500).json({ error: err.message }));
+        await db.backup(backupFile);
+        const stats = statSync(backupFile);
+        db.prepare('INSERT INTO cnc_backups (tipo, arquivo, tamanho_bytes, user_id) VALUES (?,?,?,?)')
+            .run(req.body.tipo || 'manual', backupFile, stats.size, req.user.id);
+        res.json({ ok: true, arquivo: backupFile, tamanho: stats.size });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -11483,6 +11572,93 @@ router.post('/rastreio-entrega', requireAuth, (req, res) => {
 router.get('/rastreio-entrega/:loteId', requireAuth, (req, res) => {
     const events = db.prepare('SELECT * FROM cnc_rastreio_entrega WHERE lote_id = ? ORDER BY created_at DESC').all(req.params.loteId);
     res.json(events);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// #49 — DASHBOARD DE PRODUÇÃO (cnc_production_stats)
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/stats/producao', requireAuth, (req, res) => {
+    try {
+        const { meses = 6 } = req.query;
+        const numMeses = Math.min(24, Math.max(1, parseInt(meses) || 6));
+
+        // Stats mensais dos últimos N meses
+        const stats = db.prepare(`
+            SELECT * FROM cnc_production_stats
+            WHERE tipo_periodo = 'mensal'
+            ORDER BY periodo DESC
+            LIMIT ?
+        `).all(numMeses).reverse();
+
+        // Totais acumulados
+        const totais = stats.reduce((acc, s) => ({
+            chapas: acc.chapas + (s.chapas_cortadas || 0),
+            pecas: acc.pecas + (s.pecas_produzidas || 0),
+            metros: acc.metros + (s.metros_lineares || 0),
+            custo: acc.custo + (s.custo_material || 0),
+        }), { chapas: 0, pecas: 0, metros: 0, custo: 0 });
+
+        const aprovMedioGeral = stats.length > 0
+            ? stats.reduce((s, r) => s + (r.aproveitamento_medio || 0), 0) / stats.length
+            : 0;
+
+        // Contagem de lotes do período
+        const periodoInicio = stats.length > 0 ? stats[0].periodo : new Date().toISOString().slice(0, 7);
+        const lotesCount = db.prepare(
+            "SELECT COUNT(*) as c FROM cnc_lotes WHERE status IN ('otimizado','concluido') AND substr(atualizado_em,1,7) >= ?"
+        ).get(periodoInicio)?.c || 0;
+
+        res.json({
+            series: stats,
+            totais: { ...totais, aproveitamento_medio: Math.round(aprovMedioGeral * 100) / 100 },
+            lotes_periodo: lotesCount,
+        });
+    } catch (err) {
+        console.error('[CNC stats/producao]', err);
+        res.status(500).json({ error: 'Erro ao carregar stats de produção' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// #50 — ALERTA DE PREÇO DE MATERIAIS VENCIDO
+// ═══════════════════════════════════════════════════════════════════
+
+router.get('/materiais/alertas-preco', requireAuth, (req, res) => {
+    try {
+        // Materiais cujo preço está vencido (preco_atualizado_em + preco_validade_dias < hoje)
+        const vencidos = db.prepare(`
+            SELECT id, nome, descricao, preco, preco_atualizado_em, preco_validade_dias,
+                   CAST(julianday('now') - julianday(COALESCE(preco_atualizado_em, criado_em)) AS INTEGER) as dias_desde_atualizacao
+            FROM biblioteca
+            WHERE preco > 0
+              AND preco_validade_dias > 0
+              AND (
+                preco_atualizado_em IS NULL
+                OR julianday('now') - julianday(preco_atualizado_em) > preco_validade_dias
+              )
+            ORDER BY dias_desde_atualizacao DESC
+            LIMIT 50
+        `).all();
+
+        // Materiais prestes a vencer (nos próximos 7 dias)
+        const prestes = db.prepare(`
+            SELECT id, nome, preco, preco_atualizado_em, preco_validade_dias,
+                   CAST(preco_validade_dias - (julianday('now') - julianday(preco_atualizado_em)) AS INTEGER) as dias_restantes
+            FROM biblioteca
+            WHERE preco > 0
+              AND preco_validade_dias > 0
+              AND preco_atualizado_em IS NOT NULL
+              AND julianday('now') - julianday(preco_atualizado_em) BETWEEN (preco_validade_dias - 7) AND preco_validade_dias
+            ORDER BY dias_restantes ASC
+            LIMIT 20
+        `).all();
+
+        res.json({ vencidos, prestes_a_vencer: prestes, total_vencidos: vencidos.length });
+    } catch (err) {
+        console.error('[CNC materiais alertas-preco]', err);
+        res.status(500).json({ error: 'Erro ao buscar alertas de preço' });
+    }
 });
 
 export default router;

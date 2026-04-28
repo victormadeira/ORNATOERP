@@ -8,6 +8,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as gdrive from '../services/gdrive.js';
+import { sendCAPIEvent } from '../services/meta-capi.js';
+import { dispatchOutbound } from '../services/webhook_outbound.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -811,6 +813,12 @@ router.post('/', requireAuth, (req, res) => {
 
     try {
         logActivity(req.user.id, req.user.nome, 'criar', `Criou projeto "${nome.trim()}"`, projId, 'projeto');
+        // n8n — webhook de projeto criado (fire-and-forget)
+        dispatchOutbound('projeto_criado', {
+            projeto_id: projId,
+            nome: nome.trim(),
+            status: 'em_andamento',
+        }).catch(() => {});
     } catch (_) { /* log não bloqueia */ }
 
     res.json({ id: projId, token });
@@ -918,6 +926,136 @@ router.put('/:id', requireAuth, (req, res) => {
                     `Projeto ${status === 'concluido' ? 'concluído' : 'atrasado'}: ${label}`,
                     `Status alterado por ${req.user.nome}`,
                     projId, 'projeto', '', req.user.id);
+            }
+
+            // ── Triggers na conclusão do projeto ─────────────────────────────
+            if (status === 'concluido') {
+                const projFull = db.prepare(`
+                    SELECT p.*, o.cliente_nome, o.valor_total, o.numero,
+                           c.email, c.telefone, c.nome as cli_nome
+                    FROM projetos p
+                    LEFT JOIN orcamentos o ON o.id = p.orc_id
+                    LEFT JOIN clientes c ON c.id = o.cliente_id
+                    WHERE p.id = ?
+                `).get(projId);
+
+                // 1. NPS automático — criar pesquisa e enviar por WhatsApp se tiver telefone
+                (async () => {
+                    try {
+                        const token = randomBytes(16).toString('hex');
+                        const npsResult = db.prepare(
+                            'INSERT INTO pesquisa_nps (projeto_id, cliente_id, token) VALUES (?,?,?)'
+                        ).run(projFull?.id, projFull?.cliente_id || null, token);
+
+                        if (projFull?.telefone) {
+                            const { default: evolution } = await import('../services/evolution.js');
+                            if (evolution.isConfigured()) {
+                                const dest = evolution.formatPhone(projFull.telefone.replace(/\D/g, ''));
+                                const emp = db.prepare('SELECT nome FROM empresa_config WHERE id = 1').get();
+                                const baseUrl = process.env.BASE_URL || 'https://gestaoornato.com';
+                                await evolution.sendText(dest, [
+                                    `Olá${projFull.cli_nome ? ` ${projFull.cli_nome.split(' ')[0]}` : ''}! 😊`,
+                                    ``,
+                                    `Seu projeto foi concluído pela ${emp?.nome || 'nossa equipe'}. Gostaríamos muito da sua opinião!`,
+                                    ``,
+                                    `⭐ Avalie sua experiência (1 minuto):`,
+                                    `${baseUrl}/nps/${token}`,
+                                ].join('\n'));
+                            }
+                        }
+                    } catch (npsErr) {
+                        console.error('[projetos] Erro ao enviar NPS:', npsErr.message);
+                    }
+                })();
+
+                // 2. Custo real vs. orçado — agregar apontamentos automaticamente
+                try {
+                    const apontamentos = db.prepare(`
+                        SELECT a.duracao_min, c.valor_hora
+                        FROM producao_apontamentos a
+                        LEFT JOIN colaboradores c ON c.id = a.colaborador_id
+                        WHERE a.projeto_id = ?
+                    `).all(projId);
+                    const horasReais = apontamentos.reduce((s, a) => s + (a.duracao_min || 0), 0) / 60;
+                    const custoMdoReal = apontamentos.reduce((s, a) => {
+                        const horas = (a.duracao_min || 0) / 60;
+                        return s + horas * (a.valor_hora || 0);
+                    }, 0);
+
+                    // Custo material real — movimentações de estoque vinculadas ao projeto
+                    const custoMatRow = db.prepare(`
+                        SELECT COALESCE(SUM(ABS(m.valor_total)),0) as total
+                        FROM movimentacoes_estoque m
+                        WHERE m.projeto_id = ? AND m.tipo = 'saida'
+                    `).get(projId);
+                    const custoMatReal = custoMatRow?.total || 0;
+
+                    // Orçado
+                    const orc = projFull?.orc_id
+                        ? db.prepare('SELECT custo_total, total_mdo, valor_total FROM orcamentos WHERE id = ?').get(projFull.orc_id)
+                        : null;
+                    const pvOrcado = orc?.valor_total || 0;
+                    const custoMatOrcado = orc?.custo_total || 0;
+                    const custoMdoOrcado = orc?.total_mdo || 0;
+                    const custoRealTotal = custoMatReal + custoMdoReal;
+                    const custoOrcTotal = custoMatOrcado + custoMdoOrcado;
+                    const desvioPct = custoOrcTotal > 0
+                        ? Math.round(((custoRealTotal - custoOrcTotal) / custoOrcTotal) * 10000) / 100
+                        : 0;
+
+                    const custoExist = db.prepare('SELECT id FROM custo_real_projeto WHERE projeto_id = ?').get(projId);
+                    if (custoExist) {
+                        db.prepare(`
+                            UPDATE custo_real_projeto SET
+                                custo_material_real=?, custo_mdo_real=?, horas_reais=?,
+                                desvio_pct=?, finalizado=1, atualizado_em=CURRENT_TIMESTAMP
+                            WHERE projeto_id=?
+                        `).run(custoMatReal, custoMdoReal, Math.round(horasReais * 100) / 100, desvioPct, projId);
+                    } else {
+                        db.prepare(`
+                            INSERT INTO custo_real_projeto
+                                (projeto_id, orc_id, custo_material_orcado, custo_mdo_orcado, pv_orcado,
+                                 custo_material_real, custo_mdo_real, horas_reais, desvio_pct, finalizado)
+                            VALUES (?,?,?,?,?,?,?,?,?,1)
+                        `).run(
+                            projId, projFull?.orc_id || null,
+                            custoMatOrcado, custoMdoOrcado, pvOrcado,
+                            custoMatReal, custoMdoReal, Math.round(horasReais * 100) / 100, desvioPct
+                        );
+                    }
+                } catch (custoErr) {
+                    console.error('[projetos] Erro ao calcular custo real:', custoErr.message);
+                }
+
+                // 3. Meta CAPI — evento ViewContent (projeto concluído = valor entregue)
+                (async () => {
+                    try {
+                        await sendCAPIEvent({
+                            eventName: 'Purchase',
+                            userData: {
+                                phone: projFull?.telefone,
+                                email: projFull?.email,
+                                firstName: projFull?.cli_nome?.split(' ')[0],
+                            },
+                            customData: {
+                                currency: 'BRL',
+                                value: projFull?.valor_total || 0,
+                                content_name: label,
+                                content_type: 'projeto_concluido',
+                            },
+                            eventId: `projeto_concluido_${projId}`,
+                        });
+                    } catch (_) {}
+                })();
+
+                // 4. n8n — webhook de projeto concluído
+                dispatchOutbound('projeto_concluido', {
+                    projeto_id: projId,
+                    nome: label,
+                    cliente: projFull?.cliente_nome || '',
+                    valor: projFull?.valor_total || 0,
+                    orc_numero: projFull?.numero || '',
+                }).catch(() => {});
             }
         } else {
             logActivity(req.user.id, req.user.nome, 'editar', `Editou projeto "${label}"`, projId, 'projeto');

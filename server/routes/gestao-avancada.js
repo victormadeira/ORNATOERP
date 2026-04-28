@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { randomBytes } from 'crypto';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
+import evolution from '../services/evolution.js';
 
 const router = Router();
 
@@ -217,6 +218,64 @@ router.get('/indicacoes', requireAuth, (req, res) => {
         LEFT JOIN clientes cc ON cc.id = i.convertido_cliente_id
         ORDER BY i.criado_em DESC`).all();
     res.json(rows);
+});
+
+// Atualizar indicação (marcar como convertida, adicionar recompensa)
+router.put('/indicacoes/:id', requireAuth, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const { convertido_cliente_id, recompensa, status } = req.body;
+
+        const indicacao = db.prepare('SELECT * FROM indicacoes WHERE id = ?').get(id);
+        if (!indicacao) return res.status(404).json({ error: 'Indicação não encontrada' });
+
+        const foiConvertidaAntes = !!indicacao.convertido_cliente_id;
+
+        // Campos permitidos para atualização
+        const updates = [];
+        const params = [];
+        if (convertido_cliente_id !== undefined) { updates.push('convertido_cliente_id = ?'); params.push(convertido_cliente_id || null); }
+        if (recompensa !== undefined) { updates.push('recompensa = ?'); params.push(recompensa || ''); }
+        if (status !== undefined) { updates.push('status = ?'); params.push(status); }
+        if (updates.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+
+        db.prepare(`UPDATE indicacoes SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
+
+        // WhatsApp automático para quem indicou quando vira cliente
+        const acabouDeConverter = convertido_cliente_id && !foiConvertidaAntes;
+        if (acabouDeConverter) {
+            (async () => {
+                try {
+                    if (!evolution.isConfigured()) return;
+                    const clienteOrigem = db.prepare('SELECT nome, telefone FROM clientes WHERE id = ?').get(indicacao.cliente_origem_id);
+                    const tel = (clienteOrigem?.telefone || '').replace(/\D/g, '');
+                    if (!tel) return;
+                    const dest = evolution.formatPhone(tel);
+                    const emp = db.prepare('SELECT nome FROM empresa_config WHERE id = 1').get();
+                    const msg = [
+                        `Olá${clienteOrigem?.nome ? ` ${clienteOrigem.nome.split(' ')[0]}` : ''}! 🎉`,
+                        ``,
+                        `Ótima notícia! A pessoa que você indicou *(${indicacao.nome_indicado})* se tornou nosso cliente!`,
+                        ``,
+                        `Muito obrigado pela indicação. Você é parte fundamental do crescimento da ${emp?.nome || 'nossa empresa'}.`,
+                        recompensa ? `\n🎁 Sua recompensa: ${recompensa}` : '',
+                        ``,
+                        `Continue indicando — cada indicação é muito valorizada! 🙏`,
+                    ].filter(l => l !== undefined).join('\n').replace(/\n{3,}/g, '\n\n');
+                    await evolution.sendText(dest, msg);
+                } catch (wErr) {
+                    console.error('[indicacoes] WhatsApp recompensa erro:', wErr.message);
+                }
+            })();
+        }
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('[indicacoes] Erro update:', err);
+        res.status(500).json({ error: 'Erro ao atualizar indicação' });
+    }
 });
 
 // ═══════════════════════════════════════════════════════

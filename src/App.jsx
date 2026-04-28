@@ -558,6 +558,8 @@ export default function App() {
             { id: "oficina", lb: "Oficina", ic: Ic.LayoutGrid },
             { id: "industrializacao", lb: "Ordens", ic: Ic.ClipList },
             { id: "cnc", lb: "Corte & CNC", ic: Ic.Scissors },
+            { id: "plano_corte", lb: "Plano de Corte", ic: Ic.Scissors },
+            { id: "producao_fabrica", lb: "Acompanhamento", ic: Ic.HardHat },
             { id: "expedicao", lb: "Expedição", ic: Ic.Truck },
         ]},
         { id: 'cadastros', label: 'Cadastros', icon: Ic.Box, items: [

@@ -2258,6 +2258,8 @@ const migrations = [
   // ═══ Meta Ads / Google Ads — Pixel + CAPI ═══
   "ALTER TABLE empresa_config ADD COLUMN fb_pixel_id TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN google_ads_id TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN google_ads_dev_token TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN google_ads_conversion_label TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN fb_access_token TEXT DEFAULT ''",
 
   // ═══ Portfolio Público (/portfolioornato) — config dedicada, desacoplada da landing/proposta ═══
@@ -2359,6 +2361,7 @@ const migrations = [
   "CREATE INDEX IF NOT EXISTS idx_reativacao_status ON reativacao_candidatos(status, criado_em)",
   "CREATE INDEX IF NOT EXISTS idx_reativacao_cliente ON reativacao_candidatos(cliente_id)",
   // ═══ Assinaturas — rastreamento de envio + lembretes automáticos ═══
+  "ALTER TABLE documento_assinaturas ADD COLUMN gdrive_file_id TEXT DEFAULT ''",
   "ALTER TABLE assinatura_signatarios ADD COLUMN enviado_em DATETIME",
   "ALTER TABLE assinatura_signatarios ADD COLUMN enviado_via TEXT DEFAULT ''",
   "ALTER TABLE assinatura_signatarios ADD COLUMN enviado_por INTEGER",
