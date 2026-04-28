@@ -34,7 +34,7 @@ import { initClarity, setClarityTag } from '../utils/clarity';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const FAQ_DEFAULT = [
-    { q: 'Qual o investimento médio em um projeto de marcenaria sob medida?', a: 'Projetos completos de alto padrão costumam partir de R$ 80 mil, variando conforme dimensões, materiais e complexidade. Fazemos uma avaliação gratuita do seu projeto sem nenhum compromisso.' },
+    { q: 'Vocês atendem projetos de todos os tamanhos?', a: 'Sim. Desenvolvemos desde projetos de um único ambiente — como uma cozinha ou closet — até reformas completas de múltiplos ambientes. Cada projeto recebe o mesmo nível de atenção e qualidade, independente do escopo. Faça uma avaliação gratuita sem nenhum compromisso.' },
     { q: 'Qual é o prazo de entrega?', a: 'Após a aprovação do projeto, a produção e instalação leva em média 45 a 90 dias dependendo do escopo. Você acompanha cada etapa em tempo real.' },
     { q: 'Vocês trabalham com arquitetos e designers de interiores?', a: 'Sim. Temos processo estruturado para parcerias com arquitetos e designers, incluindo suporte técnico no projeto e apresentação conjunta ao cliente.' },
     { q: 'Como funciona a aprovação antes da produção?', a: 'Você aprova o projeto completo em 3D — todas as medidas, acabamentos e ferragens — antes de qualquer peça ser cortada. Nenhuma produção começa sem a sua assinatura.' },
@@ -59,6 +59,20 @@ const PORTFOLIO_PLACEHOLDER = [
 ];
 
 const CATEGORIAS = ['Todos', 'Cozinhas', 'Closets', 'Home Office', 'Salas', 'Gourmet'];
+
+// ── Instagram curadoria manual ──
+// Substitua cada src pelas URLs das 9 fotos reais do Instagram da Ornato
+const IG_FOTOS_DEFAULT = [
+    { src: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=500&h=500&fit=crop&q=80', alt: 'Cozinha planejada' },
+    { src: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=500&h=500&fit=crop&q=80', alt: 'Closet sob medida' },
+    { src: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=500&h=500&fit=crop&q=80', alt: 'Sala de estar' },
+    { src: 'https://images.unsplash.com/photo-1556909172-54557c7e4fb7?w=500&h=500&fit=crop&q=80', alt: 'Detalhes de acabamento' },
+    { src: 'https://images.unsplash.com/photo-1631679706909-1844bbd07221?w=500&h=500&fit=crop&q=80', alt: 'Home office' },
+    { src: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=500&fit=crop&q=80', alt: 'Área gourmet' },
+    { src: 'https://images.unsplash.com/photo-1593032465175-481ac7f401a0?w=500&h=500&fit=crop&q=80', alt: 'Dormitório' },
+    { src: 'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=500&h=500&fit=crop&q=80', alt: 'Banheiro planejado' },
+    { src: 'https://images.unsplash.com/photo-1618220179428-22790b461013?w=500&h=500&fit=crop&q=80', alt: 'Ambiente completo' },
+];
 
 const CATEGORIA_KEYWORDS = {
     'Cozinhas':    ['cozinha'],
@@ -151,6 +165,7 @@ export default function LandingPageV2() {
     const [carouselIdx, setCarouselIdx]       = useState(0);
     const carouselTrackRef                    = useRef(null);
     const [showStickyWA, setShowStickyWA]     = useState(false);
+    const [menuOpen, setMenuOpen]             = useState(false);
     const [popupOpen, setPopupOpen]           = useState(false);
     const [popupShown, setPopupShown]         = useState(false);
     const [popupForm, setPopupForm]           = useState({ nome: '', telefone: '' });
@@ -609,6 +624,9 @@ export default function LandingPageV2() {
         <div className="lp">
             <style>{buildCSS(acc)}</style>
 
+            {/* Grain texture — delete esta div para remover o efeito */}
+            <div className="lp-grain" aria-hidden="true" />
+
             {/* ═══ HERO ═══ */}
             <header className="lp-hero">
                 <div className="lp-aura-wrap">
@@ -649,16 +667,45 @@ export default function LandingPageV2() {
                         <a href="#orcamento">Contato</a>
                     </div>
                     {waHref ? (
-                        <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-nav">Falar Conosco</a>
+                        <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-nav lp-btn-nav-desktop">Falar Conosco</a>
                     ) : (
-                        <a href="#orcamento" className="lp-btn-nav">Falar Conosco</a>
+                        <a href="#orcamento" className="lp-btn-nav lp-btn-nav-desktop">Falar Conosco</a>
                     )}
+                    {/* Hamburger — tablet/mobile */}
+                    <button
+                        className={`lp-hamburger${menuOpen ? ' open' : ''}`}
+                        onClick={() => setMenuOpen(o => !o)}
+                        aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+                        aria-expanded={menuOpen}
+                    >
+                        <span /><span /><span />
+                    </button>
                 </nav>
+
+                {/* Mobile menu overlay */}
+                {menuOpen && (
+                    <div className="lp-mobile-menu" role="dialog" aria-modal="true">
+                        <button className="lp-mobile-menu-close" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">×</button>
+                        <a href="#diferenciais" onClick={() => setMenuOpen(false)}>Diferenciais</a>
+                        <a href="#processo" onClick={() => setMenuOpen(false)}>Processo</a>
+                        <a href="#portfolio" onClick={() => setMenuOpen(false)}>Projetos</a>
+                        <a href="#orcamento" onClick={() => setMenuOpen(false)}>Contato</a>
+                        {waHref && (
+                            <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-copper" style={{ marginTop: '0.5rem' }} onClick={() => setMenuOpen(false)}>
+                                Falar no WhatsApp
+                            </a>
+                        )}
+                    </div>
+                )}
 
                 {/* Hero Content */}
                 <div className="lp-container">
                     <div className="lp-hero-content">
                         <div className="lp-hero-text">
+                            <div className="lp-location-badge lp-animate-fade-up">
+                                <MapPin size={11} strokeWidth={2.5} />
+                                São Luís do Maranhão
+                            </div>
                             <div className="lp-animate-blur-in lp-delay-1">
                                 <h1 className="lp-headline">
                                     {heroTitulo.split('.').filter(Boolean).map((part, i) => (
@@ -943,6 +990,44 @@ export default function LandingPageV2() {
                 </div>
             </section>
 
+            {/* ═══ INSTAGRAM CURADORIA ═══ */}
+            {igHandle && (
+                <section className="lp-instagram-sec">
+                    <div className="lp-container">
+                        <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                            <h2 className="lp-headline" style={{ marginInline: 'auto' }}>
+                                Acompanhe nossos <span className="lp-hl">projetos</span>
+                            </h2>
+                            <p style={{ marginTop: '0.75rem', color: 'rgba(26,22,20,0.55)', fontSize: '0.9rem', letterSpacing: '0.02em' }}>
+                                @{igHandle} — novos projetos toda semana
+                            </p>
+                        </div>
+                        <div className="lp-ig-grid lp-reveal">
+                            {IG_FOTOS_DEFAULT.map((foto, i) => (
+                                <a
+                                    key={i}
+                                    href={`https://instagram.com/${igHandle}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="lp-ig-item"
+                                    aria-label={foto.alt || `Projeto ${i + 1}`}
+                                >
+                                    <img src={foto.src} alt={foto.alt || 'Projeto'} loading="lazy" decoding="async" />
+                                    <div className="lp-ig-overlay" aria-hidden="true">
+                                        <Instagram size={22} />
+                                    </div>
+                                </a>
+                            ))}
+                        </div>
+                        <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
+                            <a href={`https://instagram.com/${igHandle}`} target="_blank" rel="noreferrer" className="lp-btn-instagram">
+                                <Instagram size={17} /> Ver mais no Instagram
+                            </a>
+                        </div>
+                    </div>
+                </section>
+            )}
+
             {/* ═══ DEPOIMENTOS ═══ */}
             {depoimentos.length > 0 && (
                 <section className="lp-testimonials-sec">
@@ -1205,7 +1290,7 @@ export default function LandingPageV2() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function buildCSS(acc) {
     return `
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Oswald:wght@200;300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Oswald:wght@200;300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
 .lp { margin:0; padding:0; font-family:'Geist',system-ui,sans-serif; overflow-x:hidden; -webkit-font-smoothing:antialiased; color:#1A1614; background:#FAF7F2; line-height:1.6; }
 .lp *, .lp *::before, .lp *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -1235,10 +1320,10 @@ function buildCSS(acc) {
 
 /* ── AURA SYSTEM (suave no claro) ── */
 .lp-aura-wrap { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; background:#FAF7F2; }
-.lp-aura-wrap .lp-aura { position:absolute; width:75vw; height:75vw; border-radius:50%; filter:blur(160px); opacity:0.18; will-change:transform; }
+.lp-aura-wrap .lp-aura { position:absolute; width:75vw; height:75vw; border-radius:50%; filter:blur(160px); opacity:0.25; will-change:transform; }
 .lp-aura-1 { top:-15%; right:-10%; animation:liquidMove1 30s infinite alternate ease-in-out; }
-.lp-aura-2 { bottom:-15%; left:-10%; animation:liquidMove2 35s infinite alternate ease-in-out; opacity:0.12 !important; }
-.lp-aura-3 { top:35%; left:25%; width:45vw !important; height:45vw !important; animation:liquidMove3 25s infinite alternate-reverse ease-in-out; opacity:0.10 !important; }
+.lp-aura-2 { bottom:-15%; left:-10%; animation:liquidMove2 35s infinite alternate ease-in-out; opacity:0.18 !important; }
+.lp-aura-3 { top:35%; left:25%; width:45vw !important; height:45vw !important; animation:liquidMove3 25s infinite alternate-reverse ease-in-out; opacity:0.14 !important; }
 
 .lp-hero-media-wrap { position:absolute; inset:0; z-index:0; }
 .lp-hero-media-wrap::after { content:''; position:absolute; inset:0; background:rgba(250,247,242,0.85); z-index:1; }
@@ -1259,7 +1344,7 @@ function buildCSS(acc) {
 .lp-hero { min-height:100dvh; display:flex; align-items:center; padding-top:8rem; position:relative; overflow:hidden; }
 .lp-hero-content { display:grid; grid-template-columns:1.1fr 0.9fr; gap:6rem; align-items:center; width:100%; position:relative; z-index:10; }
 .lp-hero-text { display:flex; flex-direction:column; gap:2rem; }
-.lp-headline { font-family:'Oswald',sans-serif; font-size:clamp(2.5rem,5.5vw,4.5rem); font-weight:300; line-height:1.1; letter-spacing:-0.02em; color:#1A1614; }
+.lp-headline { font-family:'Playfair Display',Georgia,serif; font-size:clamp(2.5rem,5.5vw,4.5rem); font-weight:400; line-height:1.15; letter-spacing:-0.01em; color:#1A1614; }
 .lp-hl { color:${acc}; font-weight:400; position:relative; }
 .lp-hl::after { content:''; position:absolute; bottom:0.1em; left:0; width:100%; height:1px; background:${acc}; opacity:0.35; }
 .lp-subheadline { font-size:1.12rem; color:rgba(26,22,20,0.68); max-width:520px; font-weight:400; line-height:1.65; }
@@ -1364,7 +1449,7 @@ function buildCSS(acc) {
 .lp-timeline-card-header { display:flex; align-items:center; gap:1.5rem; margin-bottom:1.5rem; }
 .lp-timeline-icon { width:48px; height:48px; display:flex; align-items:center; justify-content:center; background:${acc}14; border-radius:1rem; border:1px solid ${acc}28; font-family:'Oswald',sans-serif; font-size:1rem; font-weight:400; color:${acc}; letter-spacing:0.05em; transition:all 0.4s ease; }
 .lp-timeline-card:hover .lp-timeline-icon { background:${acc}25; border-color:${acc}; transform:scale(1.1); box-shadow:0 0 20px ${acc}35; }
-.lp-timeline-title { font-family:'Oswald',sans-serif; font-size:1.6rem; font-weight:400; letter-spacing:-0.02em; color:#1A1614; }
+.lp-timeline-title { font-family:'Playfair Display',Georgia,serif; font-size:1.5rem; font-weight:500; letter-spacing:-0.01em; color:#1A1614; }
 .lp-timeline-desc { color:rgba(26,22,20,0.65); font-size:0.95rem; line-height:1.65; font-weight:400; }
 
 /* ══════════════════════════════════════════
@@ -1606,7 +1691,7 @@ function buildCSS(acc) {
 .lp-dark-input::placeholder { color:rgba(26,22,20,0.4); }
 .lp-form-erro { font-size:13px; color:#B91C1C; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:10px 12px; }
 .lp-form-badge { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; padding:5px 12px; border-radius:9999px; background:${acc}18; border:1px solid ${acc}50; color:${acc}; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; }
-.lp-form-title { font-family:'Oswald',sans-serif; font-size:clamp(1.6rem,3vw,2.2rem); font-weight:400; line-height:1.15; letter-spacing:-0.02em; color:#1A1614; }
+.lp-form-title { font-family:'Playfair Display',Georgia,serif; font-size:clamp(1.5rem,3vw,2rem); font-weight:400; line-height:1.2; letter-spacing:-0.01em; color:#1A1614; }
 .lp-form-sub { font-size:0.95rem; color:rgba(26,22,20,0.65); line-height:1.65; font-weight:400; }
 .lp-input-lg { padding:18px 20px !important; font-size:16px !important; border-radius:14px !important; }
 .lp-select { appearance:none; -webkit-appearance:none; cursor:pointer; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231a161477' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 18px center; padding-right:44px !important; }
@@ -1649,9 +1734,10 @@ function buildCSS(acc) {
 .lp-footer-inner a { color:rgba(250,247,242,0.45); text-decoration:none; display:inline-flex; gap:5px; align-items:center; transition:color 0.2s; }
 .lp-footer-inner a:hover { color:${acc}; }
 
-/* ── WHATSAPP FLOAT ── */
-.lp-wa-float { position:fixed; bottom:24px; right:24px; z-index:9999; width:60px; height:60px; border-radius:50%; background:#25D366; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 20px rgba(37,211,102,0.4); cursor:pointer; transition:transform 0.2s; animation:lpPulse 2s infinite; text-decoration:none; }
-.lp-wa-float:hover { transform:scale(1.1); }
+/* ── WHATSAPP FLOAT (harmonizado com a paleta) ── */
+@keyframes lpPulseCopper { 0%,100%{box-shadow:0 0 0 0 ${acc}55} 70%{box-shadow:0 0 0 14px ${acc}00} }
+.lp-wa-float { position:fixed; bottom:24px; right:24px; z-index:9999; width:60px; height:60px; border-radius:50%; background:${acc}; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 20px ${acc}60; cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; animation:lpPulseCopper 2.5s infinite; text-decoration:none; }
+.lp-wa-float:hover { transform:scale(1.1); box-shadow:0 10px 30px ${acc}80; }
 
 /* ── STICKY WA BAR (mobile only) ── */
 .lp-sticky-wa-bar { display:none; }
@@ -1683,6 +1769,49 @@ function buildCSS(acc) {
 .lp-popup-trust { display:flex; justify-content:center; align-items:center; gap:5px; margin-top:8px; font-size:0.72rem; color:rgba(26,22,20,0.55); }
 .lp-popup-trust svg { color:${acc}; }
 
+/* ── GRAIN TEXTURE ── */
+@keyframes grainShift {
+  0%   { transform: translate(0,0); }
+  20%  { transform: translate(-3%,2%); }
+  40%  { transform: translate(2%,-3%); }
+  60%  { transform: translate(-2%,3%); }
+  80%  { transform: translate(3%,-1%); }
+  100% { transform: translate(0,0); }
+}
+.lp-grain {
+  position:fixed; inset:-50%;
+  width:200%; height:200%;
+  z-index:9997; pointer-events:none;
+  opacity:0.055;
+  background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+  animation:grainShift 6s steps(8) infinite;
+  will-change:transform;
+}
+
+/* ── LOCATION BADGE ── */
+.lp-location-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 12px; border-radius:9999px;
+  background:${acc}12; border:1px solid ${acc}30;
+  color:${acc}; font-size:0.7rem; font-weight:600;
+  text-transform:uppercase; letter-spacing:0.1em;
+  align-self:flex-start; margin-bottom:0.25rem;
+}
+
+/* ── HAMBURGER ── */
+.lp-hamburger { display:none; }
+.lp-btn-nav-desktop {}
+
+/* ── INSTAGRAM CURADORIA ── */
+.lp-instagram-sec { padding:6rem 0 8rem; background:#FAF7F2; position:relative; overflow:hidden; }
+.lp-instagram-sec::before { content:''; position:absolute; top:0; left:50%; transform:translateX(-50%); width:100%; height:1px; background:linear-gradient(90deg,transparent,${acc}30,transparent); }
+.lp-ig-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0.75rem; max-width:900px; margin:0 auto; }
+.lp-ig-item { position:relative; aspect-ratio:1; overflow:hidden; border-radius:0.875rem; display:block; background:#EFE9DF; text-decoration:none; }
+.lp-ig-item img { width:100%; height:100%; object-fit:cover; display:block; transition:transform 0.55s cubic-bezier(0.16,1,0.3,1); }
+.lp-ig-item:hover img { transform:scale(1.06); }
+.lp-ig-overlay { position:absolute; inset:0; background:rgba(26,22,20,0.38); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.3s ease; color:#fff; }
+.lp-ig-item:hover .lp-ig-overlay { opacity:1; }
+
 /* ═══ TOUCH DEVICES ═══ */
 @media (hover: none) {
   .lp-btn-copper:hover, .lp-btn-outline:hover, .lp-btn-nav:hover,
@@ -1695,6 +1824,57 @@ function buildCSS(acc) {
 @media (max-width: 1024px) {
   .lp-container { padding: 0 2rem; }
   .lp-nav-links { display: none; }
+  .lp-btn-nav-desktop { display: none; }
+
+  .lp-location-badge { align-self: center; }
+
+  .lp-hamburger {
+    display:flex; flex-direction:column; justify-content:center;
+    gap:5px; width:36px; height:36px;
+    background:transparent; border:none; cursor:pointer;
+    padding:6px; border-radius:8px;
+    transition:background 0.2s; flex-shrink:0;
+  }
+  .lp-hamburger:hover { background:rgba(26,22,20,0.06); }
+  .lp-hamburger span {
+    display:block; width:100%; height:2px;
+    background:#1A1614; border-radius:2px;
+    transition:all 0.3s cubic-bezier(0.16,1,0.3,1);
+    transform-origin:center;
+  }
+  .lp-hamburger.open span:nth-child(1) { transform:translateY(7px) rotate(45deg); }
+  .lp-hamburger.open span:nth-child(2) { opacity:0; transform:scaleX(0); }
+  .lp-hamburger.open span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
+
+  .lp-mobile-menu {
+    position:fixed; top:0; left:0; right:0; bottom:0;
+    background:rgba(250,247,242,0.97);
+    backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+    z-index:99;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:2rem;
+    animation:fadeInUp 0.25s ease both;
+  }
+  .lp-mobile-menu-close {
+    position:absolute; top:1.5rem; right:1.5rem;
+    background:transparent; border:none;
+    font-size:2rem; line-height:1; cursor:pointer;
+    color:rgba(26,22,20,0.5); padding:4px 10px;
+    border-radius:50%; transition:all 0.2s;
+  }
+  .lp-mobile-menu-close:hover { color:#1A1614; background:rgba(26,22,20,0.06); }
+  .lp-mobile-menu a:not(.lp-btn-copper) {
+    font-family:'Playfair Display',Georgia,serif;
+    font-size:2rem; font-weight:400;
+    color:#1A1614; text-decoration:none;
+    letter-spacing:-0.02em;
+    transition:color 0.2s;
+  }
+  .lp-mobile-menu a:not(.lp-btn-copper):hover { color:${acc}; }
+
+  .lp-ig-grid { gap:0.5rem; }
+  .lp-instagram-sec { padding:4rem 0 5rem; }
 
   .lp-hero { padding-top: 7rem; }
   .lp-hero-content { grid-template-columns: 1fr; text-align: center; gap: 2.5rem; }
@@ -1826,6 +2006,10 @@ function buildCSS(acc) {
   }
   .lp-thumb { width: 56px; height: 42px; }
 
+  .lp-instagram-sec { padding: 3.5rem 0 4.5rem; }
+  .lp-ig-grid { gap: 0.375rem; padding: 0 1.25rem; max-width:100%; }
+  .lp-ig-item { border-radius: 0.5rem; }
+
   .lp-testimonials-sec { padding: 4.5rem 0; }
   .lp-testimonial-card { width: min(82vw, 340px); padding: 1.75rem 1.5rem; }
   .lp-testimonial-text { font-size: 0.92rem; }
@@ -1909,7 +2093,7 @@ function buildCSS(acc) {
   .lp-reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
   .lp-animate-fade-up, .lp-animate-blur-in { animation: none !important; opacity: 1 !important; }
   .lp-animate-float, .lp-wa-float, .lp-marquee-content, .lp-aura,
-  .lp-btn-wa-hero { animation: none !important; }
+  .lp-btn-wa-hero, .lp-grain { animation: none !important; }
 }
 `;
 }
