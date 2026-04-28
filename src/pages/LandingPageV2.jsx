@@ -24,7 +24,7 @@ import { initClarity, setClarityTag } from '../utils/clarity';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LandingPageV2 — Light Premium:
-//   - Paleta clara (off-white + copper + grafite)
+//   - Paleta clara (off-white + âmbar amadeirado + grafite)
 //   - Barra de diferenciais
 //   - Portfolio com abas de categoria
 //   - Depoimentos (marquee)
@@ -521,7 +521,7 @@ export default function LandingPageV2() {
     if (!config) {
         return (
             <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#FAF7F2' }}>
-                <Loader2 size={30} style={{ color: '#B7654A', animation: 'spin 1s linear infinite' }} />
+                <Loader2 size={30} style={{ color: '#C9A96E', animation: 'spin 1s linear infinite' }} />
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
         );
@@ -538,7 +538,7 @@ export default function LandingPageV2() {
         );
     }
 
-    const acc    = config?.landing_cor_destaque || '#B7654A';
+    const acc    = config?.landing_cor_destaque || '#C9A96E';
     const empNome   = config?.nome || 'Ornato';
     const heroTitulo = config?.landing_titulo || 'Cada projeto conta uma história. A sua vai ser inesquecível.';
     const heroDesc   = config?.landing_descricao || 'Projetamos, produzimos e instalamos ambientes sob medida com precisão e materiais selecionados. Do primeiro rascunho à entrega final, você acompanha cada decisão.';
@@ -1286,7 +1286,7 @@ export default function LandingPageV2() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CSS — Light Premium (off-white + copper + grafite)
+// CSS — Light Premium (off-white + âmbar amadeirado #C9A96E + grafite)
 // ═══════════════════════════════════════════════════════════════════════════════
 function buildCSS(acc) {
     return `
