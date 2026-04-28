@@ -103,7 +103,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             for (const r of rows) map[r.chapa_idx] = r;
             setChapaStatuses(map);
         }).catch(() => {});
-    }, [loteAtual]);
+    }, [loteAtual?.id]); // dep: só id — atualizar aproveitamento/outros campos não relança o efeito
     useEffect(() => { loadChapaStatuses(); }, [loadChapaStatuses]);
     const updateChapaStatus = async (chapaIdx, status) => {
         try {
@@ -591,7 +591,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
 
     const getTimerKey = useCallback((chapaIdx) => {
         return `chapa_timer_${loteAtual?.id}_${chapaIdx}`;
-    }, [loteAtual]);
+    }, [loteAtual?.id]); // dep: só id — atualizar aproveitamento/outros campos não relança o efeito
 
     const startTimer = useCallback((chapaIdx) => {
         const key = getTimerKey(chapaIdx);
@@ -691,7 +691,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             setMachineAssignments(map);
             if (list.length > 0) setMultiMaqMode(true);
         }).catch(() => {});
-    }, [loteAtual]);
+    }, [loteAtual?.id]); // dep: só id — atualizar aproveitamento/outros campos não relança o efeito
 
     useEffect(() => { loadMaquinas(); }, [loadMaquinas]);
     useEffect(() => { loadMachineAssignments(); }, [loadMachineAssignments]);
@@ -808,7 +808,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
 
             setPecasMap(map);
         }).catch(e => notify(e.error || 'Erro ao carregar plano')).finally(() => setLoading(false));
-    }, [loteAtual]);
+    }, [loteAtual?.id]); // dep: só id — atualizar aproveitamento/outros campos não relança o efeito
 
     useEffect(() => { loadPlano(); }, [loadPlano]);
 
@@ -818,7 +818,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         api.get(`/cnc/expedicao/corte-status/${loteAtual.id}`).then(data => {
             setCortadasSet(new Set(data.cortadas || []));
         }).catch(() => setCortadasSet(new Set()));
-    }, [loteAtual]);
+    }, [loteAtual?.id]); // dep: só id — atualizar aproveitamento/outros campos não relança o efeito
     useEffect(() => { loadCorteStatus(); }, [loadCorteStatus]);
 
     // Mark chapa as cut
@@ -1666,17 +1666,11 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             setPendingChanges(prev => prev + 1);
 
             // 2. Sync servidor em background.
-            // NÃO chamamos setPlano(r.plano) no .then() — esse segundo re-render do canvas
-            // pesado é o que causava o "page refresh" visual.
-            // O estado otimista já está correto; só atualizamos aproveitamento (número leve).
-            // Se o servidor rejeitar (collision), o catch reverte para o snapshot de undo.
-            api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).then(r => {
-                if (r?.ok && r.aproveitamento != null) {
-                    setLoteAtual(prev => prev
-                        ? { ...prev, aproveitamento: r.aproveitamento, total_chapas: r.plano?.chapas?.length || prev.total_chapas }
-                        : prev
-                    );
-                }
+            // Nenhum setState no .then() — qualquer mudança de referência em loteAtual
+            // recriava os useCallbacks [loteAtual?.id] e disparava loadPlano() de novo,
+            // causando o scroll-to-top ("page refresh" visual). Estado otimista já está correto.
+            api.put(`/cnc/plano/${loteAtual.id}/ajustar`, params).then(_r => {
+                // servidor confirmou — estado otimista já aplicado, nada a fazer
             }).catch(err => {
                 if (err.collision) notify('Colisão! Peça não pode ser colocada nesta posição.');
                 else notify('Erro ao posicionar peça: ' + (err.error || err.message));
