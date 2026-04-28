@@ -24,6 +24,7 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
     const [matConfirmados, setMatConfirmados] = useState({});
     const [chapasDisponiveis, setChapasDisponiveis] = useState([]);
     const [checkingMats, setCheckingMats] = useState(false);
+    const [matCheckError, setMatCheckError] = useState(null); // erro de validação de materiais
     const fileRef = useRef(null);
 
     const handleFile = (file) => {
@@ -94,6 +95,7 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                         const m = mc.match(/_(\d+(?:\.\d+)?)_/);
                         return { material_code: mc, espessura: m ? parseFloat(m[1]) : 0 };
                     });
+                    setMatCheckError(null);
                     Promise.all([
                         api.post('/cnc/chapas/verificar-materiais', { materiais: matList }),
                         api.get('/cnc/chapas'),
@@ -108,8 +110,12 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                         } else {
                             setMatCheck(null);
                         }
-                    }).catch(() => setMatCheck(null))
-                      .finally(() => setCheckingMats(false));
+                    }).catch(err => {
+                        const msg = err?.error || err?.message || 'Erro ao verificar materiais';
+                        setMatCheckError(msg);
+                        notify(msg, 'error');
+                        setMatCheck(null);
+                    }).finally(() => setCheckingMats(false));
                 }
             } catch (err) {
                 notify('Erro ao ler JSON: ' + err.message);
@@ -268,7 +274,8 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                             </button>
                             <button
                                 onClick={doImport}
-                                disabled={importing || checkingMats}
+                                disabled={importing || checkingMats || !!matCheckError}
+                                title={matCheckError ? `Bloqueado: ${matCheckError}` : undefined}
                                 className="btn-primary"
                                 style={{ padding: '9px 22px', fontSize: 13, gap: 6 }}
                                 aria-label="Importar lote"

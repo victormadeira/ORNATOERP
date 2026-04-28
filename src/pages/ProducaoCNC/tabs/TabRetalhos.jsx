@@ -81,8 +81,14 @@ export function TabRetalhos({ notify }) {
     const confirmBulkDelete = async () => {
         const ids = [...selected];
         try {
-            for (const id of ids) await api.del(`/cnc/retalhos/${id}`);
-            notify(`${ids.length} retalho(s) excluído(s)`);
+            const results = await Promise.allSettled(ids.map(id => api.del(`/cnc/retalhos/${id}`)));
+            const ok = results.filter(r => r.status === 'fulfilled').length;
+            const fail = results.length - ok;
+            if (fail > 0) {
+                notify(`${ok} excluído(s), ${fail} falhou — recarregando lista`);
+            } else {
+                notify(`${ok} retalho(s) excluído(s)`);
+            }
             setSelected(new Set());
             loadRetalhos();
         } catch (err) {

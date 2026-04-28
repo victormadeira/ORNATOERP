@@ -68,7 +68,10 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                 setPendingConfirm({ conflicts: erros });
                 return;
             }
-        } catch (_) { /* validação falhou — segue em frente */ }
+        } catch (err) {
+            notify('Não foi possível validar usinagens antes de gerar o G-code. Corrija a conexão e tente novamente.');
+            return;
+        }
         doGerar();
     };
 

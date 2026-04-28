@@ -39,6 +39,8 @@ export function computeNesting(pieces, config) {
 
   /** @type {import('../../types/cnc.types.js').PlacedPiece[]} */
   const placed = [];
+  /** @type {Array<{pieceId:string, w:number, h:number, reason:string}>} */
+  const unplaced = [];
   /** @type {Array<{ occupied: Array<{x:number,y:number,w:number,h:number}> }>} */
   const sheets = [{ occupied: [] }];
 
@@ -79,8 +81,14 @@ export function computeNesting(pieces, config) {
     if (!placedItem) {
       const orient = orientations[0];
       if (orient.w > usableW || orient.h > usableH) {
-        // Peça MAIOR que a chapa — ignora e loga (não dá pra caber)
+        // Peça maior que a chapa — registra como não-colocada para o caller tratar
         console.warn('[nesting] peça maior que chapa:', item.pieceId, item.w, item.h);
+        unplaced.push({
+          pieceId: item.pieceId,
+          w: item.w - cfg.kerf,
+          h: item.h - cfg.kerf,
+          reason: 'excede_chapa',
+        });
         continue;
       }
       sheets.push({ occupied: [{ x: 0, y: 0, w: orient.w, h: orient.h }] });
@@ -114,6 +122,7 @@ export function computeNesting(pieces, config) {
 
   return {
     placed,
+    unplaced, // peças que não couberam em nenhuma chapa (excede dimensões)
     sheetsUsed: sheets.length,
     utilizationPercent: totalSheetArea > 0 ? (usedArea / totalSheetArea) * 100 : 0,
     wasteArea: (totalSheetArea - usedArea - kerfLossArea) / 1_000_000, // m²

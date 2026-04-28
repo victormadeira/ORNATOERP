@@ -20,6 +20,7 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
     const [filtroMat, setFiltroMat] = useState('');
     const [filtroMod, setFiltroMod] = useState('');
     const [busca, setBusca] = useState('');
+    const [buscaInput, setBuscaInput] = useState(''); // valor do input (debounced → busca)
     const [pecaSel, setPecaSel] = useState(null);
     const [viewMode, setViewMode] = useState('3d'); // '3d' | '2d'
     const [editorPeca, setEditorPeca] = useState(undefined); // undefined=closed, null=new, object=edit
@@ -99,10 +100,16 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
 
     useEffect(() => { load(); }, [load]);
 
+    // Debounce da busca por texto (evita re-filtrar a cada keystroke)
+    useEffect(() => {
+        const t = setTimeout(() => setBusca(buscaInput), 220);
+        return () => clearTimeout(t);
+    }, [buscaInput]);
+
     const materiais = [...new Set(pecas.map(p => p.material_code).filter(Boolean))];
     const modulos = [...new Set(pecas.map(p => p.modulo_desc).filter(Boolean))];
 
-    const filtered = pecas.filter(p => {
+    const filtered = useMemo(() => pecas.filter(p => {
         if (filtroMat && p.material_code !== filtroMat) return false;
         if (filtroMod && p.modulo_desc !== filtroMod) return false;
         if (busca) {
@@ -113,7 +120,7 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                 (p.modulo_desc || '').toLowerCase().includes(q);
         }
         return true;
-    });
+    }), [pecas, filtroMat, filtroMod, busca]);
 
     const totalInst = filtered.reduce((s, p) => s + p.quantidade, 0);
     const areaTot = filtered.reduce((s, p) => s + (p.comprimento * p.largura * p.quantidade) / 1e6, 0);
@@ -121,7 +128,15 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
     // Parse machining workers for detail panel
     const parseMach = (mj) => {
         if (!mj) return [];
-        try { const d = typeof mj === 'string' ? JSON.parse(mj) : mj; return Array.isArray(d) ? d : d.workers ? (Array.isArray(d.workers) ? d.workers : Object.values(d.workers)) : []; } catch { return []; }
+        try {
+            const d = typeof mj === 'string' ? JSON.parse(mj) : mj;
+            if (Array.isArray(d)) return d;
+            if (d.workers) return Array.isArray(d.workers) ? d.workers : Object.values(d.workers);
+            return [];
+        } catch (err) {
+            console.error('[TabPecas] parseMach — JSON inválido:', err, mj);
+            return [];
+        }
     };
 
     const handleSavePeca = async (data) => {
@@ -343,7 +358,7 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
 
                     {/* Filters + Actions */}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar peça..."
+                        <input value={buscaInput} onChange={e => setBuscaInput(e.target.value)} placeholder="Buscar peça..."
                             className={Z.inp} style={{ width: 200, fontSize: 12 }} />
                         <select value={filtroMat} onChange={e => setFiltroMat(e.target.value)}
                             className={Z.inp} style={{ width: 180, fontSize: 12 }}>

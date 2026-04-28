@@ -28,9 +28,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     const [loading, setLoading] = useState(false);
     const [otimizando, setOtimizando] = useState(false);
     const [pecasMap, setPecasMap] = useState({});
-    const [showConfig, setShowConfig] = useState(true);
     const [selectedChapa, setSelectedChapa] = useState(0);
-    const [chapaViewMode, setChapaViewMode] = useState('list'); // 'list' | 'grid'
     const [zoomLevel, setZoomLevel] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
@@ -85,7 +83,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     const [chapaStatuses, setChapaStatuses] = useState({});
     const loadChapaStatuses = useCallback(() => {
         if (!loteAtual) return;
-        api.get(`/cnc/chapa-status/${loteAtual.id}`).then(rows => {
+        const loteId = loteAtual.id; // captura antes do await para detectar staleness
+        api.get(`/cnc/chapa-status/${loteId}`).then(rows => {
+            if (loteAtual?.id !== loteId) return; // resposta obsoleta — descarta
             const map = {};
             for (const r of rows) map[r.chapa_idx] = r;
             setChapaStatuses(map);
