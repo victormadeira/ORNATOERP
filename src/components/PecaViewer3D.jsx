@@ -866,16 +866,15 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         const SZ = larg * sc;
         stateRef.current.dims = { SX, SY, SZ };
 
-        // ── Scene with gradient background ──
-        // NOTE: addColorStop DOES NOT accept CSS variables — must be hex/rgb.
+        // ── Scene — light studio background (peça destacada com clareza) ──
         const scene = new THREE.Scene();
         const bgCanvas = document.createElement('canvas');
         bgCanvas.width = 2; bgCanvas.height = 256;
         const bgCtx = bgCanvas.getContext('2d');
         const bgGrad = bgCtx.createLinearGradient(0, 0, 0, 256);
-        bgGrad.addColorStop(0, '#f8fafc');   // slate-50 (topo)
-        bgGrad.addColorStop(0.55, '#e8edf3'); // transição
-        bgGrad.addColorStop(1, '#cbd5e1');   // slate-300 (base — sombra ambiente)
+        bgGrad.addColorStop(0, '#5a6b80');   // azul-acinzentado topo
+        bgGrad.addColorStop(0.5, '#475568');
+        bgGrad.addColorStop(1, '#2f3a4a');   // mais escuro na base (chão)
         bgCtx.fillStyle = bgGrad;
         bgCtx.fillRect(0, 0, 2, 256);
         const bgTex = new THREE.CanvasTexture(bgCanvas);
@@ -903,20 +902,28 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         ctrl.maxPolarAngle = Math.PI * 0.95;
         stateRef.current.ctrl = ctrl;
 
-        // ── Lighting (3-point + hemisphere + subtle environment) ──
+        // ── Lighting — studio setup (3-point: key + fill + rim) ──
         // IMPORTANT: posições baseadas em maxD (dimensão 3D da cena) e NÃO SY (espessura ≈ 2-3 unidades).
         const maxD = Math.max(SX, SZ);
-        const hemi = new THREE.HemisphereLight(0xe6f0ff, 0xb8a585, 0.55);
+        // Hemisfério — céu claro + chão claro para iluminar a parte inferior da peça
+        const hemi = new THREE.HemisphereLight(0xa8c0e0, 0x9098a8, 0.85);
         scene.add(hemi);
-        const keyLight = new THREE.DirectionalLight(0xfff5e8, 0.95);
+        // Key light: principal, quente (luz principal do produto)
+        const keyLight = new THREE.DirectionalLight(0xfff2e0, 1.2);
         keyLight.position.set(SX * 0.6, maxD * 1.4, SZ * 0.9);
         scene.add(keyLight);
-        const fillLight = new THREE.DirectionalLight(0xd6e4ff, 0.35);
+        // Fill light: mais suave, lateral (suaviza sombras)
+        const fillLight = new THREE.DirectionalLight(0xb0c8e8, 0.5);
         fillLight.position.set(-SX * 1.2, maxD * 0.8, -SZ * 1.2);
         scene.add(fillLight);
-        const rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
-        rimLight.position.set(-SX * 0.5, maxD * 0.3, SZ * 2);
+        // Rim light: contraluz (destaca bordas — look industrial/produto)
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
+        rimLight.position.set(-SX * 0.5, maxD * 0.3, SZ * 2.5);
         scene.add(rimLight);
+        // Up-light: ilumina a parte de baixo da peça pra evitar que se misture com o fundo escuro
+        const underLight = new THREE.DirectionalLight(0xffffff, 0.65);
+        underLight.position.set(SX * 0.3, -maxD * 1.5, SZ * 0.4);
+        scene.add(underLight);
 
         // ── Environment map (PMREM) para reflexos PBR sutis ──
         try {
@@ -929,14 +936,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             stateRef.current._envTex = envTex;
         } catch { /* PMREM pode falhar em contextos limitados */ }
 
-        // ── Grid (subtle floor reference) ──
-        const gridSize = Math.max(SX, SZ) * 1.5;
-        const gridDiv = Math.round(gridSize / 10);
-        const grid = new THREE.GridHelper(gridSize, gridDiv, 0xcbd5e1, 0xe2e8f0);
-        grid.position.set(SX / 2, -0.5, SZ / 2);
-        grid.material.transparent = true;
-        grid.material.opacity = 0.4;
-        scene.add(grid);
+        // Grid removido — peça flutua no espaço para melhor visualização
 
         // ═══════════════════════════════════════════════════
         // CSG BUILD
@@ -969,23 +969,54 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         scene.add(edges);
         stateRef.current._edges = edges;
 
-        // ── Edge bands (visual strips on piece edges) ──
+        // ── Edge bands — extraídas da geometria CSG real (respeitam usinagens) ──
         const hasEB = (code) => code && code !== '-' && code !== '';
         const ebGroup = new THREE.Group();
-        const ebMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
-        const ebThick = Math.max(SY * 0.15, 0.35);
+        const ebMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false });
 
-        const addEB = (pos, rotY, w, h) => {
-            const geo = new THREE.PlaneGeometry(w, h);
-            const m = new THREE.Mesh(geo, ebMat);
-            m.position.copy(pos);
-            if (rotY) m.rotation.y = rotY;
-            ebGroup.add(m);
+        // Filtra triângulos da pieceGeo cuja normal aponta no eixo/sentido pedido (em coords RAW da geometria,
+        // antes da rotação aplicada na pieceMesh). Eixos raw: X = largura SX, Y = comprimento SZ (extrude axis ainda Z = espessura).
+        const buildBand = (rawAxis, rawDir, worldOffset) => {
+            const posAttr = pieceGeo.getAttribute('position');
+            const normAttr = pieceGeo.getAttribute('normal');
+            const idx = pieceGeo.getIndex();
+            if (!posAttr || !normAttr) return;
+            const count = idx ? idx.count : posAttr.count;
+            const get = (i) => idx ? idx.getX(i) : i;
+            const newPos = [];
+            for (let i = 0; i < count; i += 3) {
+                const i0 = get(i), i1 = get(i + 1), i2 = get(i + 2);
+                const nv = rawAxis === 'x'
+                    ? (normAttr.getX(i0) + normAttr.getX(i1) + normAttr.getX(i2)) / 3
+                    : (normAttr.getY(i0) + normAttr.getY(i1) + normAttr.getY(i2)) / 3;
+                if (nv * rawDir > 0.85) {
+                    for (const ii of [i0, i1, i2]) {
+                        newPos.push(posAttr.getX(ii), posAttr.getY(ii), posAttr.getZ(ii));
+                    }
+                }
+            }
+            if (newPos.length === 0) return;
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(newPos, 3));
+            geo.computeVertexNormals();
+            const mesh = new THREE.Mesh(geo, ebMat);
+            mesh.rotation.copy(pieceMesh.rotation);
+            mesh.position.copy(pieceMesh.position);
+            mesh.position.x += worldOffset.x || 0;
+            mesh.position.y += worldOffset.y || 0;
+            mesh.position.z += worldOffset.z || 0;
+            ebGroup.add(mesh);
         };
-        if (hasEB(peca.borda_frontal))  addEB(new THREE.Vector3(SX / 2, SY / 2, 0 - 0.04), 0, SX, ebThick);
-        if (hasEB(peca.borda_traseira)) addEB(new THREE.Vector3(SX / 2, SY / 2, SZ + 0.04), 0, SX, ebThick);
-        if (hasEB(peca.borda_dir))      addEB(new THREE.Vector3(SX + 0.04, SY / 2, SZ / 2), Math.PI / 2, SZ, ebThick);
-        if (hasEB(peca.borda_esq))      addEB(new THREE.Vector3(-0.04, SY / 2, SZ / 2), Math.PI / 2, SZ, ebThick);
+        // Mapping raw → world (pieceMesh tem rotation.x = -PI/2, position.z = SZ):
+        //   raw +X → world +X (borda_dir)
+        //   raw -X → world -X (borda_esq)
+        //   raw +Y → world +Z (borda_traseira)
+        //   raw -Y → world -Z (borda_frontal)
+        const off = 0.05;
+        if (hasEB(peca.borda_dir))      buildBand('x', +1, { x:  off });
+        if (hasEB(peca.borda_esq))      buildBand('x', -1, { x: -off });
+        if (hasEB(peca.borda_traseira)) buildBand('y', +1, { z:  off });
+        if (hasEB(peca.borda_frontal))  buildBand('y', -1, { z: -off });
         scene.add(ebGroup);
         stateRef.current._ebGroup = ebGroup;
 
@@ -1173,12 +1204,12 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
 
     // ── Toolbar button style ──
     const tbBtn = (active, title) => ({
-        background: active ? 'rgba(19,121,240,0.15)' : 'rgba(255,255,255,0.85)',
-        border: active ? '1px solid rgba(19,121,240,0.4)' : '1px solid rgba(0,0,0,0.1)',
+        background: active ? '#1379F0' : 'rgba(255,255,255,0.95)',
+        border: active ? '1px solid #0d5fc4' : '1px solid rgba(0,0,0,0.12)',
         borderRadius: 6, cursor: 'pointer', padding: '5px 7px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: active ? '#1379F0' : 'var(--muted)', fontSize: 11, fontWeight: 600, lineHeight: 1,
+        color: active ? '#ffffff' : '#475569', fontSize: 11, fontWeight: 600, lineHeight: 1,
         backdropFilter: 'blur(8px)', transition: 'all 0.15s ease',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        boxShadow: active ? '0 2px 6px rgba(19,121,240,0.4)' : '0 1px 3px rgba(0,0,0,0.15)',
     });
 
     return (
@@ -1260,10 +1291,10 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             {/* ── Legend (top-right) ── */}
             <div style={{
                 position: 'absolute', top: 8, right: 8, zIndex: 5,
-                background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)',
+                background: 'rgba(14,17,23,0.82)', backdropFilter: 'blur(8px)',
                 borderRadius: 6, padding: '6px 8px', fontSize: 9, lineHeight: 1.7,
-                border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                color: '#475569',
+                border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                color: '#94a3b8',
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: '#C4A672', display: 'inline-block', border: '1px solid #a08850' }} />
