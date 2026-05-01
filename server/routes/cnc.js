@@ -235,7 +235,10 @@ function _inferToolFromCode(tc) {
     let tipo_corte = 'broca';
     let nome = tc;
 
-    if (tc.startsWith('f_') || tc.startsWith('p_')) {
+    if (tc === 'f_12mm' || tc.includes('fresa') || tc.includes('slot')) {
+        tipo = 'fresa'; tipo_corte = 'fresa_reta';
+        nome = `Fresa ${diametro}mm (${tc})`;
+    } else if (tc.startsWith('f_') || tc.startsWith('p_') || tc.startsWith('b_')) {
         tipo = 'broca'; tipo_corte = 'broca';
         nome = `Broca ${diametro}mm (${tc})`;
     } else if (tc.startsWith('r_') || tc.startsWith('rb_')) {
@@ -247,6 +250,76 @@ function _inferToolFromCode(tc) {
     }
 
     return { nome, tipo, diametro, tipo_corte };
+}
+
+function parseMachiningData(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    try { return JSON.parse(raw); } catch (_) { return {}; }
+}
+
+function hasMachiningPayload(mach) {
+    if (!mach || typeof mach !== 'object') return false;
+    const count = (v) => {
+        if (!v) return 0;
+        if (Array.isArray(v)) return v.length;
+        if (typeof v === 'object') return Object.keys(v).length;
+        return 0;
+    };
+    return count(mach.workers) > 0 || count(mach.side_a) > 0 || count(mach.side_b) > 0 || !!mach.contour;
+}
+
+function mergeMachiningPayload(base, dedicated) {
+    if (!hasMachiningPayload(dedicated)) return base || {};
+    if (!hasMachiningPayload(base)) return dedicated || {};
+    const sectionCount = (v) => {
+        if (!v) return 0;
+        if (Array.isArray(v)) return v.length;
+        if (typeof v === 'object') return Object.keys(v).length;
+        return 0;
+    };
+    const dedicatedHasWorkers = sectionCount(dedicated.workers) > 0 || sectionCount(dedicated.side_a) > 0 || sectionCount(dedicated.side_b) > 0;
+    if (dedicatedHasWorkers) {
+        return { ...dedicated, contour: dedicated.contour || base.contour };
+    }
+    return {
+        ...base,
+        ...dedicated,
+        workers: dedicated.workers || base.workers,
+        side_a: dedicated.side_a || base.side_a,
+        side_b: dedicated.side_b || base.side_b,
+        contour: dedicated.contour || base.contour,
+    };
+}
+
+function workerFingerprintV2(w) {
+    const round = (v, scale = 100) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.round(n * scale) : 'x';
+    };
+    const norm = (v) => String(v ?? '').trim().toLowerCase();
+    const path = Array.isArray(w.path)
+        ? w.path.map(p => `${round(p.x)}:${round(p.y)}:${round(p.z)}`).join(';')
+        : '';
+    const start = w.pos_start_for_line ? `${round(w.pos_start_for_line.position_x ?? w.pos_start_for_line.x)}:${round(w.pos_start_for_line.position_y ?? w.pos_start_for_line.y)}` : '';
+    const end = w.pos_end_for_line ? `${round(w.pos_end_for_line.position_x ?? w.pos_end_for_line.x)}:${round(w.pos_end_for_line.position_y ?? w.pos_end_for_line.y)}` : '';
+    return [
+        norm(w.type || w.category),
+        norm(w.component_name),
+        round(w.x ?? w.position_x),
+        round(w.y ?? w.position_y),
+        round(w.z ?? w.position_z),
+        norm(w.face),
+        norm(w.tool_code || w.tool),
+        round(w.diameter || w.width_tool, 10),
+        round(w.depth || w.usedepth, 100),
+        round(w.width || w.width_line, 100),
+        round(w.length, 100),
+        norm(w.close),
+        start,
+        end,
+        path,
+    ].join('|');
 }
 
 // Sanitiza strings vindas do plugin: remove tags HTML e limita tamanho
@@ -439,15 +512,13 @@ export function parsePluginJSON(json) {
                     }
 
                     // ═══ DEDUPLICAÇÃO: remover workers duplicados (bug do plugin SketchUp) ═══
-                    // O plugin às vezes exporta o mesmo worker 2x (grupo pai + filho)
-                    // Fingerprint: posição + face + ferramenta + diâmetro + profundidade
+                    // O plugin às vezes exporta o mesmo worker 2x (grupo pai + filho).
+                    // O fingerprint inclui categoria/caminho/dimensões para não apagar operações
+                    // diferentes no mesmo ponto (ex.: suporte invisível + furo auxiliar).
                     const seen = new Set();
                     const dedupedWorkers = {};
                     for (const [wk, w] of Object.entries(sanitizedWorkers)) {
-                        const wx = Math.round((Number(w.x ?? w.position_x ?? -999)) * 100);
-                        const wy = Math.round((Number(w.y ?? w.position_y ?? -999)) * 100);
-                        const wz = Math.round((Number(w.z ?? w.position_z ?? -999)) * 100);
-                        const fp = `${wx}|${wy}|${wz}|${(w.face || '').toLowerCase()}|${w.tool_code || w.tool || ''}|${w.diameter || 0}|${Math.round((w.depth || 0) * 100)}`;
+                        const fp = workerFingerprintV2(w);
                         if (seen.has(fp)) {
                             // Worker duplicado — descartar
                             continue;
@@ -492,10 +563,17 @@ export function parsePluginJSON(json) {
     return { loteInfo, pecas };
 }
 
-// ─── Auto-select lado ativo baseado na complexidade de usinagem ──
-// Analisa os workers de cada lado e retorna 'A' ou 'B'
-function autoSelectLadoAtivo(machiningJson) {
+// ─── Auto-select lado ativo baseado na estratégia da máquina ──
+// Conta operações por lado e retorna 'A' ou 'B' conforme estratégia configurada.
+// maquinaCfg: { estrategia_face?: 'mais_usinagens'|'menos_usinagens'|'priorizar_furos'|'face_a_fixa'|'face_b_fixa', tipo?: string }
+function autoSelectLadoAtivo(machiningJson, maquinaCfg = {}) {
     try {
+        const estrategia = maquinaCfg.estrategia_face || 'mais_usinagens';
+
+        // Estratégias de face fixa não dependem dos workers
+        if (estrategia === 'face_a_fixa') return 'A';
+        if (estrategia === 'face_b_fixa') return 'B';
+
         const mach = typeof machiningJson === 'string' ? JSON.parse(machiningJson || '{}') : (machiningJson || {});
         const workers = mach.workers
             ? (Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers))
@@ -503,7 +581,7 @@ function autoSelectLadoAtivo(machiningJson) {
 
         if (workers.length === 0) return 'A';
 
-        // Peso por tipo de operação
+        // Peso por tipo de operação (usado em mais/menos usinagens)
         const getWeight = (w) => {
             const cat = (w.category || '').toLowerCase();
             const diam = w.diameter || 0;
@@ -517,12 +595,19 @@ function autoSelectLadoAtivo(machiningJson) {
             return 1;
         };
 
+        const isFuro = (w) => {
+            const cat = (w.category || '').toLowerCase();
+            return cat.includes('hole') || cat.includes('furo') || cat.includes('transfer_hole');
+        };
+
         // Determinar lado de cada worker
         let scoreA = 0, scoreB = 0;
+        let furosA = 0, furosB = 0;
         for (const w of workers) {
             const face = (w.face || w.quadrant || '').toLowerCase();
             const side = (w.side || '').toLowerCase();
             const weight = getWeight(w);
+            const eFuro = isFuro(w);
 
             // Operações de borda não contam para nenhum lado
             if (w.is_edge_operation) continue;
@@ -530,16 +615,27 @@ function autoSelectLadoAtivo(machiningJson) {
 
             if (face === 'top' || face === 'side_a' || side === 'side_a') {
                 scoreA += weight;
+                if (eFuro) furosA++;
             } else if (face === 'bottom' || face === 'side_b' || side === 'side_b') {
                 scoreB += weight;
+                if (eFuro) furosB++;
             } else {
                 // Sem face definida — assume lado A
                 scoreA += weight;
+                if (eFuro) furosA++;
             }
         }
 
-        // Se lado B tem mais complexidade, ele deve ficar para cima na CNC
-        return scoreB > scoreA ? 'B' : 'A';
+        if (estrategia === 'priorizar_furos') {
+            // Centro de furação: face com mais furos para cima. Empate → mais usinagens.
+            if (furosA !== furosB) return furosA > furosB ? 'A' : 'B';
+            return scoreA >= scoreB ? 'A' : 'B';
+        }
+        if (estrategia === 'menos_usinagens') {
+            return scoreA <= scoreB ? 'A' : 'B';
+        }
+        // default 'mais_usinagens'
+        return scoreA >= scoreB ? 'A' : 'B';
     } catch {
         return 'A';
     }
@@ -591,11 +687,14 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
         });
         insertMany(pecas);
 
-        // Auto-select lado_ativo para cada peça baseado na complexidade de usinagem
+        // Auto-select lado_ativo para cada peça baseado na estratégia da máquina padrão
+        const maquinaPadrao = db.prepare(
+            'SELECT tipo, pode_virar, estrategia_face FROM cnc_maquinas WHERE user_id = ? AND padrao = 1 AND ativo = 1 LIMIT 1'
+        ).get(req.user.id) || {};
         const updateLado = db.prepare('UPDATE cnc_pecas SET lado_ativo = ? WHERE lote_id = ? AND persistent_id = ?');
         for (const p of pecas) {
             if (p.machining_json && p.machining_json !== '{}') {
-                const lado = autoSelectLadoAtivo(p.machining_json);
+                const lado = autoSelectLadoAtivo(p.machining_json, maquinaPadrao);
                 if (lado !== 'A') { // Só atualiza se for B (default já é A)
                     updateLado.run(lado, loteId, p.persistent_id);
                 }
@@ -663,8 +762,15 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
                     'p_3mm':            { nome: 'Broca 3mm (prateleira)', tipo: 'broca', diametro: 3, tipo_corte: 'broca' },
                     'p_8mm_cavilha':    { nome: 'Broca 8mm (cavilha prat.)', tipo: 'broca', diametro: 8, tipo_corte: 'broca' },
                     'p_12mm':           { nome: 'Broca 12mm', tipo: 'broca', diametro: 12, tipo_corte: 'broca' },
+                    'b_5mm':            { nome: 'Broca 5mm', tipo: 'broca', diametro: 5, tipo_corte: 'broca' },
+                    'b_7mm':            { nome: 'Broca 7mm', tipo: 'broca', diametro: 7, tipo_corte: 'broca' },
+                    'b_8mm':            { nome: 'Broca 8mm', tipo: 'broca', diametro: 8, tipo_corte: 'broca' },
+                    'b_10mm':           { nome: 'Broca 10mm', tipo: 'broca', diametro: 10, tipo_corte: 'broca' },
+                    'b_15mm':           { nome: 'Broca 15mm', tipo: 'broca', diametro: 15, tipo_corte: 'broca' },
+                    'b_35mm':           { nome: 'Broca 35mm', tipo: 'broca', diametro: 35, tipo_corte: 'broca' },
                     'r_f':              { nome: 'Fresa rasgo fundo', tipo: 'fresa', diametro: 3.5, tipo_corte: 'fresa_reta' },
                     'rb_av':            { nome: 'Fresa rebaixo avesso', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_reta' },
+                    'f_12mm':           { nome: 'Fresa 12mm (rasgo/suporte invisivel)', tipo: 'fresa', diametro: 12, tipo_corte: 'fresa_reta' },
                     'usi_line':         { nome: 'Fresa contorno', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_compressao' },
                     'usi_point_to_point': { nome: 'Fresa ponto-a-ponto', tipo: 'fresa', diametro: 6, tipo_corte: 'fresa_reta' },
                     'chanfro_45':       { nome: 'Fresa chanfro 45°', tipo: 'fresa', diametro: 45, tipo_corte: 'fresa_chanfro' },
@@ -1358,18 +1464,17 @@ router.get('/pecas/:loteId', requireAuth, (req, res) => {
                 }
             }
             // ═══ Deduplicação: remover workers duplicados (bug do plugin SketchUp) ═══
-            if (!mach._deduped) {
+            // V2 evita colapsar operações diferentes que compartilham centro/ferramenta.
+            if (!mach._deduped_v2) {
                 const seen = new Set();
                 const originalCount = Object.keys(workers).length;
                 for (const [wk, w] of Object.entries(workers)) {
-                    const wx = Math.round((Number(w.x ?? w.position_x ?? -999)) * 100);
-                    const wy = Math.round((Number(w.y ?? w.position_y ?? -999)) * 100);
-                    const wz = Math.round((Number(w.z ?? w.position_z ?? -999)) * 100);
-                    const fp = `${wx}|${wy}|${wz}|${(w.face || '').toLowerCase()}|${w.tool_code || w.tool || ''}|${w.diameter || 0}|${Math.round((w.depth || 0) * 100)}`;
+                    const fp = workerFingerprintV2(w);
                     if (seen.has(fp)) { delete workers[wk]; changed = true; continue; }
                     seen.add(fp);
                 }
-                mach._deduped = true; changed = true;
+                mach._deduped_v2 = true; changed = true;
+                if (originalCount !== Object.keys(workers).length) mach._deduped = true;
             }
             if (changed) {
                 const sanitized = JSON.stringify(mach);
@@ -3023,6 +3128,31 @@ function checkBounds(peca, chapa) {
     return peca.x >= 0 && peca.y >= 0 && peca.x <= maxX + 0.5 && peca.y <= maxY + 0.5;
 }
 
+function validatePlanoGeometry(plano) {
+    const errors = [];
+    const chapas = Array.isArray(plano?.chapas) ? plano.chapas : [];
+    for (let ci = 0; ci < chapas.length; ci++) {
+        const chapa = chapas[ci] || {};
+        const pecas = Array.isArray(chapa.pecas) ? chapa.pecas : [];
+        for (let pi = 0; pi < pecas.length; pi++) {
+            const p = pecas[pi] || {};
+            const nums = [p.x, p.y, p.w, p.h].map(Number);
+            if (nums.some(n => !Number.isFinite(n)) || nums[2] <= 0 || nums[3] <= 0) {
+                errors.push(`Chapa ${ci + 1}, peça ${pi + 1}: dimensões/posição inválidas.`);
+                continue;
+            }
+            if (!checkBounds(p, chapa)) {
+                errors.push(`Chapa ${ci + 1}, peça ${pi + 1}: fora da área útil da chapa.`);
+            }
+            const collision = checkCollision(p, pecas, pi, 0);
+            if (collision.collides) {
+                errors.push(`Chapa ${ci + 1}, peça ${pi + 1}: sobreposição com peça ${collision.withIdx + 1}.`);
+            }
+        }
+    }
+    return errors;
+}
+
 function findNonCollidingPosition(peca, pecas, excludeIdx, chapaW, chapaH, refilo, kerf) {
     const maxX = chapaW - 2 * refilo - peca.w;
     const maxY = chapaH - 2 * refilo - peca.h;
@@ -3152,6 +3282,14 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
             const novoPlano = req.body.plano;
             if (!novoPlano || !Array.isArray(novoPlano.chapas)) {
                 return res.status(400).json({ error: 'Plano inválido' });
+            }
+            const planoErrors = validatePlanoGeometry(novoPlano);
+            if (planoErrors.length > 0) {
+                return res.status(409).json({
+                    error: 'Plano rejeitado por validação geométrica',
+                    detalhes: planoErrors.slice(0, 20),
+                    total_erros: planoErrors.length,
+                });
             }
             if (!novoPlano.bandeja) novoPlano.bandeja = {};
             const avgAprov = recalcOccupancy(novoPlano);
@@ -4046,7 +4184,57 @@ function mapWorkerToTipo(worker, usinagemTipos) {
         const cats = t.categoria_match.toLowerCase().split(',').map(s => s.trim());
         if (cats.some(c => cat.includes(c))) return t;
     }
+    const opKind = classifyWorkerOp(worker);
+    if (opKind === 'groove') return { codigo: 'rasgo_generico', nome: 'Rasgo / Canal', prioridade: 3, fase: 'interna', tool_code_padrao: 'r_f' };
+    if (opKind === 'milling_path') return { codigo: 'fresamento_caminho', nome: 'Fresamento de Caminho', prioridade: 3, fase: 'interna' };
+    if (opKind === 'pocket') return { codigo: 'pocket', nome: 'Pocket / Fresagem', prioridade: 3, fase: 'interna' };
+    if (opKind === 'hole') return { codigo: 'furacao_generica', nome: 'Furação Genérica', prioridade: 6, fase: 'interna' };
     return { codigo: 'generico', nome: 'Operação genérica', prioridade: 5, fase: 'interna' };
+}
+
+function workerText(worker) {
+    return [
+        worker?.type,
+        worker?.category,
+        worker?.component_name,
+        worker?.tool_code,
+        worker?.tool,
+        worker?.nome,
+    ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function classifyWorkerOp(worker, millingPath = null) {
+    const txt = workerText(worker);
+    if (worker?.is_edge_operation) return 'edge_hole';
+    if (millingPath && millingPath.length >= 2) return 'milling_path';
+    if (/pocket|rebaixo|recess|baixo/.test(txt)) return 'pocket';
+    if (/slot|saw|cut|groove|rasgo|canal|transfer_vertical_saw_cut|transfer_horizontal_saw_cut/.test(txt)) return 'groove';
+    if (/hole|borehole|furo|furacao|drill|broca/.test(txt)) return 'hole';
+    if (/transfer_milling|usi_line|usi_point_to_point|milling|fres|chanfro|chamfer/.test(txt)) return 'milling_path';
+    return 'generic';
+}
+
+function hasWorkerPosition(worker) {
+    if (worker?._no_position) return false;
+    if (worker?.pos_start_for_line) return true;
+    if (Array.isArray(worker?.path) && worker.path.length >= 2) return true;
+    const x = Number(worker?.x ?? worker?.position_x);
+    const y = Number(worker?.y ?? worker?.position_y);
+    return Number.isFinite(x) && Number.isFinite(y);
+}
+
+function gcodeOpCommentType(op) {
+    if (op?.isChanfro) return 'chanfro';
+    if (op?.opType === 'hole') return 'furo';
+    if (op?.opType === 'edge_hole') return 'furo_lateral';
+    if (op?.opType === 'groove') return 'rasgo';
+    if (op?.opType === 'pocket') return 'rebaixo';
+    if (op?.opType === 'milling_path') return 'fresagem';
+    if (op?.opType === 'circular_hole') return 'furo_circular';
+    if (op?.opType === 'contour_hole') return 'recorte_interno';
+    if (op?.opType === 'contorno_sobra') return 'contorno_sobra';
+    if (op?.opType === 'contorno') return 'contorno';
+    return op?.opType || 'outro';
 }
 
 function opStartPoint(op) {
@@ -4215,14 +4403,15 @@ function validateGeneratedGcode(gcodeText, ctx = {}) {
     if (motionLines < 3) add('erro_critico', 'G-code sem movimentos suficientes para execução.');
     if (ctx.totalOps > 0 && cuttingMoves === 0) add('erro_critico', `G-code com ${ctx.totalOps} operação(ões), mas sem movimentos de corte G1/G2/G3.`);
 
-    const expected = ctx.expectedCounts || {};
-    const opText = String(gcodeText || '');
-    const countComment = (pattern) => (opText.match(pattern) || []).length;
-    const generatedCounts = {
-        hole: countComment(/\[OP\s+type=furo\b/gi),
-        groove: countComment(/\[OP\s+type=rasgo\b/gi),
-        pocket: countComment(/\[OP\s+type=rebaixo\b/gi),
-    };
+	    const expected = ctx.expectedCounts || {};
+	    const opText = String(gcodeText || '');
+	    const generatedCounts = {};
+    const opCommentRe = /\[OP\s+type=([^\s\]]+)/gi;
+    let m;
+    while ((m = opCommentRe.exec(opText)) !== null) {
+        const key = String(m[1] || '').toLowerCase();
+        generatedCounts[key] = (generatedCounts[key] || 0) + 1;
+    }
     for (const [key, expectedCount] of Object.entries(expected)) {
         if (!expectedCount) continue;
         const got = generatedCounts[key] || 0;
@@ -4584,12 +4773,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
         // Parse machining — respect lado_ativo (flip)
         const ladoAtivo = pp.lado_ativo || 'A';
-        let mach = {};
-        try { mach = JSON.parse(pDb.machining_json || '{}'); } catch (_) {}
-        // If piece is on side B and has dedicated machining_json_b, use that instead
-        if (ladoAtivo === 'B' && pDb.machining_json_b) {
-            try { mach = JSON.parse(pDb.machining_json_b); } catch (_) {}
-        }
+        const machBase = parseMachiningData(pDb.machining_json || '{}');
+        const machB = ladoAtivo === 'B' ? parseMachiningData(pDb.machining_json_b || '{}') : {};
+        // Só usa o JSON dedicado do lado B quando ele realmente tem conteúdo.
+        // Campo padrão '{}' não pode apagar usinagens importadas no JSON principal.
+        let mach = ladoAtivo === 'B' ? mergeMachiningPayload(machBase, machB) : machBase;
 
         // Coletar workers
         const workers = [];
@@ -4605,14 +4793,15 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         }
 
         // Processar cada worker
-        for (const w of workers) {
-            const tc = w.tool_code || w.tool || '';
-            const tipo = (w.type || w.category || '').toLowerCase();
-            if (w.side === 'side_b' && !exportB) continue;
-            if (w.side === 'side_a' && !exportA) continue;
-            if (tipo.includes('hole') && !exportFuros) continue;
-            if (tipo.includes('rebaixo') && !exportRebaixos) continue;
-            if (tipo.includes('pocket') && !exportUsinagens) continue;
+	        for (const w of workers) {
+	            const tc = w.tool_code || w.tool || '';
+	            const tipo = (w.type || w.category || '').toLowerCase();
+	            const prelimKind = classifyWorkerOp(w, Array.isArray(w.path) ? w.path : null);
+	            if (w.side === 'side_b' && !exportB) continue;
+	            if (w.side === 'side_a' && !exportA) continue;
+	            if ((prelimKind === 'hole' || prelimKind === 'edge_hole') && !exportFuros) continue;
+	            if (prelimKind === 'pocket' && !exportRebaixos) continue;
+	            if ((prelimKind === 'pocket' || prelimKind === 'groove' || prelimKind === 'milling_path') && !exportUsinagens) continue;
 
             // Coords locais — declaradas aqui para ficarem disponíveis no bloco is_edge_operation
             let wx, wy, wx2, wy2;
@@ -4646,28 +4835,27 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 // Furos laterais: só incluir se máquina tem agregado horizontal / centro de furação
                 const exportarLaterais = maquina.exportar_furos_laterais === 1;
                 if (!exportarLaterais) {
+                    alertas.push({
+                        tipo: 'erro_critico',
+                        msg: `Furo lateral ignorado em ${pDb.descricao}: máquina "${maquina.nome}" não está configurada para agregado horizontal/furos laterais.`,
+                    });
                     continue; // CNC plana não executa furação horizontal
                 }
-                allOps.push({
-                    pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
-                    absX: refilo + pX + (rotated ? (() => { const t = transformRotated(wx, wy, compOrig); return t.x; })() : wx),
-                    absY: refilo + pY + (rotated ? (() => { const t = transformRotated(wx, wy, compOrig); return t.y; })() : wy),
-                    absX2: undefined, absY2: undefined,
-                    opType: 'edge_hole',
-                    fase: 0, prioridade: 5, tipoNome: `Furo borda (${edgeFace})`,
-                    toolCode: tc, toolCodigo: '', toolNome: tc,
-                    toolRpm: 0, toolDiam: Number(w.diameter || 0),
-                    depthTotal: edgeDepth, passes: [edgeDepth], velCorte: 0,
-                    pocketW: 0, pocketH: 0,
-                    classificacao: cls, areaCm2, isPequena: isPeq,
-                    isContorno: false, needsOnionSkin: false,
-                    grooveMultiPass: false, grooveOffsets: [0], grooveWidth: 0, toolAdapted: false,
-                    resolvedMetodo: 'edge_drill', holeDiameter: Number(w.diameter || 0),
-                    hasOverride: false,
-                    edgeInfo: { face: edgeFace, depth: edgeDepth, diameter: Number(w.diameter || 0), z: edgeZ },
-                });
-                continue; // Não processar como operação vertical
-            }
+                const edgeTool = toolMap[tc] || null;
+	                if (!edgeTool) {
+	                    if (tc) {
+	                        missingTools.add(tc);
+	                        missingToolDetails.push({ tool_code: tc, peca: pDb.descricao, operacao: `furo lateral ${edgeFace}` });
+	                    }
+	                    alertas.push({ tipo: 'erro_critico', msg: `Furo lateral em ${pDb.descricao} sem ferramenta cadastrada (${tc || 'sem tool_code'}).` });
+	                    continue;
+	                }
+	                alertas.push({
+	                    tipo: 'erro_critico',
+	                    msg: `Furo lateral detectado em ${pDb.descricao}, mas o pós-processador horizontal ainda não gera eixo/agregado com segurança. Operação bloqueada para evitar G-code vertical incorreto.`,
+	                });
+	                continue;
+	            }
 
             // ─── Catálogo de Usinagem: lookup por component_name (SketchUp → parâmetros CNC) ───
             // Prioridade: opOverrides (painel) > catalogEntry (catálogo) > geometria do plugin
@@ -4702,10 +4890,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const ovStepoverPct = groupOv?.stepover_override ?? ((catalogEntry?.tem_padrao && catalogEntry.stepover_pct != null) ? catalogEntry.stepover_pct : null);
             const opStepoverPct = ovStepoverPct != null ? Math.max(5, Math.min(95, Number(ovStepoverPct))) / 100 : stepoverPct;
             const ovPassesAcab = groupOv?.passes_acabamento_override ?? ((catalogEntry?.tem_padrao && catalogEntry.passes_acabamento != null) ? catalogEntry.passes_acabamento : null);
+            const usiTipo = mapWorkerToTipo(w, usinagemTipos);
 
             // Se tem override de ferramenta, usar ela
             // Prioridade: override manual > catálogo tool_code > tool_code do JSON
-            let effectiveToolCode = tc;
+            let effectiveToolCode = tc || usiTipo.tool_code_padrao || '';
             if (ovFerramentaId) {
                 const ovTool = Object.values(toolMap).find(t => t.id === ovFerramentaId);
                 if (ovTool && ovTool.tool_code) effectiveToolCode = ovTool.tool_code;
@@ -4718,7 +4907,6 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 missingToolDetails.push({ tool_code: effectiveToolCode, peca: pDb.descricao, operacao: tipo || w.type || 'desconhecida' });
             }
             const tool = toolMap[effectiveToolCode] || toolMap[tc] || null;
-            const usiTipo = mapWorkerToTipo(w, usinagemTipos);
 
             // ── Aplicar configurações de rampa por ferramenta (sobrescreve padrão da máquina) ──
             rampaTipo = tool?.rampa_tipo ?? rampaTipoMaq;
@@ -4727,6 +4915,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
             // Coords locais (wx/wy já declarados acima)
             wx2 = undefined; wy2 = undefined;
+            if (!hasWorkerPosition(w)) {
+                alertas.push({
+                    tipo: 'erro_critico',
+                    msg: `Usinagem sem coordenada válida em ${pDb.descricao}: ${tipo || w.component_name || w.tool || 'worker desconhecido'}. Operação bloqueada para evitar corte em X0/Y0.`,
+                });
+                continue;
+            }
             if (w.pos_start_for_line) {
                 wx = Number(w.pos_start_for_line.position_x ?? w.pos_start_for_line.x ?? 0);
                 wy = Number(w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0);
@@ -4807,11 +5002,12 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             // 1) Tentar resolver pela lista de estratégias do tipo de usinagem
             if (!effectiveTool) {
                 const resolved = resolveStrategy(w, usiTipo, toolMap);
-                if (resolved) {
-                    effectiveTool = resolved.tool;
-                    resolvedMetodo = resolved.metodo;
-                    toolAdapted = true;
-                    alertas.push({ tipo: 'info', msg: `${usiTipo.nome}: usando estratégia "${resolved.nome}" com ${resolved.tool.nome} (Ø${resolved.tool.diametro}mm) para ${pDb.descricao}` });
+	                if (resolved) {
+	                    effectiveTool = resolved.tool;
+	                    effectiveToolCode = resolved.tool.tool_code || effectiveToolCode;
+	                    resolvedMetodo = resolved.metodo;
+	                    toolAdapted = true;
+	                    alertas.push({ tipo: 'info', msg: `${usiTipo.nome}: usando estratégia "${resolved.nome}" com ${resolved.tool.nome} (Ø${resolved.tool.diametro}mm) para ${pDb.descricao}` });
                 }
             }
 
@@ -4821,25 +5017,56 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     t.tipo === 'fresa' || t.tipo_corte === 'fresa_reta' || t.tipo_corte === 'fresa_compressao' || t.tipo === 'broca'
                 );
                 if (alternatives.length > 0) {
-                    const reqWidth = w.width_line || w.diameter || 0;
+	                    const reqWidth = w.width_line || w.width || w.largura || w.diameter || 0;
                     if (reqWidth > 0) {
                         const fitting = alternatives.filter(t => t.diametro <= reqWidth).sort((a, b) => b.diametro - a.diametro);
                         effectiveTool = fitting[0] || alternatives.sort((a, b) => a.diametro - b.diametro)[0];
                     } else {
                         effectiveTool = alternatives[0];
                     }
-                    if (effectiveTool) {
-                        toolAdapted = true;
-                        alertas.push({ tipo: 'info', msg: `Ferramenta ${tc} não disponível. Usando ${effectiveTool.nome} (Ø${effectiveTool.diametro}mm) com estratégia adaptada para ${pDb.descricao}` });
-                    }
-                }
-            }
+	                    if (effectiveTool) {
+	                        effectiveToolCode = effectiveTool.tool_code || effectiveToolCode;
+	                        toolAdapted = true;
+	                        alertas.push({ tipo: 'info', msg: `Ferramenta ${tc} não disponível. Usando ${effectiveTool.nome} (Ø${effectiveTool.diametro}mm) com estratégia adaptada para ${pDb.descricao}` });
+	                    }
+	                }
+	            }
 
-            const isHole = tipo.includes('hole') || tipo === 'transfer_hole';
-            const isCut = tipo.includes('saw') || tipo.includes('cut') || tipo === 'transfer_vertical_saw_cut';
-            const isPocket = tipo.includes('pocket') || tipo.includes('rebaixo');
-            const isMillingPath = millingPath && millingPath.length >= 2;
-            const isChanfro = tc.includes('chanfro') || tipo.includes('chanfro');
+	            if (!effectiveTool) {
+	                alertas.push({
+	                    tipo: 'erro_critico',
+	                    msg: `Usinagem sem ferramenta resolvida em ${pDb.descricao}: ${tipo || w.component_name || tc || 'worker desconhecido'}. Cadastre a ferramenta ou mapeie no catálogo de usinagem.`,
+	                });
+	                continue;
+	            }
+
+	            const opKind = classifyWorkerOp(w, millingPath);
+	            if (opKind === 'generic') {
+	                alertas.push({
+	                    tipo: 'erro_critico',
+	                    msg: `Usinagem não reconhecida em ${pDb.descricao}: categoria="${w.category || w.type || ''}", ferramenta="${tc || effectiveToolCode || ''}". Mapeie no catálogo antes de gerar G-code.`,
+	                });
+	                continue;
+	            }
+	            const isHole = opKind === 'hole';
+	            const isCut = opKind === 'groove';
+	            const isPocket = opKind === 'pocket';
+	            const isMillingPath = opKind === 'milling_path';
+	            const isChanfro = tc.includes('chanfro') || tipo.includes('chanfro');
+	            if (isMillingPath && (!millingPath || millingPath.length < 2)) {
+	                alertas.push({
+	                    tipo: 'erro_critico',
+	                    msg: `Fresamento de caminho sem path válido em ${pDb.descricao}: ${tipo || tc}. Operação bloqueada para evitar plunge isolado.`,
+	                });
+	                continue;
+	            }
+	            if (isCut && !(Number.isFinite(absX2) && Number.isFinite(absY2))) {
+	                alertas.push({
+	                    tipo: 'erro_critico',
+	                    msg: `Rasgo/canal sem ponto final em ${pDb.descricao}: ${tipo || tc}. Configure length, x2/y2 ou path.`,
+	                });
+	                continue;
+	            }
 
             // 3) Override de método (se configurado no painel de ferramentas)
             if (ovMetodo && ovMetodo !== '' && ovMetodo !== 'desativado') {
@@ -4873,7 +5100,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const passes = calcularPassadas(depthTotal, doc);
 
             // Tool-agnostic: calcular step-over para rasgos/canais mais largos que a fresa
-            const reqWidth = w.width_line || 0;
+            const reqWidth = Number(w.width_line || w.width || w.largura || w.diameter || 0);
             const toolDiamEf = effectiveTool?.diametro || 0;
             let grooveMultiPass = false;
             let grooveOffsets = [0]; // offsets laterais para passadas múltiplas
@@ -4905,14 +5132,14 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             allOps.push({
                 pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
                 absX, absY, absX2, absY2,
-                opType: isMillingPath ? 'milling_path' : isHole ? 'hole' : isCut ? 'groove' : isPocket ? 'pocket' : 'generic',
+                opType: opKind,
                 fase: isChanfro ? 0.5 : usiTipo.fase === 'contorno' ? 1 : 0,  // chanfro: entre internas e contorno
                 prioridade: usiTipo.prioridade, tipoNome: usiTipo.nome,
                 toolCode: effectiveTool?.tool_code || effectiveToolCode || tc,
                 toolCodigo: effectiveTool?.codigo || '', toolNome: effectiveTool?.nome || tc,
                 toolRpm: effRpm, toolDiam: effectiveTool?.diametro || 0,
                 depthTotal, passes, velCorte: velEf,
-                pocketW: w.width || w.w || 0, pocketH: w.height || w.h || 0,
+                pocketW: w.width || w.width_line || w.w || 0, pocketH: w.height || w.h || w.length || 0,
                 classificacao: cls, areaCm2, isPequena: isPeq,
                 isContorno: false, needsOnionSkin: false,
                 // Tool-agnostic multi-pass
@@ -5292,7 +5519,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const outerSegs = cd.outer || [];
             if (outerSegs.length === 0) continue;
 
-            L.push(`${cmt} Contorno COMPLEXO: ${op.pecaDesc}${op.moduloDesc ? ' (' + op.moduloDesc + ')' : ''} (${outerSegs.length} segmentos)`);
+	            L.push(`${cmt} Contorno COMPLEXO: ${op.pecaDesc}${op.moduloDesc ? ' (' + op.moduloDesc + ')' : ''} (${outerSegs.length} segmentos)`);
+	            L.push(`${cmt} [OP type=contorno segmentos=${outerSegs.length} prof=${fmt(op.depthTotal)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
             if (op.needsOnionSkin) L.push(`${cmt}   ONION-SKIN: corte ate ${fmt(op.depthCont)}mm, breakthrough ${fmt(op.depthTotal)}mm`);
             L.push(`${cmt}   Passadas: ${op.passes.length} | Prof: ${fmt(op.needsOnionSkin ? op.depthCont : op.depthTotal)}mm | Area: ${op.areaCm2.toFixed(0)}cm2`);
             if (op.vacuumRiskIndex != null) L.push(`${cmt}   Risco vacuo: ${(op.vacuumRiskIndex * 100).toFixed(0)}% | Dist.borda: ${op.distBorda}mm`);
@@ -5375,7 +5603,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const cR = op.cutterRadius || 0;
             const toolR = (op.toolDiam || 6) / 2;
 
-            L.push(`${cmt} Furo circular D${fmt(r * 2)}mm (passa-fio): ${op.pecaDesc}`);
+	            L.push(`${cmt} Furo circular D${fmt(r * 2)}mm (passa-fio): ${op.pecaDesc}`);
+	            L.push(`${cmt} [OP type=furo_circular diam=${fmt(r * 2)} prof=${fmt(op.depthTotal)} cx=${fmt(cx)} cy=${fmt(cy)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
 
             if (r > toolR * 1.5) {
                 const cutR = r - toolR;  // raio de interpolação
@@ -5451,7 +5680,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const oX = op.offsetX, oY = op.offsetY;
             const segs = h.segments || [];
 
-            L.push(`${cmt} Recorte interno: ${op.pecaDesc} (${segs.length} segmentos)`);
+	            L.push(`${cmt} Recorte interno: ${op.pecaDesc} (${segs.length} segmentos)`);
+	            L.push(`${cmt} [OP type=recorte_interno segmentos=${segs.length} prof=${fmt(op.depthTotal)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
 
             if (segs.length > 0) {
                 const lastSeg = segs[segs.length - 1];
@@ -5490,7 +5720,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         // ─── CONTORNO SOBRA COM BORDAS (open path — lados na borda da chapa são omitidos) ───
         } else if (op.isContorno && op.isOpenPath && op.contornoSegments) {
             const segs = op.contornoSegments;
-            L.push(`${cmt} Contorno Sobra (parcial): ${op.pecaDesc}`);
+	            L.push(`${cmt} Contorno Sobra (parcial): ${op.pecaDesc}`);
+	            L.push(`${cmt} [OP type=contorno_sobra segmentos=${segs.length} prof=${fmt(op.depthTotal)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
             L.push(`${cmt}   ${segs.length} segmento(s) | ${4 - (op.edgesSkipped || 0)} lados internos | Passadas: ${op.passes.length} | Prof: ${fmt(op.depthTotal)}mm`);
 
             for (const seg of segs) {
@@ -5532,7 +5763,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const path = op.contornoPath;
             if (!path || path.length < 4) continue;
 
-            L.push(`${cmt} ${op.opType === 'contorno_sobra' ? 'Sobra' : 'Contorno'}: ${op.pecaDesc}${op.moduloDesc ? ' (' + op.moduloDesc + ')' : ''}`);
+	            L.push(`${cmt} ${op.opType === 'contorno_sobra' ? 'Sobra' : 'Contorno'}: ${op.pecaDesc}${op.moduloDesc ? ' (' + op.moduloDesc + ')' : ''}`);
+	            L.push(`${cmt} [OP type=${gcodeOpCommentType(op)} prof=${fmt(op.depthTotal)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
             if (op.needsOnionSkin) L.push(`${cmt}   ONION-SKIN: corte ate ${fmt(op.depthCont)}mm, breakthrough ${fmt(op.depthTotal)}mm`);
             L.push(`${cmt}   Passadas: ${op.passes.length} | Prof: ${fmt(op.needsOnionSkin ? op.depthCont : op.depthTotal)}mm | Area: ${op.areaCm2.toFixed(0)}cm2`);
             if (op.vacuumRiskIndex != null) L.push(`${cmt}   Risco vacuo: ${(op.vacuumRiskIndex * 100).toFixed(0)}% | Dist.borda: ${op.distBorda}mm`);
@@ -6157,11 +6389,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         alertas.push({ tipo: 'erro_critico', msg: 'G-Code gerado sem operações de corte. Verifique: ferramentas cadastradas, peças com usinagens, e configurações de exportação (lado A/B, furos, contornos).' });
     }
 
-    const expectedCounts = {
-        hole: allOps.filter(o => o.opType === 'hole').length,
-        groove: allOps.filter(o => o.opType === 'groove').length,
-        pocket: allOps.filter(o => o.opType === 'pocket').length,
-    };
+	    const expectedCounts = {};
+	    for (const op of allOps) {
+	        const key = gcodeOpCommentType(op);
+	        expectedCounts[key] = (expectedCounts[key] || 0) + 1;
+	    }
     alertas.push(...validateGeneratedGcode(gcodeText, {
         cmt,
         zOrigin,
@@ -6680,12 +6912,10 @@ router.get('/validar-usinagens/:loteId', requireAuth, (req, res) => {
                 const pDb = pecasMap[pp.pecaId];
                 if (!pDb) continue;
 
-                const ladoAtivo = pp.lado_ativo || 'A';
-                let mach = {};
-                try { mach = JSON.parse(pDb.machining_json || '{}'); } catch (_) {}
-                if (ladoAtivo === 'B' && pDb.machining_json_b) {
-                    try { mach = JSON.parse(pDb.machining_json_b); } catch (_) {}
-                }
+	                const ladoAtivo = pp.lado_ativo || 'A';
+	                const machBase = parseMachiningData(pDb.machining_json || '{}');
+	                const machB = ladoAtivo === 'B' ? parseMachiningData(pDb.machining_json_b || '{}') : {};
+	                const mach = ladoAtivo === 'B' ? mergeMachiningPayload(machBase, machB) : machBase;
 
                 // Collect all workers
                 const workers = [];
@@ -6705,10 +6935,39 @@ router.get('/validar-usinagens/:loteId', requireAuth, (req, res) => {
 
                 for (let wi = 0; wi < workers.length; wi++) {
                     const w = workers[wi];
-                    const depth = Number(w.depth || 0);
-                    const tc = w.tool_code || w.tool || '';
-                    const tipo = (w.type || w.category || '').toLowerCase();
-                    const tool = toolMap[tc] || null;
+	                    const depth = Number(w.depth || 0);
+	                    const tc = w.tool_code || w.tool || '';
+	                    const tipo = (w.type || w.category || '').toLowerCase();
+	                    const opKind = classifyWorkerOp(w, Array.isArray(w.path) ? w.path : null);
+	                    const tool = toolMap[tc] || null;
+
+	                    if (opKind === 'generic') {
+	                        conflicts.push({
+	                            chapaIdx: ci, pecaIdx: pi,
+	                            pecaDesc: pDb.descricao || `Peca #${pDb.id}`,
+	                            tipo: 'usinagem_nao_mapeada',
+	                            mensagem: `Usinagem não reconhecida no worker ${wi + 1}: categoria="${tipo || 'vazia'}", ferramenta="${tc || 'sem tool_code'}".`,
+	                            severidade: 'erro',
+	                        });
+	                    }
+	                    if (!hasWorkerPosition(w)) {
+	                        conflicts.push({
+	                            chapaIdx: ci, pecaIdx: pi,
+	                            pecaDesc: pDb.descricao || `Peca #${pDb.id}`,
+	                            tipo: 'coordenada_ausente',
+	                            mensagem: `Usinagem ${tipo || tc || wi + 1} sem coordenada/path válido. G-code bloqueará para evitar X0/Y0.`,
+	                            severidade: 'erro',
+	                        });
+	                    }
+	                    if (tc && !tool) {
+	                        conflicts.push({
+	                            chapaIdx: ci, pecaIdx: pi,
+	                            pecaDesc: pDb.descricao || `Peca #${pDb.id}`,
+	                            tipo: 'ferramenta_nao_cadastrada',
+	                            mensagem: `Ferramenta ${tc} não cadastrada na máquina padrão.`,
+	                            severidade: 'erro',
+	                        });
+	                    }
 
                     // Check 1: Depth exceeding piece thickness
                     if (depth > pecaEsp) {
@@ -6733,11 +6992,13 @@ router.get('/validar-usinagens/:loteId', requireAuth, (req, res) => {
                     }
 
                     // Collect bounding boxes for overlap check
-                    const mx = Number(w.x ?? w.position_x ?? 0);
-                    const my = Number(w.y ?? w.position_y ?? 0);
-                    const diam = Number(w.diameter || 0);
-                    const pw2 = Number(w.pocket_width || w.width || diam || 6);
-                    const ph2 = Number(w.pocket_height || w.height || diam || 6);
+	                    if (!hasWorkerPosition(w)) continue;
+	                    const firstPath = Array.isArray(w.path) && w.path.length ? w.path[0] : null;
+	                    const mx = Number(w.x ?? w.position_x ?? firstPath?.x ?? 0);
+	                    const my = Number(w.y ?? w.position_y ?? firstPath?.y ?? 0);
+	                    const diam = Number(w.diameter || 0);
+	                    const pw2 = Number(w.pocket_width || w.width || w.width_line || diam || 6);
+	                    const ph2 = Number(w.pocket_height || w.height || w.length || diam || 6);
                     opsBBoxes.push({ x: mx - pw2 / 2, y: my - ph2 / 2, w: pw2, h: ph2, depth, idx: wi, tipo });
                 }
 
@@ -6826,7 +7087,8 @@ router.post('/maquinas', requireAuth, (req, res) => {
         rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
         compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
         margem_mesa_sacrificio, g0_com_feed, capacidade_magazine, operador,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        tipo, pode_virar, estrategia_face,
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(req.user.id, m.nome, m.fabricante || '', m.modelo || '', m.tipo_pos || 'generic', m.extensao_arquivo || '.nc',
             m.x_max || 2800, m.y_max || 1900, m.z_max || 200,
             m.gcode_header || '%\nG90 G54 G17',
@@ -6851,6 +7113,7 @@ router.post('/maquinas', requireAuth, (req, res) => {
             m.circular_passes_acabamento ?? 1, m.circular_offset_desbaste ?? 0.3, m.vel_acabamento_pct ?? 80,
             m.margem_mesa_sacrificio ?? 0.5, m.g0_com_feed ?? 0,
             m.capacidade_magazine ?? 35, m.operador || '',
+            m.tipo || 'router', m.pode_virar ?? 0, m.estrategia_face || 'mais_usinagens',
             m.padrao || 0);
     res.json({ id: Number(r.lastInsertRowid) });
 });
@@ -6877,6 +7140,7 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
         compensar_raio_canal=?, compensacao_tipo=?, circular_passes_acabamento=?, circular_offset_desbaste=?, vel_acabamento_pct=?,
         margem_mesa_sacrificio=?, g0_com_feed=?,
         capacidade_magazine=?, operador=?,
+        tipo=?, pode_virar=?, estrategia_face=?,
         padrao=?, ativo=?, atualizado_em=CURRENT_TIMESTAMP WHERE id=?`)
         .run(m.nome, m.fabricante, m.modelo, m.tipo_pos, m.extensao_arquivo,
             m.x_max, m.y_max, m.z_max, m.gcode_header, m.gcode_footer,
@@ -6898,6 +7162,7 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
             m.circular_passes_acabamento ?? 1, m.circular_offset_desbaste ?? 0.3, m.vel_acabamento_pct ?? 80,
             m.margem_mesa_sacrificio ?? 0.5, m.g0_com_feed ?? 0,
             m.capacidade_magazine ?? 35, m.operador || '',
+            m.tipo || 'router', m.pode_virar ?? 0, m.estrategia_face || 'mais_usinagens',
             m.padrao ?? 0, m.ativo ?? 1, req.params.id);
     res.json({ ok: true });
 });
@@ -9644,16 +9909,35 @@ router.post('/validar-usinagens/:pecaId', requireAuth, (req, res) => {
 
         const warnings = [];
 
-        for (let i = 0; i < workers.length; i++) {
-            const w = workers[i];
-            const tipo = (w.type || w.category || '').toLowerCase();
-            const isHole = tipo.includes('hole');
-            const wx = w.x || 0;
-            const wy = w.y || 0;
-            const wDepth = w.depth || 0;
-            const wDiam = w.diameter || 0;
-            const face = (w.face || 'top').toLowerCase();
-            const isFaceTop = face === 'top' || face === 'side_a' || face === 'bottom' || face === 'side_b';
+	        for (let i = 0; i < workers.length; i++) {
+	            const w = workers[i];
+	            const tipo = (w.type || w.category || '').toLowerCase();
+	            const opKind = classifyWorkerOp(w, Array.isArray(w.path) ? w.path : null);
+	            const isHole = opKind === 'hole';
+	            const firstPath = Array.isArray(w.path) && w.path.length ? w.path[0] : null;
+	            const wx = Number(w.x ?? w.position_x ?? firstPath?.x ?? 0);
+	            const wy = Number(w.y ?? w.position_y ?? firstPath?.y ?? 0);
+	            const wDepth = w.depth || 0;
+	            const wDiam = w.diameter || 0;
+	            const face = (w.face || 'top').toLowerCase();
+	            const isFaceTop = face === 'top' || face === 'side_a' || face === 'bottom' || face === 'side_b';
+
+	            if (opKind === 'generic') {
+	                warnings.push({
+	                    type: 'unsupported_operation',
+	                    severity: 'error',
+	                    msg: `Usinagem ${i + 1}: categoria não mapeada (${tipo || 'vazia'})`,
+	                    workers: [i],
+	                });
+	            }
+	            if (!hasWorkerPosition(w)) {
+	                warnings.push({
+	                    type: 'missing_position',
+	                    severity: 'error',
+	                    msg: `Usinagem ${i + 1}: coordenada/path ausente`,
+	                    workers: [i],
+	                });
+	            }
 
             // 1. Missing diameter on holes
             if (isHole && !wDiam) {
@@ -9705,8 +9989,9 @@ router.post('/validar-usinagens/:pecaId', requireAuth, (req, res) => {
                 const face2 = (w2.face || 'top').toLowerCase();
                 if (face !== face2) continue; // different faces don't conflict
 
-                const w2x = w2.x || 0;
-                const w2y = w2.y || 0;
+	                const w2FirstPath = Array.isArray(w2.path) && w2.path.length ? w2.path[0] : null;
+	                const w2x = Number(w2.x ?? w2.position_x ?? w2FirstPath?.x ?? 0);
+	                const w2y = Number(w2.y ?? w2.position_y ?? w2FirstPath?.y ?? 0);
                 const dist = Math.sqrt((wx - w2x) ** 2 + (wy - w2y) ** 2);
 
                 // Duplicate positions
@@ -9720,7 +10005,7 @@ router.post('/validar-usinagens/:pecaId', requireAuth, (req, res) => {
                 }
 
                 // Overlapping holes
-                if (isHole && tipo2.includes('hole') && wDiam > 0 && (w2.diameter || 0) > 0) {
+	                if (isHole && classifyWorkerOp(w2, Array.isArray(w2.path) ? w2.path : null) === 'hole' && wDiam > 0 && (w2.diameter || 0) > 0) {
                     const minDist = wDiam / 2 + (w2.diameter || 0) / 2;
                     if (dist < minDist) {
                         warnings.push({

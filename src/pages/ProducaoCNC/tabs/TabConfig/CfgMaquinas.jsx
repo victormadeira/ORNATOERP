@@ -173,6 +173,8 @@ function newMaquinaDefaults() {
         g0_com_feed: 0,
         capacidade_magazine: 35,
         operador: '',
+        // Estratégia de face e tipo de máquina
+        tipo: 'router', pode_virar: 0, estrategia_face: 'mais_usinagens',
         padrao: 0, ativo: 1,
         // Envio direto
         envio_tipo: '', envio_host: '', envio_porta: 21, envio_usuario: '', envio_senha: '', envio_pasta: '/',
@@ -239,6 +241,34 @@ function MaquinaModal({ data, onSave, onClose }) {
                         <label className={Z.lbl}>Capacidade do Magazine (slots)</label>
                         <input type="number" value={f.capacidade_magazine ?? 35} onChange={e => upd('capacidade_magazine', Math.max(1, Number(e.target.value)))} className={Z.inp} min="1" max="200" step="1" />
                         <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>Nº máximo de ferramentas no carrossel (sua CNC tem 35)</div>
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Tipo de Máquina</label>
+                        <select value={f.tipo || 'router'} onChange={e => upd('tipo', e.target.value)} className={Z.inp}>
+                            <option value="router">CNC Router (nesting)</option>
+                            <option value="centro_furacao">Centro de Furação</option>
+                            <option value="router_furacao">Router + Furação combinada</option>
+                            <option value="beam_saw">Beam Saw (serra)</option>
+                        </select>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>Define como peças são roteadas pra essa máquina</div>
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Estratégia de Face</label>
+                        <select value={f.estrategia_face || 'mais_usinagens'} onChange={e => upd('estrategia_face', e.target.value)} className={Z.inp}>
+                            <option value="mais_usinagens">Lado com mais usinagens p/ cima</option>
+                            <option value="menos_usinagens">Lado com menos usinagens p/ cima</option>
+                            <option value="priorizar_furos">Priorizar furos (centro de furação)</option>
+                            <option value="face_a_fixa">Sempre Face A</option>
+                            <option value="face_b_fixa">Sempre Face B</option>
+                        </select>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>Qual face fica voltada para cima na CNC</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <label style={{ fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input type="checkbox" checked={f.pode_virar === 1} onChange={e => upd('pode_virar', e.target.checked ? 1 : 0)} />
+                            Operador vira a peça (faz os 2 lados)
+                        </label>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Se desligado, usinagens do lado oposto são alertadas no plano</span>
                     </div>
                     <div>
                         <label className={Z.lbl}>Coordenada Zero XY</label>

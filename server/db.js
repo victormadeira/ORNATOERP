@@ -2518,6 +2518,18 @@ const migrations = [
   // Busca por telefone limpo (REPLACE chain) é frequente em /captura — este índice
   // ajuda no fallback simples; ideal seria coluna telefone_limpo gerada, fica como TODO.
   "CREATE INDEX IF NOT EXISTS idx_clientes_tel ON clientes(tel)",
+
+  // ═══ Configuração de estratégia de face por máquina ═══
+  // tipo: router (CNC nesting), centro_furacao (só furos), router_furacao (combo), beam_saw (serra)
+  "ALTER TABLE cnc_maquinas ADD COLUMN tipo TEXT DEFAULT 'router'",
+  // pode_virar: se o operador vira a peça para fazer o lado oposto (false na maioria dos shops)
+  "ALTER TABLE cnc_maquinas ADD COLUMN pode_virar INTEGER DEFAULT 0",
+  // estrategia_face: como escolher qual face fica para cima na CNC
+  //   'mais_usinagens' (default): face com mais operações fica para cima (minimiza tempo)
+  //   'menos_usinagens': face com menos operações fica para cima (testa setup com poucas ops)
+  //   'priorizar_furos': se máquina é centro de furação, prioriza face com furos
+  //   'face_a_fixa' / 'face_b_fixa': forçar lado A ou B (alguns operadores preferem)
+  "ALTER TABLE cnc_maquinas ADD COLUMN estrategia_face TEXT DEFAULT 'mais_usinagens'",
 ];
 
 // Tabela de retry queue para mensagens de IA que falharam (criada separado pois é nova, não ALTER)
@@ -4487,7 +4499,8 @@ if (caixaCount.c === 0) {
     ins.run(maquinaPadraoId, 'T07', 'Pocket 3mm',               'fresa', 3,  'p_3mm');
     ins.run(maquinaPadraoId, 'T08', 'Pocket 8mm (cavilha)',     'fresa', 8,  'p_8mm_cavilha');
     ins.run(maquinaPadraoId, 'T09', 'Serra rasgo fundo',        'serra', 7,  'r_f');
-    console.log('[OK] CNC: 9 ferramentas CNC criadas');
+    ins.run(maquinaPadraoId, 'T10', 'Fresa 12mm (suporte invisível)', 'fresa', 12, 'f_12mm');
+    console.log('[OK] CNC: ferramentas CNC criadas');
   }
 
   // Tipos de usinagem (prioridades centralizadas)
@@ -4497,6 +4510,7 @@ if (caixaCount.c === 0) {
     insU.run('rasgo_fundo',       'Rasgo de Fundo',       'Transfer_vertical_saw_cut,Transfer_horizontal_saw_cut,saw_cut', null, 0, 'interna', 'r_f', 6, 3);
     insU.run('rasgo_led',         'Rasgo de LED',          'led_groove,rasgo_led', null, 1, 'interna', 'r_f', 8, 8);
     insU.run('rasgo_gaveta',      'Rasgo de Gaveta',       'rasgo_gaveta,drawer_groove', null, 2, 'interna', 'r_f', 12.5, 12.7);
+    insU.run('rasgo_suporte_invisivel', 'Rasgo Suporte Invisível', 'transfer_slot,suporte_invisivel,invisible_shelf', null, 2, 'interna', 'f_12mm', 12.7, 12.7);
     insU.run('rebaixo',           'Rebaixo',               'rebaixo', null, 3, 'interna', 'r_f', 3, null);
     insU.run('pocket',            'Pocket / Fresagem',     'pocket', null, 3, 'interna', '', null, null);
     insU.run('furacao_minifix',   'Furação Minifix',       'hole,transfer_hole', 15, 4, 'interna', 'f_15mm_tambor_min', 13, null);
@@ -4507,7 +4521,7 @@ if (caixaCount.c === 0) {
     insU.run('chanfro',           'Chanfro 45°',           'chanfro', null, 7, 'interna', 'chanfro_45', null, null);
     insU.run('contorno_peca',     'Contorno da Peça',      'contorno,contorno_peca', null, 8, 'contorno', '', null, null);
     insU.run('contorno_sobra',    'Contorno de Sobra',     'contorno_sobra', null, 9, 'contorno', '', null, null);
-    console.log('[OK] CNC: 13 tipos de usinagem criados');
+    console.log('[OK] CNC: tipos de usinagem criados');
   }
 
   // Migração: adicionar tipos de usinagem faltantes (transfer_milling, chanfro) em DBs existentes
@@ -4522,6 +4536,7 @@ if (caixaCount.c === 0) {
     };
     insIfMissing('fresamento_caminho', 'Fresamento de Caminho', 'transfer_milling', null, 3, 'interna', '', null, null);
     insIfMissing('chanfro', 'Chanfro 45°', 'chanfro', null, 7, 'interna', 'chanfro_45', null, null);
+    insIfMissing('rasgo_suporte_invisivel', 'Rasgo Suporte Invisível', 'transfer_slot,suporte_invisivel,invisible_shelf', null, 2, 'interna', 'f_12mm', 12.7, 12.7);
   }
 
   // Migração: vincular ferramentas órfãs à máquina padrão
