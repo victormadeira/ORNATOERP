@@ -230,6 +230,34 @@ function writeFormatInfo(matrix, size, maskId) {
     }
 }
 
+// Aceita apenas cores seguras (hex 3/6/8 dígitos, rgb/rgba ou nome simples)
+// para impedir injeção de aspas/`>` no atributo fill quando vier de input do usuário.
+function safeColor(color, fallback = '#000') {
+    if (typeof color !== 'string') return fallback;
+    const c = color.trim();
+    if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return c;
+    if (/^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*[\d.]+\s*)?\)$/.test(c)) return c;
+    if (/^[a-zA-Z]{3,20}$/.test(c)) return c; // nomes CSS válidos (red, black, etc.)
+    return fallback;
+}
+
+/**
+ * Calcula a matriz binária do QR code. Retorna { matrix, size } onde matrix[r][c] === 1
+ * indica módulo "preenchido". Use isso para renderizar via componentes React/SVG nativos
+ * (preferível) em vez de gerar string e usar dangerouslySetInnerHTML.
+ * @param {string} text
+ * @returns {{ matrix: number[][], size: number, margin: number } | null}
+ */
+export function qrcodeMatrix(text) {
+    if (!text) return null;
+    const { codewords, version } = encodeData(text);
+    const { matrix, reserved, size } = createMatrix(version);
+    placeData(matrix, reserved, size, codewords);
+    applyMask(matrix, reserved, size, 0);
+    writeFormatInfo(matrix, size, 0);
+    return { matrix, size, margin: 4 };
+}
+
 /**
  * Generate QR code as SVG string.
  * @param {string} text - Content to encode
@@ -248,13 +276,14 @@ export function qrcodeSVG(text, moduleSize = 4, color = '#000') {
     applyMask(matrix, reserved, size, 0);
     writeFormatInfo(matrix, size, 0);
 
+    const fillColor = safeColor(color);
     const margin = 4;
     const totalSize = (size + margin * 2) * moduleSize;
     let rects = '';
     for (let r = 0; r < size; r++)
         for (let c = 0; c < size; c++)
             if (matrix[r][c] === 1)
-                rects += `<rect x="${(c + margin) * moduleSize}" y="${(r + margin) * moduleSize}" width="${moduleSize}" height="${moduleSize}" fill="${color}"/>`;
+                rects += `<rect x="${(c + margin) * moduleSize}" y="${(r + margin) * moduleSize}" width="${moduleSize}" height="${moduleSize}" fill="${fillColor}"/>`;
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" width="${totalSize}" height="${totalSize}"><rect width="${totalSize}" height="${totalSize}" fill="#fff"/>${rects}</svg>`;
 }

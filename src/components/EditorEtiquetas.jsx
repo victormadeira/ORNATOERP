@@ -12,7 +12,7 @@ import {
   Move, Maximize2, RotateCw, Palette, AlignLeft, AlignCenter, AlignRight,
   Image, Map
 } from 'lucide-react';
-import { qrcodeSVG } from '../utils/qrcode';
+import { qrcodeMatrix } from '../utils/qrcode';
 import { code128Bars } from '../utils/code128';
 
 // ─── Variáveis disponíveis ──────────────────────────────
@@ -262,13 +262,28 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
       );
     case 'qrcode': {
       const qrVal = resolverVariavel(el.barcodeVariavel || 'controle', et, cfg);
-      const svgStr = qrcodeSVG(qrVal || 'QR', 1, el.cor || '#000');
+      const data = qrcodeMatrix(qrVal || 'QR');
+      // Render nativo em SVG (sem dangerouslySetInnerHTML) — atributos
+      // controlados pelo React, imune a XSS via cor/conteúdo do usuário.
+      const corHex = /^#[0-9a-fA-F]{3,8}$/.test(el.cor || '') ? el.cor : '#000';
+      const totalModules = data ? (data.size + data.margin * 2) : 1;
+      const moduleSize = data ? Math.min(el.w, el.h) / totalModules : 0;
       return (
         <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
           {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" />}
-          <foreignObject x={el.x} y={el.y} width={el.w} height={el.h}>
-            <div xmlns="http://www.w3.org/1999/xhtml" dangerouslySetInnerHTML={{ __html: svgStr }} style={{ width: '100%', height: '100%' }} />
-          </foreignObject>
+          <rect x={el.x} y={el.y} width={el.w} height={el.h} fill="#fff" />
+          {data && data.matrix.flatMap((row, r) =>
+            row.map((v, c) => v === 1 ? (
+              <rect
+                key={`${r}-${c}`}
+                x={el.x + (c + data.margin) * moduleSize}
+                y={el.y + (r + data.margin) * moduleSize}
+                width={moduleSize}
+                height={moduleSize}
+                fill={corHex}
+              />
+            ) : null).filter(Boolean)
+          )}
         </g>
       );
     }
