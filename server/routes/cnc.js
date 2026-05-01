@@ -12610,28 +12610,30 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
                 if (p.rotated && minDim > 20) {
                     html += `<text x="${px + 4}" y="${py + 9}" font-size="6" fill="${c.dark}" font-weight="700" opacity="0.7">↻</text>`;
                 }
-                // Número da peça (sempre)
+                // Número da peça (sempre). Tamanhos em mm (viewBox = chapa em mm).
+                // Em chapas grandes (~2750mm) renderizadas em ~700px o scale fica ~0.25,
+                // então fonte de 60mm vira ~15px no PDF impresso — bom equilíbrio.
                 if (minDim >= 18) {
-                    const numFontSize = Math.max(7, Math.min(16, minDim / 4));
-                    // Círculo de fundo pro número (legibilidade)
+                    const numFontSize = Math.max(28, Math.min(75, minDim / 3));
+                    // Círculo de fundo pro número (legibilidade contra fill da peça)
                     const numR = numFontSize * 0.7;
-                    html += `<circle cx="${cx}" cy="${cy}" r="${numR}" fill="${c.dark}" opacity="0.85"/>`;
-                    html += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${numFontSize}" font-weight="700" font-family="Arial" fill="#fff">${pi + 1}</text>`;
+                    html += `<circle cx="${cx}" cy="${cy}" r="${numR}" fill="${c.dark}" opacity="0.9"/>`;
+                    html += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${numFontSize}" font-weight="800" font-family="Arial" fill="#fff">${pi + 1}</text>`;
                     // Descrição abaixo do número se peça grande
-                    if (minDim >= 70 && p.w >= 90 && dbp?.descricao) {
-                        const fs = Math.min(9, p.w / 16);
-                        const maxChars = Math.floor(p.w / 6);
+                    if (minDim >= 80 && p.w >= 100 && dbp?.descricao) {
+                        const fs = Math.max(14, Math.min(28, p.w / 25));
+                        const maxChars = Math.floor(p.w / (fs * 0.55));
                         const desc = dbp.descricao.length > maxChars ? dbp.descricao.substring(0, maxChars - 1) + '…' : dbp.descricao;
-                        html += `<text x="${cx}" y="${cy + numR + fs * 0.6}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs}" font-family="Arial" fill="${c.dark}" font-weight="600">${escapeHtml(desc)}</text>`;
+                        html += `<text x="${cx}" y="${cy + numR + fs * 0.4}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs}" font-family="Arial" fill="${c.dark}" font-weight="600">${escapeHtml(desc)}</text>`;
                         // Dimensão como subtítulo discreto
-                        if (p.h >= 110) {
-                            html += `<text x="${cx}" y="${cy + numR + fs * 1.7}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs * 0.8}" font-family="monospace" fill="${c.dark}" opacity="0.7">${Math.round(p.w)}×${Math.round(p.h)}</text>`;
+                        if (p.h >= 140) {
+                            html += `<text x="${cx}" y="${cy + numR + fs * 1.6}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs * 0.75}" font-family="monospace" fill="${c.dark}" opacity="0.7">${Math.round(p.w)}×${Math.round(p.h)}</text>`;
                         }
                     }
                 } else {
-                    // Peça muito pequena: número fora (acima)
-                    const ext = Math.max(6, Math.min(8, minDim * 0.8));
-                    html += `<text x="${cx}" y="${py - 1}" text-anchor="middle" font-size="${ext}" font-weight="700" font-family="Arial" fill="${c.dark}">${pi + 1}</text>`;
+                    // Peça muito pequena (<18mm minDim): número fora (acima da peça)
+                    const ext = Math.max(18, Math.min(28, minDim * 1.5));
+                    html += `<text x="${cx}" y="${py - 2}" text-anchor="middle" font-size="${ext}" font-weight="800" font-family="Arial" fill="${c.dark}">${pi + 1}</text>`;
                 }
             });
             // Retalhos (sobras) com hachura verde
