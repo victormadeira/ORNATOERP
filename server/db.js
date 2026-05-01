@@ -2519,6 +2519,15 @@ const migrations = [
   // ajuda no fallback simples; ideal seria coluna telefone_limpo gerada, fica como TODO.
   "CREATE INDEX IF NOT EXISTS idx_clientes_tel ON clientes(tel)",
 
+  // ═══ Templates de orçamento: isolamento + analytics ═══
+  // user_id: isolamento multi-tenant (NULL = templates globais do sistema, futuro)
+  "ALTER TABLE ambiente_templates ADD COLUMN user_id INTEGER REFERENCES users(id)",
+  "ALTER TABLE ambiente_templates ADD COLUMN uso_count INTEGER DEFAULT 0",
+  "ALTER TABLE ambiente_templates ADD COLUMN ultimo_uso_em DATETIME",
+  // Backfill: templates existentes ficam para o admin (id=1) por enquanto
+  "UPDATE ambiente_templates SET user_id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) WHERE user_id IS NULL",
+  "CREATE INDEX IF NOT EXISTS idx_ambiente_templates_user ON ambiente_templates(user_id, categoria)",
+
   // ═══ Configuração de estratégia de face por máquina ═══
   // tipo: router (CNC nesting), centro_furacao (só furos), router_furacao (combo), beam_saw (serra)
   "ALTER TABLE cnc_maquinas ADD COLUMN tipo TEXT DEFAULT 'router'",

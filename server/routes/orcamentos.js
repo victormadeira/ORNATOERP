@@ -121,11 +121,15 @@ router.post('/aditivo', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
-// GET /api/orcamentos/templates — listar templates de ambiente
+// GET /api/orcamentos/templates — listar templates de ambiente do user
 // (DEVE ficar antes de /:id para não conflitar)
+// Inclui templates globais (user_id IS NULL) — futuro pra seed do sistema
 // ═══════════════════════════════════════════════════════
 router.get('/templates', requireAuth, (req, res) => {
-    const templates = db.prepare('SELECT * FROM ambiente_templates ORDER BY categoria, nome').all();
+    const templates = db.prepare(
+        `SELECT * FROM ambiente_templates WHERE user_id = ? OR user_id IS NULL
+         ORDER BY uso_count DESC, categoria, nome`
+    ).all(req.user.id);
     res.json(templates);
 });
 
@@ -135,28 +139,51 @@ router.get('/templates', requireAuth, (req, res) => {
 router.post('/templates', requireAuth, (req, res) => {
     const { nome, descricao, categoria, json_data } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
-    const result = db.prepare('INSERT INTO ambiente_templates (nome, descricao, categoria, json_data) VALUES (?, ?, ?, ?)')
-        .run(nome, descricao || '', categoria || '', JSON.stringify(json_data || {}));
+    const result = db.prepare(
+        'INSERT INTO ambiente_templates (user_id, nome, descricao, categoria, json_data) VALUES (?, ?, ?, ?, ?)'
+    ).run(req.user.id, nome, descricao || '', categoria || '', JSON.stringify(json_data || {}));
     res.json({ ok: true, id: Number(result.lastInsertRowid) });
 });
 
 // ═══════════════════════════════════════════════════════
-// PUT /api/orcamentos/templates/:id — editar template
+// PUT /api/orcamentos/templates/:id — editar template (do próprio user)
 // ═══════════════════════════════════════════════════════
 router.put('/templates/:id', requireAuth, (req, res) => {
     const { nome, descricao, categoria } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
-    db.prepare('UPDATE ambiente_templates SET nome = ?, descricao = ?, categoria = ? WHERE id = ?')
-        .run(nome, descricao || '', categoria || '', parseInt(req.params.id));
+    const r = db.prepare(
+        'UPDATE ambiente_templates SET nome = ?, descricao = ?, categoria = ? WHERE id = ? AND user_id = ?'
+    ).run(nome, descricao || '', categoria || '', parseInt(req.params.id), req.user.id);
+    if (r.changes === 0) return res.status(404).json({ error: 'Template não encontrado' });
     res.json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════════
-// DELETE /api/orcamentos/templates/:id — deletar template
+// DELETE /api/orcamentos/templates/:id — deletar template (do próprio user)
 // ═══════════════════════════════════════════════════════
 router.delete('/templates/:id', requireAuth, (req, res) => {
-    db.prepare('DELETE FROM ambiente_templates WHERE id = ?').run(parseInt(req.params.id));
+    const r = db.prepare('DELETE FROM ambiente_templates WHERE id = ? AND user_id = ?')
+        .run(parseInt(req.params.id), req.user.id);
+    if (r.changes === 0) return res.status(404).json({ error: 'Template não encontrado' });
     res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/orcamentos/templates/:id/aplicar — incrementa contador e retorna template
+// Usado pelo frontend quando o user escolhe aplicar um template, pra rastrear
+// quais templates são mais usados (futuro: ordem por popularidade, sugestões).
+// ═══════════════════════════════════════════════════════
+router.post('/templates/:id/aplicar', requireAuth, (req, res) => {
+    const tpl = db.prepare(
+        'SELECT * FROM ambiente_templates WHERE id = ? AND (user_id = ? OR user_id IS NULL)'
+    ).get(parseInt(req.params.id), req.user.id);
+    if (!tpl) return res.status(404).json({ error: 'Template não encontrado' });
+
+    db.prepare(
+        'UPDATE ambiente_templates SET uso_count = uso_count + 1, ultimo_uso_em = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(tpl.id);
+
+    res.json({ ok: true, template: tpl });
 });
 
 // ═══════════════════════════════════════════════════════

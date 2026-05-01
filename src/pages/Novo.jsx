@@ -1538,8 +1538,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     };
 
     // ── Fase 6: Criar ambiente a partir de template ──
+    // Chama /aplicar pra incrementar uso_count (analytics — templates populares
+    // sobem na ordenação). Fire-and-forget, não bloqueia UX.
     const createFromTemplate = (tpl) => {
         setShowTipoAmbModal(false);
+        api.post(`/orcamentos/templates/${tpl.id}/aplicar`).catch(() => {});
         const data = typeof tpl.json_data === 'string' ? JSON.parse(tpl.json_data) : tpl.json_data;
         const base = { ...data, id: uid(), nome: tpl.nome };
         // Regenerar IDs
