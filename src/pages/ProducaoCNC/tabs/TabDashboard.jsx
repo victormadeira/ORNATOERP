@@ -116,7 +116,7 @@ export function TabDashboard({ notify }) {
                     label="Peças Produzidas"
                     value={stats.totalPecas || 0}
                     icon={Package}
-                    accent="var(--accent)"
+                    accent="var(--primary)"
                 />
                 <KpiCard
                     label="Aproveitamento Médio"
@@ -437,7 +437,7 @@ export function TabDashboard({ notify }) {
                     <SectionHeader
                         icon={Layers}
                         title="Ranking de Materiais"
-                        accent="var(--accent)"
+                        accent="var(--primary)"
                     />
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

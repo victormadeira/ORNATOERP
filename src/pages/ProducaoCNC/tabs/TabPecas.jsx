@@ -277,7 +277,7 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                                 onClick={() => onOpen3DCSG?.(pecaSel)}
                                                 title="Abrir em 3D CSG (furos reais + toolpath)"
                                                 style={{
-                                                    background: 'var(--accent, #C9A574)', border: 'none',
+                                                    background: 'var(--primary)', border: 'none',
                                                     cursor: 'pointer', color: '#fff',
                                                     borderRadius: 5, padding: '3px 7px', display: 'flex', alignItems: 'center', gap: 3,
                                                     fontSize: 10, fontWeight: 600,
@@ -508,8 +508,8 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                                         <button onClick={() => onOpen3DCSG?.(p)}
                                                             title="3D Avançado — visualização CSG com furos reais e toolpath"
                                                             style={{
-                                                                background: 'rgba(201,169,110,0.12)', border: '1px solid var(--accent, #C9A574)',
-                                                                cursor: 'pointer', color: 'var(--accent, #C9A574)',
+                                                                background: 'var(--primary-light)', border: '1px solid var(--primary)',
+                                                                cursor: 'pointer', color: 'var(--primary)',
                                                                 padding: '2px 5px', borderRadius: 4,
                                                                 display: 'flex', alignItems: 'center',
                                                             }}>

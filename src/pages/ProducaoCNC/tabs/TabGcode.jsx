@@ -355,7 +355,7 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                                 display: 'flex', alignItems: 'center', gap: 8,
                                 padding: '10px 16px', borderBottom: '1px solid var(--border)',
                             }}>
-                                <ShieldCheck size={14} style={{ color: 'var(--accent)' }} />
+                                <ShieldCheck size={14} style={{ color: 'var(--primary)' }} />
                                 <span style={{ fontSize: 13, fontWeight: 700 }}>Ferramentas necessárias</span>
                                 {result.validacao.maquina && (
                                     <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>

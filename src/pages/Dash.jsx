@@ -127,7 +127,7 @@ function TrendChip({ value, suffix = '%' }) {
     );
 }
 
-function KpiProCard({ label, value, icon: Icon, sub, trend, spark, sparkColor = 'var(--accent)', onClick }) {
+function KpiProCard({ label, value, icon: Icon, sub, trend, spark, sparkColor = 'var(--primary)', onClick }) {
     return (
         <div
             className="kpi-pro animate-fade-up"
@@ -186,7 +186,7 @@ function KpiStrip({ data, isVendedor, nav }) {
             trend: h?.pct_variacao,
             sub: `${h?.qtd_fechados || 0} fechados`,
             spark,
-            sparkColor: 'var(--accent)',
+            sparkColor: 'var(--primary)',
             onClick: () => nav('orcs'),
         },
         {
@@ -373,7 +373,7 @@ function ProducaoResume({ data, nav }) {
     if (!data) return null;
     const items = [
         { icon: Factory, label: 'Em produção', value: data.projetos_ativos, color: 'var(--primary)', sub: data.projetos_atrasados > 0 ? `${data.projetos_atrasados} atrasado${data.projetos_atrasados > 1 ? 's' : ''}` : 'no prazo' },
-        { icon: Clock, label: 'Horas/semana', value: `${data.horas_semana}h`, color: 'var(--accent)', sub: 'apontadas' },
+        { icon: Clock, label: 'Horas/semana', value: `${data.horas_semana}h`, color: 'var(--text-secondary)', sub: 'apontadas' },
         { icon: Truck, label: 'Entregas', value: data.entregas_semana, color: 'var(--warning)', sub: 'esta semana' },
         { icon: Wrench, label: 'Instalações', value: data.instalacoes_semana, color: 'var(--success)', sub: 'esta semana' },
     ];

@@ -166,7 +166,7 @@ export function TabRetalhos({ notify }) {
                 <SectionHeader
                     icon={Box}
                     title="Retalhos"
-                    accent="var(--accent)"
+                    accent="var(--primary)"
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{
