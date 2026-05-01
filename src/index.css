@@ -141,6 +141,62 @@
   font-feature-settings: 'tnum';
 }
 
+/* Inputs numéricos sempre tabular — alinhamento de dígitos enquanto digita */
+input[type="number"],
+input[inputmode="numeric"],
+input[inputmode="decimal"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Code/monospace já é monoespaçado mas explicitar tnum ajuda em alguns fonts */
+code, pre, kbd, samp {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Tabelas industriais densas (padrão Linear/Innergy) ─────
+   Use className="table-dense" em <table> para obter densidade
+   industrial: linhas 32px, zebra sutil, números tabulares,
+   header sticky/sólido. Não muda layout — só consistência visual. */
+.table-dense {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+.table-dense th {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.table-dense td {
+  font-size: var(--text-sm);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  height: 32px;
+}
+.table-dense tbody tr:nth-child(even) {
+  background: var(--bg-subtle);
+}
+.table-dense tbody tr:hover {
+  background: var(--bg-hover);
+}
+.table-dense .num,
+.table-dense td.num,
+.table-dense th.num {
+  text-align: right;
+}
+
 /* ─── Dark Mode (modo opcional do app inteiro) ─── */
 .dark {
   --bg-body: #0F0D0A;             /* preto-warm */
