@@ -1238,6 +1238,18 @@ router.post('/machine-assignments/:loteId', requireAuth, (req, res) => {
     }
 });
 
+// Verifica se uma chapa cabe na máquina (considera trocar_eixos_xy).
+// Retorna true se cabe em alguma orientação.
+function chapaCabeNaMaquina(chapa, maquina) {
+    const C = Number(chapa?.comprimento) || 0;
+    const L = Number(chapa?.largura) || 0;
+    const xMax = Number(maquina?.x_max) || 0;
+    const yMax = Number(maquina?.y_max) || 0;
+    if (C <= 0 || L <= 0 || xMax <= 0 || yMax <= 0) return true; // sem dados → assume OK
+    // Cabe se (C ≤ xMax && L ≤ yMax) OU rotacionada (C ≤ yMax && L ≤ xMax)
+    return (C <= xMax && L <= yMax) || (C <= yMax && L <= xMax);
+}
+
 router.post('/machine-assignments/:loteId/auto', requireAuth, (req, res) => {
     try {
         const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
@@ -1245,17 +1257,32 @@ router.post('/machine-assignments/:loteId/auto', requireAuth, (req, res) => {
         if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano de corte' });
 
         const plano = JSON.parse(lote.plano_json);
-        const totalChapas = plano.chapas?.length || 0;
-        if (totalChapas === 0) return res.status(400).json({ error: 'Nenhuma chapa no plano' });
+        const chapas = plano.chapas || [];
+        if (chapas.length === 0) return res.status(400).json({ error: 'Nenhuma chapa no plano' });
 
-        const maquinas = db.prepare('SELECT * FROM cnc_maquinas WHERE ativo = 1 ORDER BY padrao DESC, nome').all();
-        if (maquinas.length === 0) return res.status(400).json({ error: 'Nenhuma máquina ativa cadastrada' });
+        // Filtra máquinas: só CNC nesting (router/router_furacao) + ativas + do user
+        const maquinas = db.prepare(
+            "SELECT * FROM cnc_maquinas WHERE ativo = 1 AND user_id = ? AND tipo IN ('router', 'router_furacao') ORDER BY padrao DESC, nome"
+        ).all(req.user.id);
+        if (maquinas.length === 0) return res.status(400).json({ error: 'Nenhuma máquina CNC nesting ativa cadastrada' });
 
-        // Distribute sheets evenly across machines
+        // Distribuição inteligente: round-robin restrito a máquinas compatíveis em área
         const assignments = [];
-        for (let i = 0; i < totalChapas; i++) {
-            const maquina = maquinas[i % maquinas.length];
-            assignments.push({ chapaIdx: i, maquina_id: maquina.id, maquina_nome: maquina.nome });
+        const incompativeis = [];
+        const carga = new Map(maquinas.map(m => [m.id, 0])); // chapas atribuídas por máquina (balanceamento)
+
+        for (let i = 0; i < chapas.length; i++) {
+            const chapa = chapas[i];
+            const compativeis = maquinas.filter(m => chapaCabeNaMaquina(chapa, m));
+            if (compativeis.length === 0) {
+                incompativeis.push({ chapaIdx: i, motivo: `Chapa ${chapa.comprimento}×${chapa.largura}mm não cabe em nenhuma máquina` });
+                continue;
+            }
+            // Escolhe a máquina compatível com menor carga
+            compativeis.sort((a, b) => (carga.get(a.id) || 0) - (carga.get(b.id) || 0));
+            const escolhida = compativeis[0];
+            assignments.push({ chapaIdx: i, maquina_id: escolhida.id, maquina_nome: escolhida.nome });
+            carga.set(escolhida.id, (carga.get(escolhida.id) || 0) + 1);
         }
 
         // Save to DB
@@ -1266,10 +1293,42 @@ router.post('/machine-assignments/:loteId/auto', requireAuth, (req, res) => {
             }
         })();
 
-        res.json({ ok: true, assignments });
+        res.json({ ok: true, assignments, incompativeis, total_chapas: chapas.length });
     } catch (err) {
         console.error('Erro auto-assign:', err);
         res.status(500).json({ error: 'Erro ao auto-atribuir máquinas' });
+    }
+});
+
+// Retorna info de compatibilidade chapa×máquina pra cada chapa do lote
+router.get('/machine-assignments/:loteId/compatibilidade', requireAuth, (req, res) => {
+    try {
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
+        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
+        if (!lote.plano_json) return res.json({ chapas: [] });
+
+        const plano = JSON.parse(lote.plano_json);
+        const chapas = plano.chapas || [];
+        const maquinas = db.prepare(
+            "SELECT id, nome, x_max, y_max, tipo FROM cnc_maquinas WHERE ativo = 1 AND user_id = ?"
+        ).all(req.user.id);
+
+        const result = chapas.map((chapa, idx) => ({
+            chapaIdx: idx,
+            comprimento: chapa.comprimento,
+            largura: chapa.largura,
+            material: chapa.material_code || chapa.material,
+            maquinas_compativeis: maquinas
+                .filter(m => chapaCabeNaMaquina(chapa, m))
+                .map(m => ({ id: m.id, nome: m.nome })),
+            maquinas_incompativeis: maquinas
+                .filter(m => !chapaCabeNaMaquina(chapa, m))
+                .map(m => ({ id: m.id, nome: m.nome, motivo: `Chapa ${chapa.comprimento}×${chapa.largura} excede área ${m.x_max}×${m.y_max}` })),
+        }));
+        res.json({ chapas: result });
+    } catch (err) {
+        console.error('Erro compat:', err);
+        res.status(500).json({ error: 'Erro ao calcular compatibilidade' });
     }
 });
 

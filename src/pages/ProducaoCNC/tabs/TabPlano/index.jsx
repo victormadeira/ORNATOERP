@@ -721,10 +721,26 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 const map = {};
                 for (const a of r.assignments) map[a.chapaIdx] = { maquina_id: a.maquina_id, maquina_nome: a.maquina_nome };
                 setMachineAssignments(map);
-                notify(`Auto-atribuicao: ${r.assignments.length} chapa(s) distribuida(s)`);
+                setMultiMaqMode(true);
+                let msg = `Auto-atribuição: ${r.assignments.length} chapa(s) distribuída(s)`;
+                if (r.incompativeis?.length > 0) {
+                    msg += ` · ${r.incompativeis.length} sem máquina compatível (área)`;
+                }
+                notify(msg, r.incompativeis?.length > 0 ? 'warning' : 'success');
             }
-        } catch (err) { notify('Erro: ' + (err.error || err.message)); }
+        } catch (err) { notify('Erro: ' + (err.error || err.message), 'error'); }
     };
+
+    // Compatibilidade chapa×máquina (área útil)
+    const [chapaCompat, setChapaCompat] = useState({}); // chapaIdx → { compativeis: [], incompativeis: [] }
+    useEffect(() => {
+        if (!loteAtual) return;
+        api.get(`/cnc/machine-assignments/${loteAtual.id}/compatibilidade`).then(r => {
+            const map = {};
+            for (const c of r.chapas || []) map[c.chapaIdx] = c;
+            setChapaCompat(map);
+        }).catch(() => {});
+    }, [loteAtual?.id, plano?.chapas?.length]);
 
     // Machine color palette for border coding
     const machineColors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
@@ -2115,7 +2131,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                 { id: 'operador', label: 'Modo Operador (TV)', icon: Tv, onClick: () => window.open('/operador-cnc', '_blank') },
                             ]} />
 
-                            {/* Machine selector */}
+                            {/* Machine selector + Multi-machine toggle */}
                             {maquinas.length > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)' }}>
                                     <Monitor size={13} style={{ color: 'var(--text-muted)' }} />
@@ -2131,6 +2147,21 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                             style={{ fontSize: 10, fontWeight: 800, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
                                             Chapa: {machineAssignments[selectedChapa].maquina_nome}
                                         </span>
+                                    )}
+                                    {maquinas.filter(m => m.ativo).length >= 2 && (
+                                        <button
+                                            onClick={() => setMultiMaqMode(v => !v)}
+                                            title={multiMaqMode ? 'Desligar modo multi-máquina' : 'Atribuir chapas a máquinas diferentes (paralelizar corte)'}
+                                            style={{
+                                                fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 4,
+                                                border: multiMaqMode ? '1px solid var(--primary)' : '1px solid var(--border)',
+                                                background: multiMaqMode ? 'var(--primary)' : 'transparent',
+                                                color: multiMaqMode ? '#fff' : 'var(--text)',
+                                                cursor: 'pointer', whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {multiMaqMode ? '✓ Multi-máquina' : 'Multi-máquina'}
+                                        </button>
                                     )}
                                 </div>
                             )}
@@ -2853,6 +2884,83 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
 
                                 {/* Sidebar de transferência removida — peças ficam na bandeja visual da chapa */}
                                     </div>
+                                    {/* ══ Multi-Máquina Panel ══ */}
+                                    {multiMaqMode && plano?.chapas?.length > 0 && (
+                                        <div style={{
+                                            borderTop: '1px solid var(--border)',
+                                            background: 'var(--bg-card)',
+                                            padding: '8px 12px',
+                                            flexShrink: 0,
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                                                <Monitor size={14} style={{ color: 'var(--primary)' }} />
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Atribuição de máquinas por chapa</span>
+                                                <button onClick={autoAssignMachines}
+                                                    style={{ fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 4,
+                                                        background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                                                    Distribuir automaticamente
+                                                </button>
+                                                <button onClick={() => {
+                                                    if (!loteAtual) return;
+                                                    const all = Object.keys(machineAssignments);
+                                                    Promise.all(all.map(ci => assignMachine(Number(ci), null)))
+                                                        .then(() => notify('Atribuições removidas', 'success'));
+                                                }}
+                                                    style={{ fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 4,
+                                                        background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                                                    Limpar
+                                                </button>
+                                                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>
+                                                    {Object.keys(machineAssignments).length} de {plano.chapas.length} atribuídas
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                                                {plano.chapas.map((ch, ci) => {
+                                                    const assigned = machineAssignments[ci];
+                                                    const compat = chapaCompat[ci];
+                                                    const incompat = compat?.maquinas_incompativeis || [];
+                                                    const compativeisIds = new Set((compat?.maquinas_compativeis || []).map(m => m.id));
+                                                    const color = getMachineColor(assigned?.maquina_id);
+                                                    return (
+                                                        <div key={ci} style={{
+                                                            padding: '6px 8px', borderRadius: 4,
+                                                            border: `1px solid ${color || 'var(--border)'}`,
+                                                            background: ci === selectedChapa ? 'var(--bg-muted)' : 'var(--bg-body)',
+                                                            display: 'flex', alignItems: 'center', gap: 6,
+                                                        }}>
+                                                            <span onClick={() => setSelectedChapa(ci)}
+                                                                style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', cursor: 'pointer', minWidth: 24 }}>
+                                                                #{ci + 1}
+                                                            </span>
+                                                            <span style={{ fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                                                                {ch.comprimento}×{ch.largura}
+                                                            </span>
+                                                            <select
+                                                                value={assigned?.maquina_id || ''}
+                                                                onChange={e => assignMachine(ci, e.target.value || null)}
+                                                                style={{ fontSize: 10, padding: '3px 4px', flex: 2, minWidth: 0,
+                                                                    border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg-body)' }}
+                                                            >
+                                                                <option value="">— Sem atribuição —</option>
+                                                                {maquinas.filter(m => m.ativo).map(m => {
+                                                                    const ok = !compat || compativeisIds.has(m.id);
+                                                                    return (
+                                                                        <option key={m.id} value={m.id} disabled={!ok}>
+                                                                            {ok ? '' : '⚠ '}{m.nome}{!ok ? ' (não cabe)' : ''}
+                                                                        </option>
+                                                                    );
+                                                                })}
+                                                            </select>
+                                                            {incompat.length > 0 && compativeisIds.size === 0 && (
+                                                                <span title={incompat.map(m => m.motivo).join('\n')}
+                                                                    style={{ fontSize: 9, color: '#dc2626', fontWeight: 700 }}>⚠</span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                     {/* ══ BOTTOM CAROUSEL: Thumbnails das chapas (estilo UPMOBB) ══ */}
                                     <div style={{
                                         borderTop: '1px solid var(--border)',
@@ -2896,6 +3004,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                 const aprovColor = aprov >= 80 ? '#16a34a' : aprov >= 60 ? '#d97706' : '#dc2626';
                                                 const grpForThumb = _matGroups.find(g => g.chapas.some(c => c.ci === ci));
 
+                                                const assignedMaqColor = getMachineColor(machineAssignments[ci]?.maquina_id);
+                                                const compatInfo = chapaCompat[ci];
+                                                const hasIncompat = compatInfo && compatInfo.maquinas_incompativeis?.length > 0 && compatInfo.maquinas_compativeis?.length === 0;
                                                 return (
                                                     <button
                                                         key={ci}
@@ -2905,7 +3016,11 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                             width: 80,
                                                             height: 56,
                                                             borderRadius: 6,
-                                                            border: isActive ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                                            border: isActive
+                                                                ? '2px solid var(--primary)'
+                                                                : assignedMaqColor
+                                                                    ? `2px solid ${assignedMaqColor}`
+                                                                    : '1px solid var(--border)',
                                                             background: isActive ? 'var(--bg-muted)' : 'var(--bg-body)',
                                                             cursor: 'pointer',
                                                             display: 'flex',
@@ -2919,7 +3034,14 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                             position: 'relative',
                                                             overflow: 'hidden',
                                                         }}
+                                                        title={machineAssignments[ci]?.maquina_nome
+                                                            ? `Chapa ${ci + 1} → ${machineAssignments[ci].maquina_nome}`
+                                                            : `Chapa ${ci + 1}`}
                                                     >
+                                                        {hasIncompat && (
+                                                            <span title="Chapa não cabe em nenhuma máquina ativa"
+                                                                style={{ position: 'absolute', top: 2, left: 2, width: 8, height: 8, borderRadius: '50%', background: '#dc2626', border: '1px solid #fff' }} />
+                                                        )}
                                                         {/* Mini preview: simple filled rect representation */}
                                                         <div style={{
                                                             width: 56, height: 28, borderRadius: 3,
