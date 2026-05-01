@@ -4,10 +4,15 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-// JWT_SECRET: env var > arquivo persistente > gerar e salvar
+// JWT_SECRET: em produção exige env var; em dev cai no fallback persistente.
 const JWT_SECRET = (() => {
     if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-    // Fallback: persistir em arquivo para não invalidar tokens a cada restart
+    if (process.env.NODE_ENV === 'production') {
+        // Falha rápida — secret inconsistente entre workers (PM2 cluster) ou
+        // commitado por engano são riscos reais em produção.
+        throw new Error('JWT_SECRET é obrigatório em produção. Defina em .env antes de iniciar o servidor.');
+    }
+    // Dev: persistir em arquivo para não invalidar tokens a cada restart
     const __dir = dirname(fileURLToPath(import.meta.url));
     const secretPath = join(__dir, '.jwt_secret');
     try {
@@ -15,7 +20,7 @@ const JWT_SECRET = (() => {
     } catch (_) {}
     const secret = randomBytes(48).toString('base64');
     try { writeFileSync(secretPath, secret, { mode: 0o600 }); } catch (_) {}
-    console.warn('⚠️  JWT_SECRET gerado e salvo em .jwt_secret. Defina JWT_SECRET em produção.');
+    console.warn('⚠️  JWT_SECRET gerado em .jwt_secret (dev). Defina JWT_SECRET em produção.');
     return secret;
 })();
 const JWT_EXPIRY = '24h';
