@@ -337,16 +337,26 @@ router.post('/captura', (req, res) => {
             const emp = db.prepare('SELECT wa_instance_url, wa_instance_name, wa_api_key, nome, telefone AS tel_empresa FROM empresa_config WHERE id = 1').get();
             if (emp?.wa_instance_url && emp?.wa_api_key) {
                 const phoneClean = telLimpo.startsWith('55') ? telLimpo : `55${telLimpo}`;
+                // fetch fire-and-forget com timeout de 5s — se Evolution travar,
+                // não acumula promises pendentes nem bloqueia outros leads.
+                const fetchEvolution = (body) => {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), 5000);
+                    return fetch(`${emp.wa_instance_url}/message/sendText/${emp.wa_instance_name}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', apikey: emp.wa_api_key },
+                        body: JSON.stringify(body),
+                        signal: ctrl.signal,
+                    })
+                        .catch(err => console.warn('[landing/captura] Evolution fetch falhou:', err.message))
+                        .finally(() => clearTimeout(timer));
+                };
 
                 // 1. Mensagem de boas-vindas ao lead
-                fetch(`${emp.wa_instance_url}/message/sendText/${emp.wa_instance_name}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', apikey: emp.wa_api_key },
-                    body: JSON.stringify({
-                        number: phoneClean,
-                        text: `Olá ${nome.split(' ')[0]}! 👋\n\nRecebemos seu contato na *${emp.nome || 'nossa marcenaria'}*.\n\nEm breve um de nossos consultores entrará em contato. 🪵`,
-                    }),
-                }).catch(() => {});
+                fetchEvolution({
+                    number: phoneClean,
+                    text: `Olá ${nome.split(' ')[0]}! 👋\n\nRecebemos seu contato na *${emp.nome || 'nossa marcenaria'}*.\n\nEm breve um de nossos consultores entrará em contato. 🪵`,
+                });
 
                 // 2. Alerta ao dono (telefone da empresa configurado)
                 const telEmpresa = (emp.tel_empresa || '').replace(/\D/g, '');
@@ -355,14 +365,10 @@ router.post('/captura', (req, res) => {
                     const ambienteInfo = ambienteReal !== 'Consulta' ? `\n🏠 *Ambiente:* ${ambienteReal}` : '';
                     const estagioInfo  = estagio ? `\n🏗️ *Estágio:* ${estagio}` : '';
                     const bairroInfo   = bairro  ? `\n📌 *Bairro:* ${bairro}`   : '';
-                    fetch(`${emp.wa_instance_url}/message/sendText/${emp.wa_instance_name}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', apikey: emp.wa_api_key },
-                        body: JSON.stringify({
-                            number: donoDest,
-                            text: `🔔 *Novo lead via site!*\n\n👤 *Nome:* ${nome}\n📱 *Telefone:* ${telefone}${ambienteInfo}${estagioInfo}${bairroInfo}\n📍 *Origem:* ${origemParam || 'landing_page'}\n\nAcesse o sistema para atender! 🚀`,
-                        }),
-                    }).catch(() => {});
+                    fetchEvolution({
+                        number: donoDest,
+                        text: `🔔 *Novo lead via site!*\n\n👤 *Nome:* ${nome}\n📱 *Telefone:* ${telefone}${ambienteInfo}${estagioInfo}${bairroInfo}\n📍 *Origem:* ${origemParam || 'landing_page'}\n\nAcesse o sistema para atender! 🚀`,
+                    });
                 }
             }
         } catch (_) {}
