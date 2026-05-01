@@ -28,6 +28,24 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
     const [templateLib, setTemplateLib] = useState(false); // show template library modal
     const [templateApplyTarget, setTemplateApplyTarget] = useState(null); // peca to apply template to
 
+    // Histórico de produção da peça (timeline)
+    const [historicoPeca, setHistoricoPeca] = useState(null); // { peca, eventos } | null
+    const [historicoLoading, setHistoricoLoading] = useState(false);
+    const abrirHistorico = useCallback(async (peca) => {
+        if (!peca?.id) return;
+        setHistoricoLoading(true);
+        setHistoricoPeca({ peca, eventos: [], _loading: true });
+        try {
+            const r = await api.get(`/cnc/pecas/${peca.id}/historico`);
+            setHistoricoPeca(r);
+        } catch (err) {
+            notify('Erro ao carregar histórico: ' + (err.error || err.message), 'error');
+            setHistoricoPeca(null);
+        } finally {
+            setHistoricoLoading(false);
+        }
+    }, [notify]);
+
     // DXF Machining Import state
     const [dxfUsiTarget, setDxfUsiTarget] = useState(null); // peca to import DXF machining into
     const [dxfUsiPreview, setDxfUsiPreview] = useState(null); // parsed DXF preview data
@@ -265,6 +283,16 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                                     fontSize: 10, fontWeight: 600,
                                                 }}
                                             ><Maximize size={12} /> CSG</button>
+                                            <button
+                                                onClick={() => abrirHistorico(pecaSel)}
+                                                title="Histórico de produção desta peça"
+                                                style={{
+                                                    background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                                    cursor: 'pointer', color: 'var(--text)',
+                                                    borderRadius: 5, padding: '3px 7px', display: 'flex', alignItems: 'center', gap: 3,
+                                                    fontSize: 10, fontWeight: 600,
+                                                }}
+                                            ><History size={12} /> Histórico</button>
                                             <button onClick={() => setPecaSel(null)} title="Fechar" style={{
                                                 background: 'var(--bg-muted)', border: '1px solid var(--border)',
                                                 cursor: 'pointer', color: 'var(--text-muted)',
@@ -663,6 +691,66 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                             className={Z.btn} style={{ background: 'var(--primary)', color: '#fff' }}>
                             {dxfUsiLoading ? 'Salvando...' : `Confirmar ${dxfUsiPreview.entities_count} operacao(es)`}
                         </button>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Histórico de Produção Modal */}
+            {historicoPeca && (
+                <Modal title={`Histórico — ${historicoPeca.peca?.descricao || `#${historicoPeca.peca?.id}`}`} close={() => setHistoricoPeca(null)} w={580}>
+                    <div style={{ padding: '4px 0' }}>
+                        <div style={{ marginBottom: 12, padding: '8px 10px', background: 'var(--bg-muted)', borderRadius: 6, fontSize: 11 }}>
+                            <div><b>Lote:</b> {historicoPeca.peca?.lote_nome || '-'} {historicoPeca.peca?.cliente ? `· ${historicoPeca.peca.cliente}` : ''}</div>
+                            <div><b>Dimensões:</b> {historicoPeca.peca?.comprimento}×{historicoPeca.peca?.largura}×{historicoPeca.peca?.espessura}mm · {historicoPeca.peca?.material}</div>
+                        </div>
+                        {historicoLoading || historicoPeca._loading ? (
+                            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Carregando...</div>
+                        ) : historicoPeca.eventos?.length === 0 ? (
+                            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                                Nenhum evento registrado ainda. Eventos aparecem conforme a peça avança na produção: corte iniciado, finalizado, conferência, scans de expedição.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+                                {historicoPeca.eventos.map((ev, i) => {
+                                    const colors = {
+                                        criacao: '#64748b', corte_inicio: '#3b82f6', corte_fim: '#16a34a',
+                                        conferencia_ok: '#16a34a', defeito: '#dc2626', expedicao: '#8b5cf6',
+                                        gcode_gerado: '#f59e0b', observacao: '#64748b',
+                                    };
+                                    const cor = colors[ev.tipo] || '#64748b';
+                                    const isLast = i === historicoPeca.eventos.length - 1;
+                                    return (
+                                        <div key={i} style={{ display: 'flex', gap: 10, position: 'relative' }}>
+                                            {/* Timeline dot + line */}
+                                            <div style={{ position: 'relative', width: 16, flexShrink: 0 }}>
+                                                <div style={{
+                                                    width: 12, height: 12, borderRadius: '50%',
+                                                    background: cor, border: '2px solid var(--bg-card)',
+                                                    boxShadow: `0 0 0 2px ${cor}`,
+                                                    position: 'absolute', top: 4, left: 2,
+                                                }} />
+                                                {!isLast && (
+                                                    <div style={{
+                                                        position: 'absolute', top: 16, left: 7,
+                                                        width: 2, bottom: -8, background: 'var(--border)',
+                                                    }} />
+                                                )}
+                                            </div>
+                                            {/* Event content */}
+                                            <div style={{ flex: 1, paddingBottom: 14 }}>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{ev.titulo}</div>
+                                                {ev.descricao && (
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{ev.descricao}</div>
+                                                )}
+                                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'monospace' }}>
+                                                    {ev.em ? new Date(ev.em).toLocaleString('pt-BR') : '-'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </Modal>
             )}

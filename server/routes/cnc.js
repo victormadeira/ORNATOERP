@@ -11866,6 +11866,145 @@ router.get('/conferencia/:loteId/resumo', requireAuth, (req, res) => {
     res.json({ total, ok, defeito, pendente });
 });
 
+// GET histórico/timeline completo de uma peça (consolida eventos de várias tabelas)
+router.get('/pecas/:id/historico', requireAuth, (req, res) => {
+    try {
+        const peca = db.prepare(
+            `SELECT p.*, l.nome as lote_nome, l.user_id, l.cliente, l.projeto
+             FROM cnc_pecas p
+             JOIN cnc_lotes l ON l.id = p.lote_id
+             WHERE p.id = ? AND l.user_id = ?`
+        ).get(req.params.id, req.user.id);
+        if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
+
+        const eventos = [];
+
+        // 1. Criação da peça (vem do criado_em da peça ou do lote)
+        if (peca.criado_em) {
+            eventos.push({
+                tipo: 'criacao',
+                titulo: 'Peça importada',
+                descricao: `Lote ${peca.lote_nome} (${peca.cliente || 'sem cliente'})`,
+                em: peca.criado_em,
+            });
+        }
+
+        // 2. Status da chapa onde a peça está (cnc_chapa_status: pendente/em_corte/cortado/etc)
+        if (peca.chapa_idx != null) {
+            const chapaStatus = db.prepare(
+                'SELECT * FROM cnc_chapa_status WHERE lote_id = ? AND chapa_idx = ?'
+            ).get(peca.lote_id, peca.chapa_idx);
+            if (chapaStatus) {
+                if (chapaStatus.inicio_em) {
+                    eventos.push({
+                        tipo: 'corte_inicio',
+                        titulo: 'Corte iniciado',
+                        descricao: `Chapa ${peca.chapa_idx + 1}${chapaStatus.operador ? ' · operador ' + chapaStatus.operador : ''}`,
+                        em: chapaStatus.inicio_em,
+                    });
+                }
+                if (chapaStatus.fim_em) {
+                    let duracao = '';
+                    if (chapaStatus.inicio_em && chapaStatus.fim_em) {
+                        const sec = (new Date(chapaStatus.fim_em) - new Date(chapaStatus.inicio_em)) / 1000;
+                        duracao = sec > 60 ? ` · ${Math.round(sec / 60)} min` : ` · ${Math.round(sec)} s`;
+                    }
+                    eventos.push({
+                        tipo: 'corte_fim',
+                        titulo: 'Corte finalizado',
+                        descricao: `Chapa ${peca.chapa_idx + 1}${duracao}`,
+                        em: chapaStatus.fim_em,
+                    });
+                }
+                if (chapaStatus.observacao) {
+                    eventos.push({
+                        tipo: 'observacao',
+                        titulo: 'Observação na chapa',
+                        descricao: chapaStatus.observacao,
+                        em: chapaStatus.atualizado_em,
+                    });
+                }
+            }
+        }
+
+        // 3. Conferência (cnc_conferencia: ok/defeito + conferente)
+        if (peca.chapa_idx != null) {
+            const conf = db.prepare(
+                'SELECT * FROM cnc_conferencia WHERE lote_id = ? AND chapa_idx = ? AND peca_idx = ?'
+            ).all(peca.lote_id, peca.chapa_idx, peca.id);
+            for (const c of conf) {
+                eventos.push({
+                    tipo: c.status === 'defeito' ? 'defeito' : 'conferencia_ok',
+                    titulo: c.status === 'defeito' ? 'Defeito registrado' : 'Conferência OK',
+                    descricao: [
+                        c.conferente ? `Conferente: ${c.conferente}` : null,
+                        c.defeito_tipo ? `Tipo: ${c.defeito_tipo}` : null,
+                        c.defeito_obs || null,
+                    ].filter(Boolean).join(' · '),
+                    em: c.conferido_em || c.criado_em,
+                });
+            }
+        }
+
+        // 4. G-codes gerados (cnc_gcode_historico)
+        try {
+            const gcodes = db.prepare(
+                'SELECT id, criado_em, tempo_corte_estimado, distancia_corte_total, num_pecas FROM cnc_gcode_historico WHERE lote_id = ? AND chapa_idx = ? ORDER BY criado_em DESC'
+            ).all(peca.lote_id, peca.chapa_idx ?? -1);
+            for (const g of gcodes) {
+                const tempoMin = g.tempo_corte_estimado ? Math.round(g.tempo_corte_estimado / 60) : null;
+                eventos.push({
+                    tipo: 'gcode_gerado',
+                    titulo: 'G-code gerado',
+                    descricao: [
+                        tempoMin ? `${tempoMin} min estimado` : null,
+                        g.distancia_corte_total ? `${(g.distancia_corte_total / 1000).toFixed(1)}m corte` : null,
+                    ].filter(Boolean).join(' · '),
+                    em: g.criado_em,
+                });
+            }
+        } catch (_) { /* tabela ou colunas podem não existir */ }
+
+        // 5. Scans de expedição (checkpoints de entrega)
+        try {
+            const scans = db.prepare(
+                `SELECT s.*, c.nome as checkpoint_nome
+                 FROM cnc_expedicao_scans s
+                 LEFT JOIN cnc_expedicao_checkpoints c ON s.checkpoint_id = c.id
+                 WHERE s.peca_id = ? ORDER BY s.escaneado_em ASC`
+            ).all(peca.id);
+            for (const s of scans) {
+                eventos.push({
+                    tipo: 'expedicao',
+                    titulo: `Scan: ${s.checkpoint_nome || 'checkpoint'}`,
+                    descricao: s.observacao || '',
+                    em: s.escaneado_em,
+                });
+            }
+        } catch (_) { /* tabela pode não existir */ }
+
+        // Ordenar por data crescente
+        eventos.sort((a, b) => {
+            const ta = a.em ? new Date(a.em).getTime() : 0;
+            const tb = b.em ? new Date(b.em).getTime() : 0;
+            return ta - tb;
+        });
+
+        res.json({
+            peca: {
+                id: peca.id, descricao: peca.descricao, modulo_desc: peca.modulo_desc,
+                comprimento: peca.comprimento, largura: peca.largura, espessura: peca.espessura,
+                material: peca.material, lote_id: peca.lote_id, lote_nome: peca.lote_nome,
+                cliente: peca.cliente, projeto: peca.projeto,
+            },
+            eventos,
+        });
+    } catch (err) {
+        console.error('Erro histórico peça:', err);
+        res.status(500).json({ error: 'Erro ao carregar histórico' });
+    }
+});
+
 // ═══════════════════════════════════════════════════════
 // GRUPO 11: Fila de Produção
 // ═══════════════════════════════════════════════════════
