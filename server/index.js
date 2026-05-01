@@ -93,7 +93,10 @@ const scanLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, message: { error: 
 app.use('/api/webhook', express.json({ limit: '50mb' }), webhookRoutes);
 
 // ═══ Landing endpoints públicos (sem CORS, com rate limit) ═══
-app.use('/api/landing', publicLimiter, express.json(), landingRoutes);
+// /api/landing precisa do raw body para validar HMAC do webhook Facebook
+app.use('/api/landing', publicLimiter, express.json({
+    verify: (req, _res, buf) => { req.rawBody = buf; }
+}), landingRoutes);
 
 // CORS: em produção aceita só HTTPS (evita downgrade). Em dev, libera localhost.
 const corsOrigins = process.env.CORS_ORIGINS
@@ -122,11 +125,32 @@ app.use('/api', (req, res, next) => {
 });
 
 // ═══ Security headers (Helmet + HSTS em produção) ═══
-// - contentSecurityPolicy desligado (o SPA usa inline scripts do build Vite)
-// - crossOriginEmbedderPolicy desligado (quebra <img> cross-origin legítimo)
-// - HSTS só em produção: evita confusão em dev HTTP
+// CSP permissiva mas útil:
+// - default-src/connect-src 'self' impede exfiltração para domínios externos
+// - script-src com 'unsafe-inline' (necessário pra build Vite) mas SEM 'unsafe-eval'
+// - object-src 'none' bloqueia <object>/<embed>
+// - frame-ancestors 'self' previne clickjacking
+// - base-uri 'self' previne sequestro via <base>
+// Para apertar mais no futuro: usar nonces (vite-plugin-csp) e tirar unsafe-inline.
+const cspDirectives = {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'", 'https://www.googletagmanager.com', 'https://connect.facebook.net'],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+    fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+    connectSrc: ["'self'", 'https:', 'wss:'],
+    mediaSrc: ["'self'", 'blob:', 'data:', 'https:'],
+    objectSrc: ["'none'"],
+    frameAncestors: ["'self'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+    workerSrc: ["'self'", 'blob:'],
+};
 app.use(helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+        useDefaults: false,
+        directives: cspDirectives,
+    },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     hsts: process.env.NODE_ENV === 'production'

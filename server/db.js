@@ -2508,6 +2508,9 @@ const migrations = [
   "ALTER TABLE cnc_usinagem_catalog ADD COLUMN borda_min REAL DEFAULT NULL",
   "ALTER TABLE cnc_usinagem_catalog ADD COLUMN prioridade INTEGER DEFAULT 5",
   "CREATE INDEX IF NOT EXISTS idx_usinagem_catalog_match ON cnc_usinagem_catalog(user_id, component_name, maquina_id, ativo)",
+
+  // ═══ Meta/Facebook app secret (para validar HMAC-SHA256 de webhooks Lead Ads) ═══
+  "ALTER TABLE empresa_config ADD COLUMN fb_app_secret TEXT DEFAULT ''",
 ];
 
 // Tabela de retry queue para mensagens de IA que falharam (criada separado pois é nova, não ALTER)

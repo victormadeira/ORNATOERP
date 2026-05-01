@@ -388,13 +388,31 @@ router.post('/captura', (req, res) => {
 
 // ═══════════════════════════════════════════════════════
 // POST /api/leads/facebook — webhook Meta Lead Ads
+// Valida assinatura HMAC-SHA256 (header x-hub-signature-256) usando o
+// app_secret configurado em empresa_config.fb_app_secret. Se app_secret
+// não estiver configurado ainda, cai no fluxo legado de token (dev/setup),
+// mas em produção deve sempre ser preenchido.
 // ═══════════════════════════════════════════════════════
 router.post('/facebook', (req, res) => {
-    // Verificar token
-    const emp = db.prepare('SELECT wa_webhook_token FROM empresa_config WHERE id = 1').get();
-    const token = req.query.token || req.headers['x-webhook-token'];
-    if (emp?.wa_webhook_token && token !== emp.wa_webhook_token) {
-        return res.status(401).json({ error: 'Token inválido' });
+    const emp = db.prepare('SELECT wa_webhook_token, fb_app_secret FROM empresa_config WHERE id = 1').get();
+    const appSecret = emp?.fb_app_secret;
+    if (appSecret) {
+        const sig = String(req.headers['x-hub-signature-256'] || '');
+        if (!sig.startsWith('sha256=') || !req.rawBody) {
+            return res.status(401).json({ error: 'Assinatura ausente' });
+        }
+        const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(req.rawBody).digest('hex');
+        const a = Buffer.from(sig);
+        const b = Buffer.from(expected);
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+            return res.status(401).json({ error: 'Assinatura inválida' });
+        }
+    } else {
+        // Fallback legado (somente até o app_secret ser configurado): token via querystring/header
+        const token = req.query.token || req.headers['x-webhook-token'];
+        if (emp?.wa_webhook_token && token !== emp.wa_webhook_token) {
+            return res.status(401).json({ error: 'Token inválido' });
+        }
     }
 
     try {
