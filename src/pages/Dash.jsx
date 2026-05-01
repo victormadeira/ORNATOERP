@@ -265,9 +265,7 @@ function FilaAtencao({ data, nav }) {
 
     return (
         <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
-            <div className="chart-card-pro-head" style={{
-                background: 'linear-gradient(180deg, rgba(176, 120, 32, 0.06), transparent)',
-            }}>
+            <div className="chart-card-pro-head">
                 <div className="chart-card-pro-title">
                     <span className="kpi-pro-icon" style={{
                         background: 'rgba(176, 120, 32, 0.10)',
@@ -1046,8 +1044,8 @@ function FluxoProjetado({ data }) {
                         <div key={i} style={{
                             marginBottom: i < data.length - 1 ? 14 : 0,
                             padding: 14, borderRadius: 12,
-                            background: positive ? 'linear-gradient(135deg, rgba(92,123,67,0.06), var(--bg-subtle) 60%)' : 'linear-gradient(135deg, rgba(160,71,58,0.06), var(--bg-subtle) 60%)',
-                            border: `1px solid ${positive ? 'rgba(92,123,67,0.18)' : 'rgba(160,71,58,0.18)'}`,
+                            background: 'var(--bg-subtle)',
+                            border: `1px solid ${positive ? 'rgba(92,123,67,0.22)' : 'rgba(160,71,58,0.22)'}`,
                             animation: `stagger-in 0.35s ease ${i * 80}ms both`,
                         }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -1202,9 +1200,7 @@ function OrigemTrafegoWidget() {
 
     return (
         <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
-            <div className="chart-card-pro-head" style={{
-                background: 'linear-gradient(180deg, rgba(201, 169, 110, 0.06), transparent)',
-            }}>
+            <div className="chart-card-pro-head">
                 <div className="chart-card-pro-title">
                     <span className="kpi-pro-icon" style={{
                         background: 'rgba(201, 169, 110, 0.10)',
@@ -1371,9 +1367,7 @@ function FollowUpsWidget({ nav, notify }) {
 
     return (
         <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
-            <div className="chart-card-pro-head" style={{
-                background: 'linear-gradient(180deg, rgba(201, 169, 110, 0.06), transparent)',
-            }}>
+            <div className="chart-card-pro-head">
                 <div className="chart-card-pro-title">
                     <span className="kpi-pro-icon" style={{
                         background: 'rgba(201, 169, 110, 0.10)',
