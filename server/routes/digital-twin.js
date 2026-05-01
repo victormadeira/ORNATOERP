@@ -21,7 +21,7 @@ router.use(requireAuth);
 
 /**
  * GET /api/digital-twin/lotes
- * Lista lotes com contador de peças.
+ * Lista lotes com contador de peças (apenas do usuário logado).
  */
 router.get('/lotes', (req, res) => {
   try {
@@ -32,9 +32,10 @@ router.get('/lotes', (req, res) => {
         l.projeto_id, l.orc_id,
         (SELECT COUNT(*) FROM cnc_pecas p WHERE p.lote_id = l.id) AS pecas_real
       FROM cnc_lotes l
+      WHERE l.user_id = ?
       ORDER BY l.criado_em DESC
       LIMIT 100
-    `).all();
+    `).all(req.user.id);
     res.json({ lotes: rows });
   } catch (err) {
     console.error('[digital-twin] GET /lotes failed', err);
@@ -48,7 +49,7 @@ router.get('/lotes', (req, res) => {
 
 /**
  * GET /api/digital-twin/pieces?lote_id=N&limit=60
- * Lista peças recentes — para a sidebar esquerda.
+ * Lista peças recentes — para a sidebar esquerda. Apenas do usuário logado.
  */
 router.get('/pieces', (req, res) => {
   try {
@@ -57,6 +58,9 @@ router.get('/pieces', (req, res) => {
 
     let rows;
     if (loteId && !Number.isNaN(loteId)) {
+      // Verifica que o lote pertence ao usuário antes de listar peças
+      const loteOwn = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(loteId, req.user.id);
+      if (!loteOwn) return res.status(404).json({ error: 'lote_not_found' });
       rows = db.prepare(`
         SELECT * FROM cnc_pecas
         WHERE lote_id = ?
@@ -65,10 +69,12 @@ router.get('/pieces', (req, res) => {
       `).all(loteId, limit);
     } else {
       rows = db.prepare(`
-        SELECT * FROM cnc_pecas
-        ORDER BY criado_em DESC, id DESC
+        SELECT p.* FROM cnc_pecas p
+        JOIN cnc_lotes l ON l.id = p.lote_id
+        WHERE l.user_id = ?
+        ORDER BY p.criado_em DESC, p.id DESC
         LIMIT ?
-      `).all(limit);
+      `).all(req.user.id, limit);
     }
     res.json({ pieces: rows.map(cncPecaToPieceGeometry), loteId });
   } catch (err) {
@@ -82,7 +88,7 @@ router.get('/pieces', (req, res) => {
  */
 router.get('/pieces/:code', (req, res) => {
   try {
-    const row = findPieceByCode(db, req.params.code);
+    const row = findPieceByCode(db, req.params.code, req.user.id);
     if (!row) return res.status(404).json({ error: 'not_found', code: req.params.code });
     res.json({ piece: cncPecaToPieceGeometry(row) });
   } catch (err) {
@@ -98,7 +104,7 @@ router.get('/pieces/:code', (req, res) => {
 /** GET /api/digital-twin/gcode/:code */
 router.get('/gcode/:code', (req, res) => {
   try {
-    const row = findPieceByCode(db, req.params.code);
+    const row = findPieceByCode(db, req.params.code, req.user.id);
     if (!row) return res.status(404).json({ error: 'not_found', code: req.params.code });
 
     let stored = null;
@@ -122,7 +128,7 @@ router.get('/gcode/:code', (req, res) => {
 /** GET /api/digital-twin/scan/:code */
 router.get('/scan/:code', (req, res) => {
   try {
-    const row = findPieceByCode(db, req.params.code);
+    const row = findPieceByCode(db, req.params.code, req.user.id);
     if (!row) return res.status(404).json({ error: 'not_found', code: req.params.code });
     const piece = cncPecaToPieceGeometry(row);
 
@@ -169,7 +175,7 @@ router.get('/plano/:loteId', (req, res) => {
     const loteId = parseInt(req.params.loteId, 10);
     if (!loteId) return res.status(400).json({ error: 'invalid_lote_id' });
 
-    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(loteId);
+    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(loteId, req.user.id);
     if (!lote) return res.status(404).json({ error: 'lote_not_found' });
 
     let plano = null;
@@ -200,7 +206,7 @@ router.get('/plano/:loteId', (req, res) => {
 
 /**
  * GET /api/digital-twin/sobras?material=MDF15
- * Lista retalhos disponíveis para consultar dentro do DT.
+ * Lista retalhos disponíveis para consultar dentro do DT (apenas do usuário).
  */
 router.get('/sobras', (req, res) => {
   try {
@@ -210,18 +216,18 @@ router.get('/sobras', (req, res) => {
       rows = db.prepare(`
         SELECT id, nome, material_code, espessura_real, comprimento, largura, origem_lote, criado_em
         FROM cnc_retalhos
-        WHERE disponivel = 1 AND material_code LIKE ?
+        WHERE disponivel = 1 AND user_id = ? AND material_code LIKE ?
         ORDER BY (comprimento * largura) DESC
         LIMIT 60
-      `).all(`%${material}%`);
+      `).all(req.user.id, `%${material}%`);
     } else {
       rows = db.prepare(`
         SELECT id, nome, material_code, espessura_real, comprimento, largura, origem_lote, criado_em
         FROM cnc_retalhos
-        WHERE disponivel = 1
+        WHERE disponivel = 1 AND user_id = ?
         ORDER BY (comprimento * largura) DESC
         LIMIT 60
-      `).all();
+      `).all(req.user.id);
     }
     res.json({ sobras: rows });
   } catch (err) {
@@ -236,7 +242,7 @@ router.get('/sobras', (req, res) => {
 
 /**
  * GET /api/digital-twin/maquinas
- * Lista máquinas configuradas — read-only. A edição fica em /api/cnc/maquinas.
+ * Lista máquinas configuradas do usuário — read-only. A edição fica em /api/cnc/maquinas.
  */
 router.get('/maquinas', (req, res) => {
   try {
@@ -244,9 +250,9 @@ router.get('/maquinas', (req, res) => {
       SELECT id, nome, fabricante, modelo, tipo_pos, x_max, y_max, z_max,
              vel_corte, rpm_padrao, padrao, ativo
       FROM cnc_maquinas
-      WHERE ativo = 1
+      WHERE ativo = 1 AND user_id = ?
       ORDER BY padrao DESC, nome ASC
-    `).all();
+    `).all(req.user.id);
     res.json({ maquinas: rows });
   } catch (err) {
     console.error('[digital-twin] GET /maquinas failed', err);

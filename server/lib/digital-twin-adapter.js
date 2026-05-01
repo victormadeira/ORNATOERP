@@ -149,43 +149,57 @@ export function cncPecaToPieceGeometry(row) {
 
 /**
  * Busca uma peça do banco por código público (upmcode/persistent_id ou PECA-<id>).
+ * Filtra por user_id (via JOIN cnc_lotes) — isolamento multi-tenant.
  * @param {import('better-sqlite3').Database} db
  * @param {string} code
+ * @param {number} userId — obrigatório, isolamento multi-tenant
  */
-export function findPieceByCode(db, code) {
-  if (!code) return null;
+export function findPieceByCode(db, code, userId) {
+  if (!code || !userId) return null;
   const normalized = code.toUpperCase().trim();
 
   // Match por PECA-<id>
   const byIdMatch = normalized.match(/^PECA-(\d+)$/);
   if (byIdMatch) {
-    const row = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(parseInt(byIdMatch[1], 10));
+    const row = db.prepare(
+      'SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON l.id = p.lote_id WHERE p.id = ? AND l.user_id = ?'
+    ).get(parseInt(byIdMatch[1], 10), userId);
     return row || null;
   }
 
   // Match upmcode exato (case-insensitive)
-  let row = db.prepare('SELECT * FROM cnc_pecas WHERE UPPER(upmcode) = ?').get(normalized);
+  let row = db.prepare(
+    'SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON l.id = p.lote_id WHERE UPPER(p.upmcode) = ? AND l.user_id = ?'
+  ).get(normalized, userId);
   if (row) return row;
 
   // Match persistent_id exato
-  row = db.prepare('SELECT * FROM cnc_pecas WHERE UPPER(persistent_id) = ?').get(normalized);
+  row = db.prepare(
+    'SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON l.id = p.lote_id WHERE UPPER(p.persistent_id) = ? AND l.user_id = ?'
+  ).get(normalized, userId);
   if (row) return row;
 
   // Fuzzy: upmcode contém
-  row = db.prepare('SELECT * FROM cnc_pecas WHERE UPPER(upmcode) LIKE ? LIMIT 1').get(`%${normalized}%`);
+  row = db.prepare(
+    'SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON l.id = p.lote_id WHERE UPPER(p.upmcode) LIKE ? AND l.user_id = ? LIMIT 1'
+  ).get(`%${normalized}%`, userId);
   return row || null;
 }
 
 /**
- * Lista peças recentes para a sidebar, limitadas a N.
+ * Lista peças recentes para a sidebar, limitadas a N. Filtra por user_id.
  * @param {import('better-sqlite3').Database} db
+ * @param {number} userId — obrigatório, isolamento multi-tenant
  * @param {number} [limit]
  */
-export function listRecentPieces(db, limit = 40) {
+export function listRecentPieces(db, userId, limit = 40) {
+  if (!userId) return [];
   const rows = db.prepare(`
-    SELECT * FROM cnc_pecas
-    ORDER BY criado_em DESC, id DESC
+    SELECT p.* FROM cnc_pecas p
+    JOIN cnc_lotes l ON l.id = p.lote_id
+    WHERE l.user_id = ?
+    ORDER BY p.criado_em DESC, p.id DESC
     LIMIT ?
-  `).all(limit);
+  `).all(userId, limit);
   return rows.map(cncPecaToPieceGeometry);
 }
