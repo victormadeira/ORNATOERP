@@ -12514,7 +12514,14 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
             return moduleColorMap.get(key);
         };
 
-        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plano de Corte — ${lote.nome}</title>
+        // Helpers — definidos antes do html template porque são usados no header.
+        const toPct = (v) => {
+            const n = Number(v) || 0;
+            return n <= 1 ? n * 100 : n;
+        };
+        const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plano de Corte — ${escapeHtml(lote.nome)}</title>
         <style>
             * { box-sizing: border-box; margin: 0; }
             body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #1a1a1a; }
@@ -12537,17 +12544,11 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
             .num-cell { font-family: monospace; font-weight: 700; text-align: center; width: 32px; }
             @media print { .no-print { display: none; } .page { padding: 5mm; } }
         </style></head><body>
-        <div class="no-print" style="padding:10px;background:#eee">
-            <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#1379F0;color:#fff;border:none;border-radius:6px">Imprimir / Salvar PDF</button>
-            <span style="margin-left:12px;font-size:12px;color:#666">${plano.chapas.length} chapas · ${lote.nome}</span>
+        <div class="no-print" style="padding:10px;background:linear-gradient(90deg,#fafaf6,#f4ede0);border-bottom:1px solid #e0ddd6;display:flex;align-items:center;gap:12px">
+            <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#1379F0;color:#fff;border:none;border-radius:6px;font-weight:600">Imprimir / Salvar PDF</button>
+            <span style="font-size:12px;color:#1a1a1a"><b>${plano.chapas.length}</b> chapas · ${escapeHtml(lote.nome)}</span>
+            <span style="margin-left:auto;font-size:10px;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:4px;font-weight:700">PDF v2 — cores por módulo</span>
         </div>`;
-
-        // Aproveitamento pode estar salvo como ratio (0-1) ou percentage (0-100).
-        const toPct = (v) => {
-            const n = Number(v) || 0;
-            return n <= 1 ? n * 100 : n;
-        };
-        const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
         for (let ci = 0; ci < plano.chapas.length; ci++) {
             const ch = plano.chapas[ci];

@@ -291,8 +291,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     };
 
     // ═══ PDF Export — usa endpoint /export/:loteId/pdf-plano (com SVG da chapa) ═══
-    // O endpoint backend renderiza HTML imprimível com visualização SVG de cada chapa,
-    // numeração de peças (incluindo pequenas), tabela e botão de imprimir/salvar PDF.
+    // O endpoint backend renderiza HTML imprimível com visualização SVG colorida
+    // por módulo, numeração de peças (incluindo pequenas), tabela com fitas de
+    // borda (F/T/D/E) e botão de imprimir/salvar PDF.
     const handleExportPDF = () => handleExport('pdf-plano');
 
     // ═══ Tool Prediction (#20) ═══
