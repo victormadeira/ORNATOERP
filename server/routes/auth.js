@@ -12,7 +12,7 @@ const router = Router();
 // (sem isso, login de email inexistente retorna em 0ms, email existente em 70ms+).
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-resistance', 10);
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
     const { email, senha } = req.body;
     if (!email || !senha) return res.status(400).json({ error: 'Email e senha são obrigatórios' });
     // Normaliza e limita payload (defesa contra DoS via senha longa — bcrypt é caro)
@@ -20,9 +20,10 @@ router.post('/login', (req, res) => {
     if (senha.length > 256) return res.status(400).json({ error: 'Credenciais inválidas' });
 
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
-    // Sempre roda bcrypt (mesmo sem user) pra normalizar tempo de resposta e não vazar existência de email
+    // Sempre roda bcrypt (mesmo sem user) pra normalizar tempo de resposta e não vazar existência de email.
+    // compare async — não bloqueia event loop sob logins concorrentes.
     const hashToCheck = user ? user.senha_hash : DUMMY_HASH;
-    const valid = bcrypt.compareSync(senha, hashToCheck);
+    const valid = await bcrypt.compare(senha, hashToCheck);
     if (!user || !valid) return res.status(401).json({ error: 'Credenciais inválidas' });
     if (!user.ativo) return res.status(401).json({ error: 'Usuário desativado' });
 
@@ -39,7 +40,7 @@ router.post('/login', (req, res) => {
 // ═══════════════════════════════════════════════════════
 // POST /api/auth/register — somente admin
 // ═══════════════════════════════════════════════════════
-router.post('/register', requireAuth, requireRole('admin'), (req, res) => {
+router.post('/register', requireAuth, requireRole('admin'), async (req, res) => {
     const { nome, email, senha, role } = req.body;
     if (!nome || !email || !senha) return res.status(400).json({ error: 'Nome, email e senha obrigatórios' });
 
@@ -55,7 +56,7 @@ router.post('/register', requireAuth, requireRole('admin'), (req, res) => {
 
     const validRoles = ['admin', 'gerente', 'vendedor'];
     const r = validRoles.includes(role) ? role : 'vendedor';
-    const hash = bcrypt.hashSync(senha, 12);
+    const hash = await bcrypt.hash(senha, 12);
 
     const result = db.prepare('INSERT INTO users (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)').run(nome, email, hash, r);
     res.status(201).json({ id: result.lastInsertRowid, nome, email, role: r });
@@ -153,17 +154,17 @@ router.put('/perfil', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 // PUT /api/auth/password — alterar própria senha
 // ═══════════════════════════════════════════════════════
-router.put('/password', requireAuth, (req, res) => {
+router.put('/password', requireAuth, async (req, res) => {
     const { senhaAtual, novaSenha } = req.body;
     if (!senhaAtual || !novaSenha) return res.status(400).json({ error: 'Senhas obrigatórias' });
     if (novaSenha.length < 6) return res.status(400).json({ error: 'Nova senha deve ter no mínimo 6 caracteres' });
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-    if (!bcrypt.compareSync(senhaAtual, user.senha_hash)) {
+    if (!(await bcrypt.compare(senhaAtual, user.senha_hash))) {
         return res.status(401).json({ error: 'Senha atual incorreta' });
     }
 
-    const hash = bcrypt.hashSync(novaSenha, 12); // custo 12, igual ao registro
+    const hash = await bcrypt.hash(novaSenha, 12); // custo 12, igual ao registro
     db.prepare('UPDATE users SET senha_hash = ? WHERE id = ?').run(hash, req.user.id);
     res.json({ ok: true });
 });
