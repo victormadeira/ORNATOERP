@@ -13,7 +13,7 @@
 //                          TabEtiquetas, TabGcode, TabPecas, _RelatorioDesperdicio)
 //       tabs/TabPlano/    (index + renderMachining + GcodeSim + Modals + helpers)
 //       tabs/TabConfig/   (index + CfgChapas/Maquinas/Ferramentas/Usinagem/...)
-//       _deprecated/      (TabMateriais, TabUsinagens — não renderizados)
+//       _deprecated/      (TabMateriais — não renderizado; TabUsinagens foi reativada)
 // ═══════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
@@ -37,9 +37,11 @@ const TabRetalhos  = lazy(() => import('./ProducaoCNC/tabs/TabRetalhos.jsx').the
 const TabPecas     = lazy(() => import('./ProducaoCNC/tabs/TabPecas.jsx').then(m => ({ default: m.TabPecas })));
 const TabPlano     = lazy(() => import('./ProducaoCNC/tabs/TabPlano/index.jsx').then(m => ({ default: m.TabPlano })));
 const TabEtiquetas = lazy(() => import('./ProducaoCNC/tabs/TabEtiquetas.jsx').then(m => ({ default: m.TabEtiquetas })));
-const TabGcode     = lazy(() => import('./ProducaoCNC/tabs/TabGcode.jsx').then(m => ({ default: m.TabGcode })));
+const TabGcode        = lazy(() => import('./ProducaoCNC/tabs/TabGcode.jsx').then(m => ({ default: m.TabGcode })));
+const TabUsinagens    = lazy(() => import('./ProducaoCNC/tabs/TabUsinagens.jsx').then(m => ({ default: m.TabUsinagens })));
+const TabCustos       = lazy(() => import('./ProducaoCNC/tabs/TabCustos.jsx').then(m => ({ default: m.TabCustos })));
 const TabFilaMaquinas = lazy(() => import('./ProducaoCNC/tabs/TabFilaMaquinas.jsx').then(m => ({ default: m.TabFilaMaquinas })));
-const TabConfig    = lazy(() => import('./ProducaoCNC/tabs/TabConfig/index.jsx').then(m => ({ default: m.TabConfig })));
+const TabConfig       = lazy(() => import('./ProducaoCNC/tabs/TabConfig/index.jsx').then(m => ({ default: m.TabConfig })));
 
 // ── Modais pesados (three.js + CSG + html5-qrcode) ────────
 const Piece3DModal = lazy(() => import('../modules/digital-twin/components/modals/Piece3DModal.jsx').then(m => ({ default: m.Piece3DModal })));
@@ -83,7 +85,15 @@ export default function ProducaoCNC({ notify }) {
     }, [notify]));
 
     const loadLotes = useCallback(() => {
-        api.get('/cnc/lotes').then(setLotes).catch(e => notify?.(e.error || 'Erro ao carregar lotes'));
+        api.get('/cnc/lotes').then(data => {
+            setLotes(data);
+            // Sincronizar metadados do loteAtual se ele foi editado
+            setLoteAtual(prev => {
+                if (!prev) return prev;
+                const updated = data.find(l => l.id === prev.id);
+                return updated || prev;
+            });
+        }).catch(e => notify?.(e.error || 'Erro ao carregar lotes'));
     }, [notify]);
 
     const loadToolAlerts = useCallback(() => {
@@ -114,7 +124,7 @@ export default function ProducaoCNC({ notify }) {
         setSugestoesOpen(false);
     }, []);
 
-    const isInsideLote = loteAtual && ['pecas', 'plano', 'etiquetas', 'gcode'].includes(tab);
+    const isInsideLote = loteAtual && ['pecas', 'plano', 'etiquetas', 'gcode', 'usinagens', 'custos'].includes(tab);
 
     // ── MODO EDITOR FULL-SCREEN (editor de etiquetas) ─────
     if (editorMode) {
@@ -153,7 +163,7 @@ export default function ProducaoCNC({ notify }) {
                     <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span style={{ flex: 1 }}>
                         <b>{toolAlerts.length} ferramenta(s)</b> com desgaste acima de 80%:
-                        {' '}{toolAlerts.slice(0, 3).map(t => `${t.nome} (${t.percentage}%)`).join(', ')}
+                        {' '}{toolAlerts.slice(0, 3).map(t => `${t.maquina_nome ? `${t.maquina_nome}: ` : ''}${t.nome} (${t.percentage}%)`).join(', ')}
                         {toolAlerts.length > 3 && ` e mais ${toolAlerts.length - 3}...`}
                     </span>
                     <button
@@ -270,6 +280,49 @@ export default function ProducaoCNC({ notify }) {
                             );
                         })}
                     </div>
+                </div>
+            )}
+
+            {/* Faixa de metadados do lote (cliente, prazo, observacoes) */}
+            {isInsideLote && (loteAtual.cliente || loteAtual.data_entrega || loteAtual.observacoes || loteAtual.prioridade > 0) && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    padding: '6px 14px', marginBottom: 4, marginTop: -12,
+                    borderRadius: 8, background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border)', fontSize: 11,
+                }}>
+                    {loteAtual.cliente && (
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                            👤 {loteAtual.cliente}
+                            {loteAtual.projeto ? <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> / {loteAtual.projeto}</span> : null}
+                        </span>
+                    )}
+                    {loteAtual.data_entrega && (() => {
+                        const diff = Math.ceil((new Date(loteAtual.data_entrega + 'T12:00:00') - new Date()) / 86400000);
+                        const color = diff < 0 ? 'var(--danger)' : diff <= 3 ? 'var(--warning)' : 'var(--success)';
+                        return (
+                            <span style={{ color, fontWeight: 700 }}>
+                                📅 {new Date(loteAtual.data_entrega + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                {diff < 0 ? ` ⚠ ${Math.abs(diff)}d atrasado` : diff <= 3 ? ` ⏰ ${diff}d` : ''}
+                            </span>
+                        );
+                    })()}
+                    {loteAtual.prioridade > 0 && (
+                        <span style={{
+                            fontWeight: 800, fontSize: 10, padding: '2px 8px', borderRadius: 10,
+                            color: loteAtual.prioridade === 2 ? 'var(--danger)' : 'var(--warning)',
+                            background: loteAtual.prioridade === 2 ? 'var(--danger-bg)' : 'var(--warning-bg)',
+                            border: `1px solid ${loteAtual.prioridade === 2 ? 'var(--danger-border)' : 'var(--warning-border)'}`,
+                        }}>
+                            {loteAtual.prioridade === 2 ? '🔴 URGENTE' : '🟡 ALTA PRIORIDADE'}
+                        </span>
+                    )}
+                    {loteAtual.observacoes && (
+                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            title={loteAtual.observacoes}>
+                            💬 {loteAtual.observacoes}
+                        </span>
+                    )}
                 </div>
             )}
 
@@ -450,6 +503,12 @@ export default function ProducaoCNC({ notify }) {
                 )}
                 {tab === 'gcode' && isInsideLote && (
                     <TabGcode lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />
+                )}
+                {tab === 'usinagens' && isInsideLote && (
+                    <TabUsinagens loteAtual={loteAtual} notify={notify} />
+                )}
+                {tab === 'custos' && isInsideLote && (
+                    <TabCustos loteAtual={loteAtual} notify={notify} />
                 )}
                 {tab === 'fila' && !isInsideLote && (
                     <TabFilaMaquinas notify={notify} />

@@ -310,4 +310,440 @@ function UsinagemTipoModal({ data, onSave, onClose }) {
     );
 }
 
+// ═══════════════════════════════════════════════════════
+// Catálogo de Usinagem por nome de componente (SketchUp)
+// ═══════════════════════════════════════════════════════
+
+export function CfgUsinagemCatalog({ notify }) {
+    const [catalog, setCatalog] = useState([]);
+    const [maquinas, setMaquinas] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [modal, setModal] = useState(null);   // null | 'new' | entry_obj
+    const [search, setSearch] = useState('');
+
+    const load = () => {
+        setLoading(true);
+        api.get('/cnc/usinagem-catalog')
+            .then(d => { setCatalog(d); setLoading(false); })
+            .catch(() => setLoading(false));
+    };
+    useEffect(() => {
+        load();
+        api.get('/cnc/maquinas').then(d => setMaquinas(Array.isArray(d) ? d : [])).catch(() => setMaquinas([]));
+    }, []);
+
+    const save = async (data) => {
+        try {
+            if (data.id) {
+                await api.put(`/cnc/usinagem-catalog/${data.id}`, data);
+                notify('Entrada atualizada');
+            } else {
+                await api.post('/cnc/usinagem-catalog', data);
+                notify('Entrada criada');
+            }
+            setModal(null);
+            load();
+        } catch (err) { notify(err.error || err.message || 'Erro ao salvar', 'error'); }
+    };
+
+    const del = async (id) => {
+        if (!confirm('Excluir esta entrada do catálogo?')) return;
+        try {
+            await api.del(`/cnc/usinagem-catalog/${id}`);
+            notify('Entrada excluída');
+            load();
+        } catch (err) { notify('Erro ao excluir', 'error'); }
+    };
+
+    const toggleAtivo = async (entry) => {
+        try {
+            await api.put(`/cnc/usinagem-catalog/${entry.id}`, { ativo: entry.ativo ? 0 : 1 });
+            load();
+        } catch (err) { notify('Erro', 'error'); }
+    };
+
+    const filtered = catalog.filter(e =>
+        !search || e.component_name.toLowerCase().includes(search.toLowerCase()) ||
+        (e.descricao || '').toLowerCase().includes(search.toLowerCase())
+    );
+
+    const newEntry = () => setModal({
+        component_name: '',
+        tem_padrao: 1,
+        profundidade: '',
+        profundidade_modo: 'fixa',
+        profundidade_percentual: '',
+        profundidade_extra: '',
+        diametro: '',
+        largura: '',
+        metodo: '',
+        material_match: '',
+        maquina_id: '',
+        face_match: '',
+        tool_code: '',
+        rpm: '',
+        feed_rate: '',
+        stepover_pct: '',
+        passes_acabamento: '',
+        borda_min: '',
+        prioridade: 5,
+        descricao: '',
+        ativo: 1,
+    });
+
+    return (
+        <div className="glass-card p-4">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Layers size={18} style={{ color: 'var(--primary)' }} />
+                    Catálogo de Usinagem por Componente ({catalog.length})
+                </h3>
+                <button onClick={newEntry} className={Z.btn}
+                    style={{ fontSize: 12, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Plus size={12} /> Nova Entrada
+                </button>
+            </div>
+
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 8, lineHeight: 1.6 }}>
+                Mapeia o <b>nome do componente SketchUp</b> (<code>definition.name</code>) para parâmetros de usinagem CNC.
+                Quando o plugin exporta um worker com <code>component_name</code>, o sistema busca aqui e aplica automaticamente
+                profundidade, método, diâmetro, ferramenta, rpm/feed e filtros de máquina/material/face. <b>Tem padrão = Sim</b>: usa os valores do catálogo.
+                <b> Não</b>: reconhece o componente mas usa a geometria do plugin como-está (rebaixo livre, etc.).
+                Prioridade: <b>Painel de Overrides {'>'} Catálogo {'>'} geometria do plugin</b>.
+            </div>
+
+            {/* Busca */}
+            <div style={{ marginBottom: 12, position: 'relative' }}>
+                <SearchIcon size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                    value={search} onChange={e => setSearch(e.target.value)}
+                    className={Z.inp}
+                    placeholder="Buscar por nome de componente ou descrição..."
+                    style={{ paddingLeft: 30, fontSize: 12 }}
+                />
+            </div>
+
+            {loading ? <Spinner text="Carregando catálogo..." /> : filtered.length === 0 ? (
+                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                    {catalog.length === 0 ? (
+                        <>
+                            <Layers size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+                            <div>Nenhuma entrada no catálogo.</div>
+                            <div style={{ fontSize: 11, marginTop: 4 }}>
+                                Crie entradas para mapear nomes de componentes SketchUp a parâmetros CNC.
+                            </div>
+                        </>
+                    ) : <div>Nenhum resultado para "{search}"</div>}
+                </div>
+            ) : (
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 11 }}>
+                        <thead>
+                            <tr>
+                                {['Componente (SketchUp)', 'Padrão', 'Método', 'Prof.', 'Ø', 'Ferramenta', 'Máquina', 'Material', 'Prior.', 'Ativo', 'Ações'].map(h => (
+                                    <th key={h} className={Z.th} style={{ padding: '5px 8px', fontSize: 10, whiteSpace: 'nowrap' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtered.map((e, i) => (
+                                <tr key={e.id} style={{ background: i % 2 ? 'var(--bg-muted)' : 'transparent', opacity: e.ativo ? 1 : 0.45 }}>
+                                    <td style={{ padding: '5px 8px', fontWeight: 700, fontFamily: 'monospace', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                        title={e.component_name}>
+                                        {e.component_name}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                                        <span style={{
+                                            fontSize: 9, padding: '2px 7px', borderRadius: 4, fontWeight: 700,
+                                            background: e.tem_padrao ? '#d1fae5' : '#fef3c7',
+                                            color: e.tem_padrao ? '#065f46' : '#92400e',
+                                        }}>
+                                            {e.tem_padrao ? 'Sim' : 'Não'}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                        {e.metodo || 'auto'}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                        {e.profundidade_modo === 'percentual_espessura'
+                                            ? `${e.profundidade_percentual || '—'}%`
+                                            : e.profundidade_modo === 'atravessar'
+                                                ? 'atravessar'
+                                                : e.profundidade_modo === 'nao_atravessar'
+                                                    ? `${e.profundidade ?? 'auto'}mm máx.`
+                                                    : e.profundidade != null ? `${e.profundidade}mm` : 'plugin'}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                        {e.diametro != null ? `Ø${e.diametro}` : '—'}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontSize: 10 }}>
+                                        {e.tool_code || '—'}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {e.maquina_id ? (maquinas.find(m => Number(m.id) === Number(e.maquina_id))?.nome || `#${e.maquina_id}`) : 'Todas'}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', color: 'var(--text-muted)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                        title={e.material_match || e.descricao}>
+                                        {e.material_match || 'Todos'}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                                        {e.prioridade ?? 5}
+                                    </td>
+                                    <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                                        <button onClick={() => toggleAtivo(e)}
+                                            style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}
+                                            title={e.ativo ? 'Desativar' : 'Ativar'}>
+                                            {e.ativo
+                                                ? <CheckCircle2 size={14} style={{ color: '#10b981' }} />
+                                                : <Circle size={14} style={{ color: 'var(--text-muted)' }} />}
+                                        </button>
+                                    </td>
+                                    <td style={{ padding: '5px 8px' }}>
+                                        <div style={{ display: 'flex', gap: 3 }}>
+                                            <button onClick={() => setModal({ ...e })} className={Z.btn2} style={{ padding: '2px 6px' }}
+                                                title="Editar"><Edit size={11} /></button>
+                                            <button onClick={() => del(e.id)} className={Z.btnD} style={{ padding: '2px 6px' }}
+                                                title="Excluir"><Trash2 size={11} /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {modal && (
+                <CatalogModal
+                    data={modal}
+                    maquinas={maquinas}
+                    onSave={save}
+                    onClose={() => setModal(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+function CatalogModal({ data, maquinas = [], onSave, onClose }) {
+    const [f, setF] = useState({ ...data });
+    const upd = (k, v) => setF(p => ({ ...p, [k]: v }));
+    const num = (v) => v === '' || v == null ? null : Number(v);
+
+    const handleSave = () => {
+        if (!f.component_name?.trim()) return alert('Nome do componente é obrigatório');
+        onSave({
+            ...f,
+            profundidade: num(f.profundidade),
+            profundidade_percentual: num(f.profundidade_percentual),
+            profundidade_extra: num(f.profundidade_extra),
+            diametro: num(f.diametro),
+            largura: num(f.largura),
+            maquina_id: num(f.maquina_id),
+            rpm: num(f.rpm),
+            feed_rate: num(f.feed_rate),
+            stepover_pct: num(f.stepover_pct),
+            passes_acabamento: num(f.passes_acabamento),
+            borda_min: num(f.borda_min),
+            prioridade: num(f.prioridade) ?? 5,
+        });
+    };
+
+    return (
+        <Modal title={f.id ? 'Editar Entrada do Catálogo' : 'Nova Entrada do Catálogo'} close={onClose} w={760}>
+            {/* Nome do componente */}
+            <div style={{ marginBottom: 14 }}>
+                <label className={Z.lbl}>Nome do Componente SketchUp <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                    value={f.component_name || ''}
+                    onChange={e => upd('component_name', e.target.value)}
+                    className={Z.inp}
+                    placeholder="Ex: Dobradiça 35mm, Cavilha 8x35, Rasgo Gaveta..."
+                    autoFocus
+                />
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                    Pode corresponder exatamente ao <code>definition.name</code> ou usar <code>*</code> como curinga. Ex: <code>Dobradiça*</code>.
+                </div>
+            </div>
+
+            {/* Tem padrão */}
+            <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--bg-muted)', borderRadius: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!f.tem_padrao}
+                        onChange={e => upd('tem_padrao', e.target.checked ? 1 : 0)}
+                        style={{ marginTop: 2 }} />
+                    <div>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>Tem Padrão (usa parâmetros do catálogo)</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 2 }}>
+                            <b>Marcado:</b> os parâmetros abaixo substituem os do plugin (método, profundidade, diâmetro, ferramenta, rpm/feed).<br />
+                            <b>Desmarcado:</b> o componente é reconhecido mas os parâmetros do plugin são usados como-estão
+                            (ideal para rebaixos/fresagens livres que variam por projeto).
+                        </div>
+                    </div>
+                </label>
+            </div>
+
+            {/* Parâmetros — só relevantes quando tem_padrao = true */}
+            <div style={{ opacity: f.tem_padrao ? 1 : 0.5, pointerEvents: f.tem_padrao ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Parâmetros do Catálogo {!f.tem_padrao && <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(ignorados quando "Tem Padrão" está desmarcado)</span>}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div>
+                        <label className={Z.lbl}>Método</label>
+                        <select value={f.metodo || ''} onChange={e => upd('metodo', e.target.value)} className={Z.inp}>
+                            <option value="">Automático</option>
+                            <option value="drill">Furo direto</option>
+                            <option value="helical">Furo helicoidal</option>
+                            <option value="circular">Interpolação circular</option>
+                            <option value="pocket_zigzag">Rebaixo zig-zag</option>
+                            <option value="pocket_espiral">Rebaixo espiral</option>
+                            <option value="groove">Rasgo/canal</option>
+                            <option value="multi_pass">Rasgo multipasse</option>
+                            <option value="milling_path">Caminho fresado</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Profundidade</label>
+                        <select value={f.profundidade_modo || 'fixa'} onChange={e => upd('profundidade_modo', e.target.value)} className={Z.inp}>
+                            <option value="fixa">Fixa em mm</option>
+                            <option value="plugin">Usar plugin</option>
+                            <option value="percentual_espessura">% da espessura</option>
+                            <option value="nao_atravessar">Nunca vazar</option>
+                            <option value="atravessar">Atravessar chapa</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Valor mm</label>
+                        <input type="number" value={f.profundidade ?? ''} step="0.1" min="0"
+                            onChange={e => upd('profundidade', e.target.value)}
+                            className={Z.inp} placeholder="Ex: 13.0" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>% espessura</label>
+                        <input type="number" value={f.profundidade_percentual ?? ''} step="1" min="0" max="120"
+                            onChange={e => upd('profundidade_percentual', e.target.value)}
+                            className={Z.inp} placeholder="Ex: 70" />
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div>
+                        <label className={Z.lbl}>Diâmetro (mm)</label>
+                        <input type="number" value={f.diametro ?? ''} step="0.5" min="0"
+                            onChange={e => upd('diametro', e.target.value)}
+                            className={Z.inp} placeholder="Ex: 35.0" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Largura (mm)</label>
+                        <input type="number" value={f.largura ?? ''} step="0.5" min="0"
+                            onChange={e => upd('largura', e.target.value)}
+                            className={Z.inp} placeholder="Opcional" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Extra prof. (mm)</label>
+                        <input type="number" value={f.profundidade_extra ?? ''} step="0.1"
+                            onChange={e => upd('profundidade_extra', e.target.value)}
+                            className={Z.inp} placeholder="Ex: 0.2" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Borda/fundo seg. (mm)</label>
+                        <input type="number" value={f.borda_min ?? ''} step="0.1" min="0"
+                            onChange={e => upd('borda_min', e.target.value)}
+                            className={Z.inp} placeholder="Ex: 0.5" />
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div>
+                        <label className={Z.lbl}>Ferramenta (tool_code)</label>
+                        <input value={f.tool_code || ''}
+                            onChange={e => upd('tool_code', e.target.value)}
+                            className={Z.inp} placeholder="Ex: broca_35mm, fresa_8mm" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>RPM</label>
+                        <input type="number" value={f.rpm ?? ''} step="100" min="0"
+                            onChange={e => upd('rpm', e.target.value)}
+                            className={Z.inp} placeholder="Ex: 8000" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Feed Rate (mm/min)</label>
+                        <input type="number" value={f.feed_rate ?? ''} step="100" min="0"
+                            onChange={e => upd('feed_rate', e.target.value)}
+                            className={Z.inp} placeholder="Ex: 3000" />
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div>
+                        <label className={Z.lbl}>Máquina</label>
+                        <select value={f.maquina_id ?? ''} onChange={e => upd('maquina_id', e.target.value)} className={Z.inp}>
+                            <option value="">Todas</option>
+                            {maquinas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Material</label>
+                        <input value={f.material_match || ''}
+                            onChange={e => upd('material_match', e.target.value)}
+                            className={Z.inp} placeholder="Ex: MDF, TX, Freijó*" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Face/Lado</label>
+                        <select value={f.face_match || ''} onChange={e => upd('face_match', e.target.value)} className={Z.inp}>
+                            <option value="">Qualquer</option>
+                            <option value="A,side_a,top">Face A / topo</option>
+                            <option value="B,side_b,bottom">Face B / fundo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div>
+                        <label className={Z.lbl}>Step-over (%)</label>
+                        <input type="number" value={f.stepover_pct ?? ''} step="5" min="5" max="95"
+                            onChange={e => upd('stepover_pct', e.target.value)}
+                            className={Z.inp} placeholder="Máquina" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Passes acabamento</label>
+                        <input type="number" value={f.passes_acabamento ?? ''} step="1" min="0"
+                            onChange={e => upd('passes_acabamento', e.target.value)}
+                            className={Z.inp} placeholder="Máquina" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Prioridade</label>
+                        <input type="number" value={f.prioridade ?? 5} step="1" min="0"
+                            onChange={e => upd('prioridade', e.target.value)}
+                            className={Z.inp} placeholder="5" />
+                    </div>
+                </div>
+            </div>
+
+            {/* Descrição */}
+            <div style={{ marginBottom: 14 }}>
+                <label className={Z.lbl}>Descrição / Observações</label>
+                <input value={f.descricao || ''}
+                    onChange={e => upd('descricao', e.target.value)}
+                    className={Z.inp} placeholder="Ex: Dobradiça Grass de 35mm — profundidade de copo padrão 13mm" />
+            </div>
+
+            {/* Ativo */}
+            <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!f.ativo} onChange={e => upd('ativo', e.target.checked ? 1 : 0)} />
+                    Entrada ativa (ignorada na geração de G-code se desativada)
+                </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={onClose} className={Z.btn2}>Cancelar</button>
+                <button onClick={handleSave} className={Z.btn}>Salvar</button>
+            </div>
+        </Modal>
+    );
+}
+
 // Retalhos

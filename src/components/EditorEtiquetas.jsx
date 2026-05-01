@@ -423,6 +423,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   const [collapsedGrupos, setCollapsedGrupos] = useState({});
   const [rightTab, setRightTab] = useState('config'); // 'config' | 'elementos'
   const [autoComplete, setAutoComplete] = useState({ show: false, filter: '', cursorStart: 0, highlightIdx: 0 });
+  const [clipboard, setClipboard] = useState(null); // copy/paste de elementos
   const textoInputRef = useRef(null);
 
   const svgRef = useRef(null);
@@ -774,6 +775,14 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           addElement(selEl.tipo, { ...selEl, id: undefined, x: selEl.x + 3, y: selEl.y + 3, zIndex: elementos.length + 1 });
         }
       }
+      if (e.key === 'c' && (e.ctrlKey || e.metaKey) && selEl) {
+        e.preventDefault();
+        setClipboard({ ...selEl });
+      }
+      if (e.key === 'v' && (e.ctrlKey || e.metaKey) && clipboard) {
+        e.preventDefault();
+        addElement(clipboard.tipo, { ...clipboard, id: undefined, x: Math.min(clipboard.x + 4, canvasW - clipboard.w), y: Math.min(clipboard.y + 4, canvasH - clipboard.h), zIndex: elementos.length + 1 });
+      }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selecionado) {
         e.preventDefault();
         const step = e.shiftKey ? 5 : 1;
@@ -881,6 +890,39 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   };
 
   const toggleGrupo = (g) => setCollapsedGrupos(prev => ({ ...prev, [g]: !prev[g] }));
+
+  // ─── Alinhamento relativo ao canvas ──────────────
+  const alinhar = useCallback((tipo) => {
+    if (!selEl) return;
+    const updates = {
+      'left':    { x: 0 },
+      'centerX': { x: Math.max(0, (canvasW - selEl.w) / 2) },
+      'right':   { x: Math.max(0, canvasW - selEl.w) },
+      'top':     { y: 0 },
+      'centerY': { y: Math.max(0, (canvasH - selEl.h) / 2) },
+      'bottom':  { y: Math.max(0, canvasH - selEl.h) },
+    }[tipo];
+    if (updates) updateEl(selEl.id, updates);
+  }, [selEl, canvasW, canvasH, updateEl]);
+
+  // ─── Validação de variáveis usadas no template ───
+  const variaveisUsadas = useMemo(() => {
+    const usadas = new Set();
+    const validas = new Set(VARIAVEIS.map(v => v.key));
+    const invalidas = new Set();
+    for (const el of elementos) {
+      const textos = [el.texto, el.barcodeVariavel, el.variavel].filter(Boolean);
+      for (const t of textos) {
+        const matches = String(t).matchAll(/\{\{(\w+)\}\}/g);
+        for (const m of matches) {
+          usadas.add(m[1]);
+          if (!validas.has(m[1])) invalidas.add(m[1]);
+        }
+        if (validas.has(t)) usadas.add(t); // variavel direta (barcode)
+      }
+    }
+    return { usadas: [...usadas].filter(k => validas.has(k)), invalidas: [...invalidas] };
+  }, [elementos]);
 
   // ═══════════════════════════════════════════════════
   // RENDER
@@ -1079,9 +1121,39 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
               <Grid3X3 size={12} /> Grid {gridSize}mm
             </label>
 
-            {/* Current selection info */}
+            {/* Alignment toolbar — aparece quando há seleção */}
             {selEl && (
               <>
+                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+                {/* Alinhamento horizontal */}
+                {[
+                  { id: 'left',    title: 'Alinhar à esquerda',  icon: '⬅' },
+                  { id: 'centerX', title: 'Centralizar horizontal', icon: '↔' },
+                  { id: 'right',   title: 'Alinhar à direita',   icon: '➡' },
+                ].map(a => (
+                  <button key={a.id} onClick={() => alinhar(a.id)} title={a.title}
+                    className={Z.btn2} style={{ padding: '2px 5px', fontSize: 11, borderRadius: 4 }}>
+                    {a.icon}
+                  </button>
+                ))}
+                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+                {/* Alinhamento vertical */}
+                {[
+                  { id: 'top',     title: 'Alinhar ao topo',     icon: '⬆' },
+                  { id: 'centerY', title: 'Centralizar vertical', icon: '↕' },
+                  { id: 'bottom',  title: 'Alinhar à base',      icon: '⬇' },
+                ].map(a => (
+                  <button key={a.id} onClick={() => alinhar(a.id)} title={a.title}
+                    className={Z.btn2} style={{ padding: '2px 5px', fontSize: 11, borderRadius: 4 }}>
+                    {a.icon}
+                  </button>
+                ))}
+                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+                {/* Copy */}
+                <button onClick={() => setClipboard({ ...selEl })} title="Copiar elemento (Ctrl+C)"
+                  className={Z.btn2} style={{ padding: '2px 6px', fontSize: 10, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <Copy size={11} />
+                </button>
                 <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
                 <span style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700 }}>
                   {selEl.tipo === 'texto' ? 'Texto' : selEl.tipo === 'retangulo' ? 'Retângulo' : selEl.tipo === 'barcode' ? 'Barcode' : selEl.tipo === 'qrcode' ? 'QR Code' : selEl.tipo === 'imagem' ? 'Imagem' : selEl.tipo === 'minimapa' ? 'Mini-mapa' : 'Diagrama'}
@@ -1090,6 +1162,17 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                   {Math.round(selEl.x * 10) / 10}, {Math.round(selEl.y * 10) / 10} — {Math.round(selEl.w * 10) / 10}×{Math.round(selEl.h * 10) / 10}mm
                 </span>
+              </>
+            )}
+            {/* Paste button — sempre visível quando há clipboard */}
+            {clipboard && (
+              <>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => addElement(clipboard.tipo, { ...clipboard, id: undefined, x: Math.min(clipboard.x + 4, canvasW - clipboard.w), y: Math.min(clipboard.y + 4, canvasH - clipboard.h), zIndex: elementos.length + 1 })}
+                  title="Colar elemento (Ctrl+V)"
+                  className={Z.btn2} style={{ padding: '2px 8px', fontSize: 10, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3, color: 'var(--primary)', fontWeight: 600 }}>
+                  📋 Colar
+                </button>
               </>
             )}
           </div>
@@ -1207,8 +1290,8 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 {propInput('Largura', 'w', 'number', { step: 1, min: 2 })}
                 {propInput('Altura', 'h', 'number', { step: 1, min: 2 })}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
-                {propInput('Rotação°', 'rotacao', 'number', { step: 90 })}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+                {propInput('Rotação°', 'rotacao', 'number', { step: 1, min: -360, max: 360 })}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <LBL>Camada</LBL>
                   <div style={{ display: 'flex', gap: 2 }}>
@@ -1218,6 +1301,21 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                       onClick={() => updateEl(selEl.id, { zIndex: Math.max(0, (selEl.zIndex || 0) - 1) })} title="Enviar para trás">↓</button>
                   </div>
                 </div>
+              </div>
+              {/* Rotação rápida */}
+              <div style={{ display: 'flex', gap: 2 }}>
+                {[0, 90, 180, 270].map(deg => (
+                  <button key={deg} onClick={() => updateEl(selEl.id, { rotacao: deg })}
+                    title={`Rotacionar ${deg}°`}
+                    className={Z.btn2}
+                    style={{ flex: 1, fontSize: 9, padding: '3px 0', borderRadius: 4, fontWeight: (selEl.rotacao || 0) === deg ? 800 : 500, background: (selEl.rotacao || 0) === deg ? 'var(--primary)' : undefined, color: (selEl.rotacao || 0) === deg ? '#fff' : undefined }}>
+                    {deg}°
+                  </button>
+                ))}
+                <button onClick={() => updateEl(selEl.id, { rotacao: ((selEl.rotacao || 0) + 90) % 360 })}
+                  title="Girar +90°" className={Z.btn2} style={{ padding: '3px 6px', fontSize: 9, borderRadius: 4 }}>
+                  ↻
+                </button>
               </div>
 
               {/* TEXT props */}
@@ -1608,9 +1706,12 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   ['Arrastar', 'mover elemento'],
                   ['Handles', 'redimensionar'],
                   ['Delete', 'remover selecionado'],
-                  ['Ctrl+D', 'duplicar'],
+                  ['Ctrl+C', 'copiar elemento'],
+                  ['Ctrl+V', 'colar elemento'],
+                  ['Ctrl+D', 'duplicar no lugar'],
                   ['Ctrl+Z/Y', 'desfazer/refazer'],
                   ['Setas', 'mover 1mm (Shift: 5mm)'],
+                  ['⬅↔➡⬆↕⬇', 'alinhar ao canvas'],
                   ['Esc', 'deselecionar'],
                 ].map(([key, desc]) => (
                   <div key={key} style={{ display: 'flex', gap: 6 }}>
@@ -1662,6 +1763,47 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                     </button>
                   </div>
                 ))
+              )}
+
+              {/* ── Painel de validação de variáveis ── */}
+              {elementos.length > 0 && (
+                <>
+                  <Divider />
+                  <SH icon={<Tag size={10} />}>Variáveis Utilizadas</SH>
+                  {variaveisUsadas.invalidas.length > 0 && (
+                    <div style={{ padding: '6px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, marginBottom: 6 }}>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: '#dc2626', marginBottom: 4, textTransform: 'uppercase' }}>
+                        ⚠ Variáveis inválidas
+                      </div>
+                      {variaveisUsadas.invalidas.map(k => (
+                        <div key={k} style={{ fontSize: 10, color: '#991b1b', fontFamily: 'monospace', padding: '1px 0' }}>
+                          {`{{${k}}}`} — não existe
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {variaveisUsadas.usadas.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                      {variaveisUsadas.usadas.map(k => {
+                        const v = VARIAVEIS.find(v => v.key === k);
+                        return (
+                          <span key={k} title={v?.exemplo ? `Ex: ${v.exemplo}` : ''} style={{
+                            fontSize: 9, padding: '2px 6px', borderRadius: 10,
+                            background: 'rgba(var(--primary-rgb),0.1)',
+                            color: 'var(--primary)', fontWeight: 600, fontFamily: 'monospace',
+                          }}>
+                            {k}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {variaveisUsadas.usadas.length === 0 && variaveisUsadas.invalidas.length === 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 0' }}>
+                      Nenhuma variável dinâmica em uso.
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

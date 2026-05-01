@@ -107,6 +107,7 @@ class GcodeMachine(BaseModel):
     vel_aproximacao: float = 8000
     rpm_padrao: int = 18000
     profundidade_extra: float = 0.2
+    z_origin: str = "mesa"
     coordenada_zero: str = "canto_esq_inf"
     eixo_x_invertido: bool = False
     eixo_y_invertido: bool = False
@@ -252,13 +253,14 @@ def _build_express_response(layout_result, config: BridgeConfig,
                 if cls == "super_pequena":
                     peca_info["corte"] = {
                         "passes": 2, "velocidade": "lenta",
-                        "tabs": True, "tabSize": 3, "tabCount": 2,
+                        "tabs": False, "fixacao": "onion_skin",
+                        "motivo": "MDF/melamina: sem tabs para evitar lascar a face",
                     }
                 elif cls == "pequena":
                     peca_info["corte"] = {
                         "passes": 1, "velocidade": "media",
-                        "tabs": config.modo == "maxrects",
-                        "tabSize": 2, "tabCount": 1,
+                        "tabs": False, "fixacao": "ordem_pequenas_primeiro",
+                        "motivo": "MDF/melamina: sem tabs para evitar retrabalho na borda",
                     }
             pecas_out.append(peca_info)
 
@@ -631,7 +633,7 @@ async def bridge_gcode(request: GcodeRequest) -> dict:
         machine = MachineConfig(
             name=maq.nome,
             model=maq.modelo,
-            z_origin="mesa",
+            z_origin=maq.z_origin or "mesa",
             espessura_chapa=0,  # sera definido por chapa
             z_seguranca=maq.z_seguro,
             z_aproximacao=2.0,

@@ -274,17 +274,41 @@ function FilaCard({ item, onStatus, onMaquina, onRemove, maquinas, highlight }) 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <GripVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'grab', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', truncate: true, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', truncate: true, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={item.lote_observacoes || undefined}>
                         {item.lote_nome || `Lote #${item.lote_id}`}
+                        {item.lote_observacoes && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>💬</span>}
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                        Chapa {item.chapa_idx + 1}
-                        {item.lote_cliente && ` · ${item.lote_cliente}`}
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
+                        <span>Chapa {item.chapa_idx + 1}</span>
+                        {item.lote_cliente && <span>· {item.lote_cliente}</span>}
                         {item.prioridade > 0 && (
-                            <span style={{ marginLeft: 4, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#d97706', fontWeight: 700, fontSize: 9 }}>
+                            <span style={{ padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#d97706', fontWeight: 700, fontSize: 9 }}>
                                 P{item.prioridade}
                             </span>
                         )}
+                        {/* Prioridade do lote */}
+                        {(item.lote_prioridade || 0) >= 2 && (
+                            <span style={{ padding: '1px 6px', borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', fontWeight: 800, fontSize: 9, border: '1px solid var(--danger-border)' }}>
+                                🔴 URGENTE
+                            </span>
+                        )}
+                        {(item.lote_prioridade || 0) === 1 && (
+                            <span style={{ padding: '1px 6px', borderRadius: 4, background: 'var(--warning-bg)', color: 'var(--warning)', fontWeight: 800, fontSize: 9, border: '1px solid var(--warning-border)' }}>
+                                🟡 ALTA
+                            </span>
+                        )}
+                        {/* Data de entrega */}
+                        {item.lote_data_entrega && (() => {
+                            const diff = Math.ceil((new Date(item.lote_data_entrega + 'T12:00:00') - new Date()) / 86400000);
+                            const isLate = diff < 0, isUrgent = diff >= 0 && diff <= 3;
+                            if (!isLate && !isUrgent) return null;
+                            return (
+                                <span style={{ color: isLate ? 'var(--danger)' : 'var(--warning)', fontWeight: 700, fontSize: 9 }}>
+                                    {isLate ? `⚠ ${Math.abs(diff)}d atr.` : `⏰ ${diff}d`}
+                                </span>
+                            );
+                        })()}
                     </div>
                 </div>
                 {/* Status badge */}

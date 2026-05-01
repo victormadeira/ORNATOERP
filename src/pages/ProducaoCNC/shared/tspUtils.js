@@ -7,54 +7,76 @@
  */
 
 /**
- * Calcula a distância entre o fim de um corte e o início do próximo.
- * @param {{x:number,y:number,x2:number,y2:number}} a
- * @param {{x:number,y:number,x2:number,y2:number}} b
- */
-function distCuts(a, b) {
-    const dx = b.x - a.x2;
-    const dy = b.y - a.y2;
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-/**
- * Nearest-Neighbour TSP para reordenar cortes.
- * Começa do canto superior-esquerdo (x≈0, y≈0) e sempre vai para o corte
- * mais próximo ainda não visitado.
+ * Nearest-Neighbour + 2-opt para reordenar cortes.
+ * Começa na origem física da chapa vista de frente: canto inferior esquerdo.
+ * Quando seguro, também permite inverter o sentido do segmento para reduzir G0.
  *
  * @param {Array<{x:number,y:number,x2:number,y2:number,dir?:string,pos?:number}>} cuts
  * @returns {Array<typeof cuts[0]>} nova sequência otimizada
  */
-export function optimizeCutSequence(cuts) {
+export function optimizeCutSequence(cuts, { startX = 0, startY = 0, canReverse = true } = {}) {
     if (!cuts || cuts.length <= 2) return cuts;
 
     const unvisited = [...cuts];
     const ordered = [];
-
-    // Ponto de partida: canto superior-esquerdo (origem da máquina)
-    let currentX = 0;
-    let currentY = 0;
+    let currentX = startX;
+    let currentY = startY;
 
     while (unvisited.length > 0) {
         let bestIdx = 0;
         let bestDist = Infinity;
+        let bestReverse = false;
 
         for (let i = 0; i < unvisited.length; i++) {
             const c = unvisited[i];
-            // Distância do cursor atual ao início deste corte
             const dx = c.x - currentX;
             const dy = c.y - currentY;
             const d = Math.sqrt(dx * dx + dy * dy);
-            if (d < bestDist) { bestDist = d; bestIdx = i; }
+            if (d < bestDist) { bestDist = d; bestIdx = i; bestReverse = false; }
+
+            if (canReverse && Number.isFinite(c.x2) && Number.isFinite(c.y2)) {
+                const rdx = c.x2 - currentX;
+                const rdy = c.y2 - currentY;
+                const rd = Math.sqrt(rdx * rdx + rdy * rdy);
+                if (rd < bestDist) { bestDist = rd; bestIdx = i; bestReverse = true; }
+            }
         }
 
-        const chosen = unvisited.splice(bestIdx, 1)[0];
+        const raw = unvisited.splice(bestIdx, 1)[0];
+        const chosen = bestReverse
+            ? { ...raw, x: raw.x2, y: raw.y2, x2: raw.x, y2: raw.y, invertido_tsp: true }
+            : raw;
         ordered.push(chosen);
         currentX = chosen.x2;
         currentY = chosen.y2;
     }
 
-    return ordered;
+    return twoOptCuts(ordered, startX, startY);
+}
+
+function twoOptCuts(cuts, startX = 0, startY = 0) {
+    if (!cuts || cuts.length < 4) return cuts;
+    const seq = [...cuts];
+    let best = calcRapidDistance(seq, startX, startY);
+    let improved = true;
+    let iter = 0;
+    while (improved && iter < 8) {
+        improved = false;
+        iter++;
+        for (let i = 1; i < seq.length - 1; i++) {
+            for (let j = i + 1; j < seq.length; j++) {
+                const candidate = [...seq];
+                candidate.splice(i, j - i + 1, ...candidate.slice(i, j + 1).reverse());
+                const dist = calcRapidDistance(candidate, startX, startY);
+                if (dist < best - 0.01) {
+                    seq.splice(i, j - i + 1, ...candidate.slice(i, j + 1));
+                    best = dist;
+                    improved = true;
+                }
+            }
+        }
+    }
+    return seq;
 }
 
 /**

@@ -122,8 +122,8 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
         return true;
     }), [pecas, filtroMat, filtroMod, busca]);
 
-    const totalInst = filtered.reduce((s, p) => s + p.quantidade, 0);
-    const areaTot = filtered.reduce((s, p) => s + (p.comprimento * p.largura * p.quantidade) / 1e6, 0);
+    const totalInst = filtered.reduce((s, p) => s + (p.quantidade || 0), 0);
+    const areaTot = filtered.reduce((s, p) => s + ((p.comprimento || 0) * (p.largura || 0) * (p.quantidade || 0)) / 1e6, 0);
 
     // Parse machining workers for detail panel
     const parseMach = (mj) => {
@@ -153,16 +153,24 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
 
     const handleDeletePeca = async (p) => {
         if (!confirm(`Excluir peça "${p.descricao || p.upmcode || 'sem nome'}"?`)) return;
-        await api.del(`/cnc/pecas/${p.id}`);
-        notify('Peça excluída');
-        if (pecaSel?.id === p.id) setPecaSel(null);
-        load();
+        try {
+            await api.del(`/cnc/pecas/${p.id}`);
+            notify('Peça excluída');
+            if (pecaSel?.id === p.id) setPecaSel(null);
+            load();
+        } catch (e) {
+            notify('Erro ao excluir peça: ' + (e.error || e.message || ''), 'error');
+        }
     };
 
     const handleDuplicarPeca = async (p) => {
-        await api.post(`/cnc/pecas/${p.id}/duplicar`);
-        notify('Peça duplicada');
-        load();
+        try {
+            await api.post(`/cnc/pecas/${p.id}/duplicar`);
+            notify('Peça duplicada');
+            load();
+        } catch (e) {
+            notify('Erro ao duplicar peça: ' + (e.error || e.message || ''), 'error');
+        }
     };
 
     const handleCriarLote = async (nome) => {

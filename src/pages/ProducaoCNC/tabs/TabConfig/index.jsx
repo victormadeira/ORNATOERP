@@ -14,7 +14,7 @@ import ToolbarDropdown from '../../../../components/ToolbarDropdown';
 import { STATUS_COLORS } from '../../shared/constants.js';
 import { CfgChapas } from './CfgChapas.jsx';
 import { CfgMaquinas } from './CfgMaquinas.jsx';
-import { CfgUsinagem } from './CfgUsinagem.jsx';
+import { CfgUsinagem, CfgUsinagemCatalog } from './CfgUsinagem.jsx';
 import { CfgParametros } from './CfgParametros.jsx';
 import { CfgEtiquetas } from './CfgEtiquetas.jsx';
 import { CfgRetalhos } from './CfgRetalhos.jsx';
@@ -28,6 +28,7 @@ export function TabConfig({ notify, setEditorMode, setEditorTemplateId, initialS
         { id: 'maquinas', lb: 'Máquinas CNC', ic: Monitor, desc: 'Cadastro de máquinas CNC, ferramentas, origens' },
         { id: 'chapas', lb: 'Chapas', ic: Layers, desc: 'Chapas de MDF, MDP, compensado, dimensões' },
         { id: 'usinagem', lb: 'Tipos de Usinagem', ic: PenTool, desc: 'Furos, rebaixos, canais, contornos, profundidade' },
+        { id: 'usinagem_catalog', lb: 'Catálogo de Usinagem', ic: Layers, desc: 'component_name SketchUp → parâmetros CNC' },
         { id: 'parametros', lb: 'Parâmetros', ic: Settings, desc: 'Algoritmo otimizador, margem, kerf, rotação' },
         { id: 'etiquetas', lb: 'Etiquetas', ic: TagIcon, desc: 'Templates de etiquetas, formato, campos' },
         { id: 'retalhos', lb: 'Retalhos', ic: Package, desc: 'Estoque de retalhos, aproveitamento, sobras' },
@@ -92,6 +93,7 @@ export function TabConfig({ notify, setEditorMode, setEditorTemplateId, initialS
                 {activeSection === 'maquinas' && <CfgMaquinas notify={notify} />}
                 {activeSection === 'chapas' && <CfgChapas notify={notify} />}
                 {activeSection === 'usinagem' && <CfgUsinagem notify={notify} />}
+                {activeSection === 'usinagem_catalog' && <CfgUsinagemCatalog notify={notify} />}
                 {activeSection === 'parametros' && <CfgParametros notify={notify} />}
                 {activeSection === 'etiquetas' && <CfgEtiquetas notify={notify} setEditorMode={setEditorMode} setEditorTemplateId={setEditorTemplateId} />}
                 {activeSection === 'retalhos' && <CfgRetalhos notify={notify} />}

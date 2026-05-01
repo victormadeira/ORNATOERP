@@ -92,12 +92,16 @@ export function TabRetalhos({ notify }) {
             const results = await Promise.allSettled(ids.map(id => api.del(`/cnc/retalhos/${id}`)));
             const ok = results.filter(r => r.status === 'fulfilled').length;
             const fail = results.length - ok;
+            // Manter selecionados apenas os que falharam (para retry)
+            const failedIds = new Set(
+                results.map((r, i) => r.status === 'rejected' ? ids[i] : null).filter(Boolean)
+            );
+            setSelected(failedIds);
             if (fail > 0) {
-                notify(`${ok} excluído(s), ${fail} falhou — recarregando lista`);
+                notify(`${ok} excluído(s) · ${fail} falhou — mantido(s) selecionado(s) para tentar novamente`);
             } else {
                 notify(`${ok} retalho(s) excluído(s)`);
             }
-            setSelected(new Set());
             loadRetalhos();
         } catch (err) {
             notify('Erro: ' + (err.error || err.message));

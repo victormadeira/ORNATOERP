@@ -1,6 +1,6 @@
 // Constantes compartilhadas entre as tabs da Produção CNC.
 // Mantidas aqui pra evitar import circular entre tabs e o shell principal.
-import { Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu, Workflow } from 'lucide-react';
+import { Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu, Workflow, Wrench, DollarSign } from 'lucide-react';
 
 // Nível 1 — sempre visível na topbar
 export const TABS_MAIN = [
@@ -14,9 +14,11 @@ export const TABS_MAIN = [
 
 // Nível 2 — só aparece com lote selecionado
 export const TABS_LOTE = [
-    { id: 'pecas', lb: 'Peças', ic: Layers, step: 1 },
-    { id: 'plano', lb: 'Plano de Corte', ic: Scissors, step: 2 },
-    { id: 'gcode', lb: 'G-code / CNC', ic: Cpu, step: 3 },
+    { id: 'pecas',     lb: 'Peças',          ic: Layers,     step: 1 },
+    { id: 'plano',     lb: 'Plano de Corte', ic: Scissors,   step: 2 },
+    { id: 'usinagens', lb: 'Usinagens',       ic: Wrench,     step: 3 },
+    { id: 'gcode',     lb: 'G-code / CNC',   ic: Cpu,        step: 4 },
+    { id: 'custos',    lb: 'Custos',          ic: DollarSign, step: 5 },
 ];
 
 // Paleta de status de lote (TODO Fase B: migrar pra getStatus() em theme.js).

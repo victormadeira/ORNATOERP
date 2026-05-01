@@ -126,7 +126,7 @@ export function CfgMaquinas({ notify }) {
                             {expandedId === m.id && (
                                 <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--border)' }}>
                                     <div style={{ paddingTop: 12 }}>
-                                        <CfgFerramentas maquinaId={m.id} notify={notify} />
+                                        <CfgFerramentas maquinaId={m.id} maquina={m} notify={notify} />
                                     </div>
                                 </div>
                             )}
@@ -171,6 +171,8 @@ function newMaquinaDefaults() {
         feed_rate_pct_pequenas: 50, feed_rate_area_max: 500,
         margem_mesa_sacrificio: 0.5,
         g0_com_feed: 0,
+        capacidade_magazine: 35,
+        operador: '',
         padrao: 0, ativo: 1,
         // Envio direto
         envio_tipo: '', envio_host: '', envio_porta: 21, envio_usuario: '', envio_senha: '', envio_pasta: '/',
@@ -229,9 +231,15 @@ function MaquinaModal({ data, onSave, onClose }) {
                         </select>
                     </div>
                     <div><label className={Z.lbl}>Extensão Arquivo</label><input value={f.extensao_arquivo} onChange={e => upd('extensao_arquivo', e.target.value)} className={Z.inp} placeholder=".nc" /></div>
+                    <div><label className={Z.lbl}>Operador Padrão <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({'{operador}'} no pós-proc.)</span></label><input value={f.operador || ''} onChange={e => upd('operador', e.target.value)} className={Z.inp} placeholder="Nome do operador" /></div>
                     <div><label className={Z.lbl}>Área X (mm)</label><input type="number" value={f.x_max} onChange={e => upd('x_max', Number(e.target.value))} className={Z.inp} /></div>
                     <div><label className={Z.lbl}>Área Y (mm)</label><input type="number" value={f.y_max} onChange={e => upd('y_max', Number(e.target.value))} className={Z.inp} /></div>
                     <div><label className={Z.lbl}>Altura Z (mm)</label><input type="number" value={f.z_max} onChange={e => upd('z_max', Number(e.target.value))} className={Z.inp} /></div>
+                    <div>
+                        <label className={Z.lbl}>Capacidade do Magazine (slots)</label>
+                        <input type="number" value={f.capacidade_magazine ?? 35} onChange={e => upd('capacidade_magazine', Math.max(1, Number(e.target.value)))} className={Z.inp} min="1" max="200" step="1" />
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>Nº máximo de ferramentas no carrossel (sua CNC tem 35)</div>
+                    </div>
                     <div>
                         <label className={Z.lbl}>Coordenada Zero XY</label>
                         <select value={f.coordenada_zero} onChange={e => upd('coordenada_zero', e.target.value)} className={Z.inp}>
@@ -284,6 +292,20 @@ function MaquinaModal({ data, onSave, onClose }) {
 
             {secao === 'gcode' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Variable hint box */}
+                    <div style={{ background: '#1e3a5f18', border: '1px solid #1e3a5f40', borderRadius: 6, padding: '8px 12px', fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                        <strong style={{ color: 'var(--primary)', fontSize: 10 }}>Variáveis disponíveis nos templates:</strong>&nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{chapa}'}</span> nº da chapa &nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{material}'}</span> material &nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{data}'}</span>&nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{hora}'}</span>&nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{maquina}'}</span>&nbsp;
+                        <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>— No comando de troca:</span>&nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{t}'}</span> código &nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{rpm}'}</span>&nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{diametro}'}</span>&nbsp;
+                        <span style={{ fontFamily: 'monospace', background: '#0001', borderRadius: 3, padding: '0 4px' }}>{'{nome}'}</span>
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div>
                             <label className={Z.lbl}>Instruções Iniciais (Header)</label>
@@ -297,9 +319,18 @@ function MaquinaModal({ data, onSave, onClose }) {
                         </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                        <div><label className={Z.lbl}>Cmd Troca Ferramenta</label><input value={f.troca_ferramenta_cmd} onChange={e => upd('troca_ferramenta_cmd', e.target.value)} className={Z.inp} /></div>
-                        <div><label className={Z.lbl}>Cmd Spindle ON</label><input value={f.spindle_on_cmd} onChange={e => upd('spindle_on_cmd', e.target.value)} className={Z.inp} /></div>
-                        <div><label className={Z.lbl}>Cmd Spindle OFF</label><input value={f.spindle_off_cmd} onChange={e => upd('spindle_off_cmd', e.target.value)} className={Z.inp} /></div>
+                        <div>
+                            <label className={Z.lbl}>Troca Ferramenta <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(ex: <code>{'{t} M6'}</code> ou <code>M6</code>)</span></label>
+                            <input value={f.troca_ferramenta_cmd} onChange={e => upd('troca_ferramenta_cmd', e.target.value)} className={Z.inp} placeholder="M6" />
+                        </div>
+                        <div>
+                            <label className={Z.lbl}>Spindle ON <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(ex: <code>M3</code>, <code>M3 S{'{rpm}'}</code>)</span></label>
+                            <input value={f.spindle_on_cmd} onChange={e => upd('spindle_on_cmd', e.target.value)} className={Z.inp} placeholder="M3" />
+                        </div>
+                        <div>
+                            <label className={Z.lbl}>Spindle OFF</label>
+                            <input value={f.spindle_off_cmd} onChange={e => upd('spindle_off_cmd', e.target.value)} className={Z.inp} placeholder="M5" />
+                        </div>
                         <div><label className={Z.lbl}>Prefixo Comentário</label><input value={f.comentario_prefixo} onChange={e => upd('comentario_prefixo', e.target.value)} className={Z.inp} /></div>
                     </div>
                 </div>
@@ -467,23 +498,16 @@ function MaquinaModal({ data, onSave, onClose }) {
                         </div>
                     </div>
 
-                    {/* Tabs */}
-                    <div style={{ padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
-                            <input type="checkbox" checked={(f.usar_tabs ?? 0) === 1} onChange={e => upd('usar_tabs', e.target.checked ? 1 : 0)} />
-                            Tabs / Micro-juntas
-                        </label>
-                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
-                            Deixa pequenas pontes de material que seguram fisicamente a peça. Precisam ser lixadas depois do corte.
-                            <br /><span style={{ color: 'var(--warning)', fontWeight: 600 }}>Aviso: Nao recomendado para MDF melaminico -- as tabs podem quebrar a melamina ao serem removidas.</span>
-                        </p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
-                            <div><label className={Z.lbl}>Largura tab (mm)</label><input type="number" value={f.tab_largura ?? 4} onChange={e => upd('tab_largura', Number(e.target.value))} className={Z.inp} step="0.5" /></div>
-                            <div><label className={Z.lbl}>Altura tab (mm)</label><input type="number" value={f.tab_altura ?? 1.5} onChange={e => upd('tab_altura', Number(e.target.value))} className={Z.inp} step="0.1" /></div>
-                            <div><label className={Z.lbl}>Qtd tabs/peça</label><input type="number" value={f.tab_qtd ?? 2} onChange={e => upd('tab_qtd', Number(e.target.value))} className={Z.inp} min={1} max={8} /></div>
-                            <div><label className={Z.lbl}>Área máx. (cm²)</label><input type="number" value={f.tab_area_max ?? 800} onChange={e => upd('tab_area_max', Number(e.target.value))} className={Z.inp} /></div>
-                        </div>
-                    </div>
+	                    {/* Tabs */}
+	                    <div style={{ padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)', opacity: 0.78 }}>
+	                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'not-allowed', marginBottom: 8 }}>
+	                            <input type="checkbox" checked={false} disabled />
+	                            Tabs / Micro-juntas desativadas para MDF
+	                        </label>
+	                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+	                            Em MDF melamínico, quebrar tabs pode lascar a face e gerar retrabalho. O G-code usa small-first, onion-skin e feed reduzido para segurar peças pequenas sem pontes.
+	                        </p>
+	                    </div>
 
                     {/* Lead-in */}
                     <div style={{ padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>

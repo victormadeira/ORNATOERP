@@ -3,8 +3,9 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import api from '../../../../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
+import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize, Sparkles, Download as DownloadIcon } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
+import { ETIQUETA_PRESETS, PRESET_DESCRICOES } from '../../shared/etiquetaPresets.js';
 import PecaViewer3D from '../../../../components/PecaViewer3D';
 import PecaEditor from '../../../../components/PecaEditor';
 import ToolpathSimulator, { parseGcodeToMoves } from '../../../../components/ToolpathSimulator';
@@ -33,6 +34,8 @@ export function CfgEtiquetas({ notify, setEditorMode, setEditorTemplateId }) {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [importingPreset, setImportingPreset] = useState(null); // índice do preset sendo importado
+    const [showPresets, setShowPresets] = useState(true);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -89,6 +92,36 @@ export function CfgEtiquetas({ notify, setEditorMode, setEditorTemplateId }) {
         } catch { notify('Erro ao definir padrão'); }
     };
 
+    const importarPreset = async (idx) => {
+        setImportingPreset(idx);
+        try {
+            const preset = ETIQUETA_PRESETS[idx];
+            const resp = await api.post('/cnc/etiqueta-templates', {
+                nome: preset.nome,
+                largura: preset.largura,
+                altura: preset.altura,
+                colunas_impressao: preset.colunas_impressao,
+                margem_pagina: preset.margem_pagina,
+                gap_etiquetas: preset.gap_etiquetas,
+                elementos: preset.elementos,
+            });
+            const newId = resp?.id || resp?.data?.id;
+            notify(`Modelo "${preset.nome}" importado com sucesso`);
+            load();
+            if (newId) {
+                // Abrir editor automaticamente após import
+                setTimeout(() => {
+                    setEditorTemplateId?.(newId);
+                    setEditorMode?.(true);
+                }, 400);
+            }
+        } catch (e) {
+            notify('Erro ao importar modelo: ' + (e?.message || ''));
+        } finally {
+            setImportingPreset(null);
+        }
+    };
+
     if (loading) return <Spinner text="Carregando templates..." />;
 
     return (
@@ -116,12 +149,137 @@ export function CfgEtiquetas({ notify, setEditorMode, setEditorTemplateId }) {
                 </button>
             </div>
 
+            {/* ── Modelos Profissionais (Presets) ────────────────── */}
+            <div style={{ marginBottom: 20 }}>
+                {/* Cabeçalho da seção */}
+                <button
+                    onClick={() => setShowPresets(s => !s)}
+                    style={{
+                        width: '100%', textAlign: 'left', border: 'none', background: 'none',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '8px 0', marginBottom: showPresets ? 12 : 0,
+                    }}
+                >
+                    <Sparkles size={14} color="#f59e0b" />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>
+                        Modelos Profissionais
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        {showPresets ? 'Ocultar' : 'Mostrar'} ({ETIQUETA_PRESETS.length} modelos)
+                    </span>
+                    {showPresets ? <ChevronUp size={13} color="var(--text-muted)" /> : <ChevronDown size={13} color="var(--text-muted)" />}
+                </button>
+
+                {showPresets && (
+                    <>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, padding: '6px 10px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6 }}>
+                            Clique em <b>Usar modelo</b> para importar um template pré-configurado e editá-lo no editor visual.
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+                            {ETIQUETA_PRESETS.map((preset, idx) => {
+                                const meta = PRESET_DESCRICOES[idx] || {};
+                                const isImporting = importingPreset === idx;
+                                return (
+                                    <div key={idx} style={{
+                                        border: '1px solid var(--border)',
+                                        borderRadius: 10, overflow: 'hidden',
+                                        background: 'var(--bg-elevated)',
+                                        transition: 'box-shadow .15s',
+                                        display: 'flex', flexDirection: 'column',
+                                    }}>
+                                        {/* Preview SVG */}
+                                        <div style={{
+                                            height: 120, background: '#f8f8f8', display: 'flex',
+                                            alignItems: 'center', justifyContent: 'center',
+                                            borderBottom: '1px solid var(--border)', padding: 8, position: 'relative',
+                                        }}>
+                                            <EtiquetaSVG
+                                                template={{ ...preset, elementos: preset.elementos }}
+                                                etiqueta={null}
+                                                cfg={{}}
+                                                width={Math.min(220, preset.largura * (100 / preset.altura))}
+                                            />
+                                            {/* Badge */}
+                                            <div style={{
+                                                position: 'absolute', top: 6, left: 6,
+                                                fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                                                background: meta.badgeColor || '#888', color: '#fff',
+                                                letterSpacing: '0.05em',
+                                            }}>
+                                                {meta.badge}
+                                            </div>
+                                            <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 16 }}>
+                                                {meta.icon}
+                                            </div>
+                                        </div>
+
+                                        {/* Info */}
+                                        <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                {preset.nome}
+                                            </div>
+                                            <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                                {meta.descricao}
+                                            </div>
+                                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8 }}>
+                                                <span>📐 {preset.largura}×{preset.altura}mm</span>
+                                                <span>·</span>
+                                                <span>{preset.elementos.length} elementos</span>
+                                                <span>·</span>
+                                                <span>{preset.colunas_impressao} col.</span>
+                                            </div>
+                                            {meta.uso && (
+                                                <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>
+                                                    Uso: {meta.uso}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Ação */}
+                                        <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                                            <button
+                                                onClick={() => importarPreset(idx)}
+                                                disabled={isImporting}
+                                                style={{
+                                                    width: '100%', padding: '7px 12px',
+                                                    background: isImporting ? 'var(--bg-muted)' : 'linear-gradient(135deg, #f59e0b, #e67e22)',
+                                                    color: isImporting ? 'var(--text-muted)' : '#fff',
+                                                    border: 'none', borderRadius: 7, fontSize: 11,
+                                                    fontWeight: 700, cursor: isImporting ? 'not-allowed' : 'pointer',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                    transition: 'all .15s',
+                                                }}
+                                            >
+                                                {isImporting
+                                                    ? <><RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importando...</>
+                                                    : <><DownloadIcon size={11} /> Usar este modelo</>
+                                                }
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {/* ── Divisória ─────────────────────────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Meus Templates ({templates.length})
+                </span>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
+
             {/* Template cards */}
             {templates.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-                    <TagIcon size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Nenhum template criado</div>
-                    <div style={{ fontSize: 11 }}>Clique em "Criar Nova Etiqueta" para começar</div>
+                <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--text-muted)', background: 'var(--bg-muted)', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                    <TagIcon size={36} style={{ opacity: 0.25, marginBottom: 10 }} />
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Nenhum template criado ainda</div>
+                    <div style={{ fontSize: 11 }}>Use um modelo acima ou clique em "Criar Nova Etiqueta"</div>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

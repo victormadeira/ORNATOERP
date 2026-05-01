@@ -73,6 +73,86 @@ export function CfgParametros({ notify }) {
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
                 Iterações R&R: mais iterações = melhor resultado, porém mais lento. 300 é um bom balanço. 0 = desabilita meta-heurística.
             </div>
+            {/* Custos e tempo de corte */}
+            <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
+                    Custos e Tempo de Corte (Tab Custos)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                    <div>
+                        <label className={Z.lbl}>Vel. corte contorno (mm/min)</label>
+                        <input type="number" value={cfg.velocidade_corte ?? 8000} onChange={e => upd('velocidade_corte', Number(e.target.value))} className={Z.inp} step="500" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Vel. usinagem interna (mm/min)</label>
+                        <input type="number" value={cfg.velocidade_usinagem ?? 3000} onChange={e => upd('velocidade_usinagem', Number(e.target.value))} className={Z.inp} step="200" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Velocidade rápido (mm/min)</label>
+                        <input type="number" value={cfg.velocidade_rapido ?? 20000} onChange={e => upd('velocidade_rapido', Number(e.target.value))} className={Z.inp} step="1000" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Setup por chapa (min)</label>
+                        <input type="number" value={cfg.tempo_setup_chapa ?? 3} onChange={e => upd('tempo_setup_chapa', Number(e.target.value))} className={Z.inp} step="0.5" min="0" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Custo/hora máquina (R$)</label>
+                        <input type="number" value={cfg.custo_hora_maquina ?? 80} onChange={e => upd('custo_hora_maquina', Number(e.target.value))} className={Z.inp} step="5" min="0" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Custo troca ferramenta (R$)</label>
+                        <input type="number" value={cfg.custo_troca_ferramenta ?? 5} onChange={e => upd('custo_troca_ferramenta', Number(e.target.value))} className={Z.inp} step="1" min="0" />
+                    </div>
+                    <div>
+                        <label className={Z.lbl}>Fita de borda (R$/m linear)</label>
+                        <input type="number" value={cfg.custo_borda_linear ?? 0.5} onChange={e => upd('custo_borda_linear', Number(e.target.value))} className={Z.inp} step="0.1" min="0" />
+                    </div>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
+                    Velocidades usadas na estimativa de tempo da aba Custos. A velocidade real pode variar — configure com base nos parâmetros da sua máquina.
+                    Setup inclui tempo de fixação, referenciamento e troca de material.
+                </div>
+            </div>
+
+            {/* Estratégia de Face */}
+            <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-muted)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Estratégia de Face (qual lado fica voltado para cima na CNC)</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 10 }}>
+                    Define qual face da peça a CNC usina primeiro. Afeta a qualidade do corte, aderência ao vácuo e o resultado visual das faces A e B.
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {[
+                        { value: 'auto', label: 'Auto — Sistema decide', desc: 'A face maior (em área de usinagem) fica para cima. Comportamento padrão.' },
+                        { value: 'sempre_a', label: 'Sempre Face A para cima', desc: 'Face A (principal, geralmente a mais nobre) sempre virada para a fresa.' },
+                        { value: 'sempre_b', label: 'Sempre Face B para cima', desc: 'Face B sempre virada para a fresa. Útil quando o verso tem mais operações.' },
+                        { value: 'mais_usinagens', label: 'Face com mais operações para cima', desc: 'O lado com mais furos/rebaixos fica para cima — maior área de contato com o vácuo na face oposta.' },
+                        { value: 'menos_usinagens', label: 'Face com menos operações para cima', desc: 'O lado mais plano fica para cima — corte mais limpo na face inferior (saída da fresa).' },
+                        { value: 'menor_profundidade', label: 'Face com menor profundidade de corte para cima', desc: 'O lado com usinagens mais rasas fica para cima — reduz esforço da fresa e lascamento na entrada.' },
+                    ].map(opt => (
+                        <label key={opt.value} style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px',
+                            background: (cfg.estrategia_face ?? 'auto') === opt.value ? 'var(--bg-body)' : 'transparent',
+                            borderRadius: 6, cursor: 'pointer',
+                            border: (cfg.estrategia_face ?? 'auto') === opt.value ? '1px solid var(--primary, #1379F0)' : '1px solid transparent',
+                            transition: 'background 0.15s, border-color 0.15s',
+                        }}>
+                            <input
+                                type="radio"
+                                name="estrategia_face"
+                                value={opt.value}
+                                checked={(cfg.estrategia_face ?? 'auto') === opt.value}
+                                onChange={() => upd('estrategia_face', opt.value)}
+                                style={{ marginTop: 2, flexShrink: 0 }}
+                            />
+                            <div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{opt.label}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</div>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+            </div>
+
             <div style={{ marginTop: 16 }}>
                 <button onClick={save} className={Z.btn}>Salvar Parâmetros</button>
             </div>

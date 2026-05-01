@@ -1124,14 +1124,15 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                             disabled={gcodeLoading === idx}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                                padding: '5px 12px', borderRadius: 6, fontSize: 10, fontWeight: 800,
                                 background: gcodeLoading === idx ? 'var(--bg-muted)' : '#1e40af',
                                 color: '#fff', border: 'none', cursor: gcodeLoading === idx ? 'wait' : 'pointer',
+                                boxShadow: gcodeLoading === idx ? 'none' : '0 6px 14px rgba(30,64,175,0.18)',
                             }}
-                            title="Gerar e baixar G-Code desta chapa"
+                            title="Gerar G-code e abrir pré-corte desta chapa"
                         >
-                            <Download size={11} />
-                            {gcodeLoading === idx ? 'Gerando...' : 'G-Code'}
+                            <Cpu size={11} />
+                            {gcodeLoading === idx ? 'Gerando...' : 'Pré-corte'}
                         </button>
                     )}
                 </div>
@@ -2721,4 +2722,3 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
         </div>
     );
 }
-

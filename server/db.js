@@ -1742,6 +1742,48 @@ const migrations = [
   // ═══ Tool Change Optimization ═══
   "ALTER TABLE cnc_config ADD COLUMN otimizar_trocas_ferramenta INTEGER DEFAULT 1",
 
+  // ═══ Rampa por ferramenta (override do padrão da máquina) ═══
+  // NULL = herdar da máquina | plunge | linear | helicoidal
+  "ALTER TABLE cnc_ferramentas ADD COLUMN rampa_tipo TEXT DEFAULT NULL",
+  // Graus; NULL = herdar
+  "ALTER TABLE cnc_ferramentas ADD COLUMN rampa_angulo REAL DEFAULT NULL",
+  // mm/min entrada; NULL = herdar
+  "ALTER TABLE cnc_ferramentas ADD COLUMN vel_rampa REAL DEFAULT NULL",
+  // mm/min plunge Z; NULL = herdar
+  "ALTER TABLE cnc_ferramentas ADD COLUMN vel_plunge REAL DEFAULT NULL",
+  // Percentual do diâmetro da hélice; NULL = herdar
+  "ALTER TABLE cnc_ferramentas ADD COLUMN rampa_diametro_pct REAL DEFAULT NULL",
+  // Feed no passe final; NULL = igual ao corte
+  "ALTER TABLE cnc_ferramentas ADD COLUMN velocidade_acabamento REAL DEFAULT NULL",
+  // Passes de acabamento adicionais
+  "ALTER TABLE cnc_ferramentas ADD COLUMN passes_acabamento INTEGER DEFAULT 0",
+
+  // ═══ Tempo de corte estimado (industrial) ═══
+  "ALTER TABLE cnc_config ADD COLUMN velocidade_corte REAL DEFAULT 8000",
+  "ALTER TABLE cnc_config ADD COLUMN velocidade_usinagem REAL DEFAULT 3000",
+  "ALTER TABLE cnc_config ADD COLUMN velocidade_rapido REAL DEFAULT 20000",
+  "ALTER TABLE cnc_config ADD COLUMN tempo_setup_chapa REAL DEFAULT 3",
+
+  // ═══ Magazine capacity (limite de ferramentas por máquina) ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN capacidade_magazine INTEGER DEFAULT 35",
+
+  // ═══ Operador padrão (usado em variáveis do pós-processador {operador}) ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN operador TEXT DEFAULT ''",
+
+  // ═══ Custo de fita de borda por metro linear ═══
+  "ALTER TABLE cnc_config ADD COLUMN custo_borda_linear REAL DEFAULT 0.5",
+
+  // ═══ Estratégia de face (qual lado da peça fica voltado para cima na CNC) ═══
+  "ALTER TABLE cnc_config ADD COLUMN estrategia_face TEXT DEFAULT 'auto'",
+
+  // ═══ Contador de lotes por período (para média ponderada de aproveitamento) ═══
+  "ALTER TABLE cnc_production_stats ADD COLUMN lotes_count INTEGER DEFAULT 1",
+
+  // ═══ Data de entrega e prioridade nos lotes (para escalonamento industrial) ═══
+  "ALTER TABLE cnc_lotes ADD COLUMN data_entrega DATE DEFAULT NULL",
+  "ALTER TABLE cnc_lotes ADD COLUMN prioridade INTEGER DEFAULT 0",
+  "ALTER TABLE cnc_lotes ADD COLUMN observacoes TEXT DEFAULT ''",
+
   // ═══ Multi-Machine ═══
   `CREATE TABLE IF NOT EXISTS cnc_machine_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2413,6 +2455,59 @@ const migrations = [
   "ALTER TABLE ia_uso_log ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
   "ALTER TABLE ia_uso_log ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
   "ALTER TABLE empresa_config ADD COLUMN portfolio_fotos TEXT DEFAULT '[]'",
+  // ═══ G-code histórico: rastrear trocas de ferramenta e onion_skin_ops ═══
+  "ALTER TABLE cnc_gcode_historico ADD COLUMN trocas_ferramenta INTEGER DEFAULT 0",
+  "ALTER TABLE cnc_gcode_historico ADD COLUMN onion_skin_ops INTEGER DEFAULT 0",
+  // ═══ Índices de performance para fila de produção e gcode_historico ═══
+  "CREATE INDEX IF NOT EXISTS idx_fila_status ON cnc_fila_producao(status, lote_id)",
+  "CREATE INDEX IF NOT EXISTS idx_fila_lote_id ON cnc_fila_producao(lote_id)",
+  "CREATE INDEX IF NOT EXISTS idx_gcode_hist_lote ON cnc_gcode_historico(lote_id, criado_em DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_lotes_user_entrega ON cnc_lotes(user_id, data_entrega, prioridade)",
+
+  // ═══ Catálogo de Usinagem por nome de componente (SketchUp → parâmetros CNC) ═══
+  // component_name: valor de definition.name do plugin SketchUp
+  // tem_padrao: 1 = usa os parâmetros do catálogo (profundidade, diâmetro, tool, rpm)
+  //             0 = reconhecido mas usa geometria do plugin como-está (rebaixo livre, etc.)
+  `CREATE TABLE IF NOT EXISTS cnc_usinagem_catalog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    component_name TEXT NOT NULL,
+    tem_padrao INTEGER DEFAULT 1,
+    profundidade REAL DEFAULT NULL,
+    profundidade_modo TEXT DEFAULT 'fixa',
+    profundidade_percentual REAL DEFAULT NULL,
+    profundidade_extra REAL DEFAULT NULL,
+    diametro REAL DEFAULT NULL,
+    largura REAL DEFAULT NULL,
+    metodo TEXT DEFAULT '',
+    material_match TEXT DEFAULT '',
+    maquina_id INTEGER DEFAULT NULL,
+    face_match TEXT DEFAULT '',
+    tool_code TEXT DEFAULT '',
+    rpm INTEGER DEFAULT NULL,
+    feed_rate REAL DEFAULT NULL,
+    stepover_pct REAL DEFAULT NULL,
+    passes_acabamento INTEGER DEFAULT NULL,
+    borda_min REAL DEFAULT NULL,
+    prioridade INTEGER DEFAULT 5,
+    descricao TEXT DEFAULT '',
+    ativo INTEGER DEFAULT 1,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_usinagem_catalog_user ON cnc_usinagem_catalog(user_id, ativo)",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN profundidade_modo TEXT DEFAULT 'fixa'",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN profundidade_percentual REAL DEFAULT NULL",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN profundidade_extra REAL DEFAULT NULL",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN metodo TEXT DEFAULT ''",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN material_match TEXT DEFAULT ''",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN maquina_id INTEGER DEFAULT NULL",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN face_match TEXT DEFAULT ''",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN stepover_pct REAL DEFAULT NULL",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN passes_acabamento INTEGER DEFAULT NULL",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN borda_min REAL DEFAULT NULL",
+  "ALTER TABLE cnc_usinagem_catalog ADD COLUMN prioridade INTEGER DEFAULT 5",
+  "CREATE INDEX IF NOT EXISTS idx_usinagem_catalog_match ON cnc_usinagem_catalog(user_id, component_name, maquina_id, ativo)",
 ];
 
 // Tabela de retry queue para mensagens de IA que falharam (criada separado pois é nova, não ALTER)
@@ -2431,6 +2526,62 @@ db.exec(`
 for (const sql of migrations) {
   try { db.exec(sql); } catch (_) { /* coluna já existe */ }
 }
+
+// Catálogo industrial: versões antigas tinham UNIQUE(user_id, component_name),
+// o que impedia regras diferentes por máquina/material/face para o mesmo componente.
+try {
+  const catIndexes = db.prepare("PRAGMA index_list('cnc_usinagem_catalog')").all();
+  const hasLegacyUnique = catIndexes.some(i => String(i.name || '').startsWith('sqlite_autoindex_cnc_usinagem_catalog'));
+  if (hasLegacyUnique) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS cnc_usinagem_catalog_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        component_name TEXT NOT NULL,
+        tem_padrao INTEGER DEFAULT 1,
+        profundidade REAL DEFAULT NULL,
+        profundidade_modo TEXT DEFAULT 'fixa',
+        profundidade_percentual REAL DEFAULT NULL,
+        profundidade_extra REAL DEFAULT NULL,
+        diametro REAL DEFAULT NULL,
+        largura REAL DEFAULT NULL,
+        metodo TEXT DEFAULT '',
+        material_match TEXT DEFAULT '',
+        maquina_id INTEGER DEFAULT NULL,
+        face_match TEXT DEFAULT '',
+        tool_code TEXT DEFAULT '',
+        rpm INTEGER DEFAULT NULL,
+        feed_rate REAL DEFAULT NULL,
+        stepover_pct REAL DEFAULT NULL,
+        passes_acabamento INTEGER DEFAULT NULL,
+        borda_min REAL DEFAULT NULL,
+        prioridade INTEGER DEFAULT 5,
+        descricao TEXT DEFAULT '',
+        ativo INTEGER DEFAULT 1,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO cnc_usinagem_catalog_v2 (
+        id, user_id, component_name, tem_padrao, profundidade, profundidade_modo,
+        profundidade_percentual, profundidade_extra, diametro, largura, metodo,
+        material_match, maquina_id, face_match, tool_code, rpm, feed_rate,
+        stepover_pct, passes_acabamento, borda_min, prioridade, descricao, ativo,
+        criado_em, atualizado_em
+      )
+      SELECT
+        id, user_id, component_name, tem_padrao, profundidade, profundidade_modo,
+        profundidade_percentual, profundidade_extra, diametro, largura, metodo,
+        material_match, maquina_id, face_match, tool_code, rpm, feed_rate,
+        stepover_pct, passes_acabamento, borda_min, prioridade, descricao, ativo,
+        criado_em, atualizado_em
+      FROM cnc_usinagem_catalog;
+      DROP TABLE cnc_usinagem_catalog;
+      ALTER TABLE cnc_usinagem_catalog_v2 RENAME TO cnc_usinagem_catalog;
+      CREATE INDEX IF NOT EXISTS idx_usinagem_catalog_user ON cnc_usinagem_catalog(user_id, ativo);
+      CREATE INDEX IF NOT EXISTS idx_usinagem_catalog_match ON cnc_usinagem_catalog(user_id, component_name, maquina_id, ativo);
+    `);
+  }
+} catch (_) { /* catálogo ainda pode não existir em bases antigas incompletas */ }
 
 // ═══ Índices de performance (ERP) ═══
 const indexes = [
@@ -2492,12 +2643,20 @@ const indexes = [
   // ═══ CNC Produção ═══
   "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_user ON cnc_lotes(user_id)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_status ON cnc_lotes(status)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_status_user ON cnc_lotes(status, user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_lotes_criado ON cnc_lotes(criado_em DESC)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_pecas_lote ON cnc_pecas(lote_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_pecas_lote_material ON cnc_pecas(lote_id, material_code)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_pecas_material ON cnc_pecas(material_code)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_chapas_ativo ON cnc_chapas(ativo)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_chapas_material ON cnc_chapas(material_code, ativo)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_retalhos_disp ON cnc_retalhos(disponivel)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_retalhos_material ON cnc_retalhos(material_code)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_retalhos_material_disp ON cnc_retalhos(material_code, disponivel)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_ferramentas_maquina ON cnc_ferramentas(maquina_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_ferramentas_maquina_ativo ON cnc_ferramentas(maquina_id, ativo)",
   "CREATE INDEX IF NOT EXISTS idx_cnc_maquinas_user ON cnc_maquinas(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cnc_overrides_lote_peca ON cnc_lote_usinagem_overrides(lote_id, peca_id)",
   // Versionamento
   "CREATE INDEX IF NOT EXISTS idx_orc_versao ON orcamentos(parent_orc_id, tipo, versao)",
   // Projetista Visual (DESCONTINUADO)

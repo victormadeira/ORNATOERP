@@ -23,6 +23,7 @@ import { renderMachining, ChapaViz } from './renderMachining.jsx';
 import { isPanningCursor } from './_utils.js';
 import { RelatorioDesperdicio } from '../_RelatorioDesperdicio.jsx';
 import { optimizeCutSequence, calcRapidDistance } from '../../shared/tspUtils.js';
+import { summarizePlanEconomics } from '../../shared/operationalMetrics.js';
 
 export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab }) {
     const [plano, setPlano] = useState(null);
@@ -953,6 +954,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 { pct: 65, msg: 'Simulated Annealing...', delay: 800 },
                 { pct: 85, msg: 'Gap filling...', delay: 400 },
               ];
+        // Usar ref para evitar timer leak se otimização for disparada múltiplas vezes rapidamente
         let progressTimer;
         let faseIdx = 0;
         const tick = () => {
@@ -1232,12 +1234,17 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     const [custosLoading, setCustosLoading] = useState(false);
     const [showCustos, setShowCustos] = useState(false);
     const [custosExpanded, setCustosExpanded] = useState({});
+    const [tempoCorteData, setTempoCorteData] = useState(null);
     const loadCustos = async () => {
         if (!loteAtual) return;
         setCustosLoading(true);
         try {
-            const data = await api.get(`/cnc/custos/${loteAtual.id}`);
+            const [data, tempo] = await Promise.all([
+                api.get(`/cnc/custos/${loteAtual.id}`),
+                api.get(`/cnc/tempo-corte/${loteAtual.id}`).catch(() => null),
+            ]);
             setCustosData(data);
+            setTempoCorteData(tempo);
             setShowCustos(true);
         } catch (err) {
             notify('Erro ao carregar custos: ' + (err.error || err.message));
@@ -1332,10 +1339,12 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     // Máquina selecionada para geração de G-code (global, pode ser overridden por assignment de chapa)
     const [maquinaGcode, setMaquinaGcode] = useState('');
     const selectedMachineArea = useMemo(() => {
-        if (!maquinaGcode) return null;
-        const m = maquinas.find(m => m.id === Number(maquinaGcode));
+        const assignedMaq = machineAssignments[selectedChapa]?.maquina_id;
+        const machineId = assignedMaq || (maquinaGcode ? Number(maquinaGcode) : null);
+        if (!machineId) return null;
+        const m = maquinas.find(m => m.id === Number(machineId));
         return m ? { x_max: m.x_max || 2800, y_max: m.y_max || 1900, nome: m.nome } : null;
-    }, [maquinaGcode, maquinas]);
+    }, [maquinaGcode, maquinas, machineAssignments, selectedChapa]);
 
     const handleGerarGcode = async (chapaIdx) => {
         if (!loteAtual) return;
@@ -1363,9 +1372,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                             espessura: chapaInfo.espessura_real || chapaInfo.espessura || 18.5,
                             material_code: chapaInfo.material_code || '',
                             pecas: (chapaInfo.pecas || []).map(p => ({
+                                ...p,
                                 x: swapOff ? p.x : p.y, y: swapOff ? p.y : p.x,
                                 w: swapOff ? p.w : p.h, h: swapOff ? p.h : p.w,
-                                nome: p.nome,
+                                nome: p.nome || p.descricao,
                             })),
                             retalhos: (chapaInfo.retalhos || []).map(r => ({
                                 x: swapOff ? r.x : r.y, y: swapOff ? r.y : r.x,
@@ -1375,8 +1385,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                     })() : null;
                 // Cache real stats from G-code generation
                 if (r.stats) setChapaRealStats(prev => ({ ...prev, [chapaIdx]: r.stats }));
-                // Store inline sim data for Plano de Corte view
-                setInlineSimData(chapaSimData ? { gcode: r.gcode, chapa: chapaSimData, chapaIdx } : null);
+                // O modal GcodePreviewModal já tem aba "Simulador" embutida — não abre inline sim
                 setGcodePreview({
                     gcode: r.gcode,
                     filename: r.filename || `chapa_${chapaIdx + 1}.nc`,
@@ -1384,6 +1393,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                     alertas: r.alertas || [],
                     chapaIdx,
                     contorno_tool: r.contorno_tool || null,
+                    maquina: r.maquina || null,
                     chapa: chapaSimData,
                 });
             } else if (r.ferramentas_faltando?.length > 0) {
@@ -1391,8 +1401,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 setGcodePreview({
                     gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
                     contorno_tool: r.contorno_tool || null, chapa: null,
+                    maquina: r.maquina || null,
                     alertas: [
-                        { tipo: 'erro_critico', msg: `BLOQUEADO: ${r.ferramentas_faltando.length} ferramenta(s) faltando no magazine da máquina` },
+                        { tipo: 'erro_critico', msg: `BLOQUEADO: ${r.ferramentas_faltando.length} ferramenta(s) faltando no magazine${r.maquina?.nome ? ` da ${r.maquina.nome}` : ' da máquina'}` },
                         ...(r.ferramentas_faltando_detalhes || []).map(d =>
                             ({ tipo: 'erro_critico', msg: `Ferramenta "${d.tool_code}" necessária para ${d.operacao} na peça "${d.peca}"` })
                         ),
@@ -1406,6 +1417,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 setGcodePreview({
                     gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
                     contorno_tool: null, chapa: null,
+                    maquina: r.maquina || null,
                     alertas: [{ tipo: 'erro_critico', msg: r.error || 'Erro desconhecido ao gerar G-Code' }, ...(r.alertas || [])],
                     ferramentas_faltando: [],
                 });
@@ -1417,6 +1429,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             setGcodePreview({
                 gcode: '', filename: '', stats: {}, chapaIdx,
                 contorno_tool: null, chapa: null,
+                maquina: null,
                 alertas: [{ tipo: 'erro_critico', msg: errMsg }],
                 ferramentas_faltando: [],
             });
@@ -1443,6 +1456,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                     alertas: r.alertas || [],
                     chapaIdx,
                     contorno_tool: r.contorno_tool || null,
+                    maquina: r.maquina || null,
                     chapa: null, // single piece doesn't need full chapa sim
                 });
                 notify(`G-Code gerado para peça ${pecaIdx + 1}`);
@@ -1450,6 +1464,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 setGcodePreview({
                     gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
                     contorno_tool: null, chapa: null,
+                    maquina: r.maquina || null,
                     alertas: [{ tipo: 'erro_critico', msg: r.error || 'Erro' }, ...(r.alertas || [])],
                     ferramentas_faltando: r.ferramentas_faltando || [],
                 });
@@ -1886,6 +1901,18 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     // Reset selection when switching sheets
     useEffect(() => { setSelectedPieces([]); }, [selectedChapa]);
 
+    const planOps = useMemo(() => summarizePlanEconomics(plano), [plano]);
+    const activeSheetOps = useMemo(() => {
+        const ch = plano?.chapas?.[selectedChapa];
+        if (!ch) return null;
+        const sheetArea = Number(ch.comprimento || ch.w || 0) * Number(ch.largura || ch.h || 0);
+        const usedArea = (ch.pecas || []).reduce((sum, p) => sum + Number(p.w || 0) * Number(p.h || 0), 0);
+        const wastePct = sheetArea > 0 ? Math.max(0, 100 - (usedArea / sheetArea) * 100) : 0;
+        const smallCount = (ch.pecas || []).filter(p => Math.min(Number(p.w || 0), Number(p.h || 0)) < 180).length;
+        const usefulScraps = (ch.retalhos || []).filter(r => Number(r.w || 0) >= sobraMinW && Number(r.h || 0) >= sobraMinH).length;
+        return { wastePct, smallCount, usefulScraps };
+    }, [plano, selectedChapa, sobraMinW, sobraMinH]);
+
     return (
         <div>
             {loading ? (
@@ -1983,6 +2010,40 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         </div>
                     )}
 
+                    {plano?.chapas?.length > 0 && (
+                        <div style={{
+                            marginBottom: 12,
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                            gap: 8,
+                        }}>
+                            {[
+                                { lb: 'Score do plano', val: planOps.score, color: planOps.score >= 85 ? 'var(--success)' : planOps.score >= 70 ? '#d97706' : 'var(--danger)' },
+                                { lb: 'Aproveitamento', val: `${planOps.aproveitamento.toFixed(1)}%`, color: planOps.aproveitamento >= 82 ? 'var(--success)' : planOps.aproveitamento >= 70 ? '#d97706' : 'var(--danger)' },
+                                { lb: 'Chapas', val: planOps.totalChapas, color: '#2563eb' },
+                                { lb: 'Desperdício', val: `${planOps.desperdicioM2.toFixed(2)} m²`, color: planOps.desperdicioM2 > 2 ? '#d97706' : 'var(--text-secondary)' },
+                                { lb: 'Sobra painel', val: activeSheetOps ? `${activeSheetOps.wastePct.toFixed(1)}%` : '-', color: activeSheetOps?.wastePct > 25 ? '#d97706' : 'var(--text-secondary)' },
+                                { lb: 'Retalhos úteis', val: activeSheetOps?.usefulScraps ?? planOps.retalhosUteis, color: '#16a34a' },
+                                { lb: 'Peças pequenas', val: activeSheetOps?.smallCount ?? 0, color: (activeSheetOps?.smallCount || 0) > 0 ? '#d97706' : 'var(--success)' },
+                            ].map(item => (
+                                <div key={item.lb} style={{
+                                    padding: '9px 10px',
+                                    borderRadius: 8,
+                                    border: '1px solid var(--border)',
+                                    background: 'var(--bg-card)',
+                                    minWidth: 0,
+                                }}>
+                                    <div style={{ fontSize: 17, lineHeight: 1, fontWeight: 900, color: item.color, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {item.val}
+                                    </div>
+                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 5 }}>
+                                        {item.lb}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {/* TOOLBAR — grouped into dropdowns */}
                     <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         {/* Primary action */}
@@ -2065,6 +2126,12 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                             <option key={m.id} value={m.id}>{m.nome} ({m.total_ferramentas} ferr.)</option>
                                         ))}
                                     </select>
+                                    {machineAssignments[selectedChapa]?.maquina_nome && (
+                                        <span title="Esta chapa tem máquina atribuída, então ela prevalece sobre a seleção global."
+                                            style={{ fontSize: 10, fontWeight: 800, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                                            Chapa: {machineAssignments[selectedChapa].maquina_nome}
+                                        </span>
+                                    )}
                                 </div>
                             )}
                         </>)}
@@ -2610,6 +2677,16 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                 <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-muted)', border: '1px solid var(--border)', fontWeight: 600 }}>
                                                     Total de {plano.chapas[selectedChapa]?.pecas.length || 0} peças
                                                 </span>
+                                                {/* Aproveitamento inline */}
+                                                {plano.chapas[selectedChapa]?.aproveitamento != null && (
+                                                    <span style={{
+                                                        fontSize: 10, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
+                                                        background: plano.chapas[selectedChapa].aproveitamento >= 80 ? 'rgba(34,197,94,0.15)' : plano.chapas[selectedChapa].aproveitamento >= 60 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
+                                                        color: plano.chapas[selectedChapa].aproveitamento >= 80 ? 'var(--success)' : plano.chapas[selectedChapa].aproveitamento >= 60 ? '#f59e0b' : 'var(--danger)',
+                                                    }}>
+                                                        {plano.chapas[selectedChapa].aproveitamento}% aproveit.
+                                                    </span>
+                                                )}
                                             </>
                                         )}
                                     </div>
@@ -2939,6 +3016,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             {gcodePreview && (
                 <GcodePreviewModal
                     data={gcodePreview}
+                    loteId={loteAtual?.id}
                     onDownload={handleDownloadGcode}
                     onSendToMachine={handleSendToMachine}
                     onClose={() => setGcodePreview(null)}
@@ -2982,8 +3060,29 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                             <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Bordas</div>
                         </div>
                     </div>
+                    {tempoCorteData && (
+                        <div style={{ padding: '8px 12px', borderRadius: 6, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)', marginBottom: 10, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>⏱ Tempo estimado de corte</span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Total: <b style={{ color: 'var(--text-primary)' }}>
+                                    {Math.floor(tempoCorteData.tempo_total_min / 60) > 0
+                                        ? `${Math.floor(tempoCorteData.tempo_total_min / 60)}h ${tempoCorteData.tempo_total_min % 60}min`
+                                        : `${tempoCorteData.tempo_total_min}min`}
+                                </b>
+                            </span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Corte: <b>{tempoCorteData.total_metros_corte}m lineares</b>
+                            </span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Usinagem: <b>{tempoCorteData.total_metros_usinagem}m</b>
+                            </span>
+                            {tempoCorteData.config?.maquina && (
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>Máq: {tempoCorteData.config.maquina}</span>
+                            )}
+                        </div>
+                    )}
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>
-                        Config: R$ {custosData.config?.custo_hora_maquina}/h maquina, R$ {custosData.config?.custo_troca_ferramenta}/troca
+                        Config: R$ {custosData.config?.custo_hora_maquina}/h máquina · R$ {custosData.config?.custo_troca_ferramenta}/troca
                     </div>
 
                     {/* Per-sheet breakdown */}
@@ -3004,6 +3103,11 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                             Mat: R${ch.custo_material.toFixed(2)} | Usin: R${ch.custo_usinagem.toFixed(2)} | Borda: R${ch.custo_bordas.toFixed(2)} | Desp: R${ch.custo_desperdicio.toFixed(2)}
                                         </span>
+                                        {tempoCorteData?.chapas?.find(t => t.chapaIdx === ch.chapaIdx) && (
+                                            <span style={{ fontSize: 10, color: '#8b5cf6', fontWeight: 600 }}>
+                                                ⏱ {tempoCorteData.chapas.find(t => t.chapaIdx === ch.chapaIdx).tempo_estimado_min}min
+                                            </span>
+                                        )}
                                         <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>R$ {ch.custo_total.toFixed(2)}</span>
                                         {custosExpanded[ci] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                                     </div>

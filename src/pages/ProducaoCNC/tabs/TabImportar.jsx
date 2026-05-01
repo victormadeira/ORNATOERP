@@ -468,6 +468,17 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
 
                                     {/* Cadastrar nova */}
                                     {!confirmado && action === 'cadastrar' && (
+                                        <div>
+                                        {mat.espessura === 0 && (
+                                            <div style={{
+                                                fontSize: 11, padding: '6px 10px', borderRadius: 6, marginBottom: 8,
+                                                background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
+                                                color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 6,
+                                            }}>
+                                                <AlertTriangle size={12} />
+                                                Espessura não detectada no código "{mat.material_code}". Verifique e preencha manualmente.
+                                            </div>
+                                        )}
                                         <div style={{
                                             display: 'grid',
                                             gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
@@ -506,6 +517,7 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                                                 </select>
                                             </FieldLabel>
                                         </div>
+                                        </div>
                                     )}
 
                                     {/* Confirmar */}
@@ -528,6 +540,18 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                                                                 material_code: mat.material_code,
                                                                 espessura_nominal: mat.espessura || (matEdits[i] || mat.sugestao).espessura_nominal,
                                                             };
+                                                            // Validação de dimensões mínimas
+                                                            if (!chapaData.comprimento || chapaData.comprimento <= 0 ||
+                                                                !chapaData.largura || chapaData.largura <= 0) {
+                                                                notify('Comprimento e largura devem ser maiores que zero', 'error');
+                                                                setCheckingMats(false);
+                                                                return;
+                                                            }
+                                                            if (chapaData.comprimento < chapaData.largura) {
+                                                                notify('Comprimento deve ser maior ou igual à largura', 'error');
+                                                                setCheckingMats(false);
+                                                                return;
+                                                            }
                                                             const r = await api.post('/cnc/chapas', chapaData);
                                                             const novaChapa = { id: r.id, ...chapaData, ativo: 1 };
                                                             setChapasDisponiveis(prev => [...prev, novaChapa]);

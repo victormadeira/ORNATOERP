@@ -1,30 +1,79 @@
 // ═══════════════════════════════════════════════════════
-// GcodeSimWrapper — CNC Simulator 2D com efeito neon
+// GcodeSimWrapper — CNC Simulator 2D — professional CAM style
 // ═══════════════════════════════════════════════════════
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
-// ─── Gcode parser with arc interpolation ───────────────────────────────────
-function parseGcodeForSim(text) {
+// ─── Gcode parser with arc interpolation + helicoidal hole detection ──────────
+export function parseGcodeForSim(text) {
     const moves = [];
     const events = [];
+    const ops = [];
     let x = 0, y = 0, z = 0, mode = 'G0';
-    let curTool = '', curOp = '';
+    let curTool = '', curOp = '', curFeed = 0;
+    let curOpMeta = null;
+    // Track arc sequences for helicoidal hole detection
+    let arcRunStart = -1; // index into moves[] where a G2/G3 run started
+    let arcRunCx = 0, arcRunCy = 0, arcRunR = 0; // approx center/radius of the run
+
+    const flushArcRun = (endIdx) => {
+        if (arcRunStart < 0 || endIdx - arcRunStart < 3) { arcRunStart = -1; return; }
+        // Check if this arc run forms a closed (or near-closed) path — helicoidal hole
+        const first = moves[arcRunStart];
+        const last = moves[endIdx - 1];
+        const closeGap = Math.sqrt((last.x2 - first.x1) ** 2 + (last.y2 - first.y1) ** 2);
+        const zDescends = last.z2 < first.z1 - 0.5; // Z went down by at least 0.5mm
+        // A helicoidal hole: multiple arcs, roughly same center, Z decreases, path nearly closed
+        if (zDescends && closeGap < arcRunR * 0.6 + 2 && arcRunR > 1) {
+            const holeDiam = arcRunR * 2;
+            for (let i = arcRunStart; i < endIdx; i++) {
+                moves[i].isHelicalHole = true;
+                moves[i].holeCx = arcRunCx;
+                moves[i].holeCy = arcRunCy;
+                moves[i].holeDiam = holeDiam;
+            }
+        }
+        arcRunStart = -1;
+    };
+
     for (const raw of text.split('\n')) {
         const cmtMatch = raw.match(/[;(]\s*(.+?)\s*\)?$/);
         const comment = cmtMatch ? cmtMatch[1] : '';
+
+        // ── Structured metadata comment: [OP type=furo diam=X prof=Y cx=CX cy=CY] ──
+        const opMetaMatch = comment.match(/\[OP\s+([^\]]+)\]/);
+        if (opMetaMatch) {
+            const meta = {};
+            for (const pair of opMetaMatch[1].matchAll(/(\w+)=([^\s]+)/g)) meta[pair[1]] = pair[2];
+            for (const [key, value] of Object.entries(meta)) {
+                if (/^-?\d+(\.\d+)?$/.test(value)) meta[key] = Number(value);
+            }
+            if (meta.type) {
+                if (curOpMeta) curOpMeta.moveEnd = moves.length;
+                curOp = `${meta.type}${meta.diam ? ` D${meta.diam}` : ''}${meta.peca ? ` ${decodeURIComponent(meta.peca)}` : ''}`;
+                curOpMeta = { ...meta, peca: meta.peca ? decodeURIComponent(meta.peca) : '', moveStart: moves.length, moveEnd: moves.length };
+                ops.push(curOpMeta);
+                events.push({ moveIdx: moves.length, type: 'op', label: curOp, meta: curOpMeta });
+            }
+        }
+
         if (/troca|ferramenta|tool/i.test(comment)) {
             curTool = comment.replace(/^(Troca:\s*|Ferramenta:\s*|Tool:\s*)/i, '').trim();
             events.push({ moveIdx: moves.length, type: 'tool', label: curTool });
         }
-        if (/===|contorno|furo|rebaixo|canal|pocket|usinagem|rasgo|gola|fresagem|sobra/i.test(comment) && !/troca|ferramenta/i.test(comment)) {
-            curOp = comment.replace(/^=+\s*|\s*=+$/g, '').trim();
-            events.push({ moveIdx: moves.length, type: 'op', label: curOp });
+        // Extended op detection: added chanfro, recorte, passa.fio, helicoidal, circular, op:
+        if (/===|contorno|furo|rebaixo|canal|pocket|usinagem|rasgo|gola|fresagem|sobra|chanfro|recorte|passa.?fio|helicoidal|circular|pocket_/i.test(comment) && !/troca|ferramenta/i.test(comment)) {
+            const newOp = comment.replace(/^=+\s*|\s*=+$/g, '').trim();
+            if (newOp !== curOp) {
+                curOp = newOp;
+                events.push({ moveIdx: moves.length, type: 'op', label: curOp });
+            }
         }
         if (/M3\b|M03\b/i.test(raw) && !/M30/i.test(raw))
             events.push({ moveIdx: moves.length, type: 'spindle', label: 'Spindle ON' });
         if (/M5\b|M05\b/i.test(raw))
             events.push({ moveIdx: moves.length, type: 'spindle', label: 'Spindle OFF' });
+
         const line = raw.replace(/;.*$/, '').replace(/\(.*?\)/g, '').trim();
         if (!line) continue;
         const cmd = line.replace(/^N\d+\s*/, '');
@@ -32,18 +81,24 @@ function parseGcodeForSim(text) {
         if (gMatch) mode = `G${gMatch[1]}`;
         const xM = cmd.match(/X([+-]?[\d.]+)/i), yM = cmd.match(/Y([+-]?[\d.]+)/i), zM = cmd.match(/Z([+-]?[\d.]+)/i);
         const iM = cmd.match(/I([+-]?[\d.]+)/i), jM = cmd.match(/J([+-]?[\d.]+)/i);
+        const fM = cmd.match(/F([+-]?[\d.]+)/i);
+        if (fM) curFeed = parseFloat(fM[1]);
         const newX = xM ? parseFloat(xM[1]) : x, newY = yM ? parseFloat(yM[1]) : y, newZ = zM ? parseFloat(zM[1]) : z;
+
+        // Flush arc run when mode changes away from G2/G3
+        if (mode !== 'G2' && mode !== 'G3' && arcRunStart >= 0) {
+            flushArcRun(moves.length);
+        }
+
         if (xM || yM || zM) {
             const isZOnly = !xM && !yM && zM;
             if ((mode === 'G2' || mode === 'G3') && (iM || jM)) {
-                // Interpolate arc into line segments
                 const ci = iM ? parseFloat(iM[1]) : 0, cj = jM ? parseFloat(jM[1]) : 0;
-                const cx = x + ci, cy = y + cj;
+                const cx2 = x + ci, cy2 = y + cj;
                 const r = Math.sqrt(ci * ci + cj * cj);
-                let startA = Math.atan2(y - cy, x - cx);
-                let endA = Math.atan2(newY - cy, newX - cx);
-                const cw = mode === 'G2'; // clockwise
-                // Full circle detection: start ≈ end
+                let startA = Math.atan2(y - cy2, x - cx2);
+                let endA = Math.atan2(newY - cy2, newX - cx2);
+                const cw = mode === 'G2';
                 const dx = newX - x, dy = newY - y;
                 const isFullCircle = Math.sqrt(dx * dx + dy * dy) < 0.1;
                 if (isFullCircle) {
@@ -53,82 +108,136 @@ function parseGcodeForSim(text) {
                     if (!cw && endA <= startA) endA += Math.PI * 2;
                 }
                 const totalAngle = Math.abs(endA - startA);
-                const steps = Math.max(Math.round(totalAngle / (Math.PI / 18)), 4); // ~10° per step
+                const steps = Math.max(Math.round(totalAngle / (Math.PI / 18)), 4);
+
+                // Track arc run for helicoidal hole detection
+                if (arcRunStart < 0) {
+                    arcRunStart = moves.length;
+                    arcRunCx = cx2; arcRunCy = cy2; arcRunR = r;
+                } else {
+                    // Weighted average center for multi-arc sequences
+                    arcRunCx = (arcRunCx + cx2) / 2; arcRunCy = (arcRunCy + cy2) / 2;
+                    arcRunR = (arcRunR + r) / 2;
+                }
+
                 for (let s = 1; s <= steps; s++) {
                     const t = s / steps;
                     const a = startA + (endA - startA) * t;
-                    const sx = cx + r * Math.cos(a), sy = cy + r * Math.sin(a);
+                    const sx = cx2 + r * Math.cos(a), sy = cy2 + r * Math.sin(a);
                     const sz = z + (newZ - z) * t;
-                    moves.push({ type: mode, x1: s === 1 ? x : moves[moves.length - 1].x2, y1: s === 1 ? y : moves[moves.length - 1].y2, z1: s === 1 ? z : moves[moves.length - 1].z2, x2: sx, y2: sy, z2: sz, tool: curTool, op: curOp, isZOnly: false, isArc: true });
+                    moves.push({ type: mode, x1: s === 1 ? x : moves[moves.length - 1].x2, y1: s === 1 ? y : moves[moves.length - 1].y2, z1: s === 1 ? z : moves[moves.length - 1].z2, x2: sx, y2: sy, z2: sz, tool: curTool, op: curOp, opMeta: curOpMeta, isZOnly: false, isArc: true, arcCx: cx2, arcCy: cy2, arcR: r, feed: curFeed });
                 }
             } else {
-                moves.push({ type: mode, x1: x, y1: y, z1: z, x2: newX, y2: newY, z2: newZ, tool: curTool, op: curOp, isZOnly });
+                if (arcRunStart >= 0) flushArcRun(moves.length);
+                moves.push({ type: mode, x1: x, y1: y, z1: z, x2: newX, y2: newY, z2: newZ, tool: curTool, op: curOp, opMeta: curOpMeta, isZOnly, feed: curFeed });
             }
         }
         x = newX; y = newY; z = newZ;
     }
-    return { moves, events };
+    if (arcRunStart >= 0) flushArcRun(moves.length);
+    if (curOpMeta) curOpMeta.moveEnd = moves.length;
+    const feeds = moves.filter(m => m.type !== 'G0' && m.feed > 0).map(m => m.feed);
+    const minFeed = feeds.length ? Math.min(...feeds) : 0;
+    const maxFeed = feeds.length ? Math.max(...feeds) : 1;
+    return { moves, events, ops, minFeed, maxFeed };
 }
 
-// ─── Operation categories with neon colors ─────────────────────────────────
-const OP_CATS = [
-    { key: 'contorno', pat: /contorno/i, color: '#39ff14', glow: '#39ff14', label: 'Contorno' },
-    { key: 'rebaixo',  pat: /rebaixo/i,  color: '#00bfff', glow: '#00bfff', label: 'Rebaixo' },
-    { key: 'canal',    pat: /canal/i,    color: '#bf5af2', glow: '#bf5af2', label: 'Canal' },
-    { key: 'furo',     pat: /furo/i,     color: '#ff3b30', glow: '#ff3b30', label: 'Furo' },
-    { key: 'pocket',   pat: /pocket/i,   color: '#ff9f0a', glow: '#ff9f0a', label: 'Pocket' },
-    { key: 'rasgo',    pat: /rasgo/i,    color: '#30d5c8', glow: '#30d5c8', label: 'Rasgo' },
-    { key: 'gola',     pat: /gola/i,     color: '#ffcc02', glow: '#ffcc02', label: 'Gola' },
-    { key: 'fresagem', pat: /fresagem/i, color: '#64d2ff', glow: '#64d2ff', label: 'Fresagem' },
+/** Heatmap de velocidade de avanço: vermelho=lento, amarelo=médio, verde=corte, azul=rápido */
+function feedHeatColor(feed, minFeed, maxFeed) {
+    if (!feed || maxFeed <= minFeed) return '#a6adc8';
+    const t = Math.max(0, Math.min(1, (feed - minFeed) / (maxFeed - minFeed)));
+    if (t < 0.33) {
+        const f = t / 0.33;
+        return `rgb(${220},${Math.round(60 + f * 160)},${30})`;
+    } else if (t < 0.66) {
+        const f = (t - 0.33) / 0.33;
+        return `rgb(${Math.round(220 - f * 140)},${Math.round(220 - f * 30)},${30})`;
+    } else {
+        const f = (t - 0.66) / 0.34;
+        return `rgb(${Math.round(80 - f * 60)},${Math.round(190 + f * 30)},${Math.round(30 + f * 180)})`;
+    }
+}
+
+// ─── Operation categories — professional CAM palette (not neon) ────────────
+export const OP_CATS = [
+    { key: 'contorno', pat: /contorno/i,                    color: '#d48820', glow: '#e09830', label: 'Contorno' },
+    { key: 'rebaixo',  pat: /rebaixo/i,                     color: '#2878c0', glow: '#3890d8', label: 'Rebaixo' },
+    { key: 'canal',    pat: /canal/i,                       color: '#8050a8', glow: '#9862c0', label: 'Canal' },
+    { key: 'furo',     pat: /furo|hole|helicoidal|circular/i, color: '#c03020', glow: '#d84030', label: 'Furo' },
+    { key: 'pocket',   pat: /pocket|rebaixo_pocket/i,       color: '#c06010', glow: '#d87020', label: 'Pocket' },
+    { key: 'rasgo',    pat: /rasgo/i,                       color: '#189080', glow: '#20a890', label: 'Rasgo' },
+    { key: 'gola',     pat: /gola/i,                        color: '#906808', glow: '#a88010', label: 'Gola' },
+    { key: 'chanfro',  pat: /chanfro|chamfer/i,             color: '#b05820', glow: '#c87030', label: 'Chanfro' },
+    { key: 'recorte',  pat: /recorte|passa.?fio/i,          color: '#5858a8', glow: '#7070c0', label: 'Recorte' },
+    { key: 'fresagem', pat: /fresagem|milling/i,            color: '#2088b0', glow: '#30a0c8', label: 'Fresagem' },
 ];
-function getOpCat(op) {
+export function getOpCat(op) {
     const lo = (op || '').toLowerCase();
     for (const c of OP_CATS) { if (c.pat.test(lo)) return c; }
     return { key: 'outro', color: '#a6adc8', glow: '#a6adc8', label: 'Outro' };
 }
 
-function getToolDiameterFromName(name) {
+export function getToolDiameterFromName(name) {
     const m = name.match(/(\d+)\s*mm/i);
     return m ? parseInt(m[1]) : 6;
 }
 
-// ─── Shared control bar styles ──────────────────────────────────────────────
+// ─── Event color by type/category ─────────────────────────────────────────
+function getEventColor(ev) {
+    if (ev.type === 'tool') return '#f9e2af';
+    if (ev.type === 'spindle') return '#888';
+    if (ev.type === 'op') {
+        const cat = getOpCat(ev.label);
+        return cat.color;
+    }
+    return '#a6adc8';
+}
+
+function getEventIcon(ev) {
+    if (ev.type === 'tool') return '🔧';
+    if (ev.type === 'op') return '▶';
+    if (ev.label === 'Spindle ON') return '⚙';
+    if (ev.label === 'Spindle OFF') return '⏹';
+    return '•';
+}
+
+// ─── Shared control bar styles — light professional CAM ─────────────────────
 const CTRL = {
     bar: {
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '8px 12px', background: 'var(--bg-card, #1e1e2e)',
-        borderLeft: '1px solid var(--border, #333)', borderRight: '1px solid var(--border, #333)',
+        display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap',
+        padding: '7px 12px', background: '#f2eee7',
+        borderLeft: '1px solid #ded6ca', borderRight: '1px solid #ded6ca',
+    },
+    bar2: {
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '6px 12px', background: '#ebe4d8',
+        borderLeft: '1px solid #ded6ca', borderRight: '1px solid #ded6ca',
+        borderTop: '1px solid rgba(120,100,75,0.16)', flexWrap: 'wrap',
     },
     btn: {
-        padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-        borderRadius: 5, border: '1px solid var(--border, #444)',
-        background: 'var(--bg-muted, #2a2a3a)', color: 'var(--text-primary, #cdd6f4)',
+        padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+        borderRadius: 6, border: '1px solid #d7cbbb',
+        background: '#fffaf2', color: '#3f3426',
         display: 'flex', alignItems: 'center', gap: 3,
-        transition: 'all 0.15s', lineHeight: 1,
+        transition: 'all 0.15s', lineHeight: 1, whiteSpace: 'nowrap',
     },
     btnAct: {
-        padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-        borderRadius: 5, border: '1px solid #1379F0',
-        background: '#1379F0', color: '#fff',
+        padding: '5px 9px', fontSize: 11, fontWeight: 800, cursor: 'pointer',
+        borderRadius: 6, border: '1px solid #2563eb',
+        background: '#2563eb', color: '#fff',
         display: 'flex', alignItems: 'center', gap: 3,
-        transition: 'all 0.15s', lineHeight: 1,
+        transition: 'all 0.15s', lineHeight: 1, whiteSpace: 'nowrap',
     },
-    legend: {
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '6px 12px', background: 'var(--bg-card, #1e1e2e)',
-        borderRadius: '0 0 8px 8px',
-        border: '1px solid var(--border, #333)', borderTop: 'none',
-        flexWrap: 'wrap',
-    },
+    sep: { width: 1, height: 18, background: 'rgba(100,80,55,0.20)', flexShrink: 0, alignSelf: 'center' },
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
-// High-res 2D Canvas Simulator with neon lightsaber cuts
+// High-res 2D Canvas Simulator — professional CAM style
 // ═════════════════════════════════════════════════════════════════════════════
 export default function GcodeSimWrapper({ gcode, chapa }) {
     const wrapRef = useRef(null);
     const canvasRef = useRef(null);
-    const [dims, setDims] = useState({ w: 900, h: 520 });
+    const [dims, setDims] = useState({ w: 900, h: 620 });
     const [zoom, setZoom] = useState(1);
     const [panOff, setPanOff] = useState({ x: 0, y: 0 });
     const panRef = useRef(null);
@@ -140,9 +249,20 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
     const [fullscreen, setFullscreen] = useState(false);
     const [hoverInfo, setHoverInfo] = useState(null); // { x, y, piece }
     const animRef = useRef(null);
+
+    // ─── New state variables ───────────────────────────────────────────────
+    const [showTimeline, setShowTimeline] = useState(false);
+    const [hiddenCats, setHiddenCats] = useState(new Set());
+    const [showRapids, setShowRapids] = useState(true);
+    const [showStats, setShowStats] = useState(false);
+    const [heatmapMode, setHeatmapMode] = useState(false);
+    const [autoOrient, setAutoOrient] = useState(true);
+
     const parsed = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
     const allMoves = parsed.moves;
     const allEvents = parsed.events;
+    const minFeed = parsed.minFeed ?? 0;
+    const maxFeed = parsed.maxFeed ?? 1;
     const espReal = chapa?.espessura || 18.5;
 
     // Tool diameters per move
@@ -180,10 +300,149 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
         return [...map.values()];
     }, [allMoves]);
 
+    // ─── Tool events for jump buttons ─────────────────────────────────────
+    const toolEvents = useMemo(() => allEvents.filter(ev => ev.type === 'tool'), [allEvents]);
+
+    // ─── Active timeline event index ──────────────────────────────────────
+    const activeTimelineIdx = useMemo(() => {
+        if (curMove < 0) return -1;
+        let active = -1;
+        for (let i = 0; i < allEvents.length; i++) {
+            if (allEvents[i].moveIdx <= curMove) active = i;
+            else break;
+        }
+        return active;
+    }, [allEvents, curMove]);
+
+    // ─── Active tool event index ──────────────────────────────────────────
+    const activeToolIdx = useMemo(() => {
+        if (curMove < 0) return -1;
+        let active = -1;
+        for (let i = 0; i < toolEvents.length; i++) {
+            if (toolEvents[i].moveIdx <= curMove) active = i;
+            else break;
+        }
+        return active;
+    }, [toolEvents, curMove]);
+
+    // ─── Statistics ───────────────────────────────────────────────────────
+    const stats = useMemo(() => {
+        const catCounts = {};
+        let cutMoves = 0, rapidMoves = 0, cutDist = 0, rapidDist = 0;
+        for (const m of allMoves) {
+            const dist = Math.sqrt((m.x2 - m.x1) ** 2 + (m.y2 - m.y1) ** 2);
+            if (m.type === 'G0') {
+                if (!m.isZOnly) { rapidMoves++; rapidDist += dist; }
+            } else {
+                if (m.isZOnly) {
+                    cutMoves++;
+                    cutDist += Math.abs(m.z2 - m.z1);
+                } else {
+                    cutMoves++;
+                    cutDist += dist;
+                }
+                const cat = getOpCat(m.op);
+                catCounts[cat.key] = (catCounts[cat.key] || 0) + 1;
+            }
+        }
+        return {
+            total: allMoves.length,
+            cutMoves,
+            rapidMoves,
+            catCounts,
+            cutDistM: (cutDist / 1000).toFixed(2),
+            rapidDistM: (rapidDist / 1000).toFixed(2),
+        };
+    }, [allMoves]);
+
+    const operationBlocks = useMemo(() => {
+        const opEvents = allEvents.filter(ev => ev.type === 'op');
+        const blocks = [];
+        if (opEvents.length) {
+            for (let i = 0; i < opEvents.length; i++) {
+                const ev = opEvents[i];
+                const start = Math.max(0, Math.min(ev.moveIdx, allMoves.length - 1));
+                const end = Math.max(start, Math.min((opEvents[i + 1]?.moveIdx ?? allMoves.length) - 1, allMoves.length - 1));
+                const moves = allMoves.slice(start, end + 1);
+                const cat = getOpCat(ev.label);
+                let cut = 0, rapid = 0, cutDist = 0, rapidDist = 0;
+                for (const m of moves) {
+                    const d = Math.hypot((m.x2 || 0) - (m.x1 || 0), (m.y2 || 0) - (m.y1 || 0));
+                    if (m.type === 'G0') {
+                        if (!m.isZOnly) { rapid++; rapidDist += d; }
+                    } else {
+                        cut++;
+                        cutDist += m.isZOnly ? Math.abs((m.z2 || 0) - (m.z1 || 0)) : d;
+                    }
+                }
+                let tool = '';
+                for (const toolEv of allEvents) {
+                    if (toolEv.moveIdx > start) break;
+                    if (toolEv.type === 'tool') tool = toolEv.label;
+                }
+                blocks.push({
+                    id: `${start}-${i}`,
+                    label: ev.label || cat.label,
+                    start,
+                    end,
+                    cat,
+                    tool,
+                    moves: moves.length,
+                    cut,
+                    rapid,
+                    cutM: cutDist / 1000,
+                    rapidM: rapidDist / 1000,
+                });
+            }
+        } else {
+            const grouped = new Map();
+            allMoves.forEach((m, idx) => {
+                if (m.type === 'G0') return;
+                const label = m.op || 'Usinagem sem metadado';
+                if (!grouped.has(label)) {
+                    grouped.set(label, { label, start: idx, end: idx, moves: [] });
+                }
+                const g = grouped.get(label);
+                g.end = idx;
+                g.moves.push(m);
+            });
+            for (const [label, g] of grouped) {
+                const cat = getOpCat(label);
+                blocks.push({
+                    id: `${g.start}-${label}`,
+                    label,
+                    start: g.start,
+                    end: g.end,
+                    cat,
+                    tool: '',
+                    moves: g.moves.length,
+                    cut: g.moves.length,
+                    rapid: 0,
+                    cutM: g.moves.reduce((s, m) => s + Math.hypot((m.x2 || 0) - (m.x1 || 0), (m.y2 || 0) - (m.y1 || 0)), 0) / 1000,
+                    rapidM: 0,
+                });
+            }
+        }
+        return blocks.filter(b => b.moves > 0);
+    }, [allEvents, allMoves]);
+
+    const getPieceAt = useCallback((x, y) => {
+        if (!chapa?.pecas?.length || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+        const ref = chapa.refilo || 10;
+        for (let i = chapa.pecas.length - 1; i >= 0; i--) {
+            const p = chapa.pecas[i];
+            if (x >= ref + p.x && x <= ref + p.x + p.w && y >= ref + p.y && y <= ref + p.y + p.h) return p;
+        }
+        return null;
+    }, [chapa]);
+
     // ─── Dynamic resolution ───────────────────────────────────────────────
     useEffect(() => {
         if (fullscreen) {
-            const update = () => setDims({ w: window.innerWidth, h: window.innerHeight - 90 });
+            const update = () => setDims({
+                w: Math.max(520, window.innerWidth - 320),
+                h: window.innerHeight - 92,
+            });
             update();
             window.addEventListener('resize', update);
             return () => window.removeEventListener('resize', update);
@@ -192,7 +451,11 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
             if (!el) return;
             const ro = new ResizeObserver(entries => {
                 const { width } = entries[0].contentRect;
-                if (width > 0) setDims({ w: width, h: Math.round(width * 0.55) });
+                const viewportCap = Math.max(320, Math.round(window.innerHeight * 0.54));
+                if (width > 0) setDims({
+                    w: width,
+                    h: Math.max(320, Math.min(620, viewportCap, Math.round(width * 0.62))),
+                });
             });
             ro.observe(el);
             return () => ro.disconnect();
@@ -207,6 +470,46 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
         return () => window.removeEventListener('keydown', onKey);
     }, [fullscreen]);
 
+    // ─── Keyboard shortcuts ───────────────────────────────────────────────────
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            if (e.target.isContentEditable) return;
+            switch (e.key) {
+                case ' ':
+                    e.preventDefault();
+                    if (playing) {
+                        setPlaying(false);
+                    } else {
+                        setCurMove(prev => {
+                            if (prev >= allMoves.length - 1 || prev < 0) return 0;
+                            return prev;
+                        });
+                        setPlaying(true);
+                    }
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    setPlaying(false);
+                    setCurMove(prev => Math.min(allMoves.length - 1, (prev < 0 ? 0 : prev) + 1));
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    setPlaying(false);
+                    setCurMove(prev => Math.max(0, (prev < 0 ? 0 : prev) - 1));
+                    break;
+                case 'f': case 'F':
+                    if (!e.ctrlKey && !e.metaKey) { setZoom(1); setPanOff({ x: 0, y: 0 }); }
+                    break;
+                case 'Escape':
+                    if (!fullscreen) { setPlaying(false); setCurMove(-1); }
+                    break;
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [playing, allMoves.length, fullscreen]);
+
     // ─── Render ───────────────────────────────────────────────────────────
     const renderCanvas = useCallback((moveLimit) => {
         const canvas = canvasRef.current;
@@ -219,12 +522,12 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
 
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, W, H);
-        // Dark background with subtle grain
-        ctx.fillStyle = '#0d0d15'; ctx.fillRect(0, 0, W, H);
+        // Light warm machine table / vacuum bed
+        ctx.fillStyle = '#efe9df'; ctx.fillRect(0, 0, W, H);
 
         if (!gcode || allMoves.length === 0) {
-            ctx.fillStyle = '#6c7086'; ctx.font = `${14 * dpr}px sans-serif`;
-            ctx.fillText(gcode ? 'Nenhum movimento detectado' : 'G-Code nao disponivel', W / 2 - 120 * dpr, H / 2);
+            ctx.fillStyle = '#8a6a42'; ctx.font = `${14 * dpr}px sans-serif`;
+            ctx.fillText(gcode ? 'Nenhum movimento detectado' : 'G-Code não disponível', W / 2 - 120 * dpr, H / 2);
             return;
         }
 
@@ -236,85 +539,207 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
         const cw = chapa?.comprimento || 2750, cl = chapa?.largura || 1850;
         if (chapa) { minX = 0; minY = 0; maxX = Math.max(maxX, cw); maxY = Math.max(maxY, cl); }
         const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1;
+        const viewRotated = autoOrient && Boolean(chapa) && cl > cw;
+        const fitRangeX = viewRotated ? rangeY : rangeX;
+        const fitRangeY = viewRotated ? rangeX : rangeY;
         const pad = 24 * dpr;
-        const sc = Math.min((W - pad * 2) / rangeX, (H - pad * 2) / rangeY) * zoom;
+        const sc = Math.min((W - pad * 2) / fitRangeX, (H - pad * 2) / fitRangeY) * zoom;
         const panScaleX = panOff.x * dpr, panScaleY = panOff.y * dpr;
-        const offX = pad + panScaleX + ((W - pad * 2) - rangeX * sc) / 2;
-        const offY = pad + panScaleY + ((H - pad * 2) - rangeY * sc) / 2;
-        const tx = (v) => offX + (v - minX) * sc;
-        const ty = (v) => offY + (v - minY) * sc;
+        const offX = pad + panScaleX + ((W - pad * 2) - fitRangeX * sc) / 2;
+        const offY = pad + panScaleY + ((H - pad * 2) - fitRangeY * sc) / 2;
+        // ── Coordinate transforms ───────────────────────────────────────────────
+        // Machine coordinates. When "Girar visual" is active, the whole view is
+        // rotated as a camera/image transform; coordinates are not mirrored.
+        const tx = viewRotated ? (v) => (v - minX) * sc : (v) => offX + (v - minX) * sc;
+        const ty = viewRotated ? (v) => -(v - minY) * sc : (v) => offY + (maxY - v) * sc;
+
+        if (viewRotated) {
+            ctx.save();
+            ctx.translate(offX, offY);
+            ctx.rotate(Math.PI / 2);
+        }
+
+        const shX = tx(0);
+        const shY = Math.min(ty(0), ty(cl));
+        const shW = cw * sc;
+        const shH = cl * sc;
 
         const isUsinagem = simMode === 'usinagem';
+        const activePieceInCanvas = moveLimit >= 0 && allMoves[moveLimit]
+            ? getPieceAt(allMoves[moveLimit].x2, allMoves[moveLimit].y2)
+            : null;
 
-        // ── Sheet ──────────────────────────────────────────────────────
+        // ── Sheet ──────────────────────────────────────────────────────────────
         if (chapa) {
-            // Sheet surface — wood-like dark
-            const shX = tx(0), shY = ty(0), shW = cw * sc, shH = cl * sc;
-            ctx.fillStyle = '#1a1a28';
+            // ── Elevation shadow — draw OUTSIDE canvas via offscreen rect ──
+            // (shadow drawn separately from rect to avoid ghost duplicate)
+            ctx.save();
+            ctx.shadowColor = 'rgba(90,70,46,0.34)';
+            ctx.shadowBlur = 14 * dpr;
+            ctx.shadowOffsetX = 5 * dpr;
+            ctx.shadowOffsetY = 7 * dpr;
+            // Draw a 1px transparent rect just outside the sheet to generate shadow only
+            ctx.fillStyle = 'rgba(90,70,46,0.01)';
+            ctx.fillRect(shX - 1, shY - 1, shW + 2, shH + 2);
+            ctx.restore();
+
+            // ── Sheet base — real MDF/MDP natural color (light warm sandy) ──
+            ctx.fillStyle = '#c8a86a';
             ctx.fillRect(shX, shY, shW, shH);
-            // Subtle inner shadow
-            const shGrad = ctx.createLinearGradient(shX, shY, shX, shY + shH);
-            shGrad.addColorStop(0, 'rgba(255,255,255,0.03)');
-            shGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
-            ctx.fillStyle = shGrad;
+
+            // ── Wood fiber texture — subtle horizontal gradient bands ────
+            // MDF has compressed wood fibers with a slightly mottled appearance
+            const grain1 = ctx.createLinearGradient(shX, shY, shX, shY + shH);
+            grain1.addColorStop(0,    'rgba(255,235,180,0.18)');
+            grain1.addColorStop(0.12, 'rgba(255,220,160,0.06)');
+            grain1.addColorStop(0.28, 'rgba(255,235,180,0.12)');
+            grain1.addColorStop(0.45, 'rgba(230,190,130,0.04)');
+            grain1.addColorStop(0.62, 'rgba(255,225,165,0.10)');
+            grain1.addColorStop(0.8,  'rgba(220,180,120,0.07)');
+            grain1.addColorStop(1,    'rgba(200,160,100,0.15)');
+            ctx.fillStyle = grain1;
             ctx.fillRect(shX, shY, shW, shH);
-            // Border
-            ctx.strokeStyle = '#333355'; ctx.lineWidth = 1.5 * dpr;
+
+            // ── Ambient light — brighter top-left (light source), darker bottom-right ──
+            const ambientGrad = ctx.createRadialGradient(
+                shX + shW * 0.2, shY + shH * 0.15, 0,
+                shX + shW * 0.7, shY + shH * 0.7, Math.max(shW, shH) * 0.9
+            );
+            ambientGrad.addColorStop(0,   'rgba(255,245,215,0.20)');
+            ambientGrad.addColorStop(0.5, 'rgba(200,160,100,0.00)');
+            ambientGrad.addColorStop(1,   'rgba(80, 50, 20, 0.15)');
+            ctx.fillStyle = ambientGrad;
+            ctx.fillRect(shX, shY, shW, shH);
+
+            // ── Grid — 500mm major intervals only (clean, minimal) ─────────
+            ctx.save();
+            ctx.lineWidth = 0.7 * dpr;
+            for (let gx = 500; gx < cw; gx += 500) {
+                ctx.globalAlpha = 0.12;
+                ctx.strokeStyle = '#5c3a10';
+                ctx.beginPath(); ctx.moveTo(tx(gx), shY); ctx.lineTo(tx(gx), shY + shH); ctx.stroke();
+            }
+            for (let gy = 500; gy < cl; gy += 500) {
+                ctx.globalAlpha = 0.12;
+                ctx.strokeStyle = '#5c3a10';
+                ctx.beginPath(); ctx.moveTo(shX, ty(gy)); ctx.lineTo(shX + shW, ty(gy)); ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+
+            // ── Sheet border — dark warm edge (like the real edge of MDF board) ──
+            ctx.strokeStyle = 'rgba(70,42,14,0.75)'; ctx.lineWidth = 1.5 * dpr;
             ctx.strokeRect(shX, shY, shW, shH);
 
-            // ── X0 Y0 origin marker (bottom-left of sheet) ──
-            const ox = tx(0), oy = ty(0);
-            const axLen = Math.min(40 * dpr, shW * 0.06, shH * 0.06);
-            // X axis arrow (horizontal)
-            ctx.strokeStyle = 'var(--danger)'; ctx.lineWidth = 1.5 * dpr; ctx.globalAlpha = 0.8;
-            ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + axLen, oy); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(ox + axLen, oy); ctx.lineTo(ox + axLen - 4 * dpr, oy - 3 * dpr); ctx.lineTo(ox + axLen - 4 * dpr, oy + 3 * dpr); ctx.closePath();
-            ctx.fillStyle = 'var(--danger)'; ctx.fill();
-            // Y axis arrow (vertical)
-            ctx.strokeStyle = 'var(--success)'; ctx.lineWidth = 1.5 * dpr;
-            ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + axLen); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(ox, oy + axLen); ctx.lineTo(ox - 3 * dpr, oy + axLen - 4 * dpr); ctx.lineTo(ox + 3 * dpr, oy + axLen - 4 * dpr); ctx.closePath();
-            ctx.fillStyle = 'var(--success)'; ctx.fill();
-            // Origin dot
-            ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9;
-            ctx.beginPath(); ctx.arc(ox, oy, 3 * dpr, 0, Math.PI * 2); ctx.fill();
-            // Labels
-            ctx.globalAlpha = 0.7;
+            // ── Sheet dimension labels — dark text above/left of sheet ──────
+            ctx.save();
+            ctx.fillStyle = 'rgba(200,175,110,0.95)';
             ctx.font = `bold ${9 * dpr}px monospace`;
-            ctx.fillStyle = 'var(--danger)'; ctx.fillText('X', ox + axLen + 3 * dpr, oy + 4 * dpr);
-            ctx.fillStyle = 'var(--success)'; ctx.fillText('Y', ox - 4 * dpr, oy + axLen + 12 * dpr);
-            ctx.fillStyle = '#888'; ctx.font = `${8 * dpr}px monospace`;
-            ctx.fillText('0,0', ox + 5 * dpr, oy - 5 * dpr);
+            ctx.textAlign = 'center';
+            ctx.fillText(`${cw} mm`, shX + shW / 2, shY - 6 * dpr);
+            ctx.save();
+            ctx.translate(shX - 10 * dpr, shY + shH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText(`${cl} mm`, 0, 0);
+            ctx.restore();
+            ctx.textAlign = 'left';
+            ctx.restore();
+
+            // ── X0 Y0 origin marker — follows the same visual rotation as the sheet.
+            const ox = tx(0);
+            const oy = ty(0);
+            const axLen = Math.min(44 * dpr, shW * 0.07, shH * 0.07);
+            ctx.globalAlpha = 0.9;
+
+            // X axis → right in machine space. In rotated visual mode it rotates with the sheet.
+            ctx.strokeStyle = '#e03030'; ctx.lineWidth = 1.8 * dpr;
+            ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + axLen, oy); ctx.stroke();
+            ctx.fillStyle = '#e03030';
+            ctx.beginPath(); ctx.moveTo(ox + axLen, oy); ctx.lineTo(ox + axLen - 5 * dpr, oy - 3 * dpr); ctx.lineTo(ox + axLen - 5 * dpr, oy + 3 * dpr); ctx.closePath(); ctx.fill();
+
+            // Y axis → up in machine space. In rotated visual mode it rotates with the sheet.
+            ctx.strokeStyle = '#30a030'; ctx.lineWidth = 1.8 * dpr;
+            ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - axLen); ctx.stroke();
+            ctx.fillStyle = '#30a030';
+            ctx.beginPath(); ctx.moveTo(ox, oy - axLen); ctx.lineTo(ox - 3 * dpr, oy - axLen + 5 * dpr); ctx.lineTo(ox + 3 * dpr, oy - axLen + 5 * dpr); ctx.closePath(); ctx.fill();
+
+            // Origin dot
+            ctx.fillStyle = 'rgba(40,22,6,0.95)'; ctx.globalAlpha = 0.95;
+            ctx.beginPath(); ctx.arc(ox, oy, 3 * dpr, 0, Math.PI * 2); ctx.fill();
+
+            // Labels
+            ctx.globalAlpha = 0.85;
+            ctx.font = `bold ${9 * dpr}px monospace`;
+            ctx.fillStyle = '#e03030'; ctx.fillText('X', ox + axLen + 4 * dpr, oy + 3 * dpr);
+            ctx.fillStyle = '#30a030'; ctx.fillText('Y', ox - 14 * dpr, oy - axLen);
+            ctx.fillStyle = 'rgba(220,190,130,0.90)';
+            ctx.font = `${8 * dpr}px monospace`;
+            ctx.fillText('0,0', ox + 5 * dpr, oy + 12 * dpr);
             ctx.globalAlpha = 1;
 
-            // Pieces
+            // ── Pieces — subtle color differentiation on warm MDF ──────────
             if (chapa.pecas) {
                 const ref = chapa.refilo || 10;
-                const pColors = ['#1e2a45', '#1e3530', '#2e281e', '#281e38', '#1e2e35', '#2e281e', '#1e2840', '#2a1e20'];
+                // Subtle warm tints — complement the MDF base color
+                const pColors = [
+                    'rgba( 40,  80, 180, 0.13)',  // blue-slate
+                    'rgba( 40, 130,  70, 0.13)',  // forest green
+                    'rgba(160,  60,  20, 0.11)',  // rust
+                    'rgba(110,  40, 160, 0.11)',  // purple
+                    'rgba(150, 110,   0, 0.12)',  // olive
+                    'rgba( 10, 120, 130, 0.12)',  // teal
+                    'rgba(160,  30,  80, 0.11)',  // wine
+                    'rgba( 70, 140,  30, 0.12)',  // lime
+                ];
+                const pBorders = [
+                    'rgba( 30,  60, 140, 0.45)',
+                    'rgba( 20, 100,  50, 0.45)',
+                    'rgba(130,  40,  10, 0.40)',
+                    'rgba( 85,  25, 130, 0.40)',
+                    'rgba(120,  85,   0, 0.42)',
+                    'rgba(  5,  90, 100, 0.42)',
+                    'rgba(130,  20,  60, 0.40)',
+                    'rgba( 50, 110,  20, 0.42)',
+                ];
                 for (let i = 0; i < chapa.pecas.length; i++) {
                     const p = chapa.pecas[i];
-                    const px = tx(ref + p.x), py = ty(ref + p.y), pw2 = p.w * sc, ph2 = p.h * sc;
+                    const isActivePiece = activePieceInCanvas === p;
+                    const px = tx(ref + p.x);
+                    const py = Math.min(ty(ref + p.y), ty(ref + p.y + p.h));
+                    const pw2 = p.w * sc, ph2 = p.h * sc;
+                    // Subtle fill tint
                     ctx.fillStyle = pColors[i % pColors.length];
                     ctx.fillRect(px, py, pw2, ph2);
-                    // Top highlight
-                    ctx.fillStyle = 'rgba(255,255,255,0.025)';
-                    ctx.fillRect(px, py, pw2, Math.min(ph2, 3 * dpr));
-                    // Border
-                    ctx.strokeStyle = 'rgba(80,130,220,0.25)'; ctx.lineWidth = 0.8 * dpr;
+                    // Border — dark warm, clearly delineating pieces
+                    ctx.strokeStyle = isActivePiece ? '#2563eb' : pBorders[i % pBorders.length];
+                    ctx.lineWidth = (isActivePiece ? 2.2 : 1.0) * dpr;
                     ctx.strokeRect(px, py, pw2, ph2);
-                    if (p.nome && pw2 > 40 * dpr && ph2 > 16 * dpr) {
-                        ctx.fillStyle = 'rgba(130,170,250,0.35)'; ctx.font = `${Math.min(11 * dpr, pw2 / 6)}px sans-serif`;
-                        ctx.fillText(p.nome, px + 4 * dpr, py + 14 * dpr, pw2 - 8 * dpr);
+                    if (isActivePiece) {
+                        ctx.fillStyle = 'rgba(37,99,235,0.10)';
+                        ctx.fillRect(px, py, pw2, ph2);
+                    }
+                    // Label — dark warm text (reads well on light MDF)
+                    if (p.nome && pw2 > 30 * dpr && ph2 > 14 * dpr) {
+                        ctx.fillStyle = 'rgba(45,28,10,0.85)';
+                        ctx.font = `600 ${Math.min(10 * dpr, pw2 / 5)}px sans-serif`;
+                        ctx.fillText(p.nome, px + 4 * dpr, py + 13 * dpr, pw2 - 8 * dpr);
+                        if (ph2 > 24 * dpr) {
+                            ctx.fillStyle = 'rgba(70,45,15,0.60)';
+                            ctx.font = `${Math.min(8 * dpr, pw2 / 7)}px monospace`;
+                            ctx.fillText(`${Math.round(p.w)}×${Math.round(p.h)}`, px + 4 * dpr, py + 23 * dpr, pw2 - 8 * dpr);
+                        }
                     }
                 }
             }
-            // Scraps
+            // ── Scraps (retalhos) — dashed green outline ───────────────────
             if (chapa.retalhos) {
                 const ref = chapa.refilo || 10;
-                ctx.setLineDash([5 * dpr, 4 * dpr]);
+                ctx.setLineDash([5 * dpr, 3 * dpr]);
                 for (const r of chapa.retalhos) {
-                    ctx.strokeStyle = 'rgba(34,197,94,0.4)'; ctx.lineWidth = 1 * dpr;
-                    ctx.strokeRect(tx(ref + r.x), ty(ref + r.y), r.w * sc, r.h * sc);
+                    const rx = tx(ref + r.x), ry = Math.min(ty(ref + r.y), ty(ref + r.y + r.h));
+                    ctx.strokeStyle = 'rgba(20,120,60,0.55)'; ctx.lineWidth = 1 * dpr;
+                    ctx.strokeRect(rx, ry, r.w * sc, r.h * sc);
                 }
                 ctx.setLineDash([]);
             }
@@ -322,26 +747,119 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
 
         // ── Moves ──────────────────────────────────────────────────────
         const drawCount = moveLimit < 0 ? allMoves.length : Math.min(moveLimit + 1, allMoves.length);
-        let rapidDist = 0, cutDist = 0;
+        // ─── Pre-pass: collect helicoidal holes to draw as circles ────────
+        // Only draw each helicoidal hole ONCE (at the last segment of the group)
+        const helicalHoleDrawn = new Set();
+        const drawHelicalHole = (m, cat) => {
+            const hCx = tx(m.holeCx), hCy = ty(m.holeCy);
+            const hR = Math.max((m.holeDiam / 2) * sc, 2 * dpr);
+            const depth = espReal - m.z2;
+            const depthRatio = Math.min(Math.max(depth / espReal, 0), 1);
+            const neonColor = cat.glow;
+            const isThrough = depthRatio > 0.85;
+            ctx.globalAlpha = 1;
+            if (isUsinagem) {
+                // ── Furo helicoidal 3D — warm recessed hole on MDF ──────────────
+                // Interior escuro (material removido), borda com reflexo MDF, sombra de profundidade
+
+                // Outer shadow ring — casts shadow on sheet surface
+                ctx.save();
+                ctx.shadowColor = 'rgba(58,36,20,0.45)';
+                ctx.shadowBlur = hR * 0.8;
+                ctx.fillStyle = '#5a351c';
+                ctx.globalAlpha = 0.3;
+                ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+
+                // Recessed interior — deep MDF brown for depth without a black UI feel
+                ctx.fillStyle = isThrough ? '#3a2414' : '#5a351c';
+                ctx.globalAlpha = 0.88;
+                ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.fill();
+
+                // 3D depth gradient — tiny highlight near top-left, dark rim
+                const depthGrad = ctx.createRadialGradient(
+                    hCx - hR * 0.35, hCy - hR * 0.35, 0,
+                    hCx, hCy, hR
+                );
+                depthGrad.addColorStop(0,    'rgba(255,230,180,0.08)'); // tiny MDF highlight
+                depthGrad.addColorStop(0.35, 'rgba(92,58,28,0.20)');
+                depthGrad.addColorStop(0.7,  'rgba(70,42,22,0.48)');
+                depthGrad.addColorStop(1,    'rgba(48,30,18,0.82)');
+                ctx.fillStyle = depthGrad;
+                ctx.globalAlpha = 1;
+                ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.fill();
+
+                // Rim — warm MDF edge color (real machined rim)
+                const rimColor = 'rgba(200,158,78,0.90)';
+                ctx.strokeStyle = rimColor;
+                ctx.lineWidth = Math.max(1.2 * dpr, hR * 0.10);
+                ctx.globalAlpha = 0.90;
+                ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.stroke();
+
+                // Operation color thin overlay on rim
+                const hInnerR = hR - Math.max(1.5 * dpr, hR * 0.12);
+                if (hInnerR > 0.5) {
+                    ctx.strokeStyle = neonColor;
+                    ctx.lineWidth = Math.max(0.7 * dpr, hR * 0.05);
+                    ctx.globalAlpha = 0.55;
+                    ctx.beginPath(); ctx.arc(hCx, hCy, hInnerR, 0, Math.PI * 2); ctx.stroke();
+                }
+
+                // Cross for through-holes (center lines)
+                if (isThrough && hR > 4 * dpr) {
+                    ctx.strokeStyle = 'rgba(200,158,78,0.35)';
+                    ctx.lineWidth = 0.7 * dpr;
+                    ctx.globalAlpha = 0.55;
+                    const cr = hR * 0.48;
+                    ctx.beginPath(); ctx.moveTo(hCx - cr, hCy); ctx.lineTo(hCx + cr, hCy); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(hCx, hCy - cr); ctx.lineTo(hCx, hCy + cr); ctx.stroke();
+                }
+            } else {
+                ctx.fillStyle = neonColor; ctx.globalAlpha = 0.15;
+                ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = cat.color; ctx.lineWidth = Math.max(1 * dpr, hR * 0.15); ctx.globalAlpha = 0.75;
+                ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+        };
 
         for (let i = 0; i < drawCount; i++) {
             const m = allMoves[i];
             const x1 = tx(m.x1), y1 = ty(m.y1), x2 = tx(m.x2), y2 = ty(m.y2);
-            const dist = Math.sqrt((m.x2 - m.x1) ** 2 + (m.y2 - m.y1) ** 2);
             const toolD = moveToolDiams[i];
 
+            // ── Helicoidal hole: skip individual arc lines, draw circle at last segment ──
+            if (m.isHelicalHole) {
+                const cat = getOpCat(m.op);
+                if (hiddenCats.has(cat.key)) continue;
+                // Check if next move is also in the same helicoidal group
+                const nextIsHelical = i + 1 < drawCount && allMoves[i + 1].isHelicalHole &&
+                    Math.abs(allMoves[i + 1].holeCx - m.holeCx) < 1 && Math.abs(allMoves[i + 1].holeCy - m.holeCy) < 1;
+                if (!nextIsHelical) {
+                    // Last segment of this helicoidal group — draw the circle
+                    const hKey = `${m.holeCx.toFixed(1)}_${m.holeCy.toFixed(1)}`;
+                    if (!helicalHoleDrawn.has(hKey)) {
+                        helicalHoleDrawn.add(hKey);
+                        drawHelicalHole(m, cat);
+                    }
+                }
+                continue;
+            }
+
             if (m.type === 'G0') {
-                // Rapids — dashed yellow lines (visible in both modes)
+                // Rapids — blue-gray dashed lines (visible in both modes)
                 if (!m.isZOnly) {
+                    if (!showRapids) continue;
                     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-                    ctx.strokeStyle = isUsinagem ? 'rgba(255,200,100,0.3)' : 'rgba(255,200,100,0.55)';
+                    ctx.strokeStyle = isUsinagem ? 'rgba(80,60,30,0.35)' : 'rgba(80,120,200,0.50)';
                     ctx.lineWidth = (isUsinagem ? 0.6 : 1.0) * dpr; ctx.setLineDash([4 * dpr, 4 * dpr]);
                     ctx.stroke(); ctx.setLineDash([]);
                 }
-                rapidDist += dist;
             } else if (m.isZOnly) {
                 // ── Furo (hole) — real diameter circle, proportional ──
                 const cat = getOpCat(m.op);
+                // Filter by hidden categories
+                if (hiddenCats.has(cat.key)) continue;
                 const depth = espReal - m.z2;
                 const depthRatio = Math.min(Math.max(depth / espReal, 0), 1);
                 if (depthRatio > 0.02) {
@@ -351,30 +869,42 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     // Fill intensity scales with depth — deeper = more opaque fill
                     const fillAlpha = 0.15 + depthRatio * 0.45; // 0.15..0.60
                     if (isUsinagem) {
-                        // Solid color fill — uses operation color so rebaixo=cyan, furo=red, etc.
-                        ctx.fillStyle = neonColor;
-                        ctx.globalAlpha = fillAlpha;
-                        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.fill();
-                        // Solid ring border
-                        ctx.strokeStyle = neonColor;
-                        ctx.lineWidth = Math.max(1.2 * dpr, r * 0.25);
-                        ctx.globalAlpha = 0.8 + depthRatio * 0.2;
-                        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.stroke();
-                        // Glow
+                        // ── Furo vertical 3D — warm recessed mark on light MDF ─────────
                         ctx.save();
-                        ctx.shadowColor = neonColor;
-                        ctx.shadowBlur = 8 * dpr * depthRatio;
-                        ctx.strokeStyle = neonColor;
-                        ctx.lineWidth = 0.5 * dpr;
-                        ctx.globalAlpha = 0.4 * depthRatio;
-                        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.stroke();
+                        ctx.shadowColor = 'rgba(58,36,20,0.38)';
+                        ctx.shadowBlur = r * 0.7;
+                        ctx.fillStyle = '#5a351c'; ctx.globalAlpha = 0.22;
+                        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.fill();
                         ctx.restore();
-                        // Cross marker for through-holes
-                        if (isThrough && r > 2 * dpr) {
-                            ctx.strokeStyle = '#fff';
-                            ctx.lineWidth = 0.8 * dpr;
-                            ctx.globalAlpha = 0.6;
-                            const cr = r * 0.45;
+
+                        ctx.fillStyle = isThrough ? '#3a2414' : '#5a351c';
+                        ctx.globalAlpha = 0.86;
+                        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.fill();
+
+                        const ihGrad = ctx.createRadialGradient(x2 - r * 0.35, y2 - r * 0.35, 0, x2, y2, r);
+                        ihGrad.addColorStop(0,    'rgba(255,225,170,0.07)');
+                        ihGrad.addColorStop(0.4,  'rgba(92,58,28,0.24)');
+                        ihGrad.addColorStop(1,    'rgba(58,36,20,0.78)');
+                        ctx.fillStyle = ihGrad; ctx.globalAlpha = 1;
+                        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.fill();
+
+                        // Warm MDF rim
+                        ctx.strokeStyle = 'rgba(200,158,78,0.88)';
+                        ctx.lineWidth = Math.max(1.0 * dpr, r * 0.12);
+                        ctx.globalAlpha = 0.88;
+                        ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.stroke();
+                        const innerR2 = r - Math.max(1.2 * dpr, r * 0.13);
+                        if (innerR2 > 0.5) {
+                            ctx.strokeStyle = neonColor;
+                            ctx.lineWidth = Math.max(0.6 * dpr, r * 0.06);
+                            ctx.globalAlpha = 0.60;
+                            ctx.beginPath(); ctx.arc(x2, y2, innerR2, 0, Math.PI * 2); ctx.stroke();
+                        }
+
+                        if (isThrough && r > 3 * dpr) {
+                            ctx.strokeStyle = 'rgba(200,158,78,0.32)';
+                            ctx.lineWidth = 0.6 * dpr; ctx.globalAlpha = 0.5;
+                            const cr = r * 0.48;
                             ctx.beginPath(); ctx.moveTo(x2 - cr, y2); ctx.lineTo(x2 + cr, y2); ctx.stroke();
                             ctx.beginPath(); ctx.moveTo(x2, y2 - cr); ctx.lineTo(x2, y2 + cr); ctx.stroke();
                         }
@@ -391,53 +921,72 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         ctx.globalAlpha = 1;
                     }
                 }
-                cutDist += Math.abs(m.z2 - m.z1);
             } else {
                 // ── Corte (cut) ──
                 const cat = getOpCat(m.op);
+                // Filter by hidden categories
+                if (hiddenCats.has(cat.key)) continue;
                 const depth = espReal - m.z2;
                 const depthRatio = Math.min(Math.max(depth / espReal, 0), 1);
                 const neonColor = cat.glow;
                 const toolW = Math.max(toolD * sc * 0.7, 1.2 * dpr);
                 // Passante (contorno) = full intensity, parcial (rebaixo) = softer
                 const isPassante = depthRatio > 0.9;
-                const intensity = isPassante ? 1.0 : 0.6;
-
                 if (isUsinagem && depthRatio > 0.01) {
-                    // ── NEON LIGHTSABER EFFECT ──
-                    // Layer 1: Wide outer glow (bloom)
-                    ctx.save();
-                    ctx.shadowColor = neonColor;
-                    ctx.shadowBlur = 14 * dpr * depthRatio * intensity;
-                    ctx.strokeStyle = neonColor;
-                    ctx.globalAlpha = 0.12 * depthRatio * intensity;
-                    ctx.lineWidth = toolW * 3;
-                    ctx.lineCap = 'round';
-                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-                    ctx.restore();
+                    // ── 2.5D KERF / GROOVE SIMULATION ──────────────────────────────────
+                    // Visualização realista: sulco escuro fresado na chapa clara de MDF.
+                    //   • Interior escuro  = material removido (madeira/MDF interior)
+                    //   • Borda esquerda clara = reflexo de luz lateral
+                    //   • Borda direita escura = sombra profunda
+                    //   • Faixa colorida central = identificação do tipo de operação
 
-                    // Layer 2: Medium glow
-                    ctx.strokeStyle = neonColor;
-                    ctx.globalAlpha = 0.3 * depthRatio * intensity;
-                    ctx.lineWidth = toolW * 1.6;
-                    ctx.lineCap = 'round';
-                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                    const kerfW = Math.max(toolD * sc * 0.90, 1.6 * dpr);
 
-                    // Layer 3: Core — bright saturated color
-                    ctx.strokeStyle = neonColor;
-                    ctx.globalAlpha = (0.7 + depthRatio * 0.3) * (isPassante ? 1 : 0.8);
-                    ctx.lineWidth = toolW * 0.8;
+                    // 1. Groove interior — dark warm brown (exposed MDF fiber, not black)
+                    //    Through-cuts = very dark; shallow = medium dark brown
+                    const grooveDark = isPassante ? '#3a2414' : `rgba(86,52,26,${0.66 + depthRatio * 0.20})`;
+                    ctx.strokeStyle = grooveDark;
+                    ctx.globalAlpha = 0.88 + depthRatio * 0.12;
+                    ctx.lineWidth = kerfW;
                     ctx.lineCap = 'round';
                     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
 
-                    // Layer 4: White-hot center (only for passante cuts)
-                    if (isPassante) {
-                        ctx.strokeStyle = '#ffffff';
-                        ctx.globalAlpha = 0.4 * depthRatio;
-                        ctx.lineWidth = Math.max(toolW * 0.25, 0.6 * dpr);
+                    // 2. Lateral edge lighting — 3D groove illusion
+                    const ddx = x2 - x1, ddy = y2 - y1;
+                    const dlen = Math.sqrt(ddx * ddx + ddy * ddy);
+                    if (dlen > 0.5 * dpr && kerfW > 1.8 * dpr) {
+                        const nx = -ddy / dlen, ny = ddx / dlen; // left-normal
+                        const edgeOff = kerfW * 0.43;
+                        const edgeW = Math.max(0.9 * dpr, kerfW * 0.12);
+
+                        // Lit edge (top-left light source) — warm cream shimmer
+                        ctx.strokeStyle = 'rgba(245,210,150,0.85)';
+                        ctx.globalAlpha = 0.40 + depthRatio * 0.30;
+                        ctx.lineWidth = edgeW;
+                        ctx.lineCap = 'butt';
+                        ctx.beginPath();
+                        ctx.moveTo(x1 + nx * edgeOff, y1 + ny * edgeOff);
+                        ctx.lineTo(x2 + nx * edgeOff, y2 + ny * edgeOff);
+                        ctx.stroke();
+
+                        // Shadow edge (bottom-right) — warm recessed MDF shadow
+                        ctx.strokeStyle = 'rgba(58,36,20,0.72)';
+                        ctx.globalAlpha = 0.44 + depthRatio * 0.25;
+                        ctx.lineWidth = Math.max(0.6 * dpr, kerfW * 0.08);
+                        ctx.beginPath();
+                        ctx.moveTo(x1 - nx * edgeOff, y1 - ny * edgeOff);
+                        ctx.lineTo(x2 - nx * edgeOff, y2 - ny * edgeOff);
+                        ctx.stroke();
                         ctx.lineCap = 'round';
-                        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
                     }
+
+                    // 3. Color identification stripe at center — operation type or feed heatmap
+                    const stripeColor = heatmapMode ? feedHeatColor(m.feed, minFeed, maxFeed) : neonColor;
+                    ctx.strokeStyle = stripeColor;
+                    ctx.globalAlpha = (isPassante ? 0.82 : 0.62) * (0.5 + depthRatio * 0.5);
+                    ctx.lineWidth = Math.max(kerfW * (heatmapMode ? 0.32 : 0.20), 0.7 * dpr);
+                    ctx.lineCap = 'round';
+                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
 
                     ctx.globalAlpha = 1;
                 } else {
@@ -451,7 +1000,6 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
                     ctx.globalAlpha = 1;
                 }
-                cutDist += dist;
             }
         }
         ctx.setLineDash([]);
@@ -486,7 +1034,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                 const cur = allMoves[moveLimit];
                 const curCat = getOpCat(cur.op);
                 const isCutting = cur.type !== 'G0' && (espReal - cur.z2) > 0.5;
-                const spindleColor = isCutting ? curCat.glow : '#1379F0';
+                const spindleColor = isCutting ? curCat.glow : '#2563eb';
 
                 // Glow halo when cutting
                 if (isCutting && isUsinagem) {
@@ -520,34 +1068,8 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
             }
         }
 
-        // ── HUD ──
-        if (moveLimit >= 0) {
-            const { tool, op } = getActiveEventsAt(moveLimit);
-            const cat = getOpCat(op);
-            const hudH = (tool ? 18 * dpr : 0) + (op ? 18 * dpr : 0) + 10 * dpr;
-            ctx.fillStyle = '#0d0d15dd'; ctx.fillRect(4 * dpr, 30 * dpr, 300 * dpr, hudH);
-            let hy = 46 * dpr;
-            if (tool) { ctx.fillStyle = '#f9e2af'; ctx.font = `bold ${10 * dpr}px sans-serif`; ctx.fillText(tool, 10 * dpr, hy); hy += 18 * dpr; }
-            if (op) { ctx.fillStyle = cat.glow; ctx.font = `bold ${10 * dpr}px sans-serif`; ctx.fillText(`${cat.label}: ${op}`, 10 * dpr, hy); }
-        }
-
-        // ── Bottom progress bar ──
-        if (moveLimit >= 0) {
-            const pct = (moveLimit + 1) / allMoves.length;
-            ctx.fillStyle = '#0a0a12'; ctx.fillRect(0, H - 26 * dpr, W, 26 * dpr);
-            ctx.fillStyle = '#1379F018'; ctx.fillRect(0, H - 26 * dpr, W * pct, 26 * dpr);
-            for (const ev of allEvents) {
-                if (ev.type === 'tool') {
-                    ctx.fillStyle = '#f9e2af'; ctx.fillRect(W * (ev.moveIdx / allMoves.length) - 1, H - 26 * dpr, 2 * dpr, 26 * dpr);
-                }
-            }
-            ctx.fillStyle = '#cdd6f4'; ctx.font = `${10 * dpr}px monospace`;
-            ctx.fillText(`Move ${moveLimit + 1}/${allMoves.length}  |  Rapido: ${(rapidDist / 1000).toFixed(1)}m  |  Corte: ${(cutDist / 1000).toFixed(1)}m`, 10 * dpr, H - 9 * dpr);
-        } else {
-            ctx.fillStyle = '#cdd6f4'; ctx.font = `${11 * dpr}px monospace`;
-            ctx.fillText(`${allMoves.length} movimentos  |  Rapido: ${(rapidDist / 1000).toFixed(1)}m  |  Corte: ${(cutDist / 1000).toFixed(1)}m`, 10 * dpr, H - 10 * dpr);
-        }
-    }, [gcode, chapa, allMoves, allEvents, getActiveEventsAt, zoom, panOff, espReal, dims, simMode, moveToolDiams]);
+        if (viewRotated) ctx.restore();
+    }, [gcode, chapa, allMoves, allEvents, zoom, panOff, espReal, dims, simMode, moveToolDiams, hiddenCats, showRapids, heatmapMode, minFeed, maxFeed, autoOrient, getPieceAt]);
 
     useEffect(() => { renderCanvas(curMove); }, [curMove, renderCanvas]);
 
@@ -598,22 +1120,19 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
         const W = dims.w * dpr;
         const H = dims.h * dpr;
         const cw = chapa.comprimento || 2750, cl = chapa.largura || 1850;
-        const pad = 30 * dpr;
-        const sc = Math.min((W - 2 * pad) / cw, (H - 2 * pad) / cl) * zoom;
-        const offX = (W - cw * sc) / 2 + panOff.x * dpr;
-        const offY = (H - cl * sc) / 2 + panOff.y * dpr;
+        const viewRotated = autoOrient && cl > cw;
+        const pad = 24 * dpr;
+        const fitW = viewRotated ? cl : cw;
+        const fitH = viewRotated ? cw : cl;
+        const sc = Math.min((W - 2 * pad) / fitW, (H - 2 * pad) / fitH) * zoom;
+        const offX = pad + panOff.x * dpr + ((W - pad * 2) - fitW * sc) / 2;
+        const offY = pad + panOff.y * dpr + ((H - pad * 2) - fitH * sc) / 2;
         // Convert mouse to sheet coords (accounting for dpr)
-        const sheetX = (mx * dpr - offX) / sc;
-        const sheetY = (my * dpr - offY) / sc;
-        const ref = chapa.refilo || 10;
-        let found = null;
-        for (let i = chapa.pecas.length - 1; i >= 0; i--) {
-            const p = chapa.pecas[i];
-            if (sheetX >= ref + p.x && sheetX <= ref + p.x + p.w && sheetY >= ref + p.y && sheetY <= ref + p.y + p.h) {
-                found = p;
-                break;
-            }
-        }
+        const localX = mx * dpr - offX;
+        const localY = my * dpr - offY;
+        const sheetX = viewRotated ? localY / sc : localX / sc;
+        const sheetY = viewRotated ? localX / sc : cl - (localY / sc);
+        const found = getPieceAt(sheetX, sheetY);
         if (found) {
             setHoverInfo({ x: e.clientX - rect.left + 12, y: e.clientY - rect.top - 10, piece: found });
         } else {
@@ -666,122 +1185,567 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
         }
     };
 
+    // ─── Filter helpers ───────────────────────────────────────────────────
+    const toggleCat = (key) => {
+        setHiddenCats(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+    const hasActiveFilters = hiddenCats.size > 0 || !showRapids;
+
+    // ─── Next/Prev tool jump ──────────────────────────────────────────────
+    const jumpNextTool = () => {
+        const next = toolEvents.find(ev => ev.moveIdx > curMove);
+        if (next) { setPlaying(false); setCurMove(next.moveIdx); }
+    };
+    const jumpPrevTool = () => {
+        const prev = [...toolEvents].reverse().find(ev => ev.moveIdx < curMove);
+        if (prev) { setPlaying(false); setCurMove(prev.moveIdx); }
+    };
+
+    const currentMove = curMove >= 0 && curMove < allMoves.length ? allMoves[curMove] : null;
+    const activePiece = currentMove ? getPieceAt(currentMove.x2, currentMove.y2) : null;
+    const isPortraitSheet = Boolean(chapa) && (chapa.largura || 1850) > (chapa.comprimento || 2750);
+    const progressPct = allMoves.length ? Math.round(((curMove < 0 ? allMoves.length : curMove + 1) / allMoves.length) * 100) : 0;
     const { tool: activeTool, op: activeOp } = curMove >= 0 ? getActiveEventsAt(curMove) : { tool: '', op: '' };
+    const activeCat = activeOp ? getOpCat(activeOp) : null;
+    const activeFeed = currentMove?.feed || 0;
+    const activeZ = Number.isFinite(currentMove?.z2) ? currentMove.z2 : null;
+    const nextTool = toolEvents.find(ev => ev.moveIdx > curMove);
+    const activeOperationBlock = curMove >= 0
+        ? operationBlocks.find(op => curMove >= op.start && curMove <= op.end)
+        : null;
+    const jumpToOperation = (op, focus = false) => {
+        setPlaying(false);
+        setCurMove(op.start);
+        if (focus) {
+            setZoom(z => Math.max(z, 1.35));
+            setPanOff({ x: 0, y: 0 });
+        }
+    };
+    const activeLineLabel = currentMove
+        ? `${currentMove.type}${currentMove.x2 != null ? ` X${currentMove.x2.toFixed(1)}` : ''}${currentMove.y2 != null ? ` Y${currentMove.y2.toFixed(1)}` : ''}${activeZ != null ? ` Z${activeZ.toFixed(2)}` : ''}`
+        : 'Visão geral do percurso';
 
-    const simContent = (isFS) => (
-        <div ref={isFS ? undefined : wrapRef} style={isFS
-            ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 99999, background: '#0d0d15', display: 'flex', flexDirection: 'column' }
-            : { position: 'relative' }
-        }>
-            <canvas ref={canvasRef}
-                style={{
-                    borderRadius: isFS ? 0 : '8px 8px 0 0',
-                    border: isFS ? 'none' : '1px solid var(--border)', borderBottom: 'none',
-                    cursor: panRef.current ? 'grabbing' : 'grab', display: 'block',
-                    width: dims.w, height: dims.h, touchAction: 'none',
-                }}
-                onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp} onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }}
-                onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} />
-
-            {/* Piece tooltip on hover */}
-            {hoverInfo && hoverInfo.piece && (
-                <div style={{
-                    position: 'absolute', left: hoverInfo.x, top: hoverInfo.y,
-                    pointerEvents: 'none', zIndex: 50,
-                    background: 'rgba(15,15,25,0.92)', border: '1px solid rgba(100,140,255,0.3)',
-                    borderRadius: 6, padding: '6px 10px', maxWidth: 220,
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-                }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#e0e6ff', marginBottom: 2 }}>
-                        {hoverInfo.piece.nome || 'Peça'}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#8890b0' }}>
-                        {Math.round(hoverInfo.piece.w)} × {Math.round(hoverInfo.piece.h)} mm
-                    </div>
-                </div>
-            )}
-
-            {/* Overlay controls */}
-            <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 4 }}>
-                <button onClick={() => setZoom(z => Math.min(8, z + 0.3))} style={CTRL.btn}>+</button>
-                <button onClick={() => setZoom(z => Math.max(0.3, z - 0.3))} style={CTRL.btn}>-</button>
-                <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); }} style={CTRL.btn}>Reset</button>
-                <button onClick={() => setFullscreen(f => !f)} style={CTRL.btn} title={fullscreen ? 'Sair tela cheia (ESC)' : 'Tela cheia'}>
-                    {fullscreen ? '\u2716' : '\u26F6'}
-                </button>
+    const renderMiniMetric = ({ label, value, tone = '#2f2a24' }) => (
+        <div style={{
+            padding: '8px 10px',
+            borderRadius: 7,
+            background: '#fffaf2',
+            border: '1px solid #ded6ca',
+            minWidth: 0,
+        }}>
+            <div style={{ color: tone, fontSize: 15, lineHeight: 1, fontWeight: 850, fontFamily: 'JetBrains Mono, Consolas, monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {value}
             </div>
-            <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4 }}>
-                <div style={{ display: 'flex', borderRadius: 5, overflow: 'hidden', border: '1px solid var(--border, #444)' }}>
-                    <button onClick={() => setSimMode('usinagem')} style={{
-                        padding: '3px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer', border: 'none',
-                        background: simMode === 'usinagem' ? '#1379F0' : 'rgba(30,30,50,0.8)',
-                        color: simMode === 'usinagem' ? '#fff' : '#888', transition: 'all 0.15s',
-                    }}>Usinagem</button>
-                    <button onClick={() => setSimMode('trajetoria')} style={{
-                        padding: '3px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer', border: 'none',
-                        background: simMode === 'trajetoria' ? '#1379F0' : 'rgba(30,30,50,0.8)',
-                        color: simMode === 'trajetoria' ? '#fff' : '#888', transition: 'all 0.15s',
-                    }}>Trajetoria</button>
-                </div>
-                <span style={{ fontSize: 9, color: '#666', background: 'rgba(13,13,21,0.8)', padding: '3px 8px', borderRadius: 5, backdropFilter: 'blur(4px)', alignSelf: 'center' }}>
-                    Zoom: {(zoom * 100).toFixed(0)}%
-                </span>
-            </div>
-
-            {/* Transport bar */}
-            <div style={CTRL.bar}>
-                {!playing
-                    ? <button onClick={handlePlay} style={CTRL.btnAct} title="Play">&#9654;</button>
-                    : <button onClick={handlePause} style={CTRL.btnAct} title="Pausar">&#9208;</button>
-                }
-                <button onClick={handleStop} style={CTRL.btn} title="Parar">&#9209;</button>
-                <button onClick={() => handleStep(-1)} style={CTRL.btn} title="Voltar">&#9198;</button>
-                <button onClick={() => handleStep(1)} style={CTRL.btn} title="Avancar">&#9197;</button>
-                <input type="range" min={0} max={Math.max(0, allMoves.length - 1)} value={curMove < 0 ? 0 : curMove}
-                    onChange={handleSlider} style={{ flex: 1, height: 4, accentColor: '#1379F0', cursor: 'pointer' }} />
-                <select value={speed} onChange={e => setSpeed(Number(e.target.value))}
-                    style={{ ...CTRL.btn, padding: '3px 6px', fontSize: 10 }}>
-                    <option value={0.5}>0.5x</option><option value={1}>1x</option><option value={2}>2x</option>
-                    <option value={5}>5x</option><option value={10}>10x</option><option value={20}>20x</option>
-                    <option value={50}>50x</option>
-                </select>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 80, textAlign: 'right', fontFamily: 'monospace' }}>
-                    {curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : `${allMoves.length} moves`}
-                </span>
-            </div>
-
-            {/* Legend */}
-            <div style={CTRL.legend}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#ffc864', opacity: 0.7 }}>
-                    <span style={{ width: 12, height: 0, borderTop: '1.5px dashed #ffc864', display: 'inline-block' }} /> Rapido
-                </span>
-                {foundOps.map(cat => {
-                    const isActive = activeOp && getOpCat(activeOp).key === cat.key;
-                    const isFuro = cat.key === 'furo';
-                    return (
-                        <span key={cat.key} style={{
-                            display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
-                            color: isActive ? cat.glow : 'var(--text-muted)',
-                            fontWeight: isActive ? 700 : 400, transition: 'all 0.2s',
-                            textShadow: isActive ? `0 0 8px ${cat.glow}` : 'none',
-                        }}>
-                            <span style={{
-                                width: isFuro ? 8 : 10, height: isFuro ? 8 : 3,
-                                borderRadius: isFuro ? '50%' : 2, display: 'inline-block',
-                                background: isFuro ? 'transparent' : cat.glow,
-                                border: isFuro ? `1.5px solid ${cat.glow}` : 'none',
-                                opacity: isActive ? 1 : 0.4,
-                                boxShadow: isActive ? `0 0 6px ${cat.glow}` : 'none',
-                            }} />
-                            {cat.label}
-                        </span>
-                    );
-                })}
-                {activeTool && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#f9e2af', fontWeight: 600 }}>{activeTool}</span>}
+            <div style={{ color: '#8a8176', fontSize: 8, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 5 }}>
+                {label}
             </div>
         </div>
     );
+
+    const renderLayerButton = ({ active, label, color, onClick, dashed }) => (
+        <button
+            onClick={onClick}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                width: '100%',
+                padding: '7px 9px',
+                borderRadius: 7,
+                border: `1px solid ${active ? '#d7cbbb' : '#eadfce'}`,
+                background: active ? '#fffaf2' : '#f7f1e8',
+                color: active ? '#2f2a24' : '#9a8f83',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: 11,
+                fontWeight: 750,
+            }}
+        >
+            <span style={{
+                width: 18,
+                height: dashed ? 0 : 8,
+                borderRadius: dashed ? 0 : 99,
+                borderTop: dashed ? `2px dashed ${color}` : 'none',
+                background: dashed ? 'transparent' : color,
+                opacity: active ? 1 : 0.35,
+                flexShrink: 0,
+            }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        </button>
+    );
+
+    const simContent = (isFS) => {
+        const hasToolRow = toolEvents.length >= 2;
+        const br = isFS ? 0 : '0 0 8px 8px';
+        const sideW = isFS ? 320 : Math.min(260, Math.max(210, Math.round(dims.w * 0.30)));
+
+        return (
+            <div style={isFS
+                ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 99999, background: '#f4f1ea', display: 'flex', flexDirection: 'column' }
+                : { position: 'relative' }
+            }>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: `minmax(0, 1fr) ${sideW}px`,
+                    minHeight: 0,
+                    borderTop: isFS ? 'none' : '1px solid #ded6ca',
+                    borderRight: isFS ? 'none' : '1px solid #ded6ca',
+                    borderBottom: 'none',
+                    borderLeft: isFS ? 'none' : '1px solid #ded6ca',
+                    borderRadius: isFS ? 0 : '8px 8px 0 0',
+                    overflow: 'hidden',
+                    background: '#f4f1ea',
+                }}>
+                    {/* ── Canvas — clean CAM viewport ── */}
+                    <div ref={isFS ? undefined : wrapRef} style={{ position: 'relative', minWidth: 0, background: '#efe9df' }}>
+                        <canvas ref={canvasRef}
+                            style={{
+                                cursor: panRef.current ? 'grabbing' : 'grab', display: 'block',
+                                width: dims.w, height: dims.h, touchAction: 'none',
+                            }}
+                            onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp} onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }}
+                            onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+                        />
+
+                        {/* Timeline panel overlay — slides in from right */}
+                        {showTimeline && allEvents.length > 0 && (
+                            <div style={{
+                                position: 'absolute', top: 0, right: 0,
+                                height: '100%', width: 240, zIndex: 10,
+                                overflowY: 'auto', background: 'rgba(255,250,242,0.96)',
+                                borderLeft: '1px solid #ded6ca',
+                                backdropFilter: 'blur(6px)',
+                            }}>
+                                <div style={{ padding: '10px 12px 6px', fontSize: 10, fontWeight: 850, color: '#6b5f52', letterSpacing: 1, borderBottom: '1px solid #ded6ca', position: 'sticky', top: 0, background: 'rgba(255,250,242,0.99)', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span>EVENTOS</span>
+                                    <button onClick={() => setShowTimeline(false)}
+                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#8a8176', padding: '0 2px', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center' }}
+                                        title="Fechar">x</button>
+                                </div>
+                                {allEvents.map((ev, idx) => {
+                                    const isActive = idx === activeTimelineIdx;
+                                    const pct = allMoves.length > 0 ? ((ev.moveIdx / allMoves.length) * 100).toFixed(0) : '0';
+                                    const evColor = getEventColor(ev);
+                                    return (
+                                        <div key={idx}
+                                            onClick={() => { setPlaying(false); setCurMove(ev.moveIdx); }}
+                                            style={{
+                                                padding: '7px 10px', fontSize: 10,
+                                                borderBottom: '1px solid rgba(120,100,75,0.12)',
+                                                cursor: 'pointer',
+                                                background: isActive ? 'rgba(37,99,235,0.10)' : 'transparent',
+                                                borderLeft: isActive ? '3px solid #2563eb' : '3px solid transparent',
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                transition: 'background 0.1s',
+                                            }}>
+                                            <span style={{ fontSize: 11, flexShrink: 0 }}>{getEventIcon(ev)}</span>
+                                            <span style={{ color: evColor, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.label}</span>
+                                            <span style={{ color: '#8a8176', fontSize: 9, flexShrink: 0 }}>{pct}%</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Piece tooltip on hover */}
+                        {hoverInfo && hoverInfo.piece && (
+                            <div style={{
+                                position: 'absolute', left: hoverInfo.x, top: hoverInfo.y,
+                                pointerEvents: 'none', zIndex: 50,
+                                background: 'rgba(255,250,242,0.96)', border: '1px solid rgba(120,100,75,0.25)',
+                                borderRadius: 6, padding: '6px 10px', maxWidth: 220,
+                                boxShadow: '0 4px 16px rgba(70,50,25,0.18)',
+                            }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#5f4931', marginBottom: 2 }}>{hoverInfo.piece.nome || 'Peça'}</div>
+                                <div style={{ fontSize: 10, color: '#8a6a42' }}>{Math.round(hoverInfo.piece.w)} × {Math.round(hoverInfo.piece.h)} mm</div>
+                            </div>
+                        )}
+                    </div>
+
+                    <aside style={{
+                        minWidth: 0,
+                        borderLeft: '1px solid #ded6ca',
+                        background: '#fbf8f2',
+                        color: '#2f2a24',
+                        padding: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        overflowY: 'auto',
+                        height: dims.h,
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <div>
+                                <div style={{ color: '#2f2a24', fontSize: 13, fontWeight: 850 }}>Painel técnico</div>
+                                <div style={{ color: '#8a8176', fontSize: 10, marginTop: 2 }}>Simulação 2D CAM</div>
+                            </div>
+                            <span style={{
+                                padding: '4px 8px',
+                                borderRadius: 999,
+                                background: playing ? 'rgba(22,163,74,0.12)' : 'rgba(37,99,235,0.10)',
+                                border: `1px solid ${playing ? 'rgba(22,163,74,0.30)' : 'rgba(37,99,235,0.25)'}`,
+                                color: playing ? '#15803d' : '#2563eb',
+                                fontSize: 10,
+                                fontWeight: 850,
+                            }}>
+                                {playing ? 'Rodando' : curMove >= 0 ? 'Pausado' : 'Pronto'}
+                            </span>
+                        </div>
+
+                        <div style={{ height: 7, borderRadius: 999, overflow: 'hidden', background: '#eee6da', border: '1px solid #ded6ca' }}>
+                            <div style={{ width: `${progressPct}%`, height: '100%', background: playing ? '#22c55e' : '#2563eb' }} />
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+                            {renderMiniMetric({ label: 'Mov.', value: curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : allMoves.length, tone: '#2563eb' })}
+                            {renderMiniMetric({ label: 'Zoom', value: `${(zoom * 100).toFixed(0)}%`, tone: '#2f2a24' })}
+                            {renderMiniMetric({ label: 'Feed', value: activeFeed ? `${activeFeed.toFixed(0)}` : '—', tone: '#9a5b13' })}
+                            {renderMiniMetric({ label: 'Z atual', value: activeZ != null ? activeZ.toFixed(2) : '—', tone: activeZ != null && activeZ < 0 ? '#b91c1c' : '#2f2a24' })}
+                        </div>
+
+                        <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
+                            <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Ferramenta atual</div>
+                            <div style={{ color: activeTool ? '#9a5b13' : '#8a8176', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
+                                {activeTool || 'Aguardando início'}
+                            </div>
+                            {nextTool && (
+                                <div style={{ color: '#8a8176', fontSize: 10, marginTop: 7 }}>
+                                    Próxima: <span style={{ color: '#2f2a24' }}>{nextTool.label}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
+                            <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Operação</div>
+                            <div style={{ color: activeCat?.glow || '#2f2a24', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
+                                {activeOp || (curMove >= 0 ? 'Sem metadado de operação' : 'Visão geral')}
+                            </div>
+                            <div style={{ color: '#8a8176', fontSize: 10, marginTop: 7, fontFamily: 'JetBrains Mono, Consolas, monospace' }}>
+                                {activeLineLabel}
+                            </div>
+                            {activePiece && (
+                                <div style={{ color: '#2563eb', fontSize: 10, marginTop: 7, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    Peça: {activePiece.nome || activePiece.descricao || 'sem nome'}
+                                </div>
+                            )}
+                            {activeOperationBlock && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                                    <span style={{ flex: 1, height: 5, borderRadius: 999, background: '#eee6da', overflow: 'hidden' }}>
+                                        <span style={{
+                                            display: 'block',
+                                            width: `${Math.max(3, Math.min(100, ((curMove - activeOperationBlock.start + 1) / Math.max(1, activeOperationBlock.end - activeOperationBlock.start + 1)) * 100))}%`,
+                                            height: '100%',
+                                            background: activeOperationBlock.cat.glow,
+                                        }} />
+                                    </span>
+                                    <button
+                                        onClick={() => jumpToOperation(activeOperationBlock, true)}
+                                        style={{ ...CTRL.btn, padding: '4px 7px', fontSize: 9 }}
+                                        title="Centralizar e ampliar a operação atual"
+                                    >
+                                        Focar
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+                            {renderMiniMetric({ label: 'Corte', value: `${stats.cutDistM}m`, tone: '#15803d' })}
+                            {renderMiniMetric({ label: 'Rápido', value: `${stats.rapidDistM}m`, tone: '#c2410c' })}
+                        </div>
+
+                        {operationBlocks.length > 0 && (
+                            <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                        Sequência operacional
+                                    </div>
+                                    <span style={{ fontSize: 9, color: '#8a8176', fontWeight: 750 }}>
+                                        {operationBlocks.length} etapas
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 180, overflowY: 'auto', paddingRight: 2 }}>
+                                    {operationBlocks.map((op, idx) => {
+                                        const isActive = curMove >= op.start && curMove <= op.end;
+                                        return (
+                                            <button
+                                                key={op.id}
+                                                onClick={() => jumpToOperation(op)}
+                                                style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '18px minmax(0,1fr) auto',
+                                                    gap: 7,
+                                                    alignItems: 'center',
+                                                    padding: '7px 8px',
+                                                    borderRadius: 7,
+                                                    border: `1px solid ${isActive ? op.cat.glow : '#eadfce'}`,
+                                                    background: isActive ? 'rgba(37,99,235,0.08)' : '#fbf8f2',
+                                                    color: '#2f2a24',
+                                                    cursor: 'pointer',
+                                                    textAlign: 'left',
+                                                }}
+                                            >
+                                                <span style={{
+                                                    width: 16,
+                                                    height: 16,
+                                                    borderRadius: 999,
+                                                    background: op.cat.glow,
+                                                    color: '#fff',
+                                                    display: 'grid',
+                                                    placeItems: 'center',
+                                                    fontSize: 8,
+                                                    fontWeight: 900,
+                                                }}>
+                                                    {idx + 1}
+                                                </span>
+                                                <span style={{ minWidth: 0 }}>
+                                                    <span style={{ display: 'block', fontSize: 10, fontWeight: 850, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {op.label}
+                                                    </span>
+                                                    <span style={{ display: 'block', fontSize: 9, color: '#8a8176', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {op.tool || op.cat.label}
+                                                    </span>
+                                                </span>
+                                                <span style={{ fontSize: 9, color: '#6b5f52', fontFamily: 'JetBrains Mono, Consolas, monospace', whiteSpace: 'nowrap' }}>
+                                                    {op.cutM.toFixed(1)}m
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
+                            <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Camadas</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {renderLayerButton({ active: showRapids, label: 'Movimentos rápidos', color: '#8a7050', dashed: true, onClick: () => setShowRapids(r => !r) })}
+                                {foundOps.map(cat => (
+                                    <span key={cat.key}>
+                                        {renderLayerButton({ active: !hiddenCats.has(cat.key), label: cat.label, color: cat.glow, onClick: () => toggleCat(cat.key) })}
+                                    </span>
+                                ))}
+                                {hasActiveFilters && (
+                                    <button onClick={() => { setHiddenCats(new Set()); setShowRapids(true); }} style={{
+                                        marginTop: 2,
+                                        padding: '7px 9px',
+                                        borderRadius: 7,
+                                        border: '1px solid #d7cbbb',
+                                        background: '#fffaf2',
+                                        color: '#2563eb',
+                                        cursor: 'pointer',
+                                        fontSize: 11,
+                                        fontWeight: 800,
+                                    }}>
+                                        Restaurar camadas
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+
+                {/* ── Stats panel (collapsible) ── */}
+                {showStats && (
+                    <div style={{ background: '#fbf8f2', border: '1px solid #ded6ca', borderTop: 'none', padding: '7px 10px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                            {[
+                                { label: 'Movimentos', value: stats.total },
+                                { label: 'Cortes', value: stats.cutMoves },
+                                { label: 'Rápidos', value: stats.rapidMoves },
+                                { label: 'Dist. Corte', value: `${stats.cutDistM}m` },
+                                { label: 'Dist. Rápido', value: `${stats.rapidDistM}m` },
+                                ...Object.entries(stats.catCounts).map(([key, count]) => {
+                                    const cat = OP_CATS.find(c => c.key === key) || { label: key, glow: '#c8a870' };
+                                    return { label: cat.label, value: count, color: cat.glow };
+                                }),
+                            ].map((tile, i) => (
+                                <div key={i} style={{ background: '#fffaf2', border: '1px solid #ded6ca', borderRadius: 5, padding: '4px 10px', minWidth: 68, textAlign: 'center' }}>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: tile.color || '#6b5f52', fontFamily: 'monospace' }}>{tile.value}</div>
+                                    <div style={{ fontSize: 9, color: '#8a8176', marginTop: 1 }}>{tile.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Row 1: Transport bar ── */}
+                <div style={CTRL.bar}>
+                    {!playing
+                        ? <button onClick={handlePlay} style={CTRL.btnAct} title="Reproduzir simulação (Espaço)">▶ Reproduzir</button>
+                        : <button onClick={handlePause} style={CTRL.btnAct} title="Pausar simulação">⏸ Pausar</button>
+                    }
+                    <button onClick={handleStop} style={CTRL.btn} title="Parar e voltar para visão geral (Esc)">⏹ Parar</button>
+                    <div style={CTRL.sep} />
+                    <button onClick={() => handleStep(-1)} style={CTRL.btn} title="Movimento anterior (←)">−1</button>
+                    <button onClick={() => handleStep(1)} style={CTRL.btn} title="Próximo movimento (→)">+1</button>
+                    {toolEvents.length > 0 && <>
+                        <button onClick={jumpPrevTool} style={CTRL.btn} title="Ferramenta anterior">Ferr. ant.</button>
+                        <button onClick={jumpNextTool} style={CTRL.btn} title="Próxima ferramenta">Próx. ferr.</button>
+                    </>}
+                    <input type="range" min={0} max={Math.max(0, allMoves.length - 1)} value={curMove < 0 ? 0 : curMove}
+                        onChange={handleSlider} style={{ flex: '1 1 170px', minWidth: 150, height: 4, accentColor: '#c87020', cursor: 'pointer' }} />
+                    <select value={speed} onChange={e => setSpeed(Number(e.target.value))}
+                        style={{ ...CTRL.btn, padding: '2px 4px', fontSize: 10 }}>
+                        {[0.5,1,2,5,10,20,50,100,200].map(v => <option key={v} value={v}>{v}x</option>)}
+                    </select>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 76, textAlign: 'right', fontFamily: 'monospace' }}>
+                        {curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : `${allMoves.length} mov`}
+                    </span>
+                </div>
+
+                {/* ── Row 2: View controls + legend ── */}
+                <div style={{
+                    ...CTRL.bar2,
+                    borderLeft: '1px solid #ded6ca',
+                    borderRight: '1px solid #ded6ca',
+                    borderBottom: '1px solid #ded6ca',
+                    borderTop: 'none',
+                    borderRadius: hasToolRow ? 0 : br,
+                }}>
+                    {/* Zoom */}
+                    <button onClick={() => setZoom(z => Math.max(0.3, z - 0.3))} style={CTRL.btn}>−</button>
+                    <span style={{ fontSize: 10, color: '#3f3426', minWidth: 36, textAlign: 'center', fontFamily: 'monospace' }}>{(zoom * 100).toFixed(0)}%</span>
+                    <button onClick={() => setZoom(z => Math.min(8, z + 0.3))} style={CTRL.btn}>+</button>
+                    <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); }} style={CTRL.btn} title="Encaixar na tela (F)">Encaixar</button>
+
+                    <div style={CTRL.sep} />
+
+                    {/* Mode toggle */}
+                    <div style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', border: '1px solid #d7cbbb' }}>
+                        {[['usinagem', 'Visual CAM'], ['trajetoria', 'Percurso']].map(([m, lbl]) => (
+                            <button key={m} onClick={() => setSimMode(m)} style={{
+                                padding: '5px 10px', fontSize: 10, fontWeight: 800, cursor: 'pointer', border: 'none',
+                                background: simMode === m ? '#2563eb' : '#fffaf2',
+                                color: simMode === m ? '#fff' : '#6b5f52', transition: 'all 0.15s',
+                            }}>{lbl}</button>
+                        ))}
+                    </div>
+
+                    <div style={CTRL.sep} />
+
+                    {/* Toggles */}
+                    <button onClick={() => setHeatmapMode(h => !h)}
+                        style={{
+                            ...CTRL.btn, fontWeight: 700,
+                            background: heatmapMode ? 'linear-gradient(90deg,#c03020 0%,#d4a020 50%,#1890d0 100%)' : '#fffaf2',
+                            color: heatmapMode ? '#fff' : '#6b5f52',
+                            border: heatmapMode ? '1px solid #c87020' : undefined,
+                        }}
+                        title="Colorir por velocidade de avanço">Velocidade</button>
+                    {isPortraitSheet && (
+                        <button onClick={() => { setAutoOrient(v => !v); setPanOff({ x: 0, y: 0 }); setZoom(1); setHoverInfo(null); }}
+                            style={autoOrient ? CTRL.btnAct : CTRL.btn}
+                            title={autoOrient ? 'Voltar para a chapa na posição vertical original' : 'Girar apenas a visualização para ocupar melhor o canvas'}>
+                            {autoOrient ? 'Visual vertical' : 'Girar visual'}
+                        </button>
+                    )}
+                    <button onClick={() => setShowStats(s => !s)}
+                        style={showStats ? CTRL.btnAct : CTRL.btn}
+                        title="Mostrar estatísticas">Estatísticas</button>
+                    <button onClick={() => setShowTimeline(t => !t)}
+                        style={showTimeline ? CTRL.btnAct : CTRL.btn}
+                        title="Mostrar eventos de ferramenta e operação">Eventos</button>
+                    <button onClick={() => setFullscreen(f => !f)}
+                        style={CTRL.btn}
+                        title={isFS ? 'Sair tela cheia (ESC)' : 'Tela cheia'}>
+                        {isFS ? 'Sair' : 'Tela cheia'}
+                    </button>
+
+                    <div style={CTRL.sep} />
+
+                    {/* Legend inline */}
+                    {!heatmapMode ? (
+                        <>
+                            <span onClick={() => setShowRapids(r => !r)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
+                                    color: '#8a7050', opacity: showRapids ? 0.75 : 0.35,
+                                    cursor: 'pointer', userSelect: 'none',
+                                    textDecoration: showRapids ? 'none' : 'line-through' }}>
+                                <span style={{ width: 12, height: 0, borderTop: '1.5px dashed #8a7050', display: 'inline-block' }} />
+                                Rápido
+                            </span>
+                            {foundOps.map(cat => {
+                                const isActive = activeOp && getOpCat(activeOp).key === cat.key;
+                                const isHidden = hiddenCats.has(cat.key);
+                                const isFuro = cat.key === 'furo';
+                                return (
+                                    <span key={cat.key} onClick={() => toggleCat(cat.key)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10,
+                                            color: isActive ? cat.glow : 'var(--text-muted)',
+                                            fontWeight: isActive ? 700 : 400, transition: 'all 0.15s',
+                                            textShadow: isActive ? `0 0 6px ${cat.glow}` : 'none',
+                                            opacity: isHidden ? 0.3 : 1,
+                                            textDecoration: isHidden ? 'line-through' : 'none',
+                                            cursor: 'pointer', userSelect: 'none' }}>
+                                        <span style={{
+                                            width: isFuro ? 7 : 9, height: isFuro ? 7 : 3,
+                                            borderRadius: isFuro ? '50%' : 2, display: 'inline-block',
+                                            background: isFuro ? 'transparent' : cat.glow,
+                                            border: isFuro ? `1.5px solid ${cat.glow}` : 'none',
+                                            opacity: isActive ? 1 : 0.45,
+                                            boxShadow: isActive ? `0 0 5px ${cat.glow}` : 'none',
+                                        }} />
+                                        {cat.label}
+                                    </span>
+                                );
+                            })}
+                            {hasActiveFilters && (
+                                <button onClick={() => { setHiddenCats(new Set()); setShowRapids(true); }}
+                                    style={{ fontSize: 9, padding: '2px 6px', cursor: 'pointer',
+                                        borderRadius: 4, border: '1px solid #d7cbbb', background: '#fffaf2',
+                                        color: '#2563eb', lineHeight: 1.4 }}>
+                                    Limpar
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <span style={{ fontSize: 10, color: '#8a8176' }}>Feed:</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <span style={{ fontSize: 9, color: '#c03020', fontFamily: 'monospace' }}>{minFeed.toFixed(0)}</span>
+                                <span style={{ width: 48, height: 5, borderRadius: 2, background: 'linear-gradient(90deg,#dc3c1e,#dcb41e,#16a050,#1464c0)', display: 'inline-block' }} />
+                                <span style={{ fontSize: 9, color: '#1464c0', fontFamily: 'monospace' }}>{maxFeed.toFixed(0)} mm/min</span>
+                            </span>
+                        </>
+                    )}
+
+                    {activeTool && (
+                        <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9a5b13', fontWeight: 600, flexShrink: 0 }}>
+                            ◈ {activeTool}
+                        </span>
+                    )}
+                </div>
+
+                {/* ── Row 3: Tool jump buttons (only when ≥2 tools) ── */}
+                {hasToolRow && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '5px 12px', background: '#fbf8f2',
+                        border: '1px solid #ded6ca', borderTop: 'none',
+                        borderRadius: br, overflowX: 'auto',
+                    }}>
+                        <span style={{ fontSize: 10, color: '#8a8176', flexShrink: 0, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ferramentas</span>
+                        {toolEvents.map((ev, i) => {
+                            const isActiveTool = i === activeToolIdx;
+                            return (
+                                <button key={i} onClick={() => { setPlaying(false); setCurMove(ev.moveIdx); }}
+                                    style={{ ...(isActiveTool ? CTRL.btnAct : CTRL.btn), flexShrink: 0, fontSize: 10, padding: '2px 7px' }}>
+                                    {i + 1}: {ev.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     if (fullscreen) {
         return (

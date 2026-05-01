@@ -35,8 +35,8 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     const [loading, setLoading] = useState(false);
     const [cfg, setCfg] = useState(null);
     const [cfgLoading, setCfgLoading] = useState(true);
-    const [filtroModulo, setFiltroModulo] = useState('');
-    const [filtroMaterial, setFiltroMaterial] = useState('');
+    const [filtroModulo, setFiltroModulo] = useState(() => localStorage.getItem('etiq_filtroModulo') || '');
+    const [filtroMaterial, setFiltroMaterial] = useState(() => localStorage.getItem('etiq_filtroMaterial') || '');
     const [templatePadrao, setTemplatePadrao] = useState(null);
     const [templateLoading, setTemplateLoading] = useState(false);
     const [usarTemplate, setUsarTemplate] = useState(true); // toggle template vs legacy
@@ -316,7 +316,7 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
 
                         {/* Filtros */}
                         {materiais.length > 1 && (
-                            <select value={filtroMaterial} onChange={e => setFiltroMaterial(e.target.value)}
+                            <select value={filtroMaterial} onChange={e => { setFiltroMaterial(e.target.value); localStorage.setItem('etiq_filtroMaterial', e.target.value); }}
                                 className={Z.inp} style={{ width: 160, fontSize: 11, padding: '6px 8px' }}>
                                 <option value="">Todos os materiais</option>
                                 {materiais.map(m => <option key={m} value={m}>{m}</option>)}
