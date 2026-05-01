@@ -30,6 +30,22 @@ export function printFolhaProducao(chapa, chapaIdx, pecasMap, loteAtual, getModC
 
         pecasSvg += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="${c}25" stroke="#1a1a1a" stroke-width="0.8"/>`;
 
+        // Nome da peça (descrição) — só em peças grandes o suficiente. Helps operador
+        // identificar visualmente sem cruzar com a tabela.
+        if (pw > 70 && ph > 35 && piece?.descricao) {
+            // Quebra em até 2 linhas se nome for longo
+            const maxChars = Math.floor(pw / 4);
+            const desc = piece.descricao;
+            const truncated = desc.length > maxChars ? desc.substring(0, maxChars - 1) + '…' : desc;
+            // Posição: acima do número central, sem sobrepor
+            pecasSvg += `<text x="${px + pw / 2}" y="${py + ph / 2 - 14}" text-anchor="middle" font-size="6.5" fill="#1a1a1a" font-weight="600">${truncated.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</text>`;
+            // Subtítulo com upmcode/módulo se houver espaço
+            if (piece.modulo_desc && ph > 60) {
+                const modTxt = piece.modulo_desc.length > maxChars ? piece.modulo_desc.substring(0, maxChars - 1) + '…' : piece.modulo_desc;
+                pecasSvg += `<text x="${px + pw / 2}" y="${py + ph / 2 - 6}" text-anchor="middle" font-size="5" fill="#666" font-style="italic">${modTxt.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</text>`;
+            }
+        }
+
         // Dimension labels on pieces
         if (pw > 35 && ph > 14) {
             pecasSvg += `<text x="${px + pw / 2}" y="${py + ph - 3}" text-anchor="middle" font-size="5.5" fill="#555" font-family="monospace">${Math.round(p.w)}x${Math.round(p.h)}</text>`;

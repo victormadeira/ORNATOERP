@@ -4265,7 +4265,11 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                             {[
                                 { label: 'Chapas', value: comparisonData.total_chapas, color: '#3b82f6' },
                                 { label: 'Peças', value: comparisonData.total_pecas, color: '#22c55e' },
-                                { label: 'Aproveit. Médio', value: `${((comparisonData.aproveitamento_medio || 0) * 100).toFixed(1)}%`, color: '#f59e0b' },
+                                { label: 'Aproveit. Médio', value: `${(() => {
+                                    const v = comparisonData.aproveitamento_medio || 0;
+                                    // Defensivo: aceita ratio (0-1) OU percentage (0-100)
+                                    return (v <= 1 ? v * 100 : v).toFixed(1);
+                                })()}%`, color: '#f59e0b' },
                             ].map((c, i) => (
                                 <div key={i} style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', textAlign: 'center' }}>
                                     <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
@@ -4286,16 +4290,22 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         {comparisonData.por_chapa && (
                             <div>
                                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Por Chapa</div>
-                                {comparisonData.por_chapa.map((ch, i) => (
-                                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-muted)', marginBottom: 4 }}>
-                                        <span style={{ fontSize: 11, fontWeight: 700, minWidth: 60 }}>Chapa {ch.idx + 1}</span>
-                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1 }}>{ch.material} · {ch.pecas} pç</span>
-                                        <div style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
-                                            <div style={{ height: '100%', width: `${(ch.aproveitamento || 0) * 100}%`, background: (ch.aproveitamento || 0) > 0.7 ? '#22c55e' : (ch.aproveitamento || 0) > 0.5 ? '#f59e0b' : '#ef4444', borderRadius: 3 }} />
+                                {comparisonData.por_chapa.map((ch, i) => {
+                                    // Defensivo: aceita ratio (0-1) OU percentage (0-100)
+                                    const raw = ch.aproveitamento || 0;
+                                    const pct = raw <= 1 ? raw * 100 : raw;
+                                    const ratio = pct / 100; // pra width da barra
+                                    return (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-muted)', marginBottom: 4 }}>
+                                            <span style={{ fontSize: 11, fontWeight: 700, minWidth: 60 }}>Chapa {ch.idx + 1}</span>
+                                            <span style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1 }}>{ch.material} · {ch.pecas} pç</span>
+                                            <div style={{ width: 80, height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+                                                <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: ratio > 0.7 ? '#22c55e' : ratio > 0.5 ? '#f59e0b' : '#ef4444', borderRadius: 3 }} />
+                                            </div>
+                                            <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 40, textAlign: 'right' }}>{pct.toFixed(1)}%</span>
                                         </div>
-                                        <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 40, textAlign: 'right' }}>{((ch.aproveitamento || 0) * 100).toFixed(1)}%</span>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                         {comparisonData.sobras?.length > 0 && (
