@@ -392,7 +392,7 @@ export function GcodeSimCanvas({ gcode, chapa }) {
             const hudH = (tool ? 16 : 0) + (op ? 16 : 0) + 10;
             ctx.fillStyle = 'rgba(10,5,2,0.84)'; ctx.fillRect(4, 28, 280, hudH);
             let hy = 44;
-            if (tool) { ctx.fillStyle = 'rgba(215,170,95,0.95)'; ctx.font = 'bold 10px monospace'; ctx.fillText(`🔧 ${tool}`, 10, hy); hy += 16; }
+            if (tool) { ctx.fillStyle = 'rgba(215,170,95,0.95)'; ctx.font = 'bold 10px monospace'; ctx.fillText(`Tool: ${tool}`, 10, hy); hy += 16; }
             if (op) { ctx.fillStyle = cat.color; ctx.font = 'bold 10px sans-serif'; ctx.fillText(`${cat.label}: ${op}`, 10, hy); }
         }
 

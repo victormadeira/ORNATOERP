@@ -194,7 +194,7 @@ function getEventColor(ev) {
 }
 
 function getEventIcon(ev) {
-    if (ev.type === 'tool') return '🔧';
+    if (ev.type === 'tool') return '⌖';
     if (ev.type === 'op') return '▶';
     if (ev.label === 'Spindle ON') return '⚙';
     if (ev.label === 'Spindle OFF') return '⏹';

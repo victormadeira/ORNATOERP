@@ -1812,7 +1812,7 @@ function TVMarceneirosPanel({ team, cards, onCardClick }) {
 
   const statusStyle = {
     trabalhando: { label: 'TRABALHANDO',  bg: '#10B98120', color: '#10B981', border: '#10B98144' },
-    parado:      { label: '⚠ SEM MEXER', bg: '#F97316',   color: '#fff',    border: '#F97316',    pulse: true },
+    parado:      { label: 'SEM MEXER', bg: '#F97316',   color: '#fff',    border: '#F97316',    pulse: true },
     sem_tarefa:  { label: 'SEM TAREFA',   bg: '#EF444420', color: '#EF4444', border: '#EF444444', pulse: true },
   };
 

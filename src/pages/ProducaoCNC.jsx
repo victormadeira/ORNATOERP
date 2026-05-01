@@ -22,6 +22,7 @@ import { PageHeader, TabBar, Spinner } from '../ui';
 import {
     Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu,
     ArrowLeft, AlertTriangle, GitCompare, ChevronDown, ShieldAlert, X, QrCode,
+    Calendar, Clock,
 } from 'lucide-react';
 import useWebSocket from '../hooks/useWebSocket';
 import EditorEtiquetas from '../components/EditorEtiquetas';
@@ -134,6 +135,8 @@ export default function ProducaoCNC({ notify }) {
                     <EditorEtiquetas
                         api={api}
                         notify={notify}
+                        lotes={lotes}
+                        loteAtual={loteAtual}
                         initialTemplateId={editorTemplateId}
                         onBack={() => { setEditorMode(false); setEditorTemplateId(null); setConfigSection('etiquetas'); }}
                     />
@@ -301,9 +304,14 @@ export default function ProducaoCNC({ notify }) {
                         const diff = Math.ceil((new Date(loteAtual.data_entrega + 'T12:00:00') - new Date()) / 86400000);
                         const color = diff < 0 ? 'var(--danger)' : diff <= 3 ? 'var(--warning)' : 'var(--success)';
                         return (
-                            <span style={{ color, fontWeight: 700 }}>
-                                📅 {new Date(loteAtual.data_entrega + 'T12:00:00').toLocaleDateString('pt-BR')}
-                                {diff < 0 ? ` ⚠ ${Math.abs(diff)}d atrasado` : diff <= 3 ? ` ⏰ ${diff}d` : ''}
+                            <span style={{ color, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <Calendar size={12} />
+                                {new Date(loteAtual.data_entrega + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                {diff < 0
+                                    ? <><AlertTriangle size={11} style={{ marginLeft: 2 }} />{Math.abs(diff)}d atrasado</>
+                                    : diff <= 3
+                                        ? <><Clock size={11} style={{ marginLeft: 2 }} />{diff}d</>
+                                        : null}
                             </span>
                         );
                     })()}

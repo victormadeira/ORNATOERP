@@ -34,6 +34,11 @@ const VARIAVEIS = [
   { key: 'modulo_id',      label: 'ID Módulo',         grupo: 'Módulo',        exemplo: '1' },
   { key: 'descricao',      label: 'Descrição Peça',    grupo: 'Módulo',        exemplo: 'Lateral Direita' },
   { key: 'produto_final',  label: 'Produto Final',     grupo: 'Módulo',        exemplo: 'Armário Alto' },
+  { key: 'quantidade',     label: 'Quantidade',         grupo: 'Módulo',        exemplo: '1' },
+  { key: 'chapa',          label: 'Chapa',              grupo: 'Produção',      exemplo: '2' },
+  { key: 'lote',           label: 'Lote',               grupo: 'Produção',      exemplo: 'Lote Cozinha 01' },
+  { key: 'data',           label: 'Data',               grupo: 'Produção',      exemplo: '01/05/2026' },
+  { key: 'posicao_chapa',  label: 'Posição na Chapa',   grupo: 'Produção',      exemplo: 'X120 Y450' },
   { key: 'fita_resumo',    label: 'Fita Resumo',       grupo: 'Bordas',        exemplo: 'CMBOR22x045 BRANCO_TX' },
   { key: 'borda_dir',      label: 'Borda Direita',     grupo: 'Bordas',        exemplo: 'CMBOR19X045BRANCO_TX' },
   { key: 'borda_esq',      label: 'Borda Esquerda',    grupo: 'Bordas',        exemplo: '' },
@@ -65,6 +70,14 @@ function resolverVariavel(key, et, cfg) {
     return `${base}/p/${et.pecaId || et.peca_id || '0'}`;
   }
   if (key === 'peca_id') return String(et.pecaId || et.peca_id || '');
+  if (key === 'quantidade') return String(et.quantidade || 1);
+  if (key === 'chapa') return et.chapa_idx != null ? String(Number(et.chapa_idx) + 1) : '';
+  if (key === 'lote') return et.lote || et.lote_nome || '';
+  if (key === 'data') return new Date().toLocaleDateString('pt-BR');
+  if (key === 'posicao_chapa') {
+    if (et.pos_x == null || et.pos_y == null) return '';
+    return `X${Math.round(Number(et.pos_x))} Y${Math.round(Number(et.pos_y))}`;
+  }
   if (key === 'borda_dir') return et.bordas?.dir || '';
   if (key === 'borda_esq') return et.bordas?.esq || '';
   if (key === 'borda_frontal') return et.bordas?.frontal || '';
@@ -75,6 +88,56 @@ function resolverVariavel(key, et, cfg) {
 function resolverTexto(texto, et, cfg) {
   if (!texto) return '';
   return texto.replace(/\{\{(\w+)\}\}/g, (_, k) => resolverVariavel(k, et, cfg));
+}
+
+function fitTextToBox(texto, el, isEditor) {
+  const raw = texto || (isEditor ? (el.variavel ? `{{${el.variavel}}}` : 'Texto') : '');
+  const baseSize = Number(el.fontSize || 3);
+  const mode = el.fitMode || 'overflow';
+  if (!raw) return { lines: [''], fontSize: baseSize };
+  if (mode === 'overflow') return { lines: [raw], fontSize: baseSize };
+
+  const charW = (size) => Math.max(0.1, size * 0.55);
+  const maxChars = (size) => Math.max(1, Math.floor((el.w || 1) / charW(size)));
+
+  if (mode === 'shrink') {
+    const target = raw.length * charW(baseSize);
+    const nextSize = target > el.w ? Math.max(1.2, Math.min(baseSize, (el.w / Math.max(raw.length * 0.55, 1)))) : baseSize;
+    return { lines: [raw], fontSize: Math.round(nextSize * 10) / 10 };
+  }
+
+  if (mode === 'ellipsis') {
+    const limit = maxChars(baseSize);
+    const fitted = raw.length > limit ? raw.slice(0, Math.max(1, limit - 1)).trimEnd() + '…' : raw;
+    return { lines: [fitted], fontSize: baseSize };
+  }
+
+  if (mode === 'wrap') {
+    const lineHeight = baseSize * 1.15;
+    const maxLines = Math.max(1, Number(el.maxLines || Math.floor((el.h || baseSize) / lineHeight) || 1));
+    const limit = maxChars(baseSize);
+    const words = raw.split(/\s+/).filter(Boolean);
+    const lines = [];
+    let cur = '';
+    for (const word of words) {
+      const candidate = cur ? `${cur} ${word}` : word;
+      if (candidate.length <= limit) {
+        cur = candidate;
+      } else {
+        if (cur) lines.push(cur);
+        cur = word.length > limit ? word.slice(0, limit) : word;
+      }
+      if (lines.length >= maxLines) break;
+    }
+    if (cur && lines.length < maxLines) lines.push(cur);
+    if (words.length && lines.length === maxLines) {
+      const joined = lines.join(' ');
+      if (joined.length < raw.length) lines[maxLines - 1] = lines[maxLines - 1].replace(/…?$/, '…');
+    }
+    return { lines: lines.length ? lines : [''], fontSize: baseSize };
+  }
+
+  return { lines: [raw], fontSize: baseSize };
 }
 
 // ─── Barcode SVG inline (Code128B padrão industrial) ────
@@ -222,20 +285,24 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
   switch (el.tipo) {
     case 'texto': {
       const anchorX = el.alinhamento === 'middle' ? el.x + el.w / 2 : el.alinhamento === 'end' ? el.x + el.w : el.x;
+      const fitted = fitTextToBox(texto, el, isEditor);
+      const lineHeight = fitted.fontSize * 1.15;
       return (
         <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
           {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" rx={0.3} />}
           <text
             x={anchorX}
-            y={el.y + (el.fontSize || 3) * 0.85}
-            fontSize={el.fontSize || 3}
+            y={el.y + fitted.fontSize * 0.85}
+            fontSize={fitted.fontSize}
             fontWeight={el.fontWeight || 400}
             fontFamily={el.fontFamily || 'Inter, sans-serif'}
             fill={el.cor || '#000'}
             textAnchor={el.alinhamento || 'start'}
             dominantBaseline="auto"
           >
-            {texto || (isEditor ? (el.variavel ? `{{${el.variavel}}}` : 'Texto') : '')}
+            {fitted.lines.map((line, i) => (
+              <tspan key={i} x={anchorX} dy={i === 0 ? 0 : lineHeight}>{line}</tspan>
+            ))}
           </text>
         </g>
       );
@@ -418,7 +485,7 @@ const IconBtn = ({ icon: Icon, label, onClick, active, size = 15, style }) => (
 // EDITOR PRINCIPAL
 // ═══════════════════════════════════════════════════════
 
-export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, initialTemplateId }) {
+export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, initialTemplateId, lotes = [], loteAtual = null }) {
   // ─── State ────────────────────────────────────────
   const [templates, setTemplates] = useState([]);
   const [template, setTemplate] = useState(null);
@@ -439,6 +506,10 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   const [rightTab, setRightTab] = useState('config'); // 'config' | 'elementos'
   const [autoComplete, setAutoComplete] = useState({ show: false, filter: '', cursorStart: 0, highlightIdx: 0 });
   const [clipboard, setClipboard] = useState(null); // copy/paste de elementos
+  const [previewLoteId, setPreviewLoteId] = useState(loteAtual?.id || '');
+  const [previewEtiquetas, setPreviewEtiquetas] = useState([]);
+  const [previewIdx, setPreviewIdx] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const textoInputRef = useRef(null);
 
   const svgRef = useRef(null);
@@ -447,6 +518,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   const canvasH = template?.altura || 70;
 
   const selEl = useMemo(() => selecionado ? elementos.find(e => e.id === selecionado) : null, [selecionado, elementos]);
+  const previewEtiqueta = previewEtiquetas[previewIdx] || null;
 
   // ─── Autocomplete para variáveis {{...}} ─────────
   const acFiltered = useMemo(() => {
@@ -517,6 +589,38 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   }, [api, autoZoom]);
 
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
+
+  useEffect(() => {
+    if (!previewLoteId) {
+      setPreviewEtiquetas([]);
+      setPreviewIdx(0);
+      return;
+    }
+    let cancelled = false;
+    setPreviewLoading(true);
+    api.get(`/cnc/etiquetas/${previewLoteId}`)
+      .then(data => {
+        if (cancelled) return;
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.labels) ? data.labels : [];
+        const loteNome = lotes.find(l => Number(l.id) === Number(previewLoteId))?.nome || '';
+        setPreviewEtiquetas(arr.map((et, i) => ({
+          ...et,
+          controle: et.controle || String(et.num || i + 1).padStart(3, '0'),
+          descricao: et.descricao || et.upmcode || '',
+          modulo_desc: et.modulo_desc || et.modulo || et.ambiente || '',
+          lote: et.lote || et.lote_nome || loteNome,
+          quantidade: et.quantidade || 1,
+        })));
+        setPreviewIdx(0);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewEtiquetas([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [api, previewLoteId, lotes]);
 
   // Auto-zoom on mount and resize
   useEffect(() => {
@@ -939,6 +1043,42 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
     return { usadas: [...usadas].filter(k => validas.has(k)), invalidas: [...invalidas] };
   }, [elementos]);
 
+  const templateChecks = useMemo(() => {
+    const checks = [];
+    const sample = previewEtiqueta || null;
+    for (const el of elementos) {
+      const nome = el.variavel || el.texto || el.barcodeVariavel || el.tipo;
+      if (el.x < 0 || el.y < 0 || el.x + el.w > canvasW || el.y + el.h > canvasH) {
+        checks.push({ tipo: 'erro', msg: `${nome}: elemento sai da etiqueta` });
+      }
+      if ((el.tipo === 'barcode' || el.tipo === 'qrcode') && Math.min(el.w, el.h) < 12) {
+        checks.push({ tipo: 'aviso', msg: `${nome}: código pode ficar pequeno para leitura` });
+      }
+      if (el.tipo === 'texto') {
+        const txt = resolverTexto(el.texto || '', sample, etiquetaConfig);
+        const fontSize = Number(el.fontSize || 3);
+        const estimated = txt.length * fontSize * 0.55;
+        if ((el.fitMode || 'overflow') === 'overflow' && estimated > el.w) {
+          checks.push({ tipo: 'aviso', msg: `${nome}: texto pode estourar a largura` });
+        }
+        if (txt && txt.length > 42 && !el.fitMode) {
+          checks.push({ tipo: 'info', msg: `${nome}: considere auto-ajuste ou quebra de linha` });
+        }
+      }
+      if (el.tipo === 'barcode') {
+        const val = resolverVariavel(el.barcodeVariavel || 'controle', sample, etiquetaConfig);
+        if (!val) checks.push({ tipo: 'erro', msg: `${nome}: barcode sem valor de dados` });
+      }
+    }
+    for (const k of variaveisUsadas.invalidas) {
+      checks.push({ tipo: 'erro', msg: `{{${k}}}: variável inexistente` });
+    }
+    if (!elementos.some(el => el.tipo === 'barcode' || el.tipo === 'qrcode')) {
+      checks.push({ tipo: 'info', msg: 'Template sem barcode/QR de rastreio' });
+    }
+    return checks;
+  }, [elementos, canvasW, canvasH, previewEtiqueta, etiquetaConfig, variaveisUsadas.invalidas]);
+
   // ═══════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════
@@ -986,6 +1126,40 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           ))}
         </select>
 
+        {/* Preview com dados reais */}
+        <select
+          value={previewLoteId}
+          onChange={e => setPreviewLoteId(e.target.value)}
+          className={Z.inp}
+          title="Lote usado para pré-visualizar dados reais"
+          style={{ fontSize: 11, padding: '4px 8px', minWidth: 150, borderRadius: 6 }}
+        >
+          <option value="">Prévia exemplo</option>
+          {lotes.map(l => (
+            <option key={l.id} value={l.id}>{l.nome || l.codigo || `Lote ${l.id}`}</option>
+          ))}
+        </select>
+        {previewLoteId && (
+          <select
+            value={previewIdx}
+            onChange={e => setPreviewIdx(Number(e.target.value))}
+            className={Z.inp}
+            disabled={previewLoading || previewEtiquetas.length === 0}
+            title="Peça usada na prévia"
+            style={{ fontSize: 11, padding: '4px 8px', minWidth: 150, borderRadius: 6 }}
+          >
+            {previewLoading ? (
+              <option>Carregando peças...</option>
+            ) : previewEtiquetas.length === 0 ? (
+              <option>Nenhuma peça</option>
+            ) : previewEtiquetas.slice(0, 250).map((et, i) => (
+              <option key={`${et.pecaId || et.peca_id || i}_${et.instancia || 0}`} value={i}>
+                {et.controle || String(i + 1).padStart(3, '0')} · {et.descricao || et.modulo_desc || 'Peça'}
+              </option>
+            ))}
+          </select>
+        )}
+
         {/* Save button */}
         <button className={Z.btn} onClick={salvar} disabled={saving || !dirty}
           style={{ fontSize: 11, padding: '5px 12px', gap: 4, display: 'flex', alignItems: 'center', borderRadius: 6 }}>
@@ -1031,6 +1205,18 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           background: 'var(--bg-muted)', padding: '3px 8px', borderRadius: 10,
         }}>
           {canvasW}×{canvasH}mm · {elementos.length} elem.
+        </div>
+        <div style={{
+          fontSize: 10,
+          color: templateChecks.some(c => c.tipo === 'erro') ? '#dc2626' : templateChecks.some(c => c.tipo === 'aviso') ? '#b45309' : '#15803d',
+          fontWeight: 800,
+          background: templateChecks.some(c => c.tipo === 'erro') ? '#fef2f2' : templateChecks.some(c => c.tipo === 'aviso') ? '#fffbeb' : '#f0fdf4',
+          border: '1px solid',
+          borderColor: templateChecks.some(c => c.tipo === 'erro') ? '#fecaca' : templateChecks.some(c => c.tipo === 'aviso') ? '#fde68a' : '#bbf7d0',
+          padding: '3px 8px',
+          borderRadius: 10,
+        }}>
+          {templateChecks.filter(c => c.tipo !== 'info').length || 0} alerta(s)
         </div>
       </div>
 
@@ -1223,7 +1409,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 <ElementoSVG
                   key={el.id}
                   el={el}
-                  et={null}
+                  et={previewEtiqueta}
                   cfg={etiquetaConfig}
                   isEditor={true}
                   selected={selecionado === el.id}
@@ -1400,6 +1586,29 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  <Divider />
+                  <SH icon={<Maximize2 size={10} />}>Comportamento no campo</SH>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px', gap: 4 }}>
+                    <div>
+                      <LBL>Quando o texto for grande</LBL>
+                      <select value={selEl.fitMode || 'overflow'}
+                        onChange={e => updateEl(selEl.id, { fitMode: e.target.value })}
+                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', marginTop: 2, width: '100%' }}>
+                        <option value="overflow">Livre</option>
+                        <option value="shrink">Reduzir fonte</option>
+                        <option value="ellipsis">Cortar com reticências</option>
+                        <option value="wrap">Quebrar linha</option>
+                      </select>
+                    </div>
+                    <div>
+                      <LBL>Linhas</LBL>
+                      <input type="number" value={selEl.maxLines || 2}
+                        onChange={e => updateEl(selEl.id, { maxLines: Number(e.target.value) })}
+                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', marginTop: 2, width: '100%' }}
+                        min={1} max={5} disabled={(selEl.fitMode || 'overflow') !== 'wrap'} />
+                    </div>
                   </div>
 
                   <Divider />
@@ -1788,7 +1997,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   {variaveisUsadas.invalidas.length > 0 && (
                     <div style={{ padding: '6px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, marginBottom: 6 }}>
                       <div style={{ fontSize: 9, fontWeight: 800, color: '#dc2626', marginBottom: 4, textTransform: 'uppercase' }}>
-                        ⚠ Variáveis inválidas
+                        Variáveis inválidas
                       </div>
                       {variaveisUsadas.invalidas.map(k => (
                         <div key={k} style={{ fontSize: 10, color: '#991b1b', fontFamily: 'monospace', padding: '1px 0' }}>
@@ -1816,6 +2025,36 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   {variaveisUsadas.usadas.length === 0 && variaveisUsadas.invalidas.length === 0 && (
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 0' }}>
                       Nenhuma variável dinâmica em uso.
+                    </div>
+                  )}
+
+                  <Divider />
+                  <SH icon={<MousePointer size={10} />}>Validação do Template</SH>
+                  {templateChecks.length === 0 ? (
+                    <div style={{ padding: '6px 8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 10, color: '#166534', fontWeight: 700 }}>
+                      Nenhum risco visual detectado.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {templateChecks.slice(0, 8).map((c, i) => (
+                        <div key={i} style={{
+                          padding: '5px 7px',
+                          borderRadius: 6,
+                          border: '1px solid',
+                          borderColor: c.tipo === 'erro' ? '#fecaca' : c.tipo === 'aviso' ? '#fde68a' : '#dbeafe',
+                          background: c.tipo === 'erro' ? '#fef2f2' : c.tipo === 'aviso' ? '#fffbeb' : '#eff6ff',
+                          color: c.tipo === 'erro' ? '#991b1b' : c.tipo === 'aviso' ? '#92400e' : '#1d4ed8',
+                          fontSize: 10,
+                          lineHeight: 1.35,
+                        }}>
+                          <b>{c.tipo === 'erro' ? 'Erro' : c.tipo === 'aviso' ? 'Aviso' : 'Info'}:</b> {c.msg}
+                        </div>
+                      ))}
+                      {templateChecks.length > 8 && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                          +{templateChecks.length - 8} outro(s) ponto(s)
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

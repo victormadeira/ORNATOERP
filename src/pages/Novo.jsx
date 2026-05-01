@@ -4198,7 +4198,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         if (!signerId) { notify('Erro: signatário não encontrado'); return; }
                                         try {
                                             await api.post(`/assinaturas/signer/${signerId}/enviar-whatsapp`, {});
-                                            notify('✅ Link enviado via WhatsApp oficial. Lembretes automáticos ativados (24h / 72h / 5d).');
+                                            notify('Link enviado via WhatsApp oficial. Lembretes automáticos ativados (24h / 72h / 5d).');
                                             try { api.get(`/assinaturas/documento/${editOrc.id}`).then(setAssinaturas); } catch {}
                                         } catch (ex) {
                                             notify(ex.error || 'Erro ao enviar — use o envio manual');
@@ -4308,11 +4308,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             {sig.enviado_em ? (
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                                                     <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
-                                                        📲 Enviado via {sig.enviado_via === 'whatsapp' ? 'WhatsApp' : 'manual'} — {new Date(sig.enviado_em).toLocaleString('pt-BR')}
+                                                        Enviado via {sig.enviado_via === 'whatsapp' ? 'WhatsApp' : 'manual'} — {new Date(sig.enviado_em).toLocaleString('pt-BR')}
                                                     </span>
                                                     {sig.lembrete_1_em && <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>Lembrete 1 enviado</span>}
                                                     {sig.lembrete_2_em && <span style={{ background: '#fed7aa', color: '#9a3412', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>Lembrete 2 enviado</span>}
-                                                    {sig.escalado_em && <span style={{ background: '#fecaca', color: '#991b1b', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>⚠ Escalado ao gerente</span>}
+                                                    {sig.escalado_em && <span style={{ background: '#fecaca', color: '#991b1b', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>Escalado ao gerente</span>}
                                                 </div>
                                             ) : (
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Aguardando envio do link</div>
@@ -4321,11 +4321,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 <button onClick={async () => {
                                                     try {
                                                         await api.post(`/assinaturas/signer/${sig.id}/enviar-whatsapp`, {});
-                                                        notify(sig.enviado_em ? '✅ Link reenviado' : '✅ Link enviado. Lembretes automáticos ativados (24h/72h/5d).');
+                                                        notify(sig.enviado_em ? 'Link reenviado' : 'Link enviado. Lembretes automáticos ativados (24h/72h/5d).');
                                                         api.get(`/assinaturas/documento/${editOrc.id}`).then(setAssinaturas).catch(() => {});
                                                     } catch (ex) { notify(ex.error || 'Erro ao enviar — verifique Evolution API'); }
                                                 }} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, border: 'none', background: 'var(--success)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                                                    📲 {sig.enviado_em ? 'Reenviar' : 'Enviar'} via WhatsApp oficial
+                                                    {sig.enviado_em ? 'Reenviar' : 'Enviar'} via WhatsApp oficial
                                                 </button>
                                             </div>
                                         </div>

@@ -357,7 +357,7 @@ export default function Cat({ notify }) {
                                                     const vencido = dias > validade;
                                                     return <span style={{ color: vencido ? 'var(--danger)' : dias > validade * 0.8 ? 'var(--warning)' : 'var(--text-muted)' }}
                                                         title={`Atualizado em ${item.preco_atualizado_em} — ${dias}d atrás`}>
-                                                        {dias}d {vencido && '⚠'}
+                                                        {dias}d {vencido && '!'}
                                                     </span>;
                                                 })()}
                                             </td>

@@ -509,7 +509,7 @@ function FerramentaModal({ data, onSave, onClose }) {
                 {/* Sugestão baseada no tipo de ferramenta */}
                 {(f.rampa_tipo ?? null) === null && (
                     <div style={{ padding: '6px 10px', borderRadius: 6, background: 'rgba(var(--primary-rgb),0.06)', border: '1px solid rgba(var(--primary-rgb),0.15)', fontSize: 11, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ color: 'var(--text-muted)' }}>💡 Sugerido para <b>{(f.tipo_corte || f.tipo || 'broca').replace(/_/g, ' ')}</b>:</span>
+                        <span style={{ color: 'var(--text-muted)' }}>Sugerido para <b>{(f.tipo_corte || f.tipo || 'broca').replace(/_/g, ' ')}</b>:</span>
                         <button
                             onClick={() => upd('rampa_tipo', rampaSugerida)}
                             style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--primary)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}

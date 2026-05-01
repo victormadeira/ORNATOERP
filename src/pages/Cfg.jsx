@@ -2072,10 +2072,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         </div>
                                         {(waStatus.error || waStatus.reason) && (
                                             <div className="mt-1 text-[11px] rounded px-2 py-1" style={{ background: 'var(--bg-muted)', color: 'var(--danger)' }}>
-                                                {waStatus.reason === 'not_configured' && '⚠️ URL da instância ou nome não preenchidos'}
-                                                {waStatus.reason === 'api_error' && `⚠️ Evolution API rejeitou: ${waStatus.error || ''}`}
-                                                {waStatus.reason === 'connection_failed' && `⚠️ Sem resposta da Evolution API: ${waStatus.error || ''}`}
-                                                {!waStatus.reason && waStatus.error && `⚠️ ${waStatus.error}`}
+                                                {waStatus.reason === 'not_configured' && 'URL da instância ou nome não preenchidos'}
+                                                {waStatus.reason === 'api_error' && `Evolution API rejeitou: ${waStatus.error || ''}`}
+                                                {waStatus.reason === 'connection_failed' && `Sem resposta da Evolution API: ${waStatus.error || ''}`}
+                                                {!waStatus.reason && waStatus.error}
                                             </div>
                                         )}
                                     </div>
@@ -2227,22 +2227,22 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         >
                                             {emp.ia_provider === 'anthropic' ? (
                                                 <>
-                                                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 ⚡ (rápido, econômico)</option>
+                                                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (rápido, econômico)</option>
                                                     <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (balanceado)</option>
                                                     <option value="claude-sonnet-4">Claude Sonnet 4 (latest)</option>
                                                     <option value="claude-opus-4">Claude Opus 4 (máxima qualidade)</option>
                                                 </>
                                             ) : emp.ia_provider === 'gemini' ? (
                                                 <>
-                                                    <option value="gemini-3-flash-preview">Gemini 3 Flash Preview 🆕 (mais capaz)</option>
-                                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash ⭐ (recomendado)</option>
+                                                    <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (mais capaz)</option>
+                                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (recomendado)</option>
                                                     <option value="gemini-2.5-pro">Gemini 2.5 Pro (alta qualidade)</option>
                                                     <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (econômico, preview)</option>
                                                     <option value="gemini-2.0-flash">Gemini 2.0 Flash (estável, barato)</option>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <option value="gpt-4o-mini">GPT-4o Mini ⚡ (rápido, econômico)</option>
+                                                    <option value="gpt-4o-mini">GPT-4o Mini (rápido, econômico)</option>
                                                     <option value="gpt-4.1-mini">GPT-4.1 Mini (mais novo, econômico)</option>
                                                     <option value="gpt-4o">GPT-4o (balanceado)</option>
                                                     <option value="gpt-4.1">GPT-4.1 (mais novo, capaz)</option>
@@ -2507,7 +2507,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="flex items-center justify-between mb-3">
                                     <div>
                                         <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
-                                            🎯 Prospecção ativa (pós-captura)
+                                            Prospecção ativa (pós-captura)
                                         </h3>
                                         <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                             Depois que o lead preenche o formulário da landing, a IA puxa conversa no WhatsApp com um script próprio (diferente da Sofia reativa). Se o cliente responder, a prospecção para e a Sofia assume.

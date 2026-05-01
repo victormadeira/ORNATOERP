@@ -3,7 +3,15 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import api from '../../../../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize, Sparkles, Download as DownloadIcon } from 'lucide-react';
+import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize, Sparkles, Download as DownloadIcon, Factory } from 'lucide-react';
+
+// Mapa de ícones por iconKey usado em PRESET_DESCRICOES
+const PRESET_ICONS = {
+    industrial: Factory,
+    expedicao: Package,
+    producao: Wrench,
+    controle: ClipboardCheck,
+};
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
 import { ETIQUETA_PRESETS, PRESET_DESCRICOES } from '../../shared/etiquetaPresets.js';
 import PecaViewer3D from '../../../../components/PecaViewer3D';
@@ -209,9 +217,14 @@ export function CfgEtiquetas({ notify, setEditorMode, setEditorTemplateId }) {
                                             }}>
                                                 {meta.badge}
                                             </div>
-                                            <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 16 }}>
-                                                {meta.icon}
-                                            </div>
+                                            {(() => {
+                                                const IconCmp = PRESET_ICONS[meta.iconKey];
+                                                return IconCmp ? (
+                                                    <div style={{ position: 'absolute', top: 6, right: 6, color: 'var(--text-muted)' }}>
+                                                        <IconCmp size={16} />
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                         </div>
 
                                         {/* Info */}

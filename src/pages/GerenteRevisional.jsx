@@ -32,13 +32,13 @@ function formatDateTime(s) {
 
 function TipoAcaoBadge({ tipo }) {
     const map = {
-        followup_audio: { label: '🎙️ Follow-up áudio', bg: 'rgba(201,169,110,0.15)', color: '#C9A96E' },
-        followup_texto: { label: '💬 Follow-up texto', bg: 'rgba(59,130,246,0.15)', color: '#60A5FA' },
-        followup_objecao: { label: '🛡️ Follow-up objeção', bg: 'rgba(239,68,68,0.15)', color: '#F87171' },
-        ligar: { label: '📞 Ligar', bg: 'rgba(16,185,129,0.15)', color: '#34D399' },
-        pausar: { label: '⏸️ Pausar lead', bg: 'rgba(100,116,139,0.15)', color: '#94A3B8' },
-        revisar_proposta: { label: '📋 Revisar proposta', bg: 'rgba(139,92,246,0.15)', color: '#A78BFA' },
-        escalar_humano: { label: '🆘 Escalar humano', bg: 'rgba(245,158,11,0.15)', color: '#FBBF24' },
+        followup_audio: { label: 'Follow-up áudio', bg: 'rgba(201,169,110,0.15)', color: '#C9A96E' },
+        followup_texto: { label: 'Follow-up texto', bg: 'rgba(59,130,246,0.15)', color: '#60A5FA' },
+        followup_objecao: { label: 'Follow-up objeção', bg: 'rgba(239,68,68,0.15)', color: '#F87171' },
+        ligar: { label: 'Ligar', bg: 'rgba(16,185,129,0.15)', color: '#34D399' },
+        pausar: { label: 'Pausar lead', bg: 'rgba(100,116,139,0.15)', color: '#94A3B8' },
+        revisar_proposta: { label: 'Revisar proposta', bg: 'rgba(139,92,246,0.15)', color: '#A78BFA' },
+        escalar_humano: { label: 'Escalar humano', bg: 'rgba(245,158,11,0.15)', color: '#FBBF24' },
     };
     const meta = map[tipo] || { label: tipo || '—', bg: 'rgba(100,116,139,0.15)', color: 'var(--text-muted)' };
     return (
@@ -126,7 +126,7 @@ function AcaoCard({ acao, onResolver, onOpenConversa }) {
                         fontSize: 13, lineHeight: 1.5, marginBottom: 10,
                     }}>
                         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: 'var(--text-muted)', marginBottom: 4 }}>
-                            💡 AÇÃO SUGERIDA
+                            AÇÃO SUGERIDA
                         </div>
                         {acao.acao_sugerida}
                     </div>
@@ -483,7 +483,7 @@ export default function GerenteRevisional() {
                                         </span>
                                         <span style={{ flex: 1 }}>
                                             {h.erro
-                                                ? <span style={{ color: '#F87171' }}>⚠ {h.erro}</span>
+                                                ? <span style={{ color: '#F87171' }}>{h.erro}</span>
                                                 : `${h.acoes_urgentes} urg · ${h.acoes_media} média · ${h.leads_analisados} leads`
                                             }
                                         </span>

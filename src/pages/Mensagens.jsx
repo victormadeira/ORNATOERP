@@ -449,7 +449,7 @@ export default function Mensagens({ notify }) {
         try {
             const r = await api.post('/whatsapp/backfill', { limit: 1000 });
             const msg = r.chats_processados === 0
-                ? `⚠ Nenhum chat encontrado no cache da Evolution. Use "Histórico completo (re-parear)" pra puxar tudo do celular.`
+                ? `Nenhum chat encontrado no cache da Evolution. Use "Histórico completo (re-parear)" pra puxar tudo do celular.`
                 : `✓ ${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`;
             notify?.(msg);
             loadConversas();

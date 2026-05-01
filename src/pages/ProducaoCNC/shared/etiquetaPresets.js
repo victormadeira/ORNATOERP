@@ -329,30 +329,31 @@ export const ETIQUETA_PRESETS = [
     CONTROLE_COMPACTA,
 ];
 
+// iconKey é usado para mapear pra um ícone Lucide no consumidor (CfgEtiquetas)
 export const PRESET_DESCRICOES = {
     0: {
-        icon: '🏭',
+        iconKey: 'industrial',
         badge: 'INDUSTRIAL',
         badgeColor: '#dc2626',
         descricao: 'Layout completo: bandas de fita de borda, Usinagem A/B, dados de cliente, módulo, miniatura 2D e barcodes de expedição.',
         uso: 'Produção CNC / Corte e expedição final',
     },
     1: {
-        icon: '📦',
+        iconKey: 'expedicao',
         badge: 'EXPEDIÇÃO',
         badgeColor: '#f59e0b',
         descricao: 'Formato compacto A7 com barcode grande, QR code, dados do cliente e rastreamento rápido.',
         uso: 'Separação e expedição logística',
     },
     2: {
-        icon: '🔧',
+        iconKey: 'producao',
         badge: 'PRODUÇÃO',
         badgeColor: '#3b82f6',
         descricao: 'Dimensões em destaque, miniatura da peça, posição na chapa e informações técnicas completas.',
         uso: 'Bancada de corte e montagem',
     },
     3: {
-        icon: '📋',
+        iconKey: 'controle',
         badge: 'CONTROLE',
         badgeColor: '#8b5cf6',
         descricao: 'Formato pequeno para controle interno: material, dimensões, barcode e diagrama de bordas.',

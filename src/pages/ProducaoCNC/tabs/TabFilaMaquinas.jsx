@@ -304,8 +304,8 @@ function FilaCard({ item, onStatus, onMaquina, onRemove, maquinas, highlight }) 
                             const isLate = diff < 0, isUrgent = diff >= 0 && diff <= 3;
                             if (!isLate && !isUrgent) return null;
                             return (
-                                <span style={{ color: isLate ? 'var(--danger)' : 'var(--warning)', fontWeight: 700, fontSize: 9 }}>
-                                    {isLate ? `⚠ ${Math.abs(diff)}d atr.` : `⏰ ${diff}d`}
+                                <span style={{ color: isLate ? 'var(--danger)' : 'var(--warning)', fontWeight: 700, fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                    {isLate ? <><AlertTriangle size={9} />{Math.abs(diff)}d atr.</> : <><Clock size={9} />{diff}d</>}
                                 </span>
                             );
                         })()}

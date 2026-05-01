@@ -7,7 +7,7 @@ import {
     SectionHeader, StatusBadge, EmptyState, ConfirmModal,
 } from '../../../ui';
 import {
-    Package, RefreshCw, Eye, Scissors, Trash2, Layers, AlertTriangle, Edit2, X, Check,
+    Package, RefreshCw, Eye, Scissors, Trash2, Layers, AlertTriangle, Edit2, X, Check, Clock,
 } from 'lucide-react';
 
 // Checar urgência de entrega: negativo = atrasado, 0-3 = urgente
@@ -365,7 +365,7 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                                     <span style={{ fontSize: 11, color, fontWeight: diff < 0 ? 800 : 600, cursor: 'pointer', textDecoration: 'underline dotted' }}
                                                         title={diff < 0 ? `Atrasado ${Math.abs(diff)} dias — clique para editar` : `${diff} dias restantes — clique para editar`}>
                                                         {entrega.toLocaleDateString('pt-BR')}
-                                                        {diff <= 3 && <span style={{ marginLeft: 4 }}>{diff < 0 ? '⚠' : '⏰'}</span>}
+                                                        {diff <= 3 && <span style={{ marginLeft: 4, display: 'inline-flex', alignItems: 'center' }}>{diff < 0 ? <AlertTriangle size={11} /> : <Clock size={11} />}</span>}
                                                     </span>
                                                 );
                                             })() : (

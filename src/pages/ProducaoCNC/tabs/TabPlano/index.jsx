@@ -1952,9 +1952,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         {/* Seletor de qualidade */}
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, background: 'var(--bg-card)', borderRadius: 6, padding: 2, border: '1px solid var(--border)' }}>
                             {[
-                                { id: 'rapido', label: '⚡ Rápido', title: 'BLF + MaxRects sem BRKGA/SA — resultado em segundos' },
-                                { id: 'balanceado', label: '⚖ Balanceado', title: 'BRKGA genético + Simulated Annealing — padrão industrial' },
-                                { id: 'maximo', label: '🎯 Máximo', title: 'BRKGA 3× + SA 3× iterações — melhor aproveitamento possível' },
+                                { id: 'rapido', label: 'Rápido', title: 'BLF + MaxRects sem BRKGA/SA — resultado em segundos' },
+                                { id: 'balanceado', label: 'Balanceado', title: 'BRKGA genético + Simulated Annealing — padrão industrial' },
+                                { id: 'maximo', label: 'Máximo', title: 'BRKGA 3× + SA 3× iterações — melhor aproveitamento possível' },
                             ].map(q => (
                                 <button key={q.id} onClick={() => setQualidade(q.id)} title={q.title}
                                     style={{
@@ -2946,14 +2946,16 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                                     const ok = !compat || compativeisIds.has(m.id);
                                                                     return (
                                                                         <option key={m.id} value={m.id} disabled={!ok}>
-                                                                            {ok ? '' : '⚠ '}{m.nome}{!ok ? ' (não cabe)' : ''}
+                                                                            {m.nome}{!ok ? ' (não cabe)' : ''}
                                                                         </option>
                                                                     );
                                                                 })}
                                                             </select>
                                                             {incompat.length > 0 && compativeisIds.size === 0 && (
                                                                 <span title={incompat.map(m => m.motivo).join('\n')}
-                                                                    style={{ fontSize: 9, color: '#dc2626', fontWeight: 700 }}>⚠</span>
+                                                                    style={{ fontSize: 9, color: '#dc2626', fontWeight: 700, display: 'inline-flex', alignItems: 'center' }}>
+                                                                    <AlertTriangle size={11} />
+                                                                </span>
                                                             )}
                                                         </div>
                                                     );

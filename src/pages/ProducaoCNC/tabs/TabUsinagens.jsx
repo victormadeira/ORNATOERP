@@ -222,7 +222,7 @@ function WorkerRow({ w, idx, disabled, onToggle, saving, warn }) {
                         style={{ cursor: 'help' }}
                         title={warn.mensagem}
                     >
-                        {warn.severidade === 'erro' ? '✕ ERR' : '⚠ BORDA'}
+                        {warn.severidade === 'erro' ? 'ERR' : 'BORDA'}
                     </Chip>
                 ) : disabled ? (
                     <Chip color="#ef4444">OFF</Chip>
