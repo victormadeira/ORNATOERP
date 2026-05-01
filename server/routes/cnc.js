@@ -12488,20 +12488,53 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
         const pecasMap = {};
         for (const p of pecas) pecasMap[p.id] = p;
 
+        // Paleta de cores por módulo — escolhida para impressão (saturação média,
+        // boa legibilidade em B&W via luminância, contraste com fundo creme da chapa)
+        const MOD_COLORS = [
+            { fill: '#FFE4B5', stroke: '#C97E2E', dark: '#8B4513' }, // bisque/marrom
+            { fill: '#B5D6FF', stroke: '#2E6CC9', dark: '#0D3D8B' }, // azul claro
+            { fill: '#B5F0C7', stroke: '#2E9C5C', dark: '#0D6B36' }, // verde menta
+            { fill: '#FFB5C7', stroke: '#C92E5C', dark: '#8B0D36' }, // rosa
+            { fill: '#E0B5FF', stroke: '#7C2EC9', dark: '#4A0D8B' }, // lavanda
+            { fill: '#FFF0B5', stroke: '#C9962E', dark: '#8B650D' }, // amarelo
+            { fill: '#B5F0F0', stroke: '#2EAFAF', dark: '#0D7575' }, // ciano
+            { fill: '#FFCCB5', stroke: '#C9532E', dark: '#8B2B0D' }, // pêssego
+            { fill: '#D4D4D4', stroke: '#666666', dark: '#333333' }, // cinza
+            { fill: '#C7E8B5', stroke: '#5C9C2E', dark: '#36680D' }, // verde-oliva
+        ];
+        // Mapeia módulo→cor estável (mesmo módulo → mesma cor em todas as chapas).
+        // Index = ordem de aparição.
+        const moduleColorMap = new Map();
+        const colorForPiece = (p) => {
+            const dbp = pecasMap[p.pecaId];
+            const key = dbp?.modulo_desc || dbp?.modulo_id || dbp?.upmcode?.split('_')[0] || 'default';
+            if (!moduleColorMap.has(key)) {
+                moduleColorMap.set(key, MOD_COLORS[moduleColorMap.size % MOD_COLORS.length]);
+            }
+            return moduleColorMap.get(key);
+        };
+
         let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plano de Corte — ${lote.nome}</title>
         <style>
             * { box-sizing: border-box; margin: 0; }
-            body { font-family: Arial, sans-serif; font-size: 11px; }
+            body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #1a1a1a; }
             .page { page-break-after: always; padding: 10mm; }
-            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 12px; }
-            .header h1 { font-size: 16px; }
-            .header .meta { font-size: 10px; color: #666; text-align: right; }
-            .chapa-svg { border: 1px solid #ccc; margin: 8px 0; display: block; }
-            table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10px; }
-            th, td { border: 1px solid #ddd; padding: 3px 6px; text-align: left; }
-            th { background: #f5f5f5; font-weight: 700; }
-            .stats { display: flex; gap: 16px; margin: 8px 0; font-size: 10px; }
-            .stats span { padding: 4px 8px; background: #f5f5f5; border-radius: 4px; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 10px; }
+            .header h1 { font-size: 16px; letter-spacing: 0.5px; }
+            .header .meta { font-size: 10px; color: #666; text-align: right; line-height: 1.4; }
+            .chapa-svg { border: 1px solid #ccc; margin: 6px 0; display: block; max-width: 100%; }
+            .stats { display: flex; gap: 8px; margin: 6px 0; font-size: 10px; flex-wrap: wrap; }
+            .stats span { padding: 3px 8px; background: #f0ede8; border-radius: 4px; border: 1px solid #e0ddd6; }
+            .stats b { color: #1a1a1a; }
+            .legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; padding: 6px 8px; background: #fafaf6; border: 1px solid #e0ddd6; border-radius: 4px; font-size: 9px; }
+            .legend-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 3px; }
+            .legend-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1.5px solid; flex-shrink: 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10px; }
+            th, td { border: 1px solid #ddd; padding: 3px 6px; text-align: left; vertical-align: middle; }
+            th { background: #f0ede8; font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; color: #555; }
+            tbody tr:nth-child(even) { background: #fafaf6; }
+            .mod-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; border: 1px solid; }
+            .num-cell { font-family: monospace; font-weight: 700; text-align: center; width: 32px; }
             @media print { .no-print { display: none; } .page { padding: 5mm; } }
         </style></head><body>
         <div class="no-print" style="padding:10px;background:#eee">
@@ -12510,7 +12543,6 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
         </div>`;
 
         // Aproveitamento pode estar salvo como ratio (0-1) ou percentage (0-100).
-        // Normaliza para percentage 0-100 antes de exibir.
         const toPct = (v) => {
             const n = Number(v) || 0;
             return n <= 1 ? n * 100 : n;
@@ -12524,54 +12556,153 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
             const scale = Math.min(700 / W, 400 / H);
             const svgW = W * scale, svgH = H * scale;
 
+            // Pré-calcula cores e agrupa por módulo pra legenda desta chapa
+            const modulosDestaChapa = new Map(); // key → { color, count, modulo_desc, area }
+            ch.pecas.forEach(p => {
+                const dbp = pecasMap[p.pecaId];
+                const key = dbp?.modulo_desc || dbp?.modulo_id || dbp?.upmcode?.split('_')[0] || 'default';
+                const c = colorForPiece(p);
+                if (!modulosDestaChapa.has(key)) {
+                    modulosDestaChapa.set(key, { color: c, count: 0, label: dbp?.modulo_desc || 'Sem módulo', area: 0 });
+                }
+                const entry = modulosDestaChapa.get(key);
+                entry.count++;
+                entry.area += (p.w * p.h) / 1e6;
+            });
+
             html += `<div class="page">
                 <div class="header">
                     <h1>Chapa ${ci + 1} / ${plano.chapas.length}</h1>
                     <div class="meta">
-                        <div><b>${escapeHtml(lote.nome)}</b> · ${escapeHtml(lote.cliente || '')}</div>
+                        <div><b>${escapeHtml(lote.nome)}</b>${lote.cliente ? ' · ' + escapeHtml(lote.cliente) : ''}</div>
                         <div>${escapeHtml(ch.material || ch.material_code || '')} · ${W}×${H}mm</div>
-                        <div>Aproveitamento: <b>${toPct(ch.aproveitamento).toFixed(1)}%</b></div>
+                        <div>Aproveitamento: <b style="color:#16a34a">${toPct(ch.aproveitamento).toFixed(1)}%</b></div>
                     </div>
                 </div>
                 <div class="stats">
                     <span>Peças: <b>${ch.pecas.length}</b></span>
+                    <span>Módulos: <b>${modulosDestaChapa.size}</b></span>
                     <span>Material: <b>${escapeHtml(ch.material_code || ch.material || '-')}</b></span>
                     <span>Sobras: <b>${(ch.retalhos || []).length}</b></span>
+                    ${ref > 0 ? `<span>Refilo: <b>${ref}mm</b></span>` : ''}
+                    ${ch.kerf ? `<span>Kerf: <b>${ch.kerf}mm</b></span>` : ''}
                 </div>
                 <svg class="chapa-svg" width="${svgW + 4}" height="${svgH + 4}" viewBox="-2 -2 ${W + 4} ${H + 4}">
-                    <rect x="0" y="0" width="${W}" height="${H}" fill="#fafaf5" stroke="#333" stroke-width="2"/>`;
-            if (ref > 0) html += `<rect x="${ref}" y="${ref}" width="${W - 2 * ref}" height="${H - 2 * ref}" fill="none" stroke="#c44" stroke-width="0.5" stroke-dasharray="4,2"/>`;
+                    <!-- Fundo da chapa: tom creme/madeira -->
+                    <rect x="0" y="0" width="${W}" height="${H}" fill="#f4ede0" stroke="#1a1a1a" stroke-width="2"/>`;
+            if (ref > 0) html += `<rect x="${ref}" y="${ref}" width="${W - 2 * ref}" height="${H - 2 * ref}" fill="none" stroke="#c44" stroke-width="0.5" stroke-dasharray="6,3" opacity="0.5"/>`;
 
             ch.pecas.forEach((p, pi) => {
                 const px = p.x + ref, py = p.y + ref;
                 const minDim = Math.min(p.w, p.h);
                 const cx = px + p.w / 2, cy = py + p.h / 2;
-                html += `<rect x="${px}" y="${py}" width="${p.w}" height="${p.h}" fill="#d4e6f1" stroke="#2980b9" stroke-width="1"/>`;
-                // Número da peça (controle): SEMPRE mostra, mesmo em peças pequenas.
-                // Tamanho proporcional, mínimo legível 6px (impressão), sem cortar
+                const c = colorForPiece(p);
+                const dbp = pecasMap[p.pecaId];
+                // Peça com cor do módulo (preenchimento + borda + linha sutil topo pra hierarquia visual)
+                html += `<rect x="${px}" y="${py}" width="${p.w}" height="${p.h}" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.5"/>`;
+                // Faixa de cor mais saturada no topo (5% da altura, mín 4mm) — hierarquia visual
+                if (p.h > 30) {
+                    const bandH = Math.max(4, p.h * 0.04);
+                    html += `<rect x="${px}" y="${py}" width="${p.w}" height="${bandH}" fill="${c.stroke}" opacity="0.6"/>`;
+                }
+                // Indicador de fitas de borda (laranja vibrante nas faces com fita)
+                if (dbp?.borda_frontal) html += `<line x1="${px}" y1="${py}" x2="${px + p.w}" y2="${py}" stroke="#d97706" stroke-width="2.5"/>`;
+                if (dbp?.borda_traseira) html += `<line x1="${px}" y1="${py + p.h}" x2="${px + p.w}" y2="${py + p.h}" stroke="#d97706" stroke-width="2.5"/>`;
+                if (dbp?.borda_esq) html += `<line x1="${px}" y1="${py}" x2="${px}" y2="${py + p.h}" stroke="#d97706" stroke-width="2.5"/>`;
+                if (dbp?.borda_dir) html += `<line x1="${px + p.w}" y1="${py}" x2="${px + p.w}" y2="${py + p.h}" stroke="#d97706" stroke-width="2.5"/>`;
+                // Indicador rotação
+                if (p.rotated && minDim > 20) {
+                    html += `<text x="${px + 4}" y="${py + 9}" font-size="6" fill="${c.dark}" font-weight="700" opacity="0.7">↻</text>`;
+                }
+                // Número da peça (sempre)
                 if (minDim >= 18) {
-                    const numFontSize = Math.max(6, Math.min(14, minDim / 4));
-                    html += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${numFontSize}" font-weight="700" font-family="Arial" fill="#1a3a5c">${pi + 1}</text>`;
-                    // Descrição só se houver espaço razoável (> 60mm em ambos lados)
-                    if (minDim >= 60 && p.w >= 80) {
-                        html += `<text x="${cx}" y="${cy + numFontSize * 0.9}" text-anchor="middle" dominant-baseline="hanging" font-size="${Math.min(10, p.w / 14)}" font-family="Arial" fill="#666">${escapeHtml((p.desc || '').slice(0, 18))}</text>`;
+                    const numFontSize = Math.max(7, Math.min(16, minDim / 4));
+                    // Círculo de fundo pro número (legibilidade)
+                    const numR = numFontSize * 0.7;
+                    html += `<circle cx="${cx}" cy="${cy}" r="${numR}" fill="${c.dark}" opacity="0.85"/>`;
+                    html += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${numFontSize}" font-weight="700" font-family="Arial" fill="#fff">${pi + 1}</text>`;
+                    // Descrição abaixo do número se peça grande
+                    if (minDim >= 70 && p.w >= 90 && dbp?.descricao) {
+                        const fs = Math.min(9, p.w / 16);
+                        const maxChars = Math.floor(p.w / 6);
+                        const desc = dbp.descricao.length > maxChars ? dbp.descricao.substring(0, maxChars - 1) + '…' : dbp.descricao;
+                        html += `<text x="${cx}" y="${cy + numR + fs * 0.6}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs}" font-family="Arial" fill="${c.dark}" font-weight="600">${escapeHtml(desc)}</text>`;
+                        // Dimensão como subtítulo discreto
+                        if (p.h >= 110) {
+                            html += `<text x="${cx}" y="${cy + numR + fs * 1.7}" text-anchor="middle" dominant-baseline="hanging" font-size="${fs * 0.8}" font-family="monospace" fill="${c.dark}" opacity="0.7">${Math.round(p.w)}×${Math.round(p.h)}</text>`;
+                        }
                     }
                 } else {
-                    // Peça muito pequena: número fora da peça (acima ou ao lado), com leader line
-                    const ext = Math.min(8, minDim * 0.8);
-                    html += `<text x="${cx}" y="${py - 1}" text-anchor="middle" font-size="${Math.max(6, ext)}" font-weight="700" font-family="Arial" fill="#1a3a5c">${pi + 1}</text>`;
+                    // Peça muito pequena: número fora (acima)
+                    const ext = Math.max(6, Math.min(8, minDim * 0.8));
+                    html += `<text x="${cx}" y="${py - 1}" text-anchor="middle" font-size="${ext}" font-weight="700" font-family="Arial" fill="${c.dark}">${pi + 1}</text>`;
                 }
             });
+            // Retalhos (sobras) com hachura verde
             for (const r of (ch.retalhos || [])) {
-                html += `<rect x="${r.x + ref}" y="${r.y + ref}" width="${r.w}" height="${r.h}" fill="#e8f5e9" stroke="#4caf50" stroke-width="0.5" stroke-dasharray="3,2"/>`;
+                html += `<rect x="${r.x + ref}" y="${r.y + ref}" width="${r.w}" height="${r.h}" fill="#dcf2dc" stroke="#16a34a" stroke-width="0.8" stroke-dasharray="4,2" opacity="0.8"/>`;
+                if (r.w * scale > 30 && r.h * scale > 14) {
+                    html += `<text x="${r.x + ref + r.w / 2}" y="${r.y + ref + r.h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(7, r.w / 15)}" font-family="monospace" fill="#16a34a" opacity="0.7">${Math.round(r.w)}×${Math.round(r.h)}</text>`;
+                }
             }
-            html += `</svg>
-                <table>
-                    <thead><tr><th>#</th><th>Descrição</th><th>Dimensões</th><th>Material</th><th>Módulo</th><th>Pos. X,Y</th></tr></thead>
+            html += `</svg>`;
+
+            // Legenda das fitas (se houver alguma peça com fita)
+            const temFitas = ch.pecas.some(p => {
+                const dbp = pecasMap[p.pecaId];
+                return dbp?.borda_frontal || dbp?.borda_traseira || dbp?.borda_esq || dbp?.borda_dir;
+            });
+            if (temFitas) {
+                html += `<div style="margin:4px 0;font-size:9px;color:#92400e">
+                    <span style="display:inline-block;width:18px;height:2px;background:#d97706;vertical-align:middle;margin-right:4px"></span>
+                    Fita de borda — F=Frontal · T=Traseira · D=Direita · E=Esquerda
+                </div>`;
+            }
+
+            // Legenda de cores por módulo desta chapa
+            html += `<div class="legend">
+                <span style="font-weight:700;color:#555;font-size:9px;text-transform:uppercase;letter-spacing:0.3px;margin-right:4px">Módulos:</span>`;
+            for (const [, info] of modulosDestaChapa) {
+                html += `<span class="legend-item">
+                    <span class="legend-swatch" style="background:${info.color.fill};border-color:${info.color.stroke}"></span>
+                    <span style="font-weight:600">${escapeHtml(info.label)}</span>
+                    <span style="color:#888">(${info.count}pç · ${info.area.toFixed(2)}m²)</span>
+                </span>`;
+            }
+            html += `</div>`;
+
+            // Tabela detalhada com chip de cor por módulo
+            html += `<table>
+                    <thead><tr>
+                        <th class="num-cell">#</th>
+                        <th>Descrição</th>
+                        <th>Módulo</th>
+                        <th>Dimensões</th>
+                        <th style="width:32px;text-align:center">Rot.</th>
+                        <th style="width:42px;text-align:center;background:#fef3c7">F</th>
+                        <th style="width:42px;text-align:center;background:#fef3c7">T</th>
+                        <th style="width:42px;text-align:center;background:#fef3c7">D</th>
+                        <th style="width:42px;text-align:center;background:#fef3c7">E</th>
+                    </tr></thead>
                     <tbody>`;
             ch.pecas.forEach((p, pi) => {
                 const dbp = pecasMap[p.pecaId];
-                html += `<tr><td>${pi + 1}</td><td>${escapeHtml(p.desc || dbp?.descricao || '-')}</td><td>${p.w}×${p.h}mm</td><td>${escapeHtml(p.material || '')}</td><td>${escapeHtml(dbp?.modulo_desc || '')}</td><td>${Math.round(p.x)}, ${Math.round(p.y)}</td></tr>`;
+                const c = colorForPiece(p);
+                const bdCell = (val) => val
+                    ? `<td style="text-align:center;font-size:8px;color:#92400e;font-weight:600;background:#fffbeb">${escapeHtml(val.length > 8 ? val.substring(0, 8) + '…' : val)}</td>`
+                    : `<td style="text-align:center;color:#d1d5db">-</td>`;
+                const upmCode = dbp?.upmcode || '';
+                html += `<tr>
+                    <td class="num-cell" style="background:${c.fill};color:${c.dark};border-left:3px solid ${c.stroke}">${pi + 1}</td>
+                    <td><b>${escapeHtml(p.desc || dbp?.descricao || '-')}</b>${upmCode ? `<br><span style="font-size:8px;color:#999;font-family:monospace">${escapeHtml(upmCode)}</span>` : ''}</td>
+                    <td><span class="mod-tag" style="background:${c.fill};color:${c.dark};border-color:${c.stroke}">${escapeHtml(dbp?.modulo_desc || '-')}</span></td>
+                    <td style="font-family:monospace">${p.w}×${p.h}×${dbp?.espessura || '-'}mm</td>
+                    <td style="text-align:center">${p.rotated ? '90°' : '-'}</td>
+                    ${bdCell(dbp?.borda_frontal)}
+                    ${bdCell(dbp?.borda_traseira)}
+                    ${bdCell(dbp?.borda_dir)}
+                    ${bdCell(dbp?.borda_esq)}
+                </tr>`;
             });
             html += `</tbody></table></div>`;
         }
