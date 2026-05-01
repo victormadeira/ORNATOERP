@@ -12599,13 +12599,8 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
                 const cx = px + p.w / 2, cy = py + p.h / 2;
                 const c = colorForPiece(p);
                 const dbp = pecasMap[p.pecaId];
-                // Peça com cor do módulo (preenchimento + borda + linha sutil topo pra hierarquia visual)
+                // Peça com cor do módulo (preenchimento + borda)
                 html += `<rect x="${px}" y="${py}" width="${p.w}" height="${p.h}" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.5"/>`;
-                // Faixa de cor mais saturada no topo (5% da altura, mín 4mm) — hierarquia visual
-                if (p.h > 30) {
-                    const bandH = Math.max(4, p.h * 0.04);
-                    html += `<rect x="${px}" y="${py}" width="${p.w}" height="${bandH}" fill="${c.stroke}" opacity="0.6"/>`;
-                }
                 // Indicador de fitas de borda (laranja vibrante nas faces com fita)
                 if (dbp?.borda_frontal) html += `<line x1="${px}" y1="${py}" x2="${px + p.w}" y2="${py}" stroke="#d97706" stroke-width="2.5"/>`;
                 if (dbp?.borda_traseira) html += `<line x1="${px}" y1="${py + p.h}" x2="${px + p.w}" y2="${py + p.h}" stroke="#d97706" stroke-width="2.5"/>`;
