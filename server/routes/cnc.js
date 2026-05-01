@@ -9753,8 +9753,10 @@ router.get('/relatorio-desperdicio/:loteId', requireAuth, (req, res) => {
             m.area_sobras_aproveitaveis += areaSobras;
 
             // Aproveitamento da chapa (já calculado no plano)
+            // Normaliza: salvo às vezes como ratio (0-1), às vezes como percentage (0-100)
             if (ch.aproveitamento > 0) {
-                m.sum_aproveitamento += ch.aproveitamento;
+                const apvNorm = ch.aproveitamento <= 1 ? ch.aproveitamento * 100 : ch.aproveitamento;
+                m.sum_aproveitamento += apvNorm;
                 m.count_aproveitamento++;
             }
 
@@ -12507,6 +12509,14 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
             <span style="margin-left:12px;font-size:12px;color:#666">${plano.chapas.length} chapas · ${lote.nome}</span>
         </div>`;
 
+        // Aproveitamento pode estar salvo como ratio (0-1) ou percentage (0-100).
+        // Normaliza para percentage 0-100 antes de exibir.
+        const toPct = (v) => {
+            const n = Number(v) || 0;
+            return n <= 1 ? n * 100 : n;
+        };
+        const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
         for (let ci = 0; ci < plano.chapas.length; ci++) {
             const ch = plano.chapas[ci];
             const ref = ch.refilo || 0;
@@ -12518,27 +12528,40 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
                 <div class="header">
                     <h1>Chapa ${ci + 1} / ${plano.chapas.length}</h1>
                     <div class="meta">
-                        <div><b>${lote.nome}</b> · ${lote.cliente || ''}</div>
-                        <div>${ch.material || ch.material_code || ''} · ${W}×${H}mm</div>
-                        <div>Aproveitamento: <b>${(ch.aproveitamento || 0).toFixed(1)}%</b></div>
+                        <div><b>${escapeHtml(lote.nome)}</b> · ${escapeHtml(lote.cliente || '')}</div>
+                        <div>${escapeHtml(ch.material || ch.material_code || '')} · ${W}×${H}mm</div>
+                        <div>Aproveitamento: <b>${toPct(ch.aproveitamento).toFixed(1)}%</b></div>
                     </div>
                 </div>
                 <div class="stats">
                     <span>Peças: <b>${ch.pecas.length}</b></span>
-                    <span>Material: <b>${ch.material_code || ch.material || '-'}</b></span>
+                    <span>Material: <b>${escapeHtml(ch.material_code || ch.material || '-')}</b></span>
                     <span>Sobras: <b>${(ch.retalhos || []).length}</b></span>
                 </div>
                 <svg class="chapa-svg" width="${svgW + 4}" height="${svgH + 4}" viewBox="-2 -2 ${W + 4} ${H + 4}">
                     <rect x="0" y="0" width="${W}" height="${H}" fill="#fafaf5" stroke="#333" stroke-width="2"/>`;
             if (ref > 0) html += `<rect x="${ref}" y="${ref}" width="${W - 2 * ref}" height="${H - 2 * ref}" fill="none" stroke="#c44" stroke-width="0.5" stroke-dasharray="4,2"/>`;
 
-            for (const p of ch.pecas) {
+            ch.pecas.forEach((p, pi) => {
                 const px = p.x + ref, py = p.y + ref;
+                const minDim = Math.min(p.w, p.h);
+                const cx = px + p.w / 2, cy = py + p.h / 2;
                 html += `<rect x="${px}" y="${py}" width="${p.w}" height="${p.h}" fill="#d4e6f1" stroke="#2980b9" stroke-width="1"/>`;
-                if (Math.min(p.w, p.h) > 60) {
-                    html += `<text x="${px + p.w / 2}" y="${py + p.h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(12, p.w / 8)}" font-family="Arial" fill="#333">${(p.desc || '').slice(0, 18)}</text>`;
+                // Número da peça (controle): SEMPRE mostra, mesmo em peças pequenas.
+                // Tamanho proporcional, mínimo legível 6px (impressão), sem cortar
+                if (minDim >= 18) {
+                    const numFontSize = Math.max(6, Math.min(14, minDim / 4));
+                    html += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${numFontSize}" font-weight="700" font-family="Arial" fill="#1a3a5c">${pi + 1}</text>`;
+                    // Descrição só se houver espaço razoável (> 60mm em ambos lados)
+                    if (minDim >= 60 && p.w >= 80) {
+                        html += `<text x="${cx}" y="${cy + numFontSize * 0.9}" text-anchor="middle" dominant-baseline="hanging" font-size="${Math.min(10, p.w / 14)}" font-family="Arial" fill="#666">${escapeHtml((p.desc || '').slice(0, 18))}</text>`;
+                    }
+                } else {
+                    // Peça muito pequena: número fora da peça (acima ou ao lado), com leader line
+                    const ext = Math.min(8, minDim * 0.8);
+                    html += `<text x="${cx}" y="${py - 1}" text-anchor="middle" font-size="${Math.max(6, ext)}" font-weight="700" font-family="Arial" fill="#1a3a5c">${pi + 1}</text>`;
                 }
-            }
+            });
             for (const r of (ch.retalhos || [])) {
                 html += `<rect x="${r.x + ref}" y="${r.y + ref}" width="${r.w}" height="${r.h}" fill="#e8f5e9" stroke="#4caf50" stroke-width="0.5" stroke-dasharray="3,2"/>`;
             }
@@ -12548,7 +12571,7 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
                     <tbody>`;
             ch.pecas.forEach((p, pi) => {
                 const dbp = pecasMap[p.pecaId];
-                html += `<tr><td>${pi + 1}</td><td>${p.desc || dbp?.descricao || '-'}</td><td>${p.w}×${p.h}mm</td><td>${p.material || ''}</td><td>${dbp?.modulo_desc || ''}</td><td>${Math.round(p.x)}, ${Math.round(p.y)}</td></tr>`;
+                html += `<tr><td>${pi + 1}</td><td>${escapeHtml(p.desc || dbp?.descricao || '-')}</td><td>${p.w}×${p.h}mm</td><td>${escapeHtml(p.material || '')}</td><td>${escapeHtml(dbp?.modulo_desc || '')}</td><td>${Math.round(p.x)}, ${Math.round(p.y)}</td></tr>`;
             });
             html += `</tbody></table></div>`;
         }
@@ -12975,17 +12998,37 @@ router.post('/plano/:loteId/comparar', requireAuth, (req, res) => {
     if (!lote || !lote.plano_json) return res.status(400).json({ error: 'Sem plano' });
     const plano = JSON.parse(lote.plano_json);
     const chapas = plano.chapas || [];
+
+    // Aproveitamento pode estar salvo como ratio (0-1) em planos antigos OU como percentage
+    // (0-100) em planos novos. Normaliza para ratio 0-1 antes de calcular média.
+    const toRatio = (v) => {
+        const n = Number(v) || 0;
+        return n > 1 ? n / 100 : n;
+    };
+
+    // Chapas usam {comprimento, largura} (não w/h) — peças usam {w, h}
+    const chapaArea = (c) => ((Number(c.comprimento) || 0) * (Number(c.largura) || 0)) / 1e6;
+    const pecaArea = (p) => ((Number(p.w) || 0) * (Number(p.h) || 0)) / 1e6;
+
     const stats = {
         total_chapas: chapas.length,
         total_pecas: chapas.reduce((s, c) => s + (c.pecas?.length || 0), 0),
-        aproveitamento_medio: chapas.length > 0 ? chapas.reduce((s, c) => s + (c.aproveitamento || 0), 0) / chapas.length : 0,
-        area_total_m2: chapas.reduce((s, c) => s + ((c.w || 0) * (c.h || 0)) / 1e6, 0),
-        area_usada_m2: chapas.reduce((s, c) => s + (c.pecas || []).reduce((ps, p) => ps + (p.w * p.h) / 1e6, 0), 0),
-        sobras: chapas.flatMap((c, ci) => (c.sobras || []).map(s => ({ chapa: ci, w: s.w, h: s.h }))),
+        // Retorna como ratio 0-1; frontend multiplica por 100 para exibir %
+        aproveitamento_medio: chapas.length > 0
+            ? chapas.reduce((s, c) => s + toRatio(c.aproveitamento), 0) / chapas.length
+            : 0,
+        area_total_m2: chapas.reduce((s, c) => s + chapaArea(c), 0),
+        area_usada_m2: chapas.reduce((s, c) => s + (c.pecas || []).reduce((ps, p) => ps + pecaArea(p), 0), 0),
+        // Sobras/retalhos: o plano salva como `retalhos`. Mantém compat com ambos.
+        sobras: chapas.flatMap((c, ci) => (c.retalhos || c.sobras || []).map(s => ({
+            chapa: ci, w: Number(s.w) || 0, h: Number(s.h) || 0
+        }))),
         por_chapa: chapas.map((c, i) => ({
-            idx: i, material: c.material, w: c.w, h: c.h,
+            idx: i, material: c.material,
+            w: Number(c.comprimento) || Number(c.w) || 0,
+            h: Number(c.largura) || Number(c.h) || 0,
             pecas: c.pecas?.length || 0,
-            aproveitamento: c.aproveitamento || 0,
+            aproveitamento: toRatio(c.aproveitamento), // ratio 0-1
         })),
     };
     res.json(stats);
@@ -13032,8 +13075,9 @@ router.get('/dashboard/desperdicio', requireAuth, (req, res) => {
             if (!byMonth[month]) byMonth[month] = { area_total: 0, area_usada: 0, chapas: 0, pecas: 0 };
 
             for (const ch of (plano.chapas || [])) {
-                const areaChapa = (ch.w || 0) * (ch.h || 0) / 1e6;
-                const areaUsada = (ch.pecas || []).reduce((s, p) => s + (p.w * p.h) / 1e6, 0);
+                // Chapas usam {comprimento, largura} (não w/h) — peças usam {w, h}
+                const areaChapa = ((Number(ch.comprimento) || Number(ch.w) || 0) * (Number(ch.largura) || Number(ch.h) || 0)) / 1e6;
+                const areaUsada = (ch.pecas || []).reduce((s, p) => s + ((Number(p.w) || 0) * (Number(p.h) || 0)) / 1e6, 0);
                 const mat = ch.material || 'Desconhecido';
 
                 byMonth[month].area_total += areaChapa;

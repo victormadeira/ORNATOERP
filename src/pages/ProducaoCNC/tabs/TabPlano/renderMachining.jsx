@@ -1651,14 +1651,25 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                         </g>
                                     )}
 
-                                    {/* Piece name */}
-                                    {pw > 35 && ph > 16 && (
+                                    {/* Piece label — peças grandes mostram nome + dimensão; médias só nome;
+                                        pequenas (até ~14px) ainda mostram número da peça (P{n}) para
+                                        rastrear na bancada. Garante que NENHUMA peça fique sem rótulo. */}
+                                    {pw > 35 && ph > 16 ? (
                                         <text x={px + pw / 2} y={py + ph / 2 - (pw > 50 && ph > 28 ? 5 : 0)}
                                             textAnchor="middle" dominantBaseline="central"
                                             fontSize={Math.min(10, Math.min(pw / 8, ph / 3))} fill="#1a1a1a" fontWeight={700}
                                             stroke="#fff" strokeWidth={2.5} paintOrder="stroke"
                                             style={{ pointerEvents: 'none' }}>
                                             {piece ? piece.descricao?.substring(0, Math.floor(pw / 6)) : `P${pi + 1}`}
+                                        </text>
+                                    ) : (pw > 14 && ph > 10) && (
+                                        // Peça pequena: mostra apenas número, sem stroke pra economizar pixels
+                                        <text x={px + pw / 2} y={py + ph / 2}
+                                            textAnchor="middle" dominantBaseline="central"
+                                            fontSize={Math.max(6, Math.min(8, Math.min(pw / 3, ph / 2)))} fill="#1a1a1a" fontWeight={800}
+                                            stroke="#fff" strokeWidth={1.5} paintOrder="stroke"
+                                            style={{ pointerEvents: 'none' }}>
+                                            {pi + 1}
                                         </text>
                                     )}
                                     {/* Piece dimensions */}

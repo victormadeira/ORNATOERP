@@ -290,45 +290,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         } catch (err) { notify(err.error || 'Erro ao exportar SVG'); }
     };
 
-    // ═══ PDF Export (#17) ═══
-    const handleExportPDF = async () => {
-        if (!loteAtual || !plano) return;
-        const win = window.open('', '_blank');
-        const chapasHtml = plano.chapas.map((ch, ci) => {
-            const totalPecas = ch.pecas?.length || 0;
-            const aprovPct = ch.aproveitamento ? (ch.aproveitamento * 100).toFixed(1) : '-';
-            const pecasRows = (ch.pecas || []).map((p, pi) => `
-                <tr><td>${pi + 1}</td><td>${p.desc || '-'}</td><td>${Math.round(p.w)}×${Math.round(p.h)}</td><td>${p.rotacionada ? 'Sim' : '-'}</td></tr>
-            `).join('');
-            return `
-                <div class="chapa-section">
-                    <h3>Chapa ${ci + 1} — ${ch.material || 'Material'} (${ch.w}×${ch.h}mm)</h3>
-                    <div class="stats">
-                        <span>Peças: ${totalPecas}</span>
-                        <span>Aproveitamento: ${aprovPct}%</span>
-                    </div>
-                    <table><thead><tr><th>#</th><th>Peça</th><th>Dimensões</th><th>Rot.</th></tr></thead>
-                    <tbody>${pecasRows}</tbody></table>
-                </div>`;
-        }).join('');
-        win.document.write(`<!DOCTYPE html><html><head><title>Plano de Corte — Lote ${loteAtual.nome || loteAtual.id}</title>
-        <style>
-            body{font-family:Inter,sans-serif;padding:30px;color:#1a1a2e}
-            h2{color:#1379F0;border-bottom:2px solid #1379F0;padding-bottom:8px}
-            .chapa-section{margin:20px 0;padding:16px;border:1px solid #ddd;border-radius:8px}
-            h3{margin:0 0 8px;color:#333}
-            .stats{display:flex;gap:20px;font-size:13px;color:#666;margin-bottom:12px}
-            table{width:100%;border-collapse:collapse;font-size:12px}
-            th,td{padding:6px 10px;border:1px solid #e0e0e0;text-align:left}
-            th{background:#f0f4ff;font-weight:600}
-            @media print{body{padding:10px}.chapa-section{break-inside:avoid}}
-        </style></head><body>
-        <h2>Plano de Corte — ${loteAtual.nome || 'Lote ' + loteAtual.id}</h2>
-        <p style="color:#666;font-size:12px">${new Date().toLocaleDateString('pt-BR')} · ${plano.chapas?.length || 0} chapas · ${plano.chapas?.reduce((s, c) => s + (c.pecas?.length || 0), 0) || 0} peças</p>
-        ${chapasHtml}
-        <script>setTimeout(()=>window.print(),500)</script></body></html>`);
-        win.document.close();
-    };
+    // ═══ PDF Export — usa endpoint /export/:loteId/pdf-plano (com SVG da chapa) ═══
+    // O endpoint backend renderiza HTML imprimível com visualização SVG de cada chapa,
+    // numeração de peças (incluindo pequenas), tabela e botão de imprimir/salvar PDF.
+    const handleExportPDF = () => handleExport('pdf-plano');
 
     // ═══ Tool Prediction (#20) ═══
     const [toolPrediction, setToolPrediction] = useState(null);
@@ -1280,19 +1245,20 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         setShowExportMenu(false);
         try {
             const token = localStorage.getItem('erp_token');
+            // pdf-plano e resumo são abertos em nova aba (HTML para imprimir/salvar PDF)
+            const isHtmlPreview = format === 'resumo' || format === 'pdf-plano';
             const resp = await fetch(`/api/cnc/export/${loteAtual.id}/${format}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!resp.ok) throw new Error('Erro ao exportar');
             const blob = await resp.blob();
-            const contentType = resp.headers.get('content-type') || '';
-            if (format === 'resumo') {
-                // Open HTML in new tab
+            if (isHtmlPreview) {
+                // Open HTML in new tab — usuário usa "Imprimir → Salvar como PDF" do navegador
                 const url = URL.createObjectURL(blob);
                 window.open(url, '_blank');
                 setTimeout(() => URL.revokeObjectURL(url), 5000);
             } else {
-                // Download file
+                // Download direto de arquivo (CSV, JSON)
                 const ext = format === 'csv' ? '.csv' : '.json';
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
