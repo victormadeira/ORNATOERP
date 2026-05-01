@@ -192,6 +192,11 @@ app.use('/api/orcamentos', orcamentosRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/biblioteca', bibliotecaRoutes);
+// Portal: rotas públicas por token recebem rate limit antes do router
+// (anti brute-force de tokens de proposta). Rotas autenticadas seguem livres.
+for (const publicPath of ['landing', 'public', 'preview', 'heartbeat', 'event', 'aprovar']) {
+    app.use(`/api/portal/${publicPath}`, publicLimiter);
+}
 app.use('/api/portal', portalRoutes);
 app.use('/api/projetos', projetosRoutes);
 app.use('/api/financeiro', financeiroRoutes);
