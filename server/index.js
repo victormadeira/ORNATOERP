@@ -84,6 +84,9 @@ const iaLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: 'M
 const mediaLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, message: { error: 'Muitos uploads. Aguarde 1 minuto.' }, standardHeaders: true, legacyHeaders: false });
 // Backfill: operação cara (chama Evolution API múltiplas vezes) — 3/hora
 const backfillLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 3, message: { error: 'Backfill só pode ser executado 3x por hora.' }, standardHeaders: true, legacyHeaders: false });
+// Scan público (expedição QR) — 60/min por IP. Suficiente para chão-de-fábrica
+// sem permitir enumeração de toda a base de peças.
+const scanLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, message: { error: 'Muitos scans. Aguarde 1 minuto.' }, standardHeaders: true, legacyHeaders: false });
 
 // ═══ Webhook ANTES do CORS (Evolution API envia de origem externa) ═══
 // Limite maior pois Evolution pode enviar payloads com base64 de mídia
@@ -101,6 +104,8 @@ const corsOrigins = process.env.CORS_ORIGINS
 app.use(cors({ origin: corsOrigins }));
 // Rotas pesadas (CNC, plano-corte, importacao) precisam de body maior
 app.use('/api/cnc', express.json({ limit: '50mb' }));
+// Rate limit no scan público antes do router (evita enumeração)
+app.use('/api/cnc/scan', scanLimiter);
 app.use('/api/plano-corte', express.json({ limit: '50mb' }));
 app.use('/api/industrializacao', express.json({ limit: '20mb' }));
 // Demais rotas: limite menor por seguranca

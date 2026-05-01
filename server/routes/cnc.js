@@ -804,18 +804,18 @@ router.post('/chapas/bulk', requireAuth, (req, res) => {
     }
 });
 
-// ── Scan público (expedição) ────────────────────────────
+// ── Scan público (expedição via QR) ────────────────────────────
+// Apenas tokens longos (persistent_id, upmcode) são aceitos — IDs sequenciais
+// e formato #NNN ficam exclusivos da rota autenticada /expedicao/scan, para
+// impedir enumeração da base de peças. Rate limit aplicado em index.js.
 router.get('/scan/:codigo', (req, res) => {
-    const codigo = req.params.codigo;
-    // Search by id, persistent_id, upmcode, or controle (row number in lote)
+    const codigo = String(req.params.codigo || '').trim();
+    // Mínimo de 8 caracteres não-numéricos puros: bloqueia "#1", "1", etc.
+    if (codigo.length < 8 || /^#?\d+$/.test(codigo)) {
+        return res.status(404).json({ error: 'Peça não encontrada' });
+    }
     let peca = db.prepare('SELECT * FROM cnc_pecas WHERE persistent_id = ?').get(codigo);
     if (!peca) peca = db.prepare('SELECT * FROM cnc_pecas WHERE upmcode = ?').get(codigo);
-    if (!peca) peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(codigo);
-    if (!peca) {
-        // Try matching by "#NNN" format (controle number)
-        const numMatch = codigo.match(/^#?(\d+)$/);
-        if (numMatch) peca = db.prepare('SELECT * FROM cnc_pecas WHERE id = ?').get(numMatch[1]);
-    }
     if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
 
     const lote = db.prepare('SELECT id, nome, cliente, projeto FROM cnc_lotes WHERE id = ?').get(peca.lote_id);
