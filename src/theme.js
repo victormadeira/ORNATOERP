@@ -152,7 +152,35 @@ export function getStatus(key) {
 // ─── Escala de Espaçamento (múltiplos de 4) ─────────
 export const SPACE = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, '2xl': 24, '3xl': 32, '4xl': 48 };
 
-// ─── Escala Tipográfica ─────────────────────────────
+// ─── Escala de Border Radius (sincronizada com --radius-* em index.css) ──
+// Use estes em inline styles. Para classNames Tailwind, prefira rounded-{sm,md,lg}.
+export const R = {
+    xs: 4,    // badges pequenos, indicadores
+    sm: 6,    // chips, inputs pequenos
+    md: 8,    // padrão — botões, cards, inputs
+    lg: 12,   // modais, cards destacados
+    xl: 16,   // hero, banners
+    '2xl': 24, // landing hero
+    pill: 999, // pills, avatars circulares
+};
+
+// ─── Escala Tipográfica em PIXELS ───────────────────
+// Use T.* em vez de números mágicos em inline styles (fontSize: T.sm).
+// 778x ocorrências de fontSize:11 e 753x de fontSize:10 estavam espalhadas
+// sem hierarquia — esta escala define os pontos canônicos.
+export const T = {
+    xs: 10,    // legendas, badges micro
+    sm: 11,    // labels, helpers, body em tabela densa
+    base: 12,  // body padrão em ERP denso
+    md: 13,    // body principal, conteúdo confortável
+    lg: 15,    // subtítulos
+    xl: 18,    // títulos de seção
+    '2xl': 24, // títulos de página
+    '3xl': 32, // KPIs grandes, hero
+    '4xl': 40, // landing hero
+};
+
+// ─── Escala Tipográfica em REM (legacy — manter por enquanto) ─────────
 export const FONT = {
     caption: '0.6875rem',   // 11px
     small:   '0.75rem',     // 12px

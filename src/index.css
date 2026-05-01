@@ -121,6 +121,24 @@
   --radius-xl: 18px;
   --radius-2xl: 24px;
   --radius-full: 9999px;
+
+  /* Typography scale — escala consistente, evita fontSize aleatório */
+  --text-xs: 10px;       /* badges pequenos, legendas */
+  --text-sm: 11px;       /* labels, helpers */
+  --text-base: 12px;     /* body padrão em ERP denso */
+  --text-md: 13px;       /* botões, conteúdo principal */
+  --text-lg: 15px;       /* subtítulos */
+  --text-xl: 18px;       /* títulos de seção */
+  --text-2xl: 24px;      /* títulos de página */
+  --text-3xl: 32px;      /* hero / KPIs grandes */
+  --text-4xl: 40px;      /* landing hero */
+}
+
+/* Tabular nums em medidas/valores numéricos para alinhamento perfeito
+   de R$, mm, %, contadores em tabelas — diferencial de software industrial */
+.num, td.num, [data-num], .tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
 }
 
 /* ─── Dark Mode (modo opcional do app inteiro) ─── */
