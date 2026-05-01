@@ -8,6 +8,22 @@ import { dispatchOutbound } from '../services/webhook_outbound.js';
 
 const router = Router();
 
+// ─── Sanitização contra XSS stored ───────────────────────────────────────
+// Strip tags HTML, protocolos perigosos e caracteres de controle.
+// Aplicado em campos de input público (referrer, utm_*, path, mensagem, etc.)
+// que depois são renderizados no dashboard admin.
+function stripHtml(value, maxLen = 500) {
+    if (value == null) return '';
+    let s = String(value);
+    // Remove tags HTML completas
+    s = s.replace(/<[^>]*>/g, '');
+    // Neutraliza protocolos perigosos em URLs colocadas como texto
+    s = s.replace(/(javascript|data|vbscript):/gi, 'blocked:');
+    // Remove caracteres de controle (exceto tab/newline)
+    s = s.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '');
+    return s.slice(0, maxLen);
+}
+
 // Webhook outbound agora centralizado em services/webhook_outbound.js
 // (dispatchOutbound — reusa HMAC, timeout, log de falhas)
 
@@ -145,16 +161,16 @@ router.post('/visita', (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             sessionId,
-            String(path || '').slice(0, 200),
-            String(utm_source || '').slice(0, 80),
-            String(utm_medium || '').slice(0, 80),
-            String(utm_campaign || '').slice(0, 120),
-            String(utm_term || '').slice(0, 120),
-            String(utm_content || '').slice(0, 120),
-            String(gclid || '').slice(0, 120),
-            String(fbclid || '').slice(0, 120),
-            String(referrer || '').slice(0, 300),
-            ua,
+            stripHtml(path, 200),
+            stripHtml(utm_source, 80),
+            stripHtml(utm_medium, 80),
+            stripHtml(utm_campaign, 120),
+            stripHtml(utm_term, 120),
+            stripHtml(utm_content, 120),
+            stripHtml(gclid, 120),
+            stripHtml(fbclid, 120),
+            stripHtml(referrer, 300),
+            stripHtml(ua, 500),
             ipHash,
         );
         res.json({ visit_id: r.lastInsertRowid, session_id: sessionId });
@@ -168,10 +184,27 @@ router.post('/visita', (req, res) => {
 // POST /api/leads/captura — captação de lead (PÚBLICO, sem auth)
 // ═══════════════════════════════════════════════════════
 router.post('/captura', (req, res) => {
-    const { nome, telefone, email, tipo_projeto, ambiente, faixa_investimento, mensagem,
-            estagio, bairro, visit_id,
-            utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-            gclid, fbclid, referrer, origem: origemParam } = req.body;
+    const raw = req.body || {};
+    // Sanitiza TODOS os campos textuais (renderizados em dashboard admin / propostas)
+    const nome = stripHtml(raw.nome, 200);
+    const telefone = stripHtml(raw.telefone, 40);
+    const email = stripHtml(raw.email, 200);
+    const tipo_projeto = stripHtml(raw.tipo_projeto, 100);
+    const ambiente = stripHtml(raw.ambiente, 100);
+    const faixa_investimento = stripHtml(raw.faixa_investimento, 100);
+    const mensagem = stripHtml(raw.mensagem, 2000);
+    const estagio = stripHtml(raw.estagio, 100);
+    const bairro = stripHtml(raw.bairro, 120);
+    const utm_source = stripHtml(raw.utm_source, 80);
+    const utm_medium = stripHtml(raw.utm_medium, 80);
+    const utm_campaign = stripHtml(raw.utm_campaign, 120);
+    const utm_term = stripHtml(raw.utm_term, 120);
+    const utm_content = stripHtml(raw.utm_content, 120);
+    const gclid = stripHtml(raw.gclid, 120);
+    const fbclid = stripHtml(raw.fbclid, 120);
+    const referrer = stripHtml(raw.referrer, 300);
+    const origemParam = stripHtml(raw.origem, 100);
+    const visit_id = raw.visit_id;
     // ambiente é o campo novo (dropdown "qual ambiente?"), tipo_projeto é compat legado
     const ambienteReal = ambiente || tipo_projeto || 'Consulta';
 
