@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { readFileSync, mkdirSync } from 'fs';
-import { join, dirname, extname } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import db from '../db.js';
@@ -13,12 +13,44 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
 mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// Whitelist mimetype → extensão. Bloqueia upload de .html/.svg/.js que poderiam
+// servir como XSS stored se o diretório for exposto como estático.
+const MIME_TO_EXT = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'audio/mpeg': '.mp3',
+    'audio/mp4': '.m4a',
+    'audio/ogg': '.ogg',
+    'audio/wav': '.wav',
+    'audio/webm': '.weba',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'video/quicktime': '.mov',
+    'application/pdf': '.pdf',
+    'application/zip': '.zip',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'text/plain': '.txt',
+    'text/csv': '.csv',
+};
+
 const upload = multer({
     storage: multer.diskStorage({
         destination: (_, __, cb) => cb(null, UPLOADS_DIR),
-        filename: (_, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extname(file.originalname)}`),
+        filename: (_, file, cb) => {
+            const ext = MIME_TO_EXT[file.mimetype] || '';
+            cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+        },
     }),
     limits: { fileSize: 64 * 1024 * 1024 }, // 64MB
+    fileFilter: (_, file, cb) => {
+        if (MIME_TO_EXT[file.mimetype]) return cb(null, true);
+        cb(new Error(`Tipo de arquivo não permitido: ${file.mimetype}`));
+    },
 });
 
 const router = Router();
