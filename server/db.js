@@ -2511,6 +2511,13 @@ const migrations = [
 
   // ═══ Meta/Facebook app secret (para validar HMAC-SHA256 de webhooks Lead Ads) ═══
   "ALTER TABLE empresa_config ADD COLUMN fb_app_secret TEXT DEFAULT ''",
+
+  // ═══ Índices para queries quentes (relatório de origens, busca por telefone) ═══
+  "CREATE INDEX IF NOT EXISTS idx_landing_visitas_origem ON landing_visitas(criado_em DESC, utm_source)",
+  "CREATE INDEX IF NOT EXISTS idx_landing_visitas_cliente ON landing_visitas(cliente_id)",
+  // Busca por telefone limpo (REPLACE chain) é frequente em /captura — este índice
+  // ajuda no fallback simples; ideal seria coluna telefone_limpo gerada, fica como TODO.
+  "CREATE INDEX IF NOT EXISTS idx_clientes_tel ON clientes(tel)",
 ];
 
 // Tabela de retry queue para mensagens de IA que falharam (criada separado pois é nova, não ALTER)
