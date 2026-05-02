@@ -1010,6 +1010,8 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
         colunas_impressao: template.colunas_impressao,
         margem_pagina: template.margem_pagina,
         gap_etiquetas: template.gap_etiquetas,
+        offset_x: template.offset_x ?? 0,
+        offset_y: template.offset_y ?? 0,
         elementos,
       });
       setDirty(false);
@@ -1027,6 +1029,8 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
         colunas_impressao: template?.colunas_impressao || 2,
         margem_pagina: template?.margem_pagina || 8,
         gap_etiquetas: template?.gap_etiquetas || 4,
+        offset_x: template?.offset_x ?? 0,
+        offset_y: template?.offset_y ?? 0,
         elementos,
       });
       const newId = resp.id || resp.data?.id;
@@ -2069,6 +2073,31 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 </div>
               </div>
 
+              {/* Calibração da impressora — corrige deslocamento físico
+                  da térmica (L42 Pro etc). Aplicado só no print real,
+                  não no editor (origem 0,0 sempre). */}
+              <SH icon={<Move size={10} />}>Calibração da impressora</SH>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 4 }}>
+                <div>
+                  <LBL>Offset X (mm)</LBL>
+                  <input type="number" value={template?.offset_x ?? 0}
+                    onChange={e => setTmpl('offset_x', Number(e.target.value))}
+                    className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', width: '100%', marginTop: 2 }}
+                    step={0.1} min={-10} max={10} />
+                </div>
+                <div>
+                  <LBL>Offset Y (mm)</LBL>
+                  <input type="number" value={template?.offset_y ?? 0}
+                    onChange={e => setTmpl('offset_y', Number(e.target.value))}
+                    className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', width: '100%', marginTop: 2 }}
+                    step={0.1} min={-10} max={10} />
+                </div>
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.3 }}>
+                Se a impressão sair deslocada, ajuste aqui e teste. Valores positivos empurram conteúdo
+                pra direita/baixo. Aplicado só no print, editor mostra origem 0,0.
+              </div>
+
               <Divider />
 
               {/* Atalhos */}
@@ -2241,9 +2270,13 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
 // (usado no preview e impressão)
 // ═══════════════════════════════════════════════════════
 
-export function EtiquetaSVG({ template, etiqueta, cfg, width }) {
+export function EtiquetaSVG({ template, etiqueta, cfg, width, applyOffset = false }) {
   if (!template || !template.elementos) return null;
-  const scale = width ? width / template.largura : 1;
+  // Offset de calibração só aplicado em impressão real (applyOffset=true).
+  // No editor/preview o offset fica zerado pra UX consistente.
+  const ox = applyOffset ? Number(template.offset_x) || 0 : 0;
+  const oy = applyOffset ? Number(template.offset_y) || 0 : 0;
+  const sortedEls = [...template.elementos].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
   return (
     <svg
       viewBox={`0 0 ${template.largura} ${template.altura}`}
@@ -2251,9 +2284,11 @@ export function EtiquetaSVG({ template, etiqueta, cfg, width }) {
       height={width ? (width / template.largura) * template.altura : template.altura * 5}
       style={{ background: '#fff', borderRadius: 2 }}
     >
-      {[...template.elementos].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)).map(el => (
-        <ElementoSVG key={el.id} el={el} et={etiqueta} cfg={cfg} isEditor={false} selected={false} />
-      ))}
+      <g transform={ox || oy ? `translate(${ox} ${oy})` : undefined}>
+        {sortedEls.map(el => (
+          <ElementoSVG key={el.id} el={el} et={etiqueta} cfg={cfg} isEditor={false} selected={false} />
+        ))}
+      </g>
     </svg>
   );
 }

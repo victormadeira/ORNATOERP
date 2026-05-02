@@ -4148,10 +4148,10 @@ router.get('/etiqueta-templates/:id', requireAuth, (req, res) => {
 
 // Criar template
 router.post('/etiqueta-templates', requireAuth, (req, res) => {
-    const { nome, largura, altura, colunas_impressao, margem_pagina, gap_etiquetas, elementos } = req.body;
+    const { nome, largura, altura, colunas_impressao, margem_pagina, gap_etiquetas, elementos, offset_x, offset_y } = req.body;
     const result = db.prepare(
-        'INSERT INTO cnc_etiqueta_templates (user_id, nome, largura, altura, colunas_impressao, margem_pagina, gap_etiquetas, elementos) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.user.id, nome || 'Sem nome', largura || 100, altura || 70, colunas_impressao || 2, margem_pagina || 8, gap_etiquetas || 4, JSON.stringify(elementos || []));
+        'INSERT INTO cnc_etiqueta_templates (user_id, nome, largura, altura, colunas_impressao, margem_pagina, gap_etiquetas, elementos, offset_x, offset_y) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.user.id, nome || 'Sem nome', largura || 100, altura || 70, colunas_impressao || 2, margem_pagina || 8, gap_etiquetas || 4, JSON.stringify(elementos || []), Number(offset_x) || 0, Number(offset_y) || 0);
     res.json({ ok: true, id: result.lastInsertRowid });
 });
 
@@ -4159,10 +4159,10 @@ router.post('/etiqueta-templates', requireAuth, (req, res) => {
 router.put('/etiqueta-templates/:id', requireAuth, (req, res) => {
     const t = db.prepare('SELECT id FROM cnc_etiqueta_templates WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!t) return res.status(404).json({ error: 'Template não encontrado' });
-    const { nome, largura, altura, colunas_impressao, margem_pagina, gap_etiquetas, elementos } = req.body;
+    const { nome, largura, altura, colunas_impressao, margem_pagina, gap_etiquetas, elementos, offset_x, offset_y } = req.body;
     db.prepare(
-        `UPDATE cnc_etiqueta_templates SET nome = ?, largura = ?, altura = ?, colunas_impressao = ?, margem_pagina = ?, gap_etiquetas = ?, elementos = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`
-    ).run(nome || 'Sem nome', largura || 100, altura || 70, colunas_impressao || 2, margem_pagina || 8, gap_etiquetas || 4, JSON.stringify(elementos || []), req.params.id);
+        `UPDATE cnc_etiqueta_templates SET nome = ?, largura = ?, altura = ?, colunas_impressao = ?, margem_pagina = ?, gap_etiquetas = ?, elementos = ?, offset_x = ?, offset_y = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run(nome || 'Sem nome', largura || 100, altura || 70, colunas_impressao || 2, margem_pagina || 8, gap_etiquetas || 4, JSON.stringify(elementos || []), Number(offset_x) || 0, Number(offset_y) || 0, req.params.id);
     res.json({ ok: true });
 });
 

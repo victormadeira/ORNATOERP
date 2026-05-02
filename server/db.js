@@ -2528,6 +2528,13 @@ const migrations = [
   "UPDATE ambiente_templates SET user_id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) WHERE user_id IS NULL",
   "CREATE INDEX IF NOT EXISTS idx_ambiente_templates_user ON ambiente_templates(user_id, categoria)",
 
+  // ═══ Calibração de impressão térmica por template de etiqueta ═══
+  // Compensa deslocamento físico da impressora (L42 Pro etc) — operador
+  // ajusta uma vez por template e fica salvo. Aplicado só no print real,
+  // não no editor (editor mostra origem 0,0).
+  "ALTER TABLE cnc_etiqueta_templates ADD COLUMN offset_x REAL DEFAULT 0",
+  "ALTER TABLE cnc_etiqueta_templates ADD COLUMN offset_y REAL DEFAULT 0",
+
   // ═══ Configuração de estratégia de face por máquina ═══
   // tipo: router (CNC nesting), centro_furacao (só furos), router_furacao (combo), beam_saw (serra)
   "ALTER TABLE cnc_maquinas ADD COLUMN tipo TEXT DEFAULT 'router'",

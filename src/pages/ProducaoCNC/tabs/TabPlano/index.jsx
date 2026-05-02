@@ -526,7 +526,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             const ReactDOMServer = await import('react-dom/server');
             const labelsHtml = etiquetas.map(et => {
                 const svgMarkup = ReactDOMServer.renderToStaticMarkup(
-                    <EtiquetaSVG template={tpl} etiqueta={et} cfg={cfgResp || {}} />
+                    <EtiquetaSVG template={tpl} etiqueta={et} cfg={cfgResp || {}} applyOffset />
                 );
                 return `<div class="label-page">${svgMarkup}</div>`;
             }).join('');
