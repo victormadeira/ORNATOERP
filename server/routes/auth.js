@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import db from '../db.js';
 import { signToken, requireAuth, requireRole, isAdmin } from '../auth.js';
+import { audit } from './gestao-avancada.js';
 
 const router = Router();
 
@@ -110,8 +111,12 @@ router.put('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
     if (updates.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
     params.push(id);
 
+    const before = db.prepare('SELECT id, nome, email, role, ativo, permissions FROM users WHERE id = ?').get(id);
     db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     const user = db.prepare('SELECT id, nome, email, role, ativo, criado_em, permissions, ultimo_acesso FROM users WHERE id = ?').get(id);
+    audit(req, 'update', 'user', id,
+        { role: before?.role, ativo: before?.ativo, nome: before?.nome, permissions: before?.permissions },
+        { role: user.role, ativo: user.ativo, nome: user.nome, permissions: user.permissions });
     res.json(user);
 });
 
@@ -125,11 +130,12 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
         return res.status(400).json({ error: 'Não é possível deletar sua própria conta' });
     }
 
-    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(id);
+    const user = db.prepare('SELECT id, nome, email, role FROM users WHERE id = ?').get(id);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
     // Soft delete — desativa ao invés de remover para preservar dados vinculados
     db.prepare('UPDATE users SET ativo = 0, email = email || \'_deleted_\' || id WHERE id = ?').run(id);
+    audit(req, 'delete', 'user', id, { nome: user.nome, email: user.email, role: user.role }, null);
     res.json({ ok: true });
 });
 

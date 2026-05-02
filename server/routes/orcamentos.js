@@ -7,6 +7,7 @@ import { createNotification, logActivity } from '../services/notificacoes.js';
 import { sendCAPIEvent } from '../services/meta-capi.js';
 import { dispatchOutbound } from '../services/webhook_outbound.js';
 import { sendGadsConversion } from '../services/google-ads.js';
+import { audit } from './gestao-avancada.js';
 
 const router = Router();
 
@@ -739,6 +740,12 @@ router.put('/:id', requireAuth, (req, res) => {
 
     const orc = db.prepare('SELECT * FROM orcamentos WHERE id = ?').get(id);
     parseOrcData(orc);
+    // Audit log: registra mudanças relevantes (preço, status, kb_col)
+    const camposRelevantes = ['valor_venda', 'custo_material', 'status', 'kb_col', 'cliente_nome', 'numero'];
+    const antes = Object.fromEntries(camposRelevantes.map(c => [c, existing[c]]));
+    const depois = Object.fromEntries(camposRelevantes.map(c => [c, orc[c]]));
+    const mudou = camposRelevantes.some(c => antes[c] !== depois[c]);
+    if (mudou) audit(req, 'update', 'orcamento', id, antes, depois);
     res.json(orc);
 });
 
@@ -785,6 +792,10 @@ router.delete('/:id', requireAuth, (req, res) => {
 
     try {
         deleteRelated();
+        audit(req, 'delete', 'orcamento', id, {
+            numero: existing.numero, cliente_nome: existing.cliente_nome,
+            valor_venda: existing.valor_venda, status: existing.status, kb_col: existing.kb_col,
+        }, null);
         res.json({ ok: true });
     } catch (err) {
         console.error('Erro ao deletar orçamento:', err.message);

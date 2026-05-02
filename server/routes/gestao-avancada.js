@@ -95,6 +95,14 @@ export function registrarAudit(userId, userNome, acao, entidade, entidadeId, dad
     } catch (_) { /* audit log não bloqueia operação */ }
 }
 
+// Wrapper conveniente — extrai user/ip do req. Não bloqueia operação.
+// Uso: import { audit } from './gestao-avancada.js'; audit(req, 'delete', 'cnc_lote', id, antes, null);
+export function audit(req, acao, entidade, entidadeId, dadosAntes, dadosDepois) {
+    if (!req?.user?.id) return;
+    const ip = (req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || '').slice(0, 64);
+    registrarAudit(req.user.id, req.user.nome || req.user.email || '', acao, entidade, entidadeId, dadosAntes, dadosDepois, ip);
+}
+
 // ═══════════════════════════════════════════════════════
 // GESTÃO DE PESSOAS — Ponto, Férias
 // ═══════════════════════════════════════════════════════

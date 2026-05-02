@@ -18,6 +18,7 @@ import {
 import { isPythonAvailable, callPython } from '../lib/python-bridge.js';
 import { parseDxf } from '../utils/dxfParser.js';
 import { seedTestData } from '../utils/seedTestData.js';
+import { audit } from './gestao-avancada.js';
 import { seedTestCabinet } from '../utils/seedTestCabinet.js';
 
 const router = Router();
@@ -1438,7 +1439,7 @@ router.put('/lotes/:id', requireAuth, (req, res) => {
 router.delete('/lotes/:id', requireAuth, (req, res) => {
     try {
         const id = Number(req.params.id);
-        const lote = db.prepare('SELECT id FROM cnc_lotes WHERE id = ? AND user_id = ?').get(id, req.user.id);
+        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(id, req.user.id);
         if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
 
         db.exec('PRAGMA foreign_keys = OFF');
@@ -1447,6 +1448,7 @@ router.delete('/lotes/:id', requireAuth, (req, res) => {
         } finally {
             db.exec('PRAGMA foreign_keys = ON');
         }
+        audit(req, 'delete', 'cnc_lote', id, { nome: lote.nome, cliente: lote.cliente, total_pecas: lote.total_pecas, status: lote.status }, null);
         res.json({ ok: true });
     } catch (err) {
         try { db.exec('PRAGMA foreign_keys = ON'); } catch (_) {}
@@ -6709,6 +6711,13 @@ router.post('/gcode/:loteId/chapa/:chapaIdx', requireAuth, async (req, res) => {
         // #35 — Push notification: broadcast G-code completion via WebSocket
         const broadcast = req.app.locals.wsBroadcast;
         if (broadcast) broadcast('gcode_complete', { lote_id: ctx.lote.id, chapa_idx: chapaIdx, message: `Chapa ${chapaIdx+1} pronta` });
+
+        // Audit: rastreia quem mandou pra máquina e quando
+        audit(req, 'generate_gcode', 'cnc_chapa', ctx.lote.id, null, {
+            chapa_idx: chapaIdx, maquina_id: maquina.id, maquina_nome: maquina.nome,
+            filename, total_operacoes: result.stats?.total_operacoes || 0,
+            tempo_estimado_min: result.stats?.tempo_estimado_min || 0,
+        });
 
         res.json({ ok: true, ...result, extensao, filename, chapa_idx: chapaIdx });
     } catch (err) {

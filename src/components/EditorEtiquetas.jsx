@@ -10,7 +10,7 @@ import {
   ArrowLeft, PenTool, Save, Copy, Star, Trash2, Undo2, Redo2,
   ZoomIn, ZoomOut, Grid3X3, ChevronDown, ChevronRight, Plus, X,
   Move, Maximize2, RotateCw, Palette, AlignLeft, AlignCenter, AlignRight,
-  Image, Map, Minus, Eye
+  Image, Map, Minus, Eye, Lock, Unlock
 } from 'lucide-react';
 import { qrcodeMatrix } from '../utils/qrcode';
 import { code128Bars } from '../utils/code128';
@@ -2100,6 +2100,87 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
 
               <Divider />
 
+              {/* Backup / portabilidade — exportar template como JSON pra versionar
+                  ou importar entre instalações */}
+              <SH icon={<Save size={10} />}>Backup do Template</SH>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 6 }}>
+                <button className={Z.btn2} style={{ fontSize: 10, padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                  onClick={() => {
+                    if (!template) return;
+                    const exportData = {
+                      _format: 'ornato-etiqueta-v1',
+                      nome: template.nome,
+                      largura: template.largura,
+                      altura: template.altura,
+                      colunas_impressao: template.colunas_impressao,
+                      margem_pagina: template.margem_pagina,
+                      gap_etiquetas: template.gap_etiquetas,
+                      offset_x: template.offset_x ?? 0,
+                      offset_y: template.offset_y ?? 0,
+                      elementos,
+                      exported_at: new Date().toISOString(),
+                    };
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `etiqueta_${template.nome.replace(/[^a-z0-9]/gi, '_')}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    notify?.('Template exportado', 'success');
+                  }}>
+                  <ArrowLeft size={11} style={{ transform: 'rotate(-90deg)' }} /> Exportar JSON
+                </button>
+                <label className={Z.btn2} style={{ fontSize: 10, padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: 'pointer' }}>
+                  <ArrowLeft size={11} style={{ transform: 'rotate(90deg)' }} /> Importar JSON
+                  <input type="file" accept="application/json,.json" style={{ display: 'none' }}
+                    onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const text = await file.text();
+                        const data = JSON.parse(text);
+                        if (data._format !== 'ornato-etiqueta-v1') {
+                          notify?.('Arquivo não é um template Ornato válido', 'error');
+                          return;
+                        }
+                        if (!Array.isArray(data.elementos)) {
+                          notify?.('Template sem elementos válidos', 'error');
+                          return;
+                        }
+                        // Cria novo template a partir do JSON
+                        const resp = await api.post('/cnc/etiqueta-templates', {
+                          nome: (data.nome || 'Importado') + ' (importado)',
+                          largura: data.largura || 100,
+                          altura: data.altura || 70,
+                          colunas_impressao: data.colunas_impressao || 2,
+                          margem_pagina: data.margem_pagina || 8,
+                          gap_etiquetas: data.gap_etiquetas || 4,
+                          offset_x: data.offset_x || 0,
+                          offset_y: data.offset_y || 0,
+                          elementos: data.elementos.map(el => ({ ...el, id: uid() })), // regenera IDs
+                        });
+                        const newId = resp.id || resp.data?.id;
+                        notify?.('Template importado!', 'success');
+                        await loadTemplates();
+                        if (newId) loadTemplate(newId);
+                      } catch (err) {
+                        console.error(err);
+                        notify?.('Erro ao importar: arquivo inválido', 'error');
+                      }
+                      e.target.value = ''; // reset input
+                    }} />
+                </label>
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.3 }}>
+                Backup ou compartilhamento entre instalações. Exporta tudo: dimensões,
+                elementos, calibração, configuração de impressão.
+              </div>
+
+              <Divider />
+
               {/* Atalhos */}
               <SH icon={<MousePointer size={10} />}>Atalhos</SH>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.9, paddingLeft: 2 }}>
@@ -2125,46 +2206,87 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
             </div>
 
           ) : (
-            /* ──── Lista de elementos ──────────────── */
+            /* ──── Painel de Camadas (drag para reordenar zIndex) ──────────────── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <SH icon={<Layers size={10} />}>Elementos ({elementos.length})</SH>
+              <SH icon={<Layers size={10} />}>Camadas ({elementos.length})</SH>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 6, padding: '2px 4px' }}>
+                Arraste pra reordenar · Topo da lista = camada superior
+              </div>
               {elementos.length === 0 ? (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>
                   Nenhum elemento.<br />Use os botões à esquerda para adicionar.
                 </div>
               ) : (
-                [...elementos].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0)).map(el => (
-                  <div
-                    key={el.id}
-                    onClick={() => setSelecionado(el.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '4px 8px', borderRadius: 6, cursor: 'pointer',
-                      background: selecionado === el.id ? 'var(--bg-hover)' : 'transparent',
-                      border: '1px solid',
-                      borderColor: selecionado === el.id ? 'var(--primary)' : 'transparent',
-                      transition: 'all .1s',
-                    }}
-                    onMouseEnter={e => { if (selecionado !== el.id) e.currentTarget.style.background = 'var(--bg-muted)'; }}
-                    onMouseLeave={e => { if (selecionado !== el.id) e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    {el.tipo === 'texto' ? <Type size={11} /> :
-                     el.tipo === 'retangulo' ? <Square size={11} /> :
-                     el.tipo === 'barcode' ? <BarChart2 size={11} /> :
-                     el.tipo === 'qrcode' ? <QrCode size={11} /> :
-                     el.tipo === 'imagem' ? <Image size={11} /> :
-                     el.tipo === 'minimapa' ? <Map size={11} /> :
-                     <Layers size={11} />}
-                    <span style={{ fontSize: 10, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {el.variavel || el.texto?.replace(/\{\{|\}\}/g, '') || el.tipo}
-                    </span>
-                    <button onClick={(e) => { e.stopPropagation(); deleteEl(el.id); }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', borderRadius: 3 }}
-                      title="Excluir">
-                      <X size={11} />
-                    </button>
-                  </div>
-                ))
+                [...elementos].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0)).map((el, idx, arr) => {
+                  const elIcon = el.tipo === 'texto' ? <Type size={11} /> :
+                    el.tipo === 'retangulo' ? <Square size={11} /> :
+                    el.tipo === 'linha' ? <Minus size={11} /> :
+                    el.tipo === 'barcode' ? <BarChart2 size={11} /> :
+                    el.tipo === 'qrcode' ? <QrCode size={11} /> :
+                    el.tipo === 'imagem' ? <Image size={11} /> :
+                    el.tipo === 'minimapa' ? <Map size={11} /> :
+                    <Layers size={11} />;
+                  return (
+                    <div
+                      key={el.id}
+                      draggable
+                      onDragStart={e => { e.dataTransfer.setData('text/elId', el.id); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        const draggedId = e.dataTransfer.getData('text/elId');
+                        if (!draggedId || draggedId === el.id) return;
+                        // Reordena pelo zIndex visual: pega zIndex do alvo e insere o arrastado nessa posição
+                        const sorted = [...elementos].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+                        const targetIdx = sorted.findIndex(x => x.id === el.id);
+                        const dragged = sorted.find(x => x.id === draggedId);
+                        if (!dragged || targetIdx < 0) return;
+                        const without = sorted.filter(x => x.id !== draggedId);
+                        without.splice(targetIdx, 0, dragged);
+                        // Reatribui zIndex do topo (n-1) pro fundo (0)
+                        const next = elementos.map(orig => {
+                            const newOrder = without.findIndex(x => x.id === orig.id);
+                            return { ...orig, zIndex: newOrder >= 0 ? without.length - 1 - newOrder : (orig.zIndex || 0) };
+                        });
+                        setElementos(next);
+                        pushHistory(next);
+                        setDirty(true);
+                      }}
+                      onClick={() => setSelecionado(el.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '4px 6px', borderRadius: 6, cursor: 'grab',
+                        background: selecionado === el.id ? 'var(--bg-hover)' : 'transparent',
+                        border: '1px solid',
+                        borderColor: selecionado === el.id ? 'var(--primary)' : 'transparent',
+                        transition: 'all .1s',
+                        opacity: el.opacity != null && el.opacity < 1 ? 0.7 : 1,
+                      }}
+                      onMouseEnter={e => { if (selecionado !== el.id) e.currentTarget.style.background = 'var(--bg-muted)'; }}
+                      onMouseLeave={e => { if (selecionado !== el.id) e.currentTarget.style.background = 'transparent'; }}
+                      title={`${el.tipo} · zIndex ${el.zIndex || 0}${el.locked ? ' · BLOQUEADO' : ''}${el.hideIfEmpty ? ' · oculta se vazio' : ''}`}
+                    >
+                      <span style={{ color: 'var(--text-muted)', cursor: 'grab', fontSize: 11, lineHeight: 1 }}>⋮⋮</span>
+                      {elIcon}
+                      <span style={{ fontSize: 10, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {el.variavel || el.texto?.replace(/\{\{|\}\}/g, '') || el.tipo}
+                      </span>
+                      {el.hideIfEmpty && (
+                        <span title="Oculta se vazio" style={{ fontSize: 9, padding: '0 4px', borderRadius: 3, background: 'rgba(34,197,94,0.15)', color: '#16a34a', fontWeight: 700 }}>∅</span>
+                      )}
+                      <button onClick={(e) => { e.stopPropagation(); updateEl(el.id, { locked: !el.locked }); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: el.locked ? '#dc2626' : 'var(--text-muted)', borderRadius: 3 }}
+                        title={el.locked ? 'Bloqueado — clique pra desbloquear' : 'Bloquear elemento'}>
+                        {el.locked ? <Lock size={11} /> : <Unlock size={11} />}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteEl(el.id); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', borderRadius: 3 }}
+                        title="Excluir">
+                        <X size={11} />
+                      </button>
+                    </div>
+                  );
+                })
               )}
 
               {/* ── Painel de validação de variáveis ── */}
