@@ -12560,25 +12560,34 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
         let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plano de Corte — ${escapeHtml(lote.nome)}</title>
         <style>
             * { box-sizing: border-box; margin: 0; }
-            body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #1a1a1a; }
-            .page { page-break-after: always; padding: 10mm; }
-            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 10px; }
-            .header h1 { font-size: 16px; letter-spacing: 0.5px; }
-            .header .meta { font-size: 10px; color: #666; text-align: right; line-height: 1.4; }
-            .chapa-svg { border: 1px solid #ccc; margin: 6px 0; display: block; max-width: 100%; }
-            .stats { display: flex; gap: 8px; margin: 6px 0; font-size: 10px; flex-wrap: wrap; }
-            .stats span { padding: 3px 8px; background: #f0ede8; border-radius: 4px; border: 1px solid #e0ddd6; }
+            @page { size: A4 landscape; margin: 6mm; }
+            body { font-family: 'Inter', Arial, sans-serif; font-size: 9px; color: #1a1a1a; }
+            /* Cada chapa vira 1 página A4 paisagem (297×210mm). Layout 2 colunas:
+               SVG esquerda + tabela direita. Cabe até ~30 peças sem quebrar. */
+            .page { page-break-after: always; padding: 4mm; height: 198mm; display: flex; flex-direction: column; }
+            .page:last-child { page-break-after: auto; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #1a1a1a; padding-bottom: 4px; margin-bottom: 4px; flex-shrink: 0; }
+            .header h1 { font-size: 14px; letter-spacing: 0.4px; }
+            .header .meta { font-size: 9px; color: #555; text-align: right; line-height: 1.3; }
+            .stats { display: flex; gap: 5px; margin: 3px 0; font-size: 9px; flex-wrap: wrap; flex-shrink: 0; }
+            .stats span { padding: 2px 6px; background: #f0ede8; border-radius: 3px; border: 1px solid #e0ddd6; }
             .stats b { color: #1a1a1a; }
-            .legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; padding: 6px 8px; background: #fafaf6; border: 1px solid #e0ddd6; border-radius: 4px; font-size: 9px; }
-            .legend-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 3px; }
-            .legend-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1.5px solid; flex-shrink: 0; }
-            table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10px; }
-            th, td { border: 1px solid #ddd; padding: 3px 6px; text-align: left; vertical-align: middle; }
-            th { background: #f0ede8; font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; color: #555; }
+            /* 2-col main area */
+            .main-row { display: flex; gap: 6px; flex: 1; min-height: 0; margin: 3px 0; }
+            .svg-col { flex: 0 0 48%; display: flex; flex-direction: column; min-height: 0; }
+            .table-col { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+            .chapa-svg { border: 1px solid #ccc; display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
+            .legend { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; padding: 3px 5px; background: #fafaf6; border: 1px solid #e0ddd6; border-radius: 3px; font-size: 8px; flex-shrink: 0; }
+            .legend-item { display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px; border-radius: 2px; }
+            .legend-swatch { width: 9px; height: 9px; border-radius: 2px; border: 1.2px solid; flex-shrink: 0; }
+            table { width: 100%; border-collapse: collapse; font-size: 8px; }
+            th, td { border: 1px solid #ddd; padding: 2px 4px; text-align: left; vertical-align: middle; }
+            th { background: #f0ede8; font-weight: 700; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.2px; color: #555; }
             tbody tr:nth-child(even) { background: #fafaf6; }
-            .mod-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; border: 1px solid; }
-            .num-cell { font-family: monospace; font-weight: 700; text-align: center; width: 32px; }
-            @media print { .no-print { display: none; } .page { padding: 5mm; } }
+            .mod-tag { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 7px; font-weight: 600; border: 1px solid; }
+            .num-cell { font-family: monospace; font-weight: 700; text-align: center; width: 22px; font-size: 9px; }
+            .table-scroll { flex: 1; overflow: hidden; }
+            @media print { .no-print { display: none; } .page { padding: 0; } }
         </style></head><body>
         <div class="no-print" style="padding:10px;background:linear-gradient(90deg,#fafaf6,#f4ede0);border-bottom:1px solid #e0ddd6;display:flex;align-items:center;gap:12px">
             <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#1379F0;color:#fff;border:none;border-radius:6px;font-weight:600">Imprimir / Salvar PDF</button>
@@ -12607,24 +12616,26 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
                 entry.area += (p.w * p.h) / 1e6;
             });
 
+            // A4 paisagem (297×210mm). Layout 2 colunas: SVG ~48% × Tabela ~52%.
+            // Header + stats topo, legendas rodapé, main-row no meio com flex.
             html += `<div class="page">
                 <div class="header">
                     <h1>Chapa ${ci + 1} / ${plano.chapas.length}</h1>
                     <div class="meta">
                         <div><b>${escapeHtml(lote.nome)}</b>${lote.cliente ? ' · ' + escapeHtml(lote.cliente) : ''}</div>
-                        <div>${escapeHtml(ch.material || ch.material_code || '')} · ${W}×${H}mm</div>
-                        <div>Aproveitamento: <b style="color:#16a34a">${toPct(ch.aproveitamento).toFixed(1)}%</b></div>
+                        <div>${escapeHtml(ch.material || ch.material_code || '')} · ${W}×${H}mm · <b style="color:#16a34a">${toPct(ch.aproveitamento).toFixed(1)}%</b></div>
                     </div>
                 </div>
                 <div class="stats">
                     <span>Peças: <b>${ch.pecas.length}</b></span>
                     <span>Módulos: <b>${modulosDestaChapa.size}</b></span>
-                    <span>Material: <b>${escapeHtml(ch.material_code || ch.material || '-')}</b></span>
                     <span>Sobras: <b>${(ch.retalhos || []).length}</b></span>
                     ${ref > 0 ? `<span>Refilo: <b>${ref}mm</b></span>` : ''}
                     ${ch.kerf ? `<span>Kerf: <b>${ch.kerf}mm</b></span>` : ''}
                 </div>
-                <svg class="chapa-svg" width="${svgW + 4}" height="${svgH + 4}" viewBox="-2 -2 ${W + 4} ${H + 4}">
+                <div class="main-row">
+                <div class="svg-col">
+                <svg class="chapa-svg" viewBox="-2 -2 ${W + 4} ${H + 4}" preserveAspectRatio="xMidYMid meet">
                     <!-- Fundo da chapa: tom creme/madeira -->
                     <rect x="0" y="0" width="${W}" height="${H}" fill="#f4ede0" stroke="#1a1a1a" stroke-width="2"/>`;
             if (ref > 0) html += `<rect x="${ref}" y="${ref}" width="${W - 2 * ref}" height="${H - 2 * ref}" fill="none" stroke="#c44" stroke-width="0.5" stroke-dasharray="6,3" opacity="0.5"/>`;
@@ -12681,64 +12692,70 @@ router.get('/export/:loteId/pdf-plano', requireAuth, (req, res) => {
             }
             html += `</svg>`;
 
-            // Legenda das fitas (se houver alguma peça com fita)
-            const temFitas = ch.pecas.some(p => {
-                const dbp = pecasMap[p.pecaId];
-                return dbp?.borda_frontal || dbp?.borda_traseira || dbp?.borda_esq || dbp?.borda_dir;
-            });
-            if (temFitas) {
-                html += `<div style="margin:4px 0;font-size:9px;color:#92400e">
-                    <span style="display:inline-block;width:18px;height:2px;background:#d97706;vertical-align:middle;margin-right:4px"></span>
-                    Fita de borda — F=Frontal · T=Traseira · D=Direita · E=Esquerda
-                </div>`;
-            }
-
-            // Legenda de cores por módulo desta chapa
-            html += `<div class="legend">
-                <span style="font-weight:700;color:#555;font-size:9px;text-transform:uppercase;letter-spacing:0.3px;margin-right:4px">Módulos:</span>`;
-            for (const [, info] of modulosDestaChapa) {
-                html += `<span class="legend-item">
-                    <span class="legend-swatch" style="background:${info.color.fill};border-color:${info.color.stroke}"></span>
-                    <span style="font-weight:600">${escapeHtml(info.label)}</span>
-                    <span style="color:#888">(${info.count}pç · ${info.area.toFixed(2)}m²)</span>
-                </span>`;
-            }
-            html += `</div>`;
+            // Fim da svg-col, abre table-col com tabela detalhada
+            html += `</div><div class="table-col">`;
 
             // Tabela detalhada com chip de cor por módulo
             html += `<table>
                     <thead><tr>
                         <th class="num-cell">#</th>
-                        <th>Descrição</th>
-                        <th>Módulo</th>
-                        <th>Dimensões</th>
-                        <th style="width:32px;text-align:center">Rot.</th>
-                        <th style="width:42px;text-align:center;background:#fef3c7">F</th>
-                        <th style="width:42px;text-align:center;background:#fef3c7">T</th>
-                        <th style="width:42px;text-align:center;background:#fef3c7">D</th>
-                        <th style="width:42px;text-align:center;background:#fef3c7">E</th>
+                        <th>Descrição / Módulo</th>
+                        <th style="width:54px">Dim. (mm)</th>
+                        <th style="width:18px;text-align:center">R</th>
+                        <th style="width:24px;text-align:center;background:#fef3c7">F</th>
+                        <th style="width:24px;text-align:center;background:#fef3c7">T</th>
+                        <th style="width:24px;text-align:center;background:#fef3c7">D</th>
+                        <th style="width:24px;text-align:center;background:#fef3c7">E</th>
                     </tr></thead>
                     <tbody>`;
             ch.pecas.forEach((p, pi) => {
                 const dbp = pecasMap[p.pecaId];
                 const c = colorForPiece(p);
                 const bdCell = (val) => val
-                    ? `<td style="text-align:center;font-size:8px;color:#92400e;font-weight:600;background:#fffbeb">${escapeHtml(val.length > 8 ? val.substring(0, 8) + '…' : val)}</td>`
-                    : `<td style="text-align:center;color:#d1d5db">-</td>`;
+                    ? `<td style="text-align:center;font-size:7px;color:#92400e;font-weight:600;background:#fffbeb">✓</td>`
+                    : `<td style="text-align:center;color:#d1d5db;font-size:7px">-</td>`;
                 const upmCode = dbp?.upmcode || '';
                 html += `<tr>
                     <td class="num-cell" style="background:${c.fill};color:${c.dark};border-left:3px solid ${c.stroke}">${pi + 1}</td>
-                    <td><b>${escapeHtml(p.desc || dbp?.descricao || '-')}</b>${upmCode ? `<br><span style="font-size:8px;color:#999;font-family:monospace">${escapeHtml(upmCode)}</span>` : ''}</td>
-                    <td><span class="mod-tag" style="background:${c.fill};color:${c.dark};border-color:${c.stroke}">${escapeHtml(dbp?.modulo_desc || '-')}</span></td>
-                    <td style="font-family:monospace">${p.w}×${p.h}×${dbp?.espessura || '-'}mm</td>
-                    <td style="text-align:center">${p.rotated ? '90°' : '-'}</td>
+                    <td>
+                        <div style="font-weight:700;line-height:1.1">${escapeHtml(p.desc || dbp?.descricao || '-')}</div>
+                        <div style="font-size:7px;color:#666;line-height:1.2">${escapeHtml(dbp?.modulo_desc || '-')}${upmCode ? ' · <span style="font-family:monospace;color:#999">' + escapeHtml(upmCode) + '</span>' : ''}</div>
+                    </td>
+                    <td style="font-family:monospace;font-size:7.5px;text-align:right">${p.w}×${p.h}<br>×${dbp?.espessura || '-'}</td>
+                    <td style="text-align:center;font-size:7.5px">${p.rotated ? '↻' : '-'}</td>
                     ${bdCell(dbp?.borda_frontal)}
                     ${bdCell(dbp?.borda_traseira)}
                     ${bdCell(dbp?.borda_dir)}
                     ${bdCell(dbp?.borda_esq)}
                 </tr>`;
             });
-            html += `</tbody></table></div>`;
+            html += `</tbody></table>`;
+
+            // Fecha table-col e main-row
+            html += `</div></div>`;
+
+            // Legendas no rodapé (compacto): fitas + módulos lado a lado
+            const temFitas = ch.pecas.some(p => {
+                const dbp = pecasMap[p.pecaId];
+                return dbp?.borda_frontal || dbp?.borda_traseira || dbp?.borda_esq || dbp?.borda_dir;
+            });
+            html += `<div class="legend">`;
+            if (temFitas) {
+                html += `<span style="display:inline-flex;align-items:center;gap:3px;color:#92400e;font-weight:600">
+                    <span style="display:inline-block;width:12px;height:2px;background:#d97706"></span>
+                    Fita: ✓=tem · F·T·D·E (Frontal/Traseira/Direita/Esquerda)
+                </span>`;
+            }
+            html += `<span style="font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.2px;margin-left:6px">Módulos:</span>`;
+            for (const [, info] of modulosDestaChapa) {
+                html += `<span class="legend-item">
+                    <span class="legend-swatch" style="background:${info.color.fill};border-color:${info.color.stroke}"></span>
+                    <span style="font-weight:600">${escapeHtml(info.label)}</span>
+                    <span style="color:#888">(${info.count}pç·${info.area.toFixed(2)}m²)</span>
+                </span>`;
+            }
+            html += `</div>`;
+            html += `</div>`; // fecha .page
         }
 
         html += `</body></html>`;
