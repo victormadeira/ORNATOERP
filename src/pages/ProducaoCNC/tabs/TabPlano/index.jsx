@@ -483,45 +483,93 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
 
     // ═══ Piece Labels ═══
     const [showLabels, setShowLabels] = useState(false);
-    const printLabels = async () => {
+    // Imprimir etiquetas — usa o template personalizado do editor (EtiquetaSVG).
+    // Se chapaIdx for passado, filtra apenas as etiquetas daquela chapa, ordenadas
+    // por pos_y/pos_x (ordem natural pro operador da CNC retirar peças).
+    // Se chapaIdx == null, imprime o lote inteiro (todas chapas).
+    const printLabels = async (chapaIdx = null) => {
         if (!loteAtual) return;
         try {
-            const data = await api.get(`/cnc/etiquetas/${loteAtual.id}`);
+            // 1) Carrega template padrão do usuário + dados de etiquetas + cfg
+            const [tplList, dataResp, cfgResp] = await Promise.all([
+                api.get('/cnc/etiqueta-templates'),
+                api.get(`/cnc/etiquetas/${loteAtual.id}`),
+                api.get('/empresa/config').catch(() => ({})),
+            ]);
+            if (!Array.isArray(tplList) || tplList.length === 0) {
+                notify('Nenhum template de etiqueta cadastrado. Crie um em Config > Etiquetas.', 'error');
+                return;
+            }
+            const tplMeta = tplList.find(t => t.padrao) || tplList[0];
+            const tpl = await api.get(`/cnc/etiqueta-templates/${tplMeta.id}`);
+            if (typeof tpl.elementos === 'string') {
+                try { tpl.elementos = JSON.parse(tpl.elementos); } catch { tpl.elementos = []; }
+            }
+
+            // 2) Filtra etiquetas: por chapa se chapaIdx != null
+            const arr = Array.isArray(dataResp) ? dataResp : (dataResp.etiquetas || dataResp.labels || []);
+            let etiquetas = chapaIdx != null ? arr.filter(e => e.chapa_idx === chapaIdx) : arr;
+            if (etiquetas.length === 0) {
+                notify(chapaIdx != null ? `Chapa ${chapaIdx + 1}: sem etiquetas` : 'Sem etiquetas no lote', 'info');
+                return;
+            }
+
+            // 3) Ordena por pos_y → pos_x (ordem natural pro operador da CNC)
+            etiquetas = [...etiquetas].sort((a, b) => {
+                const ay = Number(a.pos_y) || 0, by = Number(b.pos_y) || 0;
+                if (ay !== by) return ay - by;
+                return (Number(a.pos_x) || 0) - (Number(b.pos_x) || 0);
+            });
+
+            // 4) Renderiza cada etiqueta usando o componente EtiquetaSVG
+            //    (ReactDOMServer pra converter React em HTML/SVG string)
+            const ReactDOMServer = await import('react-dom/server');
+            const labelsHtml = etiquetas.map(et => {
+                const svgMarkup = ReactDOMServer.renderToStaticMarkup(
+                    <EtiquetaSVG template={tpl} etiqueta={et} cfg={cfgResp || {}} />
+                );
+                return `<div class="label-page">${svgMarkup}</div>`;
+            }).join('');
+
+            const W = tpl.largura || 100;
+            const H = tpl.altura || 60;
+            const titulo = chapaIdx != null
+                ? `Etiquetas — Chapa ${chapaIdx + 1} · ${loteAtual.nome || ''}`
+                : `Etiquetas — ${loteAtual.nome || ''}`;
+
             const win = window.open('', '_blank');
-            const labelsHtml = data.labels.map(l => `
-                <div class="label">
-                    <div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(l.qr_data || l.codigo_scan)}" width="70" height="70"/></div>
-                    <div class="info">
-                        <div class="desc">${l.descricao || l.upmcode}</div>
-                        <div class="mod">${l.modulo || ''}</div>
-                        <div class="dim">${l.dimensoes}</div>
-                        ${l.bordas ? `<div class="borda">${l.bordas}</div>` : ''}
-                        <div class="meta">${l.cliente} · Ch.${l.chapa?.idx || '?'}</div>
-                        <div class="code">${l.codigo_scan}</div>
-                    </div>
-                </div>
-            `).join('');
-            win.document.write(`<!DOCTYPE html><html><head><title>Etiquetas — ${data.lote.nome}</title>
+            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
             <style>
                 * { box-sizing: border-box; margin: 0; }
-                body { font-family: Arial, sans-serif; }
-                .label { display: inline-flex; width: 90mm; height: 38mm; border: 1px dashed #ccc; padding: 3mm; margin: 1mm; gap: 3mm; page-break-inside: avoid; align-items: center; }
-                .qr { flex-shrink: 0; }
-                .info { flex: 1; overflow: hidden; }
-                .desc { font-size: 11px; font-weight: 700; line-height: 1.2; max-height: 2.4em; overflow: hidden; }
-                .mod { font-size: 9px; color: #666; }
-                .dim { font-size: 10px; font-family: monospace; font-weight: 600; margin-top: 2px; }
-                .borda { font-size: 8px; color: #92400e; margin-top: 1px; }
-                .meta { font-size: 8px; color: #999; margin-top: 2px; }
-                .code { font-size: 7px; font-family: monospace; color: #aaa; margin-top: 1px; }
-                @media print { .no-print { display: none; } body { margin: 0; } .label { border: 1px solid #eee; } }
+                @page { size: ${W}mm ${H}mm; margin: 0; }
+                body { font-family: 'Inter', Arial, sans-serif; background: #ddd; }
+                .label-page {
+                    width: ${W}mm; height: ${H}mm;
+                    page-break-after: always; page-break-inside: avoid;
+                    background: #fff; overflow: hidden;
+                    display: flex; align-items: center; justify-content: center;
+                }
+                .label-page svg { width: 100%; height: 100%; display: block; }
+                .label-page:last-child { page-break-after: auto; }
+                .toolbar { position: sticky; top: 0; padding: 12px; background: #fff; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 12px; z-index: 10; }
+                @media print {
+                    .toolbar { display: none; }
+                    body { background: #fff; }
+                    .label-page { margin: 0; box-shadow: none; }
+                }
+                @media screen {
+                    .label-page { box-shadow: 0 1px 3px rgba(0,0,0,0.15); margin: 8px auto; }
+                }
             </style></head><body>
-            <div class="no-print" style="padding:10px"><button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#e67e22;color:#fff;border:none;border-radius:6px">Imprimir Etiquetas</button>
-            <span style="margin-left:12px;font-size:12px;color:#888">${data.labels.length} etiquetas · ${data.lote.nome}</span></div>
+            <div class="toolbar">
+                <button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#1379F0;color:#fff;border:none;border-radius:6px;font-weight:600">Imprimir Etiquetas</button>
+                <span style="font-size:12px;color:#444"><b>${etiquetas.length}</b> etiqueta(s) · ${W}×${H}mm · template "${tpl.nome || 'padrão'}"</span>
+                <span style="margin-left:auto;font-size:10px;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:4px;font-weight:700">Ordem: pos_y → pos_x</span>
+            </div>
             ${labelsHtml}
             </body></html>`);
             win.document.close();
-        } catch (err) { notify(err.error || 'Erro ao gerar etiquetas'); }
+        } catch (err) { notify(err.error || err.message || 'Erro ao gerar etiquetas'); }
     };
 
     // ═══ Relatório de Bordas ═══
@@ -2079,7 +2127,8 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
 
                             {/* Ferramentas dropdown */}
                             <ToolbarDropdown label="Ferramentas" icon={Wrench} items={[
-                                { id: 'etiq', label: 'Etiquetas', icon: TagIcon, onClick: printLabels },
+                                { id: 'etiq-chapa', label: `Etiquetas (chapa ${selectedChapa + 1})`, icon: TagIcon, onClick: () => printLabels(selectedChapa) },
+                                { id: 'etiq-all', label: 'Etiquetas (lote inteiro)', icon: TagIcon, onClick: () => printLabels(null) },
                                 { id: 'toolpanel', label: toolPanelLoading ? 'Escaneando...' : 'Painel Ferramentas', icon: Wrench, onClick: handleOpenToolPanel, disabled: toolPanelLoading },
                                 { id: 'validar', label: validating ? 'Validando...' : 'Validar Usinagens', icon: ShieldAlert, onClick: validarUsinagens, disabled: validating,
                                     danger: validationResult?.conflicts?.length > 0 },
