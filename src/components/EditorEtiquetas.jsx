@@ -20,13 +20,16 @@ const VARIAVEIS = [
   { key: 'controle',       label: 'Nº Controle',      grupo: 'Identificação', exemplo: '001' },
   { key: 'usi_a',          label: 'Usinagem A',        grupo: 'Identificação', exemplo: '325739A' },
   { key: 'usi_b',          label: 'Usinagem B',        grupo: 'Identificação', exemplo: '325739B' },
+  { key: 'peca_id',        label: 'ID Peça',           grupo: 'Identificação', exemplo: '42' },
+  { key: 'url_peca',       label: 'URL Peça (QR)',     grupo: 'Identificação', exemplo: '/p/42' },
   { key: 'material',       label: 'Material',          grupo: 'Material',      exemplo: 'MDF Branco TX 15mm' },
   { key: 'material_code',  label: 'Cód. Material',     grupo: 'Material',      exemplo: 'MDF_15.5_BRANCO_TX' },
   { key: 'espessura',      label: 'Espessura (mm)',    grupo: 'Material',      exemplo: '15.5' },
   { key: 'acabamento',     label: 'Acabamento',        grupo: 'Material',      exemplo: '2C+1L' },
   { key: 'comprimento',    label: 'Comprimento (mm)',  grupo: 'Dimensões',     exemplo: '694.5' },
   { key: 'largura',        label: 'Largura (mm)',      grupo: 'Dimensões',     exemplo: '550' },
-  { key: 'dimensoes',      label: 'Comp × Larg',      grupo: 'Dimensões',     exemplo: '694.5 × 550' },
+  { key: 'dimensoes',      label: 'Comp × Larg',       grupo: 'Dimensões',     exemplo: '694.5 × 550' },
+  { key: 'dimensoes_full', label: 'C × L × E',         grupo: 'Dimensões',     exemplo: '694.5 × 550 × 15.5' },
   { key: 'cliente',        label: 'Cliente',           grupo: 'Projeto',       exemplo: 'João Silva' },
   { key: 'projeto',        label: 'Projeto',           grupo: 'Projeto',       exemplo: 'Cozinha Planejada' },
   { key: 'codigo',         label: 'Código',            grupo: 'Projeto',       exemplo: 'ORN-2026-001' },
@@ -34,24 +37,32 @@ const VARIAVEIS = [
   { key: 'modulo_id',      label: 'ID Módulo',         grupo: 'Módulo',        exemplo: '1' },
   { key: 'descricao',      label: 'Descrição Peça',    grupo: 'Módulo',        exemplo: 'Lateral Direita' },
   { key: 'produto_final',  label: 'Produto Final',     grupo: 'Módulo',        exemplo: 'Armário Alto' },
-  { key: 'quantidade',     label: 'Quantidade',         grupo: 'Módulo',        exemplo: '1' },
-  { key: 'chapa',          label: 'Chapa',              grupo: 'Produção',      exemplo: '2' },
-  { key: 'lote',           label: 'Lote',               grupo: 'Produção',      exemplo: 'Lote Cozinha 01' },
-  { key: 'data',           label: 'Data',               grupo: 'Produção',      exemplo: '01/05/2026' },
-  { key: 'posicao_chapa',  label: 'Posição na Chapa',   grupo: 'Produção',      exemplo: 'X120 Y450' },
+  { key: 'quantidade',     label: 'Quantidade',        grupo: 'Módulo',        exemplo: '1' },
+  { key: 'chapa',          label: 'Chapa',             grupo: 'Produção',      exemplo: '2' },
+  { key: 'chapa_total',    label: 'Chapa N/Total',     grupo: 'Produção',      exemplo: '2 / 45' },
+  { key: 'peca_indice',    label: 'Peça N/Total',      grupo: 'Produção',      exemplo: '12 / 80' },
+  { key: 'lote',           label: 'Lote',              grupo: 'Produção',      exemplo: 'Lote Cozinha 01' },
+  { key: 'data',           label: 'Data (DD/MM/AAAA)', grupo: 'Produção',      exemplo: '01/05/2026' },
+  { key: 'data_curta',     label: 'Data curta (DD/MM)',grupo: 'Produção',      exemplo: '01/05' },
+  { key: 'hora',           label: 'Hora (HH:MM)',      grupo: 'Produção',      exemplo: '14:32' },
+  { key: 'data_hora',      label: 'Data + Hora',       grupo: 'Produção',      exemplo: '01/05 14:32' },
+  { key: 'operador',       label: 'Operador',          grupo: 'Produção',      exemplo: 'João' },
+  { key: 'posicao_chapa',  label: 'Posição na Chapa',  grupo: 'Produção',      exemplo: 'X120 Y450' },
   { key: 'fita_resumo',    label: 'Fita Resumo',       grupo: 'Bordas',        exemplo: 'CMBOR22x045 BRANCO_TX' },
+  { key: 'bordas_count',   label: 'Total de fitas',    grupo: 'Bordas',        exemplo: '3' },
+  { key: 'bordas_lados',   label: 'Lados com fita',    grupo: 'Bordas',        exemplo: 'F·T·D' },
   { key: 'borda_dir',      label: 'Borda Direita',     grupo: 'Bordas',        exemplo: 'CMBOR19X045BRANCO_TX' },
   { key: 'borda_esq',      label: 'Borda Esquerda',    grupo: 'Bordas',        exemplo: '' },
   { key: 'borda_frontal',  label: 'Borda Frontal',     grupo: 'Bordas',        exemplo: 'CMBOR22x045BRANCO_TX' },
-  { key: 'borda_traseira',    label: 'Borda Traseira',    grupo: 'Bordas',        exemplo: '' },
-  { key: 'borda_cor_frontal', label: 'Cor Fita Frontal',  grupo: 'Bordas',        exemplo: 'Branco TX' },
-  { key: 'borda_cor_traseira',label: 'Cor Fita Traseira', grupo: 'Bordas',        exemplo: 'Branco TX' },
-  { key: 'borda_cor_dir',     label: 'Cor Fita Direita',  grupo: 'Bordas',        exemplo: 'Carvalho' },
-  { key: 'borda_cor_esq',     label: 'Cor Fita Esquerda', grupo: 'Bordas',        exemplo: 'Carvalho' },
-  { key: 'observacao',        label: 'Observação',        grupo: 'Outros',        exemplo: '' },
+  { key: 'borda_traseira', label: 'Borda Traseira',    grupo: 'Bordas',        exemplo: '' },
+  { key: 'borda_cor_frontal',  label: 'Cor Fita Frontal',  grupo: 'Bordas', exemplo: 'Branco TX' },
+  { key: 'borda_cor_traseira', label: 'Cor Fita Traseira', grupo: 'Bordas', exemplo: 'Branco TX' },
+  { key: 'borda_cor_dir',  label: 'Cor Fita Direita',  grupo: 'Bordas',        exemplo: 'Carvalho' },
+  { key: 'borda_cor_esq',  label: 'Cor Fita Esquerda', grupo: 'Bordas',        exemplo: 'Carvalho' },
+  { key: 'observacao',     label: 'Observação',        grupo: 'Outros',        exemplo: '' },
+  { key: 'rotacionada',    label: 'Rotacionada (R/-)', grupo: 'Outros',        exemplo: 'R' },
+  { key: 'lado_ativo',     label: 'Lado Ativo (A/B)',  grupo: 'Outros',        exemplo: 'A' },
   { key: 'empresa_nome',   label: 'Nome Empresa',      grupo: 'Config',        exemplo: 'Móveis Ornato' },
-  { key: 'url_peca',       label: 'URL Peça (QR)',     grupo: 'Identificação', exemplo: '/p/42' },
-  { key: 'peca_id',        label: 'ID Peça',           grupo: 'Identificação', exemplo: '42' },
 ];
 
 const GRUPOS_VAR = [...new Set(VARIAVEIS.map(v => v.grupo))];
@@ -65,6 +76,7 @@ function resolverVariavel(key, et, cfg) {
   if (!et) return VARIAVEIS.find(v => v.key === key)?.exemplo || '';
   if (key === 'empresa_nome') return cfg?.empresa_nome || '';
   if (key === 'dimensoes') return `${et.comprimento} × ${et.largura}`;
+  if (key === 'dimensoes_full') return `${et.comprimento} × ${et.largura} × ${et.espessura || '?'}`;
   if (key === 'url_peca') {
     const base = typeof window !== 'undefined' ? window.location.origin : '';
     return `${base}/p/${et.pecaId || et.peca_id || '0'}`;
@@ -72,16 +84,53 @@ function resolverVariavel(key, et, cfg) {
   if (key === 'peca_id') return String(et.pecaId || et.peca_id || '');
   if (key === 'quantidade') return String(et.quantidade || 1);
   if (key === 'chapa') return et.chapa_idx != null ? String(Number(et.chapa_idx) + 1) : '';
+  if (key === 'chapa_total') {
+    const ci = et.chapa_idx != null ? Number(et.chapa_idx) + 1 : null;
+    const tot = et.total_chapas || et.chapa_total || cfg?.lote_total_chapas || null;
+    if (ci == null) return '';
+    return tot ? `${ci} / ${tot}` : String(ci);
+  }
+  if (key === 'peca_indice') {
+    const idx = et.peca_indice != null ? Number(et.peca_indice) + 1 : (et.controle ? Number(et.controle) : null);
+    const tot = et.total_pecas || et.peca_total || cfg?.lote_total_pecas || null;
+    if (idx == null) return '';
+    return tot ? `${idx} / ${tot}` : String(idx);
+  }
   if (key === 'lote') return et.lote || et.lote_nome || '';
   if (key === 'data') return new Date().toLocaleDateString('pt-BR');
+  if (key === 'data_curta') {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  if (key === 'hora') {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  if (key === 'data_hora') {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  if (key === 'operador') return et.operador || cfg?.operador_padrao || '';
   if (key === 'posicao_chapa') {
     if (et.pos_x == null || et.pos_y == null) return '';
     return `X${Math.round(Number(et.pos_x))} Y${Math.round(Number(et.pos_y))}`;
   }
-  if (key === 'borda_dir') return et.bordas?.dir || '';
-  if (key === 'borda_esq') return et.bordas?.esq || '';
-  if (key === 'borda_frontal') return et.bordas?.frontal || '';
-  if (key === 'borda_traseira') return et.bordas?.traseira || '';
+  if (key === 'rotacionada') return et.rotacionada ? 'R' : '';
+  if (key === 'lado_ativo') return et.lado_ativo || '';
+  if (key === 'borda_dir') return et.bordas?.dir || et.borda_dir || '';
+  if (key === 'borda_esq') return et.bordas?.esq || et.borda_esq || '';
+  if (key === 'borda_frontal') return et.bordas?.frontal || et.borda_frontal || '';
+  if (key === 'borda_traseira') return et.bordas?.traseira || et.borda_traseira || '';
+  if (key === 'bordas_count') {
+    const b = et.bordas || et;
+    return String(['frontal','traseira','dir','esq'].filter(k => (et.bordas?.[k] || et['borda_'+k])).length);
+  }
+  if (key === 'bordas_lados') {
+    const sigla = { frontal: 'F', traseira: 'T', dir: 'D', esq: 'E' };
+    return ['frontal','traseira','dir','esq']
+      .filter(k => (et.bordas?.[k] || et['borda_'+k]))
+      .map(k => sigla[k]).join('·');
+  }
   return et[key] ?? '';
 }
 
@@ -281,6 +330,19 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
   const renderSelection = (e) => (
     <rect x={e.x - 0.3} y={e.y - 0.3} width={e.w + 0.6} height={e.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" rx={0.3} />
   );
+
+  // ─── Visibilidade condicional ───────────────────
+  // hideIfEmpty: oculta o elemento se o texto resolvido for vazio (texto)
+  // ou se a variável referenciada (barcode/qrcode) for vazia.
+  // Em modo editor SEMPRE mostra (com placeholder/preview), só esconde no print/preview real.
+  if (!isEditor && el.hideIfEmpty) {
+    if (el.tipo === 'texto' && (!texto || !texto.trim())) return null;
+    if ((el.tipo === 'barcode' || el.tipo === 'qrcode') && el.barcodeVariavel) {
+      const v = resolverVariavel(el.barcodeVariavel, et, cfg);
+      if (!v || !String(v).trim()) return null;
+    }
+    if (el.tipo === 'imagem' && el.imagemUrl !== '{{logo_empresa}}' && !el.imagemUrl) return null;
+  }
 
   switch (el.tipo) {
     case 'texto': {
@@ -839,12 +901,13 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
     const pt = svgPt(e);
     const el = elementos.find(el => el.id === id);
     if (!el) return;
+    if (el.locked) return; // Elemento bloqueado: pode selecionar mas não arrastar
     setDragState({ id, startX: pt.x - el.x, startY: pt.y - el.y });
   }, [svgPt, elementos]);
 
   const handleHandleDown = useCallback((e, handle) => {
     e.preventDefault();
-    if (!selEl) return;
+    if (!selEl || selEl.locked) return; // Bloqueado: ignora resize handles
     const pt = svgPt(e);
     setResizeState({ id: selEl.id, handle, startPt: pt, startEl: { x: selEl.x, y: selEl.y, w: selEl.w, h: selEl.h } });
   }, [svgPt, selEl]);
@@ -1609,6 +1672,23 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                         className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', marginTop: 2, width: '100%' }}
                         min={1} max={5} disabled={(selEl.fitMode || 'overflow') !== 'wrap'} />
                     </div>
+                  </div>
+                  {/* Visibilidade condicional + bloqueio — nível industrial:
+                      etiqueta limpa quando peça não tem fita, prevenção de
+                      mover elementos por engano */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: selEl.hideIfEmpty ? 'rgba(34,197,94,0.1)' : 'transparent' }}>
+                      <input type="checkbox" checked={!!selEl.hideIfEmpty}
+                        onChange={e => updateEl(selEl.id, { hideIfEmpty: e.target.checked })} />
+                      <span>Ocultar se vazio</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>(ex: borda_dir sem valor)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: selEl.locked ? 'rgba(239,68,68,0.1)' : 'transparent' }}>
+                      <input type="checkbox" checked={!!selEl.locked}
+                        onChange={e => updateEl(selEl.id, { locked: e.target.checked })} />
+                      <span>Bloquear (não mover)</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>(ex: logo, fundo)</span>
+                    </label>
                   </div>
 
                   <Divider />
