@@ -10,7 +10,7 @@ import {
   ArrowLeft, PenTool, Save, Copy, Star, Trash2, Undo2, Redo2,
   ZoomIn, ZoomOut, Grid3X3, ChevronDown, ChevronRight, Plus, X,
   Move, Maximize2, RotateCw, Palette, AlignLeft, AlignCenter, AlignRight,
-  Image, Map
+  Image, Map, Minus, Eye
 } from 'lucide-react';
 import { qrcodeMatrix } from '../utils/qrcode';
 import { code128Bars } from '../utils/code128';
@@ -350,7 +350,7 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
       const fitted = fitTextToBox(texto, el, isEditor);
       const lineHeight = fitted.fontSize * 1.15;
       return (
-        <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }} opacity={el.opacity ?? 1}>
           {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" rx={0.3} />}
           <text
             x={anchorX}
@@ -371,7 +371,7 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
     }
     case 'retangulo':
       return (
-        <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }} opacity={el.opacity ?? 1}>
           <rect
             x={el.x} y={el.y} width={el.w} height={el.h}
             fill={el.preenchimento || 'none'}
@@ -382,6 +382,25 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
           {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" />}
         </g>
       );
+    case 'linha': {
+      const orientation = el.orientacao || 'horizontal';
+      const x1 = el.x;
+      const y1 = el.y + (orientation === 'horizontal' ? el.h / 2 : 0);
+      const x2 = el.x + (orientation === 'horizontal' ? el.w : 0);
+      const y2 = el.y + (orientation === 'horizontal' ? el.h / 2 : el.h);
+      return (
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }} opacity={el.opacity ?? 1}>
+          <line
+            x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke={el.cor || '#333'}
+            strokeWidth={el.espessura || 0.4}
+            strokeDasharray={el.estilo === 'tracejada' ? '1.5,1' : el.estilo === 'pontilhada' ? '0.4,0.6' : undefined}
+            strokeLinecap="round"
+          />
+          {isEditor && selected && <rect x={el.x - 0.3} y={el.y - 0.3} width={el.w + 0.6} height={el.h + 0.6} fill="none" stroke="#3b82f6" strokeWidth={0.3} strokeDasharray="1,0.5" />}
+        </g>
+      );
+    }
     case 'barcode':
       return (
         <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
@@ -426,7 +445,7 @@ function ElementoSVG({ el, et, cfg, isEditor, selected, onMouseDown }) {
     case 'imagem': {
       const imgUrl = el.imagemUrl === '{{logo_empresa}}' ? (cfg?.logo_sistema || '') : (el.imagemUrl || '');
       return (
-        <g transform={transform} onMouseDown={handleDown} style={{ cursor }}>
+        <g transform={transform} onMouseDown={handleDown} style={{ cursor }} opacity={el.opacity ?? 1}>
           {imgUrl ? (
             <image x={el.x} y={el.y} width={el.w} height={el.h}
               href={imgUrl} preserveAspectRatio={el.imagemFit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'} />
@@ -796,6 +815,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
     const defaults = {
       texto: { tipo: 'texto', x: 10, y: 10, w: 30, h: 5, texto: 'Texto', fontSize: 3, fontWeight: 400, cor: '#000000', alinhamento: 'start', fontFamily: 'Inter, sans-serif' },
       retangulo: { tipo: 'retangulo', x: 10, y: 10, w: 20, h: 10, preenchimento: 'none', bordaCor: '#000000', bordaLargura: 0.3, raio: 0 },
+      linha: { tipo: 'linha', x: 5, y: 10, w: 40, h: 1, orientacao: 'horizontal', cor: '#333333', espessura: 0.4, estilo: 'continua' },
       barcode: { tipo: 'barcode', x: 10, y: 10, w: 30, h: 10, barcodeVariavel: 'controle' },
       qrcode: { tipo: 'qrcode', x: 10, y: 10, w: 15, h: 15, barcodeVariavel: 'controle', cor: '#000000' },
       diagrama_bordas: { tipo: 'diagrama_bordas', x: 10, y: 10, w: 18, h: 14, diagramaCor: 'var(--success)' },
@@ -1299,6 +1319,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 6 }}>
             <IconBtn icon={Type} label="Texto" onClick={() => addElement('texto')} />
             <IconBtn icon={Square} label="Retângulo" onClick={() => addElement('retangulo')} />
+            <IconBtn icon={Minus} label="Linha" onClick={() => addElement('linha')} />
             <IconBtn icon={BarChart2} label="Barcode" onClick={() => addElement('barcode')} />
             <IconBtn icon={QrCode} label="QR Code" onClick={() => addElement('qrcode')} />
             <IconBtn icon={Layers} label="Diagrama" onClick={() => addElement('diagrama_bordas')} />
@@ -1582,6 +1603,72 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 </button>
               </div>
 
+              {/* ─── Comportamento (genérico para todos os tipos) ─── */}
+              <Divider />
+              <SH icon={<Eye size={10} />}>Comportamento</SH>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: selEl.hideIfEmpty ? 'rgba(34,197,94,0.1)' : 'transparent' }}>
+                  <input type="checkbox" checked={!!selEl.hideIfEmpty}
+                    onChange={e => updateEl(selEl.id, { hideIfEmpty: e.target.checked })} />
+                  <span>Ocultar se vazio</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>(ex: borda_dir sem valor)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: selEl.locked ? 'rgba(239,68,68,0.1)' : 'transparent' }}>
+                  <input type="checkbox" checked={!!selEl.locked}
+                    onChange={e => updateEl(selEl.id, { locked: e.target.checked })} />
+                  <span>Bloquear (não mover)</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>(ex: logo, fundo)</span>
+                </label>
+                <div>
+                  <LBL>Opacidade <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({Math.round((selEl.opacity ?? 1) * 100)}%)</span></LBL>
+                  <input type="range" min={0.05} max={1} step={0.05}
+                    value={selEl.opacity ?? 1}
+                    onChange={e => updateEl(selEl.id, { opacity: Number(e.target.value) })}
+                    style={{ width: '100%', marginTop: 2 }} />
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>
+                    Tip: 15-25% pra logo marca d'água. Em térmica, valores baixos viram pontilhado.
+                  </div>
+                </div>
+              </div>
+
+              {/* LINHA props */}
+              {selEl.tipo === 'linha' && (
+                <>
+                  <Divider />
+                  <SH icon={<Minus size={10} />}>Linha</SH>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                    <div>
+                      <LBL>Orientação</LBL>
+                      <select value={selEl.orientacao || 'horizontal'}
+                        onChange={e => updateEl(selEl.id, { orientacao: e.target.value })}
+                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', marginTop: 2, width: '100%' }}>
+                        <option value="horizontal">Horizontal</option>
+                        <option value="vertical">Vertical</option>
+                      </select>
+                    </div>
+                    <div>
+                      <LBL>Estilo</LBL>
+                      <select value={selEl.estilo || 'continua'}
+                        onChange={e => updateEl(selEl.id, { estilo: e.target.value })}
+                        className={Z.inp} style={{ fontSize: 11, padding: '4px 6px', marginTop: 2, width: '100%' }}>
+                        <option value="continua">Contínua</option>
+                        <option value="tracejada">Tracejada</option>
+                        <option value="pontilhada">Pontilhada</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginTop: 4 }}>
+                    {propInput('Espessura', 'espessura', 'number', { step: 0.1, min: 0.1, max: 5 })}
+                    <div>
+                      <LBL>Cor</LBL>
+                      <input type="color" value={selEl.cor || '#333333'}
+                        onChange={e => updateEl(selEl.id, { cor: e.target.value })}
+                        style={{ width: '100%', height: 24, marginTop: 2, cursor: 'pointer', border: '1px solid var(--border)', borderRadius: 4 }} />
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* TEXT props */}
               {selEl.tipo === 'texto' && (
                 <>
@@ -1673,24 +1760,6 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                         min={1} max={5} disabled={(selEl.fitMode || 'overflow') !== 'wrap'} />
                     </div>
                   </div>
-                  {/* Visibilidade condicional + bloqueio — nível industrial:
-                      etiqueta limpa quando peça não tem fita, prevenção de
-                      mover elementos por engano */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: selEl.hideIfEmpty ? 'rgba(34,197,94,0.1)' : 'transparent' }}>
-                      <input type="checkbox" checked={!!selEl.hideIfEmpty}
-                        onChange={e => updateEl(selEl.id, { hideIfEmpty: e.target.checked })} />
-                      <span>Ocultar se vazio</span>
-                      <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>(ex: borda_dir sem valor)</span>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: selEl.locked ? 'rgba(239,68,68,0.1)' : 'transparent' }}>
-                      <input type="checkbox" checked={!!selEl.locked}
-                        onChange={e => updateEl(selEl.id, { locked: e.target.checked })} />
-                      <span>Bloquear (não mover)</span>
-                      <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>(ex: logo, fundo)</span>
-                    </label>
-                  </div>
-
                   <Divider />
                   <SH icon={<Palette size={10} />}>Tipografia</SH>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
