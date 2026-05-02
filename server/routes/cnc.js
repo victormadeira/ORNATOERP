@@ -3966,6 +3966,27 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
     let controle = 1;
     const etiquetas = [];
 
+    // Dados industriais — orçamento ligado, vendedor, aproveitamento por chapa
+    let orc = null;
+    if (lote.orc_id) {
+        try { orc = db.prepare('SELECT id, numero, user_id FROM orcamentos WHERE id = ?').get(lote.orc_id); } catch (_) {}
+    }
+    let vendedorNome = '';
+    if (orc?.user_id) {
+        try { vendedorNome = db.prepare('SELECT nome FROM users WHERE id = ?').get(orc.user_id)?.nome || ''; } catch (_) {}
+    }
+    // Mapa de aproveitamento por chapa_idx (do plano_json)
+    const chapaAprov = {};
+    try {
+        const plano = lote.plano_json ? JSON.parse(lote.plano_json) : null;
+        if (plano?.chapas) {
+            plano.chapas.forEach((ch, idx) => {
+                const a = Number(ch.aproveitamento) || 0;
+                chapaAprov[idx] = a <= 1 ? a * 100 : a;
+            });
+        }
+    } catch (_) {}
+
     for (const p of pecas) {
         for (let q = 0; q < p.quantidade; q++) {
             const bordas = {
@@ -4012,6 +4033,12 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
                 pos_x: p.pos_x,
                 pos_y: p.pos_y,
                 rotacionada: p.rotacionada,
+                lote_nome: lote.nome,
+                lote_data_entrega: lote.data_entrega,
+                lote_prioridade: lote.prioridade,
+                aproveitamento_chapa: p.chapa_idx != null ? chapaAprov[p.chapa_idx] : null,
+                numero_orcamento: orc?.numero || '',
+                vendedor_nome: vendedorNome,
             });
             controle++;
         }

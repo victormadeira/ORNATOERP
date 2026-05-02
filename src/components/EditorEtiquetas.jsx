@@ -62,6 +62,19 @@ const VARIAVEIS = [
   { key: 'observacao',     label: 'Observação',        grupo: 'Outros',        exemplo: '' },
   { key: 'rotacionada',    label: 'Rotacionada (R/-)', grupo: 'Outros',        exemplo: 'R' },
   { key: 'lado_ativo',     label: 'Lado Ativo (A/B)',  grupo: 'Outros',        exemplo: 'A' },
+  // ─── Variáveis industriais (prazos, prioridade, responsáveis) ───
+  { key: 'data_entrega',   label: 'Data Entrega',      grupo: 'Produção',      exemplo: '15/05/2026' },
+  { key: 'dias_entrega',   label: 'Dias até entrega',  grupo: 'Produção',      exemplo: '3 dias' },
+  { key: 'prioridade',     label: 'Prioridade',        grupo: 'Produção',      exemplo: 'Alta' },
+  { key: 'responsavel_corte', label: 'Resp. Corte',    grupo: 'Produção',      exemplo: 'João S.' },
+  { key: 'tempo_estimado', label: 'Tempo Estimado',    grupo: 'Produção',      exemplo: '8 min' },
+  // ─── Qualidade / complexidade ───
+  { key: 'tem_usinagem',   label: 'Tem Usinagem',      grupo: 'Outros',        exemplo: 'Sim' },
+  { key: 'qtd_furos',      label: 'Qtd Furos',         grupo: 'Outros',        exemplo: '12' },
+  { key: 'aproveitamento_chapa', label: 'Aproveit. Chapa', grupo: 'Outros',    exemplo: '93.5%' },
+  // ─── Comerciais ───
+  { key: 'numero_orcamento', label: 'Nº Orçamento',    grupo: 'Projeto',       exemplo: 'ORN-2026-001' },
+  { key: 'vendedor_nome',  label: 'Vendedor',          grupo: 'Projeto',       exemplo: 'Maria' },
   { key: 'empresa_nome',   label: 'Nome Empresa',      grupo: 'Config',        exemplo: 'Móveis Ornato' },
 ];
 
@@ -117,6 +130,55 @@ function resolverVariavel(key, et, cfg) {
   }
   if (key === 'rotacionada') return et.rotacionada ? 'R' : '';
   if (key === 'lado_ativo') return et.lado_ativo || '';
+  // Industriais
+  if (key === 'data_entrega') return et.data_entrega || et.lote_data_entrega || '';
+  if (key === 'dias_entrega') {
+    const dt = et.data_entrega || et.lote_data_entrega;
+    if (!dt) return '';
+    const diff = Math.ceil((new Date(dt + (dt.length === 10 ? 'T12:00:00' : '')) - new Date()) / 86400000);
+    if (diff < 0) return `${Math.abs(diff)}d ATR.`;
+    if (diff === 0) return 'Hoje';
+    return `${diff} dia${diff === 1 ? '' : 's'}`;
+  }
+  if (key === 'prioridade') {
+    const p = et.prioridade || et.lote_prioridade || 0;
+    return p >= 2 ? 'URGENTE' : p === 1 ? 'Alta' : 'Normal';
+  }
+  if (key === 'responsavel_corte') return et.responsavel_corte || et.operador || '';
+  if (key === 'tempo_estimado') {
+    const t = et.tempo_estimado_min || et.tempo_estimado || 0;
+    if (!t) return '';
+    return t < 60 ? `${Math.round(t)} min` : `${Math.floor(t / 60)}h ${Math.round(t % 60)}min`;
+  }
+  // Qualidade / complexidade
+  if (key === 'tem_usinagem') {
+    if (et.tem_usinagem != null) return et.tem_usinagem ? 'Sim' : 'Não';
+    // Detecta a partir do machining_json
+    try {
+      const mj = typeof et.machining_json === 'string' ? JSON.parse(et.machining_json) : et.machining_json;
+      const w = mj?.workers;
+      const count = w ? (Array.isArray(w) ? w.length : Object.keys(w).length) : 0;
+      return count > 0 ? 'Sim' : 'Não';
+    } catch { return ''; }
+  }
+  if (key === 'qtd_furos') {
+    if (et.qtd_furos != null) return String(et.qtd_furos);
+    try {
+      const mj = typeof et.machining_json === 'string' ? JSON.parse(et.machining_json) : et.machining_json;
+      const workers = mj?.workers ? (Array.isArray(mj.workers) ? mj.workers : Object.values(mj.workers)) : [];
+      const furos = workers.filter(w => /hole|furo|transfer_hole/.test((w.category || '').toLowerCase())).length;
+      return String(furos);
+    } catch { return '0'; }
+  }
+  if (key === 'aproveitamento_chapa') {
+    const a = et.aproveitamento_chapa ?? et.aproveitamento;
+    if (a == null) return '';
+    const pct = Number(a) <= 1 ? Number(a) * 100 : Number(a);
+    return `${pct.toFixed(1)}%`;
+  }
+  // Comerciais
+  if (key === 'numero_orcamento') return et.numero_orcamento || et.orc_numero || '';
+  if (key === 'vendedor_nome') return et.vendedor_nome || et.vendedor || '';
   if (key === 'borda_dir') return et.bordas?.dir || et.borda_dir || '';
   if (key === 'borda_esq') return et.bordas?.esq || et.borda_esq || '';
   if (key === 'borda_frontal') return et.bordas?.frontal || et.borda_frontal || '';
@@ -572,6 +634,15 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   const [template, setTemplate] = useState(null);
   const [elementos, setElementos] = useState([]);
   const [selecionado, setSelecionado] = useState(null);
+  // Seleção múltipla: ids ADICIONAIS ao primário (selecionado).
+  // Ativada via Shift+click. Drag/delete/alinhamento atuam em todos.
+  // Painel de propriedades mostra só o primário (selEl).
+  const [selecaoExtra, setSelecaoExtra] = useState(new Set());
+  const todosSelecionados = useMemo(() => {
+    const set = new Set(selecaoExtra);
+    if (selecionado) set.add(selecionado);
+    return Array.from(set);
+  }, [selecionado, selecaoExtra]);
   const [zoom, setZoom] = useState(1);
   const [gridOn, setGridOn] = useState(true);
   const [gridSize] = useState(2);
@@ -917,13 +988,38 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   // ─── Mouse handlers ───────────────────────────────
   const handleElementDown = useCallback((e, id) => {
     e.preventDefault();
-    setSelecionado(id);
-    const pt = svgPt(e);
     const el = elementos.find(el => el.id === id);
     if (!el) return;
+    // Shift+click: adiciona/remove da seleção múltipla
+    if (e.shiftKey) {
+      setSelecaoExtra(prev => {
+        const next = new Set(prev);
+        if (selecionado === id) {
+          // Era o primário — promove outro a primário e adiciona o atual ao extra
+          // Sem outro pra promover, deseleciona
+          if (next.size > 0) {
+            const newPrimary = next.values().next().value;
+            next.delete(newPrimary);
+            setSelecionado(newPrimary);
+          } else {
+            setSelecionado(null);
+          }
+        } else if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+      return;
+    }
+    // Click normal: substitui seleção
+    setSelecionado(id);
+    setSelecaoExtra(new Set());
     if (el.locked) return; // Elemento bloqueado: pode selecionar mas não arrastar
+    const pt = svgPt(e);
     setDragState({ id, startX: pt.x - el.x, startY: pt.y - el.y });
-  }, [svgPt, elementos]);
+  }, [svgPt, elementos, selecionado]);
 
   const handleHandleDown = useCallback((e, handle) => {
     e.preventDefault();
@@ -940,7 +1036,21 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
       if (gridOn) { nx = snap(nx, gridSize); ny = snap(ny, gridSize); }
       nx = clamp(nx, 0, canvasW - 2);
       ny = clamp(ny, 0, canvasH - 2);
-      setElementos(prev => prev.map(el => el.id === dragState.id ? { ...el, x: nx, y: ny } : el));
+      // Múltipla seleção: move todos juntos pelo delta do primário
+      const ids = todosSelecionados.length > 1 ? todosSelecionados : [dragState.id];
+      if (ids.length > 1) {
+        const primary = elementos.find(el => el.id === dragState.id);
+        if (primary && !primary.locked) {
+          const dx = nx - primary.x;
+          const dy = ny - primary.y;
+          setElementos(prev => prev.map(el => {
+            if (!ids.includes(el.id) || el.locked) return el;
+            return { ...el, x: clamp(el.x + dx, 0, canvasW - 2), y: clamp(el.y + dy, 0, canvasH - 2) };
+          }));
+        }
+      } else {
+        setElementos(prev => prev.map(el => el.id === dragState.id ? { ...el, x: nx, y: ny } : el));
+      }
     }
     if (resizeState) {
       const { handle, startPt, startEl } = resizeState;
@@ -954,7 +1064,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
       if (gridOn) { x = snap(x, gridSize); y = snap(y, gridSize); w = snap(w, gridSize) || gridSize; h = snap(h, gridSize) || gridSize; }
       setElementos(prev => prev.map(el => el.id === resizeState.id ? { ...el, x, y, w, h } : el));
     }
-  }, [dragState, resizeState, svgPt, gridOn, gridSize, canvasW, canvasH]);
+  }, [dragState, resizeState, svgPt, gridOn, gridSize, canvasW, canvasH, todosSelecionados, elementos]);
 
   const handleMouseUp = useCallback(() => {
     if (dragState || resizeState) { pushHistory(elementos); setDirty(true); }
@@ -967,7 +1077,16 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
     const handler = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selecionado) { deleteEl(selecionado); e.preventDefault(); }
+        // Delete múltiplo: deleta todos selecionados (primário + extras)
+        if (todosSelecionados.length > 0) {
+          e.preventDefault();
+          const next = elementos.filter(el => !todosSelecionados.includes(el.id));
+          setElementos(next);
+          pushHistory(next);
+          setDirty(true);
+          setSelecionado(null);
+          setSelecaoExtra(new Set());
+        }
       }
       if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) { undo(); e.preventDefault(); }
       if ((e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) || (e.key === 'y' && (e.ctrlKey || e.metaKey))) { redo(); e.preventDefault(); }
@@ -994,11 +1113,11 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           y: clamp((selEl?.y || 0) + (dir.y || 0), 0, canvasH - 2),
         });
       }
-      if (e.key === 'Escape') { setSelecionado(null); }
+      if (e.key === 'Escape') { setSelecionado(null); setSelecaoExtra(new Set()); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selecionado, selEl, deleteEl, undo, redo, addElement, updateEl, elementos, canvasW, canvasH]);
+  }, [selecionado, selEl, deleteEl, undo, redo, addElement, updateEl, elementos, canvasW, canvasH, todosSelecionados, pushHistory]);
 
   // ─── Save ─────────────────────────────────────────
   const salvar = async () => {
@@ -1110,6 +1229,66 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
     }[tipo];
     if (updates) updateEl(selEl.id, updates);
   }, [selEl, canvasW, canvasH, updateEl]);
+
+  // ─── Alinhar/distribuir múltiplos elementos selecionados ──────────
+  // Quando há 2+ selecionados, alinha entre si (não relativo ao canvas)
+  // e distribui espaço uniforme entre eles. Usa o bounding box do conjunto.
+  const alinharMultiplos = useCallback((tipo) => {
+    if (todosSelecionados.length < 2) { alinhar(tipo); return; }
+    const sels = elementos.filter(el => todosSelecionados.includes(el.id) && !el.locked);
+    if (sels.length < 2) return;
+    const minX = Math.min(...sels.map(e => e.x));
+    const maxX = Math.max(...sels.map(e => e.x + e.w));
+    const minY = Math.min(...sels.map(e => e.y));
+    const maxY = Math.max(...sels.map(e => e.y + e.h));
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const next = elementos.map(el => {
+      if (!todosSelecionados.includes(el.id) || el.locked) return el;
+      switch (tipo) {
+        case 'left':    return { ...el, x: minX };
+        case 'right':   return { ...el, x: maxX - el.w };
+        case 'centerX': return { ...el, x: cx - el.w / 2 };
+        case 'top':     return { ...el, y: minY };
+        case 'bottom':  return { ...el, y: maxY - el.h };
+        case 'centerY': return { ...el, y: cy - el.h / 2 };
+        default: return el;
+      }
+    });
+    setElementos(next);
+    pushHistory(next);
+    setDirty(true);
+  }, [todosSelecionados, elementos, alinhar, pushHistory]);
+
+  // Distribuir uniforme: calcula gap igual entre elementos
+  const distribuir = useCallback((eixo) => {
+    if (todosSelecionados.length < 3) return; // distribuição precisa 3+ elementos
+    const sels = elementos.filter(el => todosSelecionados.includes(el.id) && !el.locked);
+    if (sels.length < 3) return;
+    const sorted = [...sels].sort((a, b) => eixo === 'horizontal' ? a.x - b.x : a.y - b.y);
+    const first = sorted[0], last = sorted[sorted.length - 1];
+    const totalSpan = eixo === 'horizontal'
+      ? (last.x + last.w) - first.x
+      : (last.y + last.h) - first.y;
+    const sumSizes = sorted.reduce((s, e) => s + (eixo === 'horizontal' ? e.w : e.h), 0);
+    const totalGap = totalSpan - sumSizes;
+    const gap = totalGap / (sorted.length - 1);
+    let pos = eixo === 'horizontal' ? first.x : first.y;
+    const updates = {};
+    for (const el of sorted) {
+      if (eixo === 'horizontal') {
+        updates[el.id] = { x: pos };
+        pos += el.w + gap;
+      } else {
+        updates[el.id] = { y: pos };
+        pos += el.h + gap;
+      }
+    }
+    const next = elementos.map(el => updates[el.id] ? { ...el, ...updates[el.id] } : el);
+    setElementos(next);
+    pushHistory(next);
+    setDirty(true);
+  }, [todosSelecionados, elementos, pushHistory]);
 
   // ─── Validação de variáveis usadas no template ───
   const variaveisUsadas = useMemo(() => {
@@ -1414,13 +1593,18 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
             {selEl && (
               <>
                 <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-                {/* Alinhamento horizontal */}
+                {todosSelecionados.length > 1 && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', padding: '0 4px' }}>
+                    {todosSelecionados.length} selec.
+                  </span>
+                )}
+                {/* Alinhamento horizontal — múltiplo se 2+, senão relativo ao canvas */}
                 {[
-                  { id: 'left',    title: 'Alinhar à esquerda',  icon: '⬅' },
-                  { id: 'centerX', title: 'Centralizar horizontal', icon: '↔' },
-                  { id: 'right',   title: 'Alinhar à direita',   icon: '➡' },
+                  { id: 'left',    title: todosSelecionados.length > 1 ? 'Alinhar bordas esq.' : 'Alinhar à esquerda do canvas',  icon: '⬅' },
+                  { id: 'centerX', title: todosSelecionados.length > 1 ? 'Centralizar horizontalmente' : 'Centralizar no canvas (X)', icon: '↔' },
+                  { id: 'right',   title: todosSelecionados.length > 1 ? 'Alinhar bordas dir.' : 'Alinhar à direita do canvas',   icon: '➡' },
                 ].map(a => (
-                  <button key={a.id} onClick={() => alinhar(a.id)} title={a.title}
+                  <button key={a.id} onClick={() => alinharMultiplos(a.id)} title={a.title}
                     className={Z.btn2} style={{ padding: '2px 5px', fontSize: 11, borderRadius: 4 }}>
                     {a.icon}
                   </button>
@@ -1428,11 +1612,11 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
                 {/* Alinhamento vertical */}
                 {[
-                  { id: 'top',     title: 'Alinhar ao topo',     icon: '⬆' },
-                  { id: 'centerY', title: 'Centralizar vertical', icon: '↕' },
-                  { id: 'bottom',  title: 'Alinhar à base',      icon: '⬇' },
+                  { id: 'top',     title: todosSelecionados.length > 1 ? 'Alinhar topos' : 'Alinhar ao topo do canvas',     icon: '⬆' },
+                  { id: 'centerY', title: todosSelecionados.length > 1 ? 'Centralizar verticalmente' : 'Centralizar no canvas (Y)', icon: '↕' },
+                  { id: 'bottom',  title: todosSelecionados.length > 1 ? 'Alinhar bases' : 'Alinhar à base do canvas',      icon: '⬇' },
                 ].map(a => (
-                  <button key={a.id} onClick={() => alinhar(a.id)} title={a.title}
+                  <button key={a.id} onClick={() => alinharMultiplos(a.id)} title={a.title}
                     className={Z.btn2} style={{ padding: '2px 5px', fontSize: 11, borderRadius: 4 }}>
                     {a.icon}
                   </button>
@@ -1500,7 +1684,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   et={previewEtiqueta}
                   cfg={etiquetaConfig}
                   isEditor={true}
-                  selected={selecionado === el.id}
+                  selected={todosSelecionados.includes(el.id)}
                   onMouseDown={handleElementDown}
                 />
               ))}
