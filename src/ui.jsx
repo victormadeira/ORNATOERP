@@ -11,6 +11,7 @@ import {
     Image, DollarSign, MessageSquare, HardHat, AlertTriangle, Wrench,
     BarChart3, ClipboardCheck, PauseCircle, PlayCircle, UserCheck, Warehouse,
     MessageCircle, Sparkles, Bot, Scissors, Play, Pause, XCircle, Circle,
+    Disc3,
     // Novos icones para menu agrupado e paginas
     Library, Cpu, FolderKanban, Wallet, ShieldCheck, Handshake,
     Factory, LineChart, Cog, Star, PieChart, FileSpreadsheet, Kanban,
@@ -84,6 +85,9 @@ export const Ic = {
     Brain: () => <Brain size={18} />,
     Bot: () => <Bot size={14} />,
     Scissors: () => <Scissors size={18} />,
+    // Disco de serra circular — usado em Corte & CNC. Substitui Scissors
+    // pois ferramenta real do plano de corte é serra (não tesoura).
+    CircularSaw: () => <Disc3 size={18} />,
     Star: () => <Star size={12} />,
     // Icones para grupos do menu
     Handshake: () => <Handshake size={14} />,
