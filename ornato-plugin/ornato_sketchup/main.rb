@@ -98,6 +98,7 @@ end
 begin
   require_relative 'tools/hole_tool'
   require_relative 'tools/hole_edit_tool'
+  require_relative 'tools/collision_manager'
   require_relative 'tools/placement_tool'
   require_relative 'tools/neighbor_resolver'
   TOOLS_LOADED = true

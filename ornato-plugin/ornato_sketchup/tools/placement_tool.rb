@@ -34,9 +34,6 @@ module Ornato
       COLOR_DIM_TXT = Sketchup::Color.new(255, 255, 255, 220)
       COLOR_SNAP_LINE= Sketchup::Color.new(255, 220, 60,  200)
 
-      SNAP_TOLERANCE = 25.0  # mm — how close before we snap to adjacent module
-      COLLISION_SHRINK = 2.0 # mm — shrink AABB slightly to allow touching
-
       # ─────────────────────────────────────────────────────────
       # @param type   [String] module type key (e.g. 'armario_base')
       # @param params [Hash]   module parameters (string or symbol keys)
@@ -54,28 +51,33 @@ module Ornato
 
         @position    = nil   # Geom::Point3d — bottom-left-front corner (world)
         @valid       = true  # collision flag
-        @snapping_to = nil   # symbol: :floor, :adjacent, :surface
+        @snapping_to = nil   # symbol: :none, :side_right, :side_left, :back, :front, :on_top
         @snap_ref    = nil   # Geom::Point3d — reference used in snap line draw
         @adjacent    = nil   # Sketchup::Group we are snapping to
         @ip          = nil
+        @cm          = nil   # CollisionManager instance (built on activate)
       end
 
       # ── Tool Interface ────────────────────────────────────────
 
       def activate
         @ip = Sketchup::InputPoint.new
+        # Build collision index once (rebuild on resume to catch model changes)
+        @cm = CollisionManager.new
         update_status
         Sketchup.active_model.active_view.invalidate
+      end
+
+      def resume(view)
+        # Rebuild collision index in case user added/removed modules
+        @cm = CollisionManager.new
+        update_status
+        view.invalidate
       end
 
       def deactivate(view)
         view.invalidate
         Sketchup.status_text = ''
-      end
-
-      def resume(view)
-        update_status
-        view.invalidate
       end
 
       def suspend(view)
@@ -90,17 +92,31 @@ module Ornato
         pt = pick_placement_point(view, x, y, ray)
 
         if pt
-          # 2. Snap to adjacent Ornato modules
-          pt, snap_type, snap_ref, snap_grp = snap_to_modules(pt)
-          @snapping_to = snap_type
-          @snap_ref    = snap_ref
-          @adjacent    = snap_grp
+          # 2. Snap to adjacent modules via CollisionManager
+          if @cm
+            snap_result = @cm.best_snap(pt, @w, @d, @h)
+            if snap_result[:type] != :none
+              pt            = snap_result[:pt]
+              @snapping_to  = snap_result[:type]
+              @adjacent     = snap_result[:group]
+              @snap_ref     = snap_result[:group]&.bounds&.center
+            else
+              @snapping_to = :floor
+              @adjacent    = nil
+              @snap_ref    = nil
+            end
 
-          # 3. Keep Z from surface pick (don't override Z with snap)
+            # 3. Collision check via CollisionManager
+            query = @cm.query(pt, @w, @d, @h)
+            @valid = !query[:collides]
+          else
+            @valid       = true
+            @snapping_to = :floor
+          end
+
+          # 4. Snap to 1mm grid
+          pt        = @cm ? @cm.snap_to_grid(pt) : pt
           @position = pt
-
-          # 4. Check collisions with existing Ornato modules
-          @valid = !collides?(pt)
         end
 
         view.invalidate
@@ -156,7 +172,7 @@ module Ornato
         draw_ghost_faces(view, corners, fill_col)
         draw_ghost_edges(view, corners, edge_col)
         draw_dimensions(view, corners)
-        draw_snap_line(view) if @snap_ref && @snapping_to == :adjacent
+        draw_snap_line(view) if @snap_ref && ![:none, :floor, nil].include?(@snapping_to)
         draw_snap_badge(view, @position)
       end
 
@@ -199,78 +215,8 @@ module Ornato
         hit
       end
 
-      # ── Snap to adjacent Ornato modules ───────────────────────
-      # Returns [point, snap_type, snap_reference_point, snapping_group]
-
-      def snap_to_modules(pt)
-        model = Sketchup.active_model
-        ornato_groups = collect_ornato_groups(model)
-
-        best_dist = SNAP_TOLERANCE.mm
-        best_pt   = pt
-        snap_type = :floor
-        snap_ref  = nil
-        snap_grp  = nil
-
-        ornato_groups.each do |grp|
-          bb = grp.bounds
-
-          # Candidate snap positions: left side, right side, front, back
-          # Right side of grp → our left side at grp.max.x
-          candidates = [
-            # Place our left against grp's right
-            { pt: Geom::Point3d.new(bb.max.x, pt.y, pt.z), ref: Geom::Point3d.new(bb.max.x, bb.center.y, bb.center.z) },
-            # Place our right against grp's left
-            { pt: Geom::Point3d.new(bb.min.x - @w, pt.y, pt.z), ref: Geom::Point3d.new(bb.min.x, bb.center.y, bb.center.z) },
-            # Place our front against grp's back
-            { pt: Geom::Point3d.new(pt.x, bb.max.y, pt.z), ref: Geom::Point3d.new(bb.center.x, bb.max.y, bb.center.z) },
-            # Place our back against grp's front
-            { pt: Geom::Point3d.new(pt.x, bb.min.y - @d, pt.z), ref: Geom::Point3d.new(bb.center.x, bb.min.y, bb.center.z) },
-          ]
-
-          candidates.each do |c|
-            dist = pt.distance(c[:pt])
-            if dist < best_dist
-              best_dist = dist
-              best_pt   = c[:pt]
-              snap_type = :adjacent
-              snap_ref  = c[:ref]
-              snap_grp  = grp
-            end
-          end
-        end
-
-        [best_pt, snap_type, snap_ref, snap_grp]
-      end
-
-      # ── Collision detection ───────────────────────────────────
-
-      def collides?(pt)
-        model = Sketchup.active_model
-        ornato_groups = collect_ornato_groups(model)
-
-        # Our AABB, slightly shrunk to allow touching
-        s = COLLISION_SHRINK.mm
-        my_min = Geom::Point3d.new(pt.x + s, pt.y + s, pt.z + s)
-        my_max = Geom::Point3d.new(pt.x + @w - s, pt.y + @d - s, pt.z + @h - s)
-
-        ornato_groups.each do |grp|
-          bb = grp.bounds
-          oth_min = bb.min
-          oth_max = bb.max
-
-          # AABB overlap test (all 3 axes must overlap)
-          overlap_x = my_min.x < oth_max.x && my_max.x > oth_min.x
-          overlap_y = my_min.y < oth_max.y && my_max.y > oth_min.y
-          overlap_z = my_min.z < oth_max.z && my_max.z > oth_min.z
-
-          return true if overlap_x && overlap_y && overlap_z
-        end
-
-        false
-      end
-
       # ── Collect all Ornato module groups in model ─────────────
+      # (kept for NeighborResolver call in push_model_summary)
 
       def collect_ornato_groups(model)
         model.active_entities.select do |e|
@@ -321,7 +267,8 @@ module Ornato
 
         # Shift+click → keep tool active for repeated placement
         if (flags & CONSTRAIN_MODIFIER_MASK) != 0
-          # Reset position for next placement
+          # Rebuild collision index to include the newly placed module
+          @cm = CollisionManager.new
           @position = nil
           @valid    = true
           update_status
@@ -437,21 +384,27 @@ module Ornato
 
       def draw_snap_line(view)
         return unless @snap_ref && @position
-        midpoint = Geom::Point3d.linear_combination(0.5, @position, 0.5, @snap_ref)
+        # @snap_ref is the center of the adjacent group's bounding box
+        ref = @snap_ref.is_a?(Geom::Point3d) ? @snap_ref : nil
+        return unless ref
         view.drawing_color = COLOR_SNAP_LINE
         view.line_width = 1
         view.line_stipple = '_'
-        view.draw(GL_LINES, [@position, @snap_ref])
+        view.draw(GL_LINES, [@position, ref])
         view.line_stipple = ''
       end
 
       def draw_snap_badge(view, pt)
         label = case @snapping_to
-                when :adjacent then '⊞ Encostando'
-                when :surface  then '⊡ Superfície'
-                else                ''
+                when :side_right, :side_left then 'Encostando lateral'
+                when :front, :back           then 'Encostando frente/fundo'
+                when :on_top                 then 'Empilhando sobre modulo'
+                when :align_left             then 'Alinhando esquerda'
+                when :align_right            then 'Alinhando direita'
+                when :surface                then 'Superficie detectada'
+                else                              nil
                 end
-        return if label.empty?
+        return unless label
 
         sc = view.screen_coords(pt.offset(Z_AXIS, @h + 30.mm))
         view.draw_text(sc, label, color: COLOR_SNAP_LINE, size: 11)
@@ -494,13 +447,19 @@ module Ornato
         w_mm = @w.to_mm.round
         h_mm = @h.to_mm.round
         d_mm = @d.to_mm.round
-        state = @valid ? 'OK' : 'COLISÃO'
-        snap  = @snapping_to == :adjacent ? ' | Encostando em módulo' : ''
+        state = @valid ? 'OK' : 'COLISAO'
+        snap_msg = case @snapping_to
+                   when :side_right, :side_left then ' | Snap: lateral'
+                   when :front, :back           then ' | Snap: frente/fundo'
+                   when :on_top                 then ' | Snap: sobre modulo'
+                   when :align_left, :align_right then ' | Snap: alinhamento'
+                   else ''
+                   end
 
         Sketchup.status_text =
-          "Ornato: Inserindo #{type_label} #{w_mm}×#{h_mm}×#{d_mm}mm" \
-          " | #{state}#{snap}" \
-          ' | Clique para confirmar | Shift+Clique para repetir | ESC para cancelar'
+          "Ornato: Inserindo #{type_label} #{w_mm}x#{h_mm}x#{d_mm}mm" \
+          " | #{state}#{snap_msg}" \
+          ' | Clique=confirmar | Shift+Clique=repetir | ESC=cancelar'
       end
     end # class PlacementTool
   end # module Tools
