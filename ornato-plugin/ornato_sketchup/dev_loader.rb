@@ -46,7 +46,9 @@ module Ornato
 
       # Library
       'library/module_base.rb',
+      'library/json_module_builder.rb',
       'library/parametric_engine.rb',
+      'library/countertop_builder.rb',
 
       # Constructor
       'constructor/box_builder.rb',
@@ -73,6 +75,7 @@ module Ornato
       'tools/neighbor_resolver.rb',
       'tools/ambiente_tool.rb',
       'tools/edit_tool.rb',
+      'tools/copy_array_tool.rb',
 
       # Updater (optional)
       'updater/auto_updater.rb',

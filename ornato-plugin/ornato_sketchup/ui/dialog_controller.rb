@@ -365,6 +365,60 @@ module Ornato
           end
         end
 
+        # ── CopyArrayTool ──────────────────────────────
+        @main_panel.add_action_callback('copy_module') do |_ctx, options_json|
+          begin
+            opts = JSON.parse(options_json.to_s, symbolize_names: true)
+          rescue
+            opts = {}
+          end
+          model = Sketchup.active_model
+          sel = model.selection.first
+          unless sel && (sel.is_a?(Sketchup::Group) || sel.is_a?(Sketchup::ComponentInstance)) &&
+              (sel.get_attribute('Ornato', 'module_type') || sel.get_attribute('Ornato', 'params'))
+            panel_status('Selecione um modulo Ornato para copiar')
+            next
+          end
+          if defined?(TOOLS_LOADED) && TOOLS_LOADED
+            tool = Tools::CopyArrayTool.new(sel,
+              direction:  (opts[:direction] || 'x').to_sym,
+              count:      (opts[:count] || 1).to_i,
+              gap_mm:     (opts[:gap_mm] || 0).to_f,
+              mirror:     opts[:mirror] || false,
+              controller: self
+            )
+            model.select_tool(tool)
+            panel_status("Modo copia: #{opts[:count] || 1}x em #{opts[:direction] || 'x'} | Clique/Enter=confirmar")
+          end
+        end
+
+        # ── CountertopBuilder ──────────────────────────
+        @main_panel.add_action_callback('generate_countertop') do |_ctx, options_json|
+          begin
+            opts = JSON.parse(options_json.to_s, symbolize_names: true)
+          rescue
+            opts = {}
+          end
+          mode      = opts[:mode] || 'selection'  # 'selection' ou 'all'
+          thickness = opts[:thickness_mm].to_f
+          thickness = 30.0 if thickness <= 0
+          mat       = opts[:material]
+
+          begin
+            if mode == 'all'
+              groups = Library::CountertopBuilder.build_for_all(material: mat, thickness_mm: thickness)
+              push_model_summary_to_panel
+              panel_status("#{groups.length} tampo(s) gerado(s)")
+            else
+              group = Library::CountertopBuilder.build_for_selection(material: mat, thickness_mm: thickness)
+              push_model_summary_to_panel
+              panel_status("Tampo gerado: #{group&.name || '?'}") if group
+            end
+          rescue => e
+            panel_status("Erro ao gerar tampo: #{e.message}")
+          end
+        end
+
         # ── apply_edit — Confirmar edicao ─────────────
         @main_panel.add_action_callback('apply_edit') do |_ctx, new_params_json|
           unless @current_edit_tool

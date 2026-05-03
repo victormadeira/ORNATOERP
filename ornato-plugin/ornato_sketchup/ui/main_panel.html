@@ -648,6 +648,45 @@ select option { background: var(--bg-3); }
         </div>
       </div>
 
+      <!-- Ações de módulo -->
+      <div>
+        <div class="section-label">Ações no Módulo Selecionado</div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+          <!-- Copiar/Array -->
+          <div style="display:flex;gap:6px;align-items:flex-end;">
+            <div class="field" style="width:60px;">
+              <div class="field-label">N cópias</div>
+              <input type="number" id="copyCount" value="1" min="1" max="20" style="text-align:center;">
+            </div>
+            <div class="field" style="width:60px;">
+              <div class="field-label">Gap mm</div>
+              <input type="number" id="copyGap" value="0" min="0" max="500">
+            </div>
+            <div class="field" style="flex:1;">
+              <div class="field-label">Eixo</div>
+              <select id="copyDir">
+                <option value="x">X (→)</option>
+                <option value="y">Y (↑)</option>
+              </select>
+            </div>
+            <button class="btn-sm" onclick="copyModule(false)" style="margin-bottom:1px;">⟹ Copiar</button>
+          </div>
+          <button class="btn-sm" onclick="copyModule(true)" style="width:100%;">⟺ Espelhar módulo</button>
+          <!-- Tampo -->
+          <div style="display:flex;gap:6px;align-items:flex-end;margin-top:4px;">
+            <div class="field" style="width:70px;">
+              <div class="field-label">Esp. tampo</div>
+              <div class="dim-input-wrap">
+                <input type="number" id="tampoThickness" value="30" min="6" max="60">
+                <span class="dim-unit">mm</span>
+              </div>
+            </div>
+            <button class="btn-sm" onclick="genTampo('selection')" style="flex:1;">▣ Tampo (seleção)</button>
+            <button class="btn-sm" onclick="genTampo('all')" style="flex:1;">▣ Tampo (tudo)</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Ações rápidas -->
       <div style="display:flex; gap:6px;">
         <button class="btn-sm" style="flex:1" onclick="doProcess()">
@@ -1176,6 +1215,32 @@ window.ornatoStatus = function(text) {
 window.commandCallback = function() {};
 // updateSummary is already defined above — re-export for safety
 window.updateSummary = window.updateSummary || function() {};
+
+/* ── Copy/Array/Countertop ─────────────────────────── */
+function copyModule(mirror) {
+  const count = parseInt(document.getElementById('copyCount').value) || 1;
+  const gap   = parseFloat(document.getElementById('copyGap').value) || 0;
+  const dir   = document.getElementById('copyDir').value || 'x';
+  const opts  = { direction: dir, count, gap_mm: gap, mirror: !!mirror };
+  try {
+    sketchup.copy_module(JSON.stringify(opts));
+    addLog((mirror ? 'Espelhando módulo' : 'Copiando módulo') + ' (' + (mirror ? '' : count + 'x ' + dir) + ')');
+    showToast(mirror ? 'Clique/Enter para confirmar espelho' : 'Clique/Enter para confirmar cópias', 'info');
+  } catch(e) {
+    addLog('copy_module indisponível: ' + (e.message||e));
+  }
+}
+
+function genTampo(mode) {
+  const thickness = parseFloat(document.getElementById('tampoThickness').value) || 30;
+  const opts = { mode, thickness_mm: thickness };
+  try {
+    sketchup.generate_countertop(JSON.stringify(opts));
+    addLog('Gerando tampo (' + mode + ')...');
+  } catch(e) {
+    addLog('generate_countertop indisponível: ' + (e.message||e));
+  }
+}
 
 /* ── ERP Integration ───────────────────────────────── */
 let _erpProject = null;

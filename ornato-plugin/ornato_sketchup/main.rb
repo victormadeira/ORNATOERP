@@ -37,6 +37,7 @@ require_relative 'catalog/hardware_catalog'
 
 # ─── Library ──────────────────────────────────────────
 require_relative 'library/parametric_engine'
+require_relative 'library/countertop_builder'
 
 # ─── Constructor (Construtor + Agregador + Troca + Acabamentos) ──
 require_relative 'constructor/box_builder'
@@ -106,6 +107,7 @@ begin
   require_relative 'tools/neighbor_resolver'
   require_relative 'tools/ambiente_tool'
   require_relative 'tools/edit_tool'
+  require_relative 'tools/copy_array_tool'
   TOOLS_LOADED = true
 rescue LoadError => e
   puts "Ornato: Ferramentas interativas nao disponiveis (#{e.message})"
@@ -193,6 +195,11 @@ module Ornato
       if TOOLS_LOADED
         menu.add_item('Desenhar Sala (Ambiente)') { show_ambiente_tool }
         menu.add_item('Editar Modulo Selecionado') { edit_selected_module }
+        menu.add_item('Copiar Modulo (Array)...') { copy_selected_module }
+        menu.add_item('Espelhar Modulo') { mirror_selected_module }
+        menu.add_separator
+        menu.add_item('Gerar Tampo sobre Selecionados') { generate_countertop_for_selection }
+        menu.add_item('Gerar Tampos (Modelo Inteiro)') { generate_all_countertops }
         menu.add_separator
       end
       menu.add_item('Analisar Modelo') { analyze_model }
@@ -767,6 +774,64 @@ module Ornato
       ctrl = dialog_controller
       tool = Tools::EditTool.new(sel, ctrl.main_panel_visible? ? ctrl : nil)
       model.select_tool(tool)
+    end
+
+    # ─── CopyArrayTool ──────────────────────────────
+    def self.copy_selected_module(count: 1, direction: :x, gap_mm: 0)
+      return unless TOOLS_LOADED
+      group = selected_ornato_group
+      return unless group
+      ctrl = dialog_controller
+      tool = Tools::CopyArrayTool.new(group,
+        direction:  direction,
+        count:      count,
+        gap_mm:     gap_mm,
+        controller: ctrl.main_panel_visible? ? ctrl : nil
+      )
+      Sketchup.active_model.select_tool(tool)
+    end
+
+    def self.mirror_selected_module
+      return unless TOOLS_LOADED
+      group = selected_ornato_group
+      return unless group
+      ctrl = dialog_controller
+      tool = Tools::CopyArrayTool.new(group,
+        mirror:     true,
+        count:      1,
+        direction:  :x,
+        controller: ctrl.main_panel_visible? ? ctrl : nil
+      )
+      Sketchup.active_model.select_tool(tool)
+    end
+
+    # ─── CountertopBuilder ──────────────────────────
+    def self.generate_countertop_for_selection
+      Library::CountertopBuilder.build_for_selection
+    rescue => e
+      ::UI.messagebox("Erro ao gerar tampo: #{e.message}")
+    end
+
+    def self.generate_all_countertops
+      groups = Library::CountertopBuilder.build_for_all
+      ::UI.messagebox("#{groups.length} tampo(s) gerado(s)")
+    rescue => e
+      ::UI.messagebox("Erro ao gerar tampos: #{e.message}")
+    end
+
+    # ─── Helpers ────────────────────────────────────
+    def self.selected_ornato_group
+      model = Sketchup.active_model
+      sel   = model.selection.first
+      unless sel && (sel.is_a?(Sketchup::Group) || sel.is_a?(Sketchup::ComponentInstance))
+        ::UI.messagebox('Selecione um modulo Ornato primeiro.')
+        return nil
+      end
+      unless sel.get_attribute('Ornato', 'module_type') || sel.get_attribute('Ornato', 'params')
+        ::UI.messagebox('O grupo selecionado nao e um modulo Ornato.')
+        return nil
+      end
+      sel
     end
 
     # NOTE: Construtor, Agregador, Troca, Acabamentos, Sobre
