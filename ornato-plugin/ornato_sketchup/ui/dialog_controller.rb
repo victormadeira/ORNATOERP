@@ -12,14 +12,17 @@ require 'uri'
 module Ornato
   module UI
     class DialogController
-      DIALOG_WIDTH  = 720
-      DIALOG_HEIGHT = 600
+      DIALOG_WIDTH       = 720
+      DIALOG_HEIGHT      = 600
+      MAIN_PANEL_WIDTH   = 420
+      MAIN_PANEL_HEIGHT  = 720
 
       attr_reader :dialog
 
       def initialize
-        @dialog = nil
-        @commands = {}
+        @dialog      = nil
+        @main_panel  = nil
+        @commands    = {}
         register_commands
       end
 
@@ -79,6 +82,65 @@ module Ornato
         @dialog && @dialog.visible?
       end
 
+      def main_panel_visible?
+        @main_panel && @main_panel.visible?
+      end
+
+      # ── New Ornato Design Panel ────────────────────────
+      # Floating utility panel with module library, model
+      # summary and export — uses main_panel.html
+      def show_main_panel
+        if @main_panel && @main_panel.visible?
+          @main_panel.bring_to_front
+          return
+        end
+
+        @main_panel = ::UI::HtmlDialog.new(
+          dialog_title:    'Ornato Design',
+          preferences_key: 'ornato_main_panel',
+          width:           MAIN_PANEL_WIDTH,
+          height:          MAIN_PANEL_HEIGHT,
+          min_width:       340,
+          min_height:      500,
+          style:           ::UI::HtmlDialog::STYLE_UTILITY
+        )
+
+        html_path = File.join(PLUGIN_DIR, 'ornato_sketchup', 'ui', 'main_panel.html')
+        @main_panel.set_file(html_path)
+
+        register_main_panel_callbacks
+
+        @main_panel.show
+
+        # Push version + initial model summary after load
+        ::UI.start_timer(0.5, false) do
+          next unless @main_panel && @main_panel.visible?
+          version = defined?(PLUGIN_VERSION) ? PLUGIN_VERSION : '0.1.0'
+          @main_panel.execute_script("typeof setVersion==='function'&&setVersion('#{version}')")
+          push_model_summary_to_panel
+        end
+      end
+
+      def close_main_panel
+        @main_panel.close if @main_panel && @main_panel.visible?
+      end
+
+      # ── Panel helpers (used by PlacementTool) ─────────
+
+      # Execute arbitrary JS in the main panel
+      def send_to_panel(js)
+        return unless @main_panel && @main_panel.visible?
+        @main_panel.execute_script(js)
+      end
+
+      # Short-cut: push a status / log message to the panel
+      def panel_status(text)
+        return unless @main_panel && @main_panel.visible?
+        safe = text.to_s.gsub('\\', '\\\\\\\\').gsub("'", "\\\\'").gsub("\n", ' ')
+        @main_panel.execute_script("typeof addLog==='function'&&addLog('#{safe}')")
+        @main_panel.execute_script("typeof showToast==='function'&&showToast('#{safe}','info')")
+      end
+
       # ── Send data to JS ──────────────────────────────
 
       def send_response(id, data)
@@ -100,6 +162,154 @@ module Ornato
       end
 
       private
+
+      # ── Main Panel Callbacks (direct — no command bus) ──────
+
+      def register_main_panel_callbacks
+
+        # "Inserir no Modelo" button → activate PlacementTool
+        @main_panel.add_action_callback('create_module') do |_ctx, type, params_json|
+          begin
+            mod_params = JSON.parse(params_json.to_s, symbolize_names: true)
+          rescue
+            mod_params = {}
+          end
+
+          if defined?(TOOLS_LOADED) && TOOLS_LOADED
+            tool = Tools::PlacementTool.new(type.to_s, mod_params, self)
+            Sketchup.active_model.select_tool(tool)
+            panel_status('Clique no modelo para posicionar | Shift+Clique repete | ESC cancela')
+          else
+            Library::ParametricEngine.create_module(type.to_s, mod_params)
+            panel_status("Modulo inserido: #{type}")
+            push_model_summary_to_panel
+          end
+        end
+
+        # Analyze model — refreshes module/piece counts
+        @main_panel.add_action_callback('analyze') do |_ctx|
+          Main.analyze_model
+          push_model_summary_to_panel
+          panel_status('Modelo analisado')
+        end
+
+        # Process selected module (hardware rules)
+        @main_panel.add_action_callback('process') do |_ctx|
+          Main.process_selected_module
+          panel_status('Ferragens processadas')
+        end
+
+        # Select entity by ID and zoom to it
+        @main_panel.add_action_callback('select_module') do |_ctx, entity_id|
+          Main.select_piece_in_model(entity_id)
+        end
+
+        # Delete an Ornato module group from the model
+        @main_panel.add_action_callback('delete_module') do |_ctx, entity_id|
+          delete_ornato_module_by_id(entity_id.to_s)
+          push_model_summary_to_panel
+          panel_status('Modulo removido')
+        end
+
+        # Export full JSON to file
+        @main_panel.add_action_callback('export_json') do |_ctx|
+          Main.export_json
+        end
+
+        # Export CSV (piece list) — uses BomExporter if available
+        @main_panel.add_action_callback('export_csv') do |_ctx|
+          begin
+            require_relative '../export/bom_exporter'
+            model = Sketchup.active_model
+            if model
+              path = ::UI.savepanel('Exportar planilha', '', "#{model.title || 'projeto'}.csv")
+              if path
+                bom = Export::BomExporter.new(model)
+                bom.export_csv(path)
+                panel_status("CSV salvo: #{File.basename(path)}")
+              end
+            end
+          rescue => e
+            panel_status("Erro CSV: #{e.message}")
+          end
+        end
+
+        # Sync with ERP
+        @main_panel.add_action_callback('export_to_erp') do |_ctx, url, proj|
+          Main.sync_with_erp
+        end
+
+        # Test ERP connection
+        @main_panel.add_action_callback('test_erp_connection') do |_ctx, url|
+          begin
+            uri = URI(url.to_s)
+            response = Net::HTTP.get_response(uri)
+            ok = response.code.to_i == 200
+            panel_status(ok ? "ERP conectado (#{url})" : "ERP nao respondeu (#{response.code})")
+          rescue => e
+            panel_status("Erro de conexao: #{e.message}")
+          end
+        end
+      end
+
+      # Collect all Ornato module groups
+      def collect_ornato_groups_from_model
+        model = Sketchup.active_model
+        return [] unless model
+        model.active_entities.select do |e|
+          (e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)) &&
+            (e.get_attribute('Ornato', 'module_type') || e.get_attribute('Ornato', 'params'))
+        end
+      end
+
+      # Push model stats + module list to the panel's Modelo tab
+      def push_model_summary_to_panel
+        return unless @main_panel && @main_panel.visible?
+        groups = collect_ornato_groups_from_model
+        total_pieces = groups.sum do |g|
+          g.entities.count { |e| e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance) }
+        end
+
+        module_list = groups.map do |g|
+          params = begin; JSON.parse(g.get_attribute('Ornato', 'params') || '{}', symbolize_names: true); rescue; {}; end
+          {
+            id:           g.entityID.to_s,
+            label:        g.respond_to?(:name) ? g.name : (g.get_attribute('Ornato', 'module_type') || 'Modulo'),
+            type:         g.get_attribute('Ornato', 'module_type') || '',
+            largura:      params[:largura],
+            altura:       params[:altura],
+            profundidade: params[:profundidade],
+            material:     params[:material],
+          }
+        end
+
+        data = {
+          modules:     groups.length,
+          pieces:      total_pieces,
+          joints:      0,
+          materials:   module_list.map { |m| m[:material] }.uniq.compact.length,
+          module_list: module_list,
+        }
+        json = data.to_json
+        @main_panel.execute_script("typeof updateSummary==='function'&&updateSummary(#{json})")
+      rescue => e
+        puts "Ornato: push_model_summary_to_panel error: #{e.message}"
+      end
+
+      # Delete an Ornato group by its entityID string
+      def delete_ornato_module_by_id(entity_id)
+        model = Sketchup.active_model
+        return unless model
+        groups = collect_ornato_groups_from_model
+        target = groups.find { |g| g.entityID.to_s == entity_id }
+        return unless target
+        model.start_operation('Ornato: Remover Modulo', true)
+        target.erase!
+        model.commit_operation
+      rescue => e
+        model&.abort_operation
+        puts "Ornato: delete_ornato_module_by_id error: #{e.message}"
+      end
 
       # ── Command Bus ──────────────────────────────────
 
@@ -169,9 +379,38 @@ module Ornato
           tipo_ruby = params[:tipo_ruby] || 'armario_base'
           mod_params = params[:params] || {}
 
-          Library::ParametricEngine.create_module(tipo_ruby, mod_params)
-          send_status("Modulo inserido: #{module_id}")
+          if TOOLS_LOADED
+            # Activate interactive placement tool — shows ghost, snaps, checks collisions
+            tool = Tools::PlacementTool.new(tipo_ruby, mod_params, self)
+            Sketchup.active_model.select_tool(tool)
+            send_status('Clique no modelo para posicionar o modulo | ESC para cancelar')
+          else
+            # Fallback: place at origin if tools not available
+            Library::ParametricEngine.create_module(tipo_ruby, mod_params)
+            send_status("Modulo inserido: #{module_id}")
+          end
           nil
+        }
+
+        # ── Placement: model summary (called by PlacementTool after insert) ──
+        @commands['model_summary'] = ->(params) {
+          model = Sketchup.active_model
+          return { modules: 0, pieces: 0 } unless model
+
+          modules = model.active_entities.select do |e|
+            (e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)) &&
+              (e.get_attribute('Ornato', 'module_type') || e.get_attribute('Ornato', 'params'))
+          end
+
+          total_pieces = modules.sum do |grp|
+            grp.entities.count { |e| e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance) }
+          end
+
+          {
+            modules: modules.length,
+            pieces:  total_pieces,
+            module_names: modules.map { |g| g.respond_to?(:name) ? g.name : '' },
+          }
         }
 
         # ── Construtor ─────────────────────────────────

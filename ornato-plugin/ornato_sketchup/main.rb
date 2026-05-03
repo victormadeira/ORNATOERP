@@ -98,6 +98,7 @@ end
 begin
   require_relative 'tools/hole_tool'
   require_relative 'tools/hole_edit_tool'
+  require_relative 'tools/placement_tool'
   TOOLS_LOADED = true
 rescue LoadError => e
   puts "Ornato: Ferramentas interativas nao disponiveis (#{e.message})"
@@ -171,8 +172,11 @@ module Ornato
     def self.setup_menu
       menu = ::UI.menu('Plugins').add_submenu('Ornato CNC')
 
-      # Unified dialog — primary entry point
-      menu.add_item('Abrir Ornato...') { show_dialog }
+      # Main panel — primary floating toolbar
+      menu.add_item('Ornato Design (Painel)') { show_main_panel }
+      menu.add_separator
+      # Unified dialog — full-featured dialog
+      menu.add_item('Abrir Ornato (Dialog completo)...') { show_dialog }
       menu.add_separator
       menu.add_item('Biblioteca...') { show_dialog('biblioteca') }
       menu.add_item('Construtor...') { show_dialog('construtor') }
@@ -203,6 +207,10 @@ module Ornato
       menu.add_item('[Dev] Watch Mode OFF') { DevLoader.stop_watch! }
     end
 
+    def self.show_main_panel
+      dialog_controller.show_main_panel
+    end
+
     def self.show_dialog(tab = 'biblioteca')
       dialog_controller.show(tab)
     end
@@ -211,9 +219,16 @@ module Ornato
     def self.setup_toolbar
       toolbar = ::UI::Toolbar.new('Ornato CNC')
 
-      # Open unified dialog
-      cmd_open = ::UI::Command.new('Ornato') { show_dialog }
-      cmd_open.tooltip = 'Abrir painel Ornato CNC'
+      # Open Ornato Design panel (new floating UI)
+      cmd_panel = ::UI::Command.new('Ornato Design') { show_main_panel }
+      cmd_panel.tooltip = 'Abrir Ornato Design — Biblioteca de modulos'
+      cmd_panel.small_icon = File.join(PLUGIN_DIR, 'icons', 'analyze_16.png')
+      cmd_panel.large_icon = File.join(PLUGIN_DIR, 'icons', 'analyze_24.png')
+      toolbar.add_item(cmd_panel)
+
+      # Open unified full dialog
+      cmd_open = ::UI::Command.new('Ornato Dialog') { show_dialog }
+      cmd_open.tooltip = 'Abrir dialogo completo Ornato CNC'
       cmd_open.small_icon = File.join(PLUGIN_DIR, 'icons', 'analyze_16.png')
       cmd_open.large_icon = File.join(PLUGIN_DIR, 'icons', 'analyze_24.png')
       toolbar.add_item(cmd_open)

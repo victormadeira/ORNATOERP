@@ -3,318 +3,1113 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ornato CNC</title>
+<title>Ornato Design</title>
 <style>
-  :root {
-    --bg-deepest: #0c0e14;
-    --bg-card: #111420;
-    --bg-elevated: #1a1e2e;
-    --border: rgba(255,255,255,0.06);
-    --border-hover: rgba(255,255,255,0.12);
-    --text-primary: #e8ecf4;
-    --text-secondary: #8892a8;
-    --text-muted: #555d70;
-    --accent: #1379F0;
-    --accent-hover: #0ea5e9;
-    --accent-pressed: #0369a1;
-    --accent-subtle: rgba(19,121,240,0.08);
-    --accent-ring: rgba(19,121,240,0.3);
-    --success: #22c55e;
-    --success-subtle: rgba(34,197,94,0.1);
-    --warning: #f59e0b;
-    --warning-subtle: rgba(245,158,11,0.1);
-    --error: #ef4444;
-    --error-subtle: rgba(239,68,68,0.1);
-    --purple: #8b5cf6;
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-pill: 20px;
-    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-    --ease: cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: var(--font); background: var(--bg-deepest); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+/* ════════════════════════════════════════════
+   TOKENS
+════════════════════════════════════════════ */
+:root {
+  --bg:          #0f1117;
+  --bg-2:        #161b24;
+  --bg-3:        #1d2330;
+  --bg-4:        #242b3a;
+  --border:      rgba(255,255,255,0.07);
+  --border-2:    rgba(255,255,255,0.13);
+  --text:        #eef0f5;
+  --text-2:      #8b94a8;
+  --text-3:      #525d72;
+  --accent:      #1379F0;
+  --accent-2:    #2589ff;
+  --accent-bg:   rgba(19,121,240,0.10);
+  --accent-ring: rgba(19,121,240,0.35);
+  --copper:      #C9A96E;
+  --copper-bg:   rgba(201,169,110,0.10);
+  --green:       #22c55e;
+  --green-bg:    rgba(34,197,94,0.10);
+  --red:         #ef4444;
+  --red-bg:      rgba(239,68,68,0.10);
+  --yellow:      #f59e0b;
+  --r-xs: 4px; --r-sm: 7px; --r-md: 10px; --r-lg: 14px;
+  --ease: cubic-bezier(.4,0,.2,1);
+  --font: 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono: 'JetBrains Mono','SF Mono','Fira Code',monospace;
+}
 
-  /* Header */
-  .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
-  .header-left { display: flex; align-items: center; gap: 10px; }
-  .logo { display: flex; align-items: center; gap: 6px; }
-  .logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%); border-radius: 7px; display: flex; align-items: center; justify-content: center; }
-  .logo-icon svg { width: 16px; height: 16px; fill: #fff; }
-  .logo-text { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; color: var(--text-primary); }
-  .logo-text span { font-weight: 400; color: var(--text-secondary); margin-left: 2px; }
-  .header-right { display: flex; align-items: center; gap: 10px; }
-  .version-badge { font-size: 10px; font-weight: 600; color: var(--text-muted); background: var(--bg-elevated); border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--radius-pill); letter-spacing: 0.3px; font-family: var(--mono); }
-  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px rgba(34,197,94,0.4); transition: all 0.3s var(--ease); }
-  .conn-dot.disconnected { background: var(--error); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+/* ════════════════════════════════════════════
+   RESET + BASE
+════════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+input, button, select, textarea { font-family: inherit; }
+button { cursor: pointer; border: none; background: none; color: inherit; }
+input, select {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s var(--ease);
+  width: 100%;
+}
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+select option { background: var(--bg-3); }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 2px; }
 
-  /* Content */
-  .content { padding: 16px 16px 80px; display: flex; flex-direction: column; gap: 16px; }
+/* ════════════════════════════════════════════
+   TOPBAR
+════════════════════════════════════════════ */
+.topbar {
+  flex-shrink: 0;
+  height: 46px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 10px;
+}
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  text-decoration: none; flex-shrink: 0;
+}
+.brand-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--accent), #0ea5e9);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+}
+.brand-mark svg { width:14px; height:14px; fill:#fff; }
+.brand-name {
+  font-size: 13px; font-weight: 800; letter-spacing: 0.8px;
+  color: var(--text);
+}
+.brand-name em {
+  font-style: normal; font-weight: 400;
+  color: var(--copper); margin-left: 1px; letter-spacing: 0;
+}
+.topbar-fill { flex: 1; }
+.badge {
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+  color: var(--text-3); background: var(--bg-4);
+  border: 1px solid var(--border);
+  padding: 2px 7px; border-radius: 99px;
+  letter-spacing: .3px;
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(34,197,94,.5);
+  flex-shrink: 0;
+  transition: all .3s;
+}
+.status-dot.off { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,.4); }
 
-  /* Workflow Steps */
-  .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .step-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; transition: all 0.15s var(--ease); position: relative; overflow: hidden; cursor: default; }
-  .step-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--text-muted); opacity: 0.2; transition: all 0.2s var(--ease); }
-  .step-card.active::before { background: var(--accent); opacity: 1; }
-  .step-card.done::before { background: var(--success); opacity: 1; }
-  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-elevated); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-muted); transition: all 0.2s var(--ease); }
-  .step-card.active .step-num { background: var(--accent-subtle); border-color: var(--accent); color: var(--accent); }
-  .step-card.done .step-num { background: var(--success-subtle); border-color: var(--success); color: var(--success); }
-  .step-card.done .step-num-text { display: none; }
-  .step-card.done .step-check { display: block; }
-  .step-check { display: none; width: 14px; height: 14px; }
-  .step-icon { width: 36px; height: 36px; color: var(--text-muted); transition: color 0.2s var(--ease); }
-  .step-card.active .step-icon { color: var(--accent); }
-  .step-card.done .step-icon { color: var(--success); }
-  .step-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-secondary); }
-  .step-subtitle { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
-  .step-btn { width: 100%; padding: 7px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); transition: all 0.15s var(--ease); margin-top: auto; font-family: var(--font); }
-  .step-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
-  .step-btn:active { transform: scale(0.98); }
-  .step-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-ring); }
-  .step-card.active .step-btn { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .step-card.active .step-btn:hover { background: var(--accent-hover); }
+/* ════════════════════════════════════════════
+   TAB NAV
+════════════════════════════════════════════ */
+.tab-nav {
+  flex-shrink: 0;
+  display: flex;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+}
+.tab {
+  padding: 8px 12px;
+  font-size: 11px; font-weight: 600;
+  color: var(--text-3);
+  border-bottom: 2px solid transparent;
+  transition: all .15s var(--ease);
+  display: flex; align-items: center; gap: 5px;
+  letter-spacing: .3px;
+  cursor: pointer;
+}
+.tab svg { width:13px; height:13px; flex-shrink:0; }
+.tab:hover { color: var(--text-2); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-  /* Section header */
-  .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .section-bar { width: 3px; height: 16px; border-radius: 2px; background: var(--accent); }
-  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); }
+/* ════════════════════════════════════════════
+   SCROLL BODY
+════════════════════════════════════════════ */
+.body { flex: 1; overflow: hidden; position: relative; }
+.panel {
+  position: absolute; inset: 0;
+  overflow-y: auto; overflow-x: hidden;
+  display: none;
+  flex-direction: column;
+}
+.panel.active { display: flex; }
 
-  /* Stats Grid */
-  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 10px; text-align: center; transition: all 0.15s var(--ease); }
-  .stat-card:hover { border-color: var(--border-hover); }
-  .stat-icon { width: 20px; height: 20px; margin: 0 auto 6px; color: var(--text-muted); }
-  .stat-value { font-size: 24px; font-weight: 800; color: var(--text-primary); line-height: 1; font-family: var(--mono); letter-spacing: -0.5px; }
-  .stat-label { font-size: 10px; font-weight: 500; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+/* ════════════════════════════════════════════
+   ── PAINEL: BIBLIOTECA ──
+════════════════════════════════════════════ */
+.search-wrap {
+  padding: 10px 12px 8px;
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.search-input-wrap { position: relative; }
+.search-input-wrap svg {
+  position: absolute; left: 9px; top: 50%;
+  transform: translateY(-50%);
+  width: 13px; height: 13px;
+  color: var(--text-3); pointer-events: none;
+}
+.search-input-wrap input { padding-left: 30px; }
 
-  /* Summary container - hidden by default */
-  .summary-section { display: none; }
-  .summary-section.visible { display: block; }
+.cat-filter {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+.cat-btn {
+  font-size: 10px; font-weight: 600;
+  padding: 3px 9px; border-radius: 99px;
+  border: 1px solid var(--border);
+  color: var(--text-3); background: var(--bg-3);
+  transition: all .12s var(--ease); cursor: pointer;
+  letter-spacing: .3px;
+}
+.cat-btn:hover { border-color: var(--border-2); color: var(--text-2); }
+.cat-btn.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 
-  /* Quick Actions */
-  .quick-actions { display: flex; gap: 8px; }
-  .qa-btn { flex: 1; padding: 8px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); transition: all 0.15s var(--ease); display: flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font); }
-  .qa-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
-  .qa-btn:active { transform: scale(0.98); }
-  .qa-btn svg { width: 14px; height: 14px; }
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 10px 12px;
+}
+.mod-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 8px 10px;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 7px;
+  cursor: pointer;
+  transition: all .15s var(--ease);
+  position: relative; overflow: hidden;
+}
+.mod-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 2px; background: var(--accent); opacity: 0;
+  transition: opacity .15s;
+}
+.mod-card:hover { border-color: var(--border-2); background: var(--bg-3); }
+.mod-card:hover::before { opacity: 1; }
+.mod-card:active { transform: scale(.97); }
+.mod-card.selected { border-color: var(--accent); background: var(--accent-bg); }
+.mod-card.selected::before { opacity: 1; }
+.mod-icon {
+  width: 44px; height: 44px;
+  background: var(--bg-3);
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2);
+  transition: all .15s;
+}
+.mod-card:hover .mod-icon, .mod-card.selected .mod-icon {
+  background: var(--accent-bg); color: var(--accent);
+}
+.mod-icon svg { width: 22px; height: 22px; }
+.mod-name {
+  font-size: 10px; font-weight: 600;
+  color: var(--text-2); text-align: center;
+  line-height: 1.2;
+  transition: color .15s;
+}
+.mod-card:hover .mod-name, .mod-card.selected .mod-name { color: var(--text); }
 
-  /* Activity Log */
-  .log-container { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; max-height: 160px; overflow-y: auto; }
-  .log-container::-webkit-scrollbar { width: 4px; }
-  .log-container::-webkit-scrollbar-track { background: transparent; }
-  .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .log-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 12px; }
-  .log-empty svg { width: 24px; height: 24px; margin: 0 auto 8px; display: block; opacity: 0.4; }
-  .log-item { padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 12px; transition: background 0.1s; }
-  .log-item:last-child { border-bottom: none; }
-  .log-item:hover { background: rgba(255,255,255,0.02); }
-  .log-time { font-family: var(--mono); font-size: 10px; color: var(--text-muted); white-space: nowrap; min-width: 52px; }
-  .log-msg { color: var(--text-secondary); flex: 1; }
-  .log-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; opacity: 0.5; }
+/* ════════════════════════════════════════════
+   ── CONFIGURADOR (slide-up quando selecionado) ──
+════════════════════════════════════════════ */
+.configurator {
+  flex-shrink: 0;
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  padding: 0;
+  max-height: 0; overflow: hidden;
+  transition: max-height .25s var(--ease);
+}
+.configurator.open { max-height: 420px; }
+.cfg-header {
+  padding: 10px 14px 8px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.cfg-title {
+  font-size: 11px; font-weight: 700;
+  color: var(--text); letter-spacing: .3px;
+  display: flex; align-items: center; gap: 6px;
+}
+.cfg-title-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+}
+.cfg-close {
+  width: 22px; height: 22px; border-radius: var(--r-xs);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3);
+  transition: all .12s;
+}
+.cfg-close:hover { background: var(--bg-4); color: var(--text); }
+.cfg-close svg { width: 12px; height: 12px; }
 
-  /* Toast */
-  .toast { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; z-index: 1000; transform: translateX(120%); transition: transform 0.3s var(--ease); display: flex; align-items: center; gap: 8px; }
-  .toast.show { transform: translateX(0); }
-  .toast.success { background: var(--success-subtle); border: 1px solid rgba(34,197,94,0.2); color: var(--success); }
-  .toast.error { background: var(--error-subtle); border: 1px solid rgba(239,68,68,0.2); color: var(--error); }
+.cfg-body { padding: 12px 14px; overflow-y: auto; max-height: 280px; }
+.cfg-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.cfg-row.full { grid-template-columns: 1fr; }
+.cfg-row.half { grid-template-columns: 1fr 1fr; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field-label {
+  font-size: 10px; font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: .4px; text-transform: uppercase;
+}
+.dim-input-wrap { position: relative; }
+.dim-input-wrap input { padding-right: 28px; font-family: var(--mono); font-size: 12px; }
+.dim-unit {
+  position: absolute; right: 9px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px; font-weight: 700;
+  color: var(--text-3); pointer-events: none;
+  font-family: var(--mono);
+}
 
-  /* Status bar */
-  .status-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 1px solid var(--border); padding: 6px 16px; font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; z-index: 100; }
-  .status-left { display: flex; align-items: center; gap: 6px; }
+.cfg-footer {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border);
+}
+.btn-insert {
+  width: 100%;
+  padding: 9px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 700;
+  letter-spacing: .3px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  transition: all .15s var(--ease);
+  border: 1px solid transparent;
+}
+.btn-insert:hover { background: var(--accent-2); }
+.btn-insert:active { transform: scale(.98); }
+.btn-insert svg { width: 14px; height: 14px; }
+
+/* ════════════════════════════════════════════
+   ── PAINEL: MODELO ──
+════════════════════════════════════════════ */
+.model-panel { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.stats-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.stat-box {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 8px;
+  text-align: center;
+  transition: border-color .15s;
+}
+.stat-box:hover { border-color: var(--border-2); }
+.stat-box-val {
+  font-size: 22px; font-weight: 800;
+  font-family: var(--mono); letter-spacing: -1px;
+  color: var(--text);
+}
+.stat-box-val.accent { color: var(--accent); }
+.stat-box-lbl {
+  font-size: 9px; font-weight: 600;
+  color: var(--text-3); text-transform: uppercase; letter-spacing: .6px;
+  margin-top: 2px;
+}
+
+.section-label {
+  font-size: 10px; font-weight: 700;
+  color: var(--text-3); letter-spacing: .7px; text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.module-list { display: flex; flex-direction: column; gap: 4px; }
+.module-row {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  display: flex; align-items: center; gap: 8px;
+  transition: all .12s;
+  cursor: pointer;
+}
+.module-row:hover { border-color: var(--border-2); background: var(--bg-3); }
+.module-row-icon {
+  width: 28px; height: 28px; border-radius: var(--r-xs);
+  background: var(--accent-bg); display: flex; align-items: center; justify-content: center;
+  color: var(--accent); flex-shrink: 0;
+}
+.module-row-icon svg { width: 14px; height: 14px; }
+.module-row-info { flex: 1; min-width: 0; }
+.module-row-name {
+  font-size: 11px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.module-row-dims { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.module-row-actions { display: flex; gap: 3px; opacity: 0; transition: opacity .12s; }
+.module-row:hover .module-row-actions { opacity: 1; }
+.icon-btn {
+  width: 22px; height: 22px; border-radius: var(--r-xs);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3); transition: all .12s;
+}
+.icon-btn:hover { background: var(--bg-4); color: var(--text); }
+.icon-btn svg { width: 12px; height: 12px; }
+.icon-btn.danger:hover { background: var(--red-bg); color: var(--red); }
+
+/* Ambiente chips */
+.amb-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.amb-chip {
+  padding: 3px 10px; border-radius: 99px;
+  border: 1px solid var(--border);
+  font-size: 10px; font-weight: 600; color: var(--text-2);
+  background: var(--bg-3); cursor: pointer;
+  transition: all .12s;
+}
+.amb-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.amb-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+
+/* ════════════════════════════════════════════
+   ── PAINEL: EXPORTAR ──
+════════════════════════════════════════════ */
+.export-panel { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.export-card {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--r-md); overflow: hidden;
+}
+.export-card-head {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 7px;
+}
+.export-card-head svg { width: 14px; height: 14px; color: var(--copper); }
+.export-card-body { padding: 12px 14px; }
+
+.erp-url-row {
+  display: flex; gap: 6px; align-items: center;
+}
+.erp-url-row input { flex: 1; }
+.btn-sm {
+  padding: 6px 12px;
+  background: var(--bg-3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); font-size: 11px; font-weight: 600;
+  color: var(--text-2); white-space: nowrap;
+  transition: all .12s;
+}
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+
+.export-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+.btn-export {
+  width: 100%; padding: 10px;
+  border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all .15s var(--ease); letter-spacing: .2px;
+  border: 1px solid transparent;
+}
+.btn-export svg { width: 15px; height: 15px; }
+.btn-export.primary { background: var(--accent); color: #fff; }
+.btn-export.primary:hover { background: var(--accent-2); }
+.btn-export.secondary {
+  background: var(--bg-3); border-color: var(--border); color: var(--text-2);
+}
+.btn-export.secondary:hover { border-color: var(--border-2); color: var(--text); background: var(--bg-4); }
+.btn-export:active { transform: scale(.98); }
+
+.checklist { display: flex; flex-direction: column; gap: 6px; }
+.check-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text-2);
+}
+.check-item svg { width: 13px; height: 13px; flex-shrink: 0; }
+.check-item.ok svg { color: var(--green); }
+.check-item.warn svg { color: var(--yellow); }
+.check-item.err svg { color: var(--red); }
+
+/* ════════════════════════════════════════════
+   ── ACTIVITY LOG ──
+════════════════════════════════════════════ */
+.log-wrap {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+  flex-shrink: 0;
+  max-height: 120px; overflow-y: auto;
+}
+.log-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 3px 0; font-size: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.log-item:last-child { border-bottom: none; }
+.log-time { color: var(--text-3); font-family: var(--mono); white-space: nowrap; }
+.log-msg { color: var(--text-2); flex: 1; }
+.log-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.log-empty { font-size: 11px; color: var(--text-3); text-align: center; padding: 8px 0; }
+
+/* ════════════════════════════════════════════
+   TOAST
+════════════════════════════════════════════ */
+.toast {
+  position: fixed; bottom: 14px; left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  padding: 8px 16px; border-radius: var(--r-sm);
+  font-size: 11px; font-weight: 600;
+  z-index: 999; pointer-events: none;
+  white-space: nowrap;
+  transition: transform .25s var(--ease);
+  display: flex; align-items: center; gap: 7px;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.success { background: var(--green-bg); border: 1px solid rgba(34,197,94,.2); color: var(--green); }
+.toast.error   { background: var(--red-bg);   border: 1px solid rgba(239,68,68,.2);  color: var(--red); }
+.toast.info    { background: var(--accent-bg); border: 1px solid rgba(19,121,240,.2); color: var(--accent); }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-left">
-    <div class="logo">
-      <div class="logo-icon">
-        <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l7.12 3.56L12 11.3 4.88 7.74 12 4.18zM4 8.82l7 3.5v7.86l-7-3.5V8.82zm9 11.36v-7.86l7-3.5v7.86l-7 3.5z"/></svg>
-      </div>
-      <div class="logo-text">ORNATO<span>CNC</span></div>
+<!-- ══ TOPBAR ══════════════════════════════════════════ -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l7.12 3.56L12 11.3 4.88 7.74 12 4.18zM4 8.82l7 3.5v7.86l-7-3.5V8.82zm9 11.36v-7.86l7-3.5v7.86l-7 3.5z"/></svg>
     </div>
+    <div class="brand-name">ORNATO<em>design</em></div>
   </div>
-  <div class="header-right">
-    <span class="version-badge">v0.1.0</span>
-    <div class="conn-dot" id="connDot" title="Conectado ao SketchUp"></div>
+  <div class="topbar-fill"></div>
+  <span class="badge" id="versionBadge">v1.0</span>
+  <div class="status-dot" id="statusDot" title="Conectado"></div>
+</div>
+
+<!-- ══ TABS ════════════════════════════════════════════ -->
+<div class="tab-nav">
+  <div class="tab active" id="tab-lib" onclick="switchTab('lib')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    Biblioteca
+  </div>
+  <div class="tab" id="tab-model" onclick="switchTab('model')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+    </svg>
+    Modelo
+    <span class="badge" id="modBadge" style="margin-left:2px;display:none">0</span>
+  </div>
+  <div class="tab" id="tab-export" onclick="switchTab('export')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+    </svg>
+    Exportar
   </div>
 </div>
 
-<div class="content">
-  <!-- Workflow Steps -->
-  <div class="workflow">
-    <div class="step-card active" id="step1">
-      <div class="step-num">
-        <span class="step-num-text">1</span>
-        <svg class="step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
-      </div>
-      <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
-      <div class="step-title">Modelo</div>
-      <div class="step-subtitle">Analise e detecte pecas</div>
-      <button class="step-btn" onclick="doAnalyze()">Analisar Modelo</button>
-    </div>
-    <div class="step-card" id="step2">
-      <div class="step-num">
-        <span class="step-num-text">2</span>
-        <svg class="step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
-      </div>
-      <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-      <div class="step-title">Ferragens</div>
-      <div class="step-subtitle">Gere furacoes automaticas</div>
-      <button class="step-btn" onclick="doProcess()">Processar</button>
-    </div>
-    <div class="step-card" id="step3">
-      <div class="step-num">
-        <span class="step-num-text">3</span>
-        <svg class="step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
-      </div>
-      <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-      <div class="step-title">Exportar</div>
-      <div class="step-subtitle">Envie para o Ornato ERP</div>
-      <button class="step-btn" onclick="doExport()">Exportar JSON</button>
-    </div>
-  </div>
+<!-- ══ BODY ════════════════════════════════════════════ -->
+<div class="body">
 
-  <!-- Model Summary (appears after analysis) -->
-  <div class="summary-section" id="summarySection">
-    <div class="section-header">
-      <div class="section-bar"></div>
-      <div class="section-title">Resumo do Modelo</div>
-    </div>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        <div class="stat-value" id="modulesCount">0</div>
-        <div class="stat-label">Modulos</div>
-      </div>
-      <div class="stat-card">
-        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
-        <div class="stat-value" id="piecesCount">0</div>
-        <div class="stat-label">Pecas</div>
-      </div>
-      <div class="stat-card">
-        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-        <div class="stat-value" id="materialsCount">0</div>
-        <div class="stat-label">Materiais</div>
-      </div>
-      <div class="stat-card">
-        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
-        <div class="stat-value" id="jointsCount">0</div>
-        <div class="stat-label">Juncoes</div>
-      </div>
-    </div>
-  </div>
+  <!-- ── BIBLIOTECA ──────────────────────────────────── -->
+  <div class="panel active" id="panel-lib" style="flex-direction:column; overflow:hidden;">
 
-  <!-- Quick Actions -->
-  <div>
-    <div class="section-header">
-      <div class="section-bar" style="background: var(--purple);"></div>
-      <div class="section-title">Acoes Rapidas</div>
-    </div>
-    <div class="quick-actions">
-      <button class="qa-btn" onclick="openMaterials()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-        Materiais
-      </button>
-      <button class="qa-btn" onclick="openHardware()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-        Ferragens
-      </button>
-      <button class="qa-btn" onclick="openPreview()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        Preview
-      </button>
-    </div>
-  </div>
-
-  <!-- Activity Log -->
-  <div>
-    <div class="section-header">
-      <div class="section-bar" style="background: var(--text-muted);"></div>
-      <div class="section-title">Atividade</div>
-    </div>
-    <div class="log-container" id="logContainer">
-      <div class="log-empty" id="logEmpty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        Nenhuma atividade registrada
+    <!-- Busca + filtros -->
+    <div class="search-wrap">
+      <div class="search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Buscar módulo..." oninput="filterModules()">
+      </div>
+      <div class="cat-filter" id="catFilter">
+        <button class="cat-btn active" data-cat="all" onclick="setCat('all',this)">Todos</button>
+        <button class="cat-btn" data-cat="base" onclick="setCat('base',this)">Balcão</button>
+        <button class="cat-btn" data-cat="aereo" onclick="setCat('aereo',this)">Aéreo</button>
+        <button class="cat-btn" data-cat="torre" onclick="setCat('torre',this)">Torre</button>
+        <button class="cat-btn" data-cat="interno" onclick="setCat('interno',this)">Internos</button>
+        <button class="cat-btn" data-cat="acabamento" onclick="setCat('acabamento',this)">Acabamentos</button>
       </div>
     </div>
-  </div>
+
+    <!-- Grid de módulos (scrollável) -->
+    <div style="flex:1; overflow-y:auto; overflow-x:hidden;">
+      <div class="lib-grid" id="libGrid"></div>
+    </div>
+
+    <!-- Configurador (slide-up) -->
+    <div class="configurator" id="configurator">
+      <div class="cfg-header">
+        <div class="cfg-title">
+          <div class="cfg-title-dot"></div>
+          <span id="cfgTitle">Configurar Módulo</span>
+        </div>
+        <button class="cfg-close" onclick="closeCfg()" title="Fechar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="cfg-body" id="cfgBody">
+        <!-- Fields injetados por JS -->
+      </div>
+      <div class="cfg-footer">
+        <button class="btn-insert" onclick="insertModule()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Inserir no Modelo
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /panel-lib -->
+
+  <!-- ── MODELO ──────────────────────────────────────── -->
+  <div class="panel" id="panel-model">
+    <div class="model-panel">
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-box-val accent" id="statModulos">0</div>
+          <div class="stat-box-lbl">Módulos</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-box-val" id="statPecas">0</div>
+          <div class="stat-box-lbl">Peças</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-box-val" id="statJuncoes">0</div>
+          <div class="stat-box-lbl">Junções</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-box-val" id="statMateriais">0</div>
+          <div class="stat-box-lbl">Materiais</div>
+        </div>
+      </div>
+
+      <!-- Ambientes -->
+      <div>
+        <div class="section-label">
+          Ambientes
+          <button class="icon-btn" onclick="addAmbiente()" title="Novo ambiente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+        <div class="amb-chips" id="ambChips" style="margin-top:8px;">
+          <div class="amb-chip active">Todos</div>
+        </div>
+      </div>
+
+      <!-- Lista de módulos no modelo -->
+      <div>
+        <div class="section-label">
+          Módulos no modelo
+          <button class="icon-btn" onclick="analyzeModel()" title="Reescanear">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9H3M3 12l4-4M3 12l4 4"/></svg>
+          </button>
+        </div>
+        <div class="module-list" id="moduleList" style="margin-top:8px;">
+          <div style="text-align:center;padding:24px 0;color:var(--text-3);font-size:11px;">
+            Nenhum módulo detectado.<br>
+            <span style="font-size:10px;">Clique em ↺ para escanear o modelo</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ações rápidas -->
+      <div style="display:flex; gap:6px;">
+        <button class="btn-sm" style="flex:1" onclick="doProcess()">
+          ⚙ Processar ferragens
+        </button>
+        <button class="btn-sm" style="flex:1" onclick="switchTab('export')">
+          ↑ Exportar
+        </button>
+      </div>
+
+    </div>
+  </div><!-- /panel-model -->
+
+  <!-- ── EXPORTAR ─────────────────────────────────────── -->
+  <div class="panel" id="panel-export">
+    <div class="export-panel">
+
+      <!-- Validação -->
+      <div class="export-card">
+        <div class="export-card-head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Checklist
+        </div>
+        <div class="export-card-body">
+          <div class="checklist" id="checklist">
+            <div class="check-item ok">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+              Módulos detectados
+            </div>
+            <div class="check-item warn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Ferragens não processadas
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Destino ERP -->
+      <div class="export-card">
+        <div class="export-card-head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Destino
+        </div>
+        <div class="export-card-body">
+          <div class="field" style="margin-bottom:8px;">
+            <div class="field-label">URL do ERP Ornato</div>
+            <div class="erp-url-row">
+              <input type="text" id="erpUrl" placeholder="https://gestaoornato.com" />
+              <button class="btn-sm" onclick="testErp()">Testar</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-label">Projeto</div>
+            <input type="text" id="projectName" placeholder="Ex: Cozinha Maria Silva" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Botões de exportação -->
+      <div class="export-actions">
+        <button class="btn-export primary" onclick="exportToErp()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Enviar para o ERP
+        </button>
+        <button class="btn-export secondary" onclick="exportJson()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Salvar JSON local
+        </button>
+        <button class="btn-export secondary" onclick="exportCsv()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+          Exportar planilha (CSV)
+        </button>
+      </div>
+
+    </div>
+  </div><!-- /panel-export -->
+
+</div><!-- /body -->
+
+<!-- ══ LOG ═════════════════════════════════════════════ -->
+<div class="log-wrap" id="logWrap">
+  <div class="log-empty" id="logEmpty">Nenhuma atividade</div>
 </div>
 
-<!-- Toast notification -->
+<!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Status bar -->
-<div class="status-bar">
-  <div class="status-left">
-    <div class="conn-dot" id="connDot2" style="width:5px;height:5px;"></div>
-    <span>Conectado ao SketchUp</span>
-  </div>
-  <span id="statusTimestamp">--</span>
-</div>
-
+<!-- ════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════ -->
 <script>
-  /* --- Callbacks to SketchUp --- */
-  function doAnalyze() { try { sketchup.analyze(); } catch(e) { addLog('Callback analyze nao disponivel'); } }
-  function doProcess() { try { sketchup.process(); } catch(e) { addLog('Callback process nao disponivel'); } }
-  function doExport() { try { sketchup.export_json(); } catch(e) { addLog('Callback export_json nao disponivel'); } }
-  function openMaterials() { try { sketchup.open_materials(); } catch(e) {} }
-  function openHardware() { try { sketchup.open_hardware(); } catch(e) {} }
-  function openPreview() { try { sketchup.open_preview(); } catch(e) {} }
+'use strict';
 
-  /* --- Data callbacks from Ruby --- */
-  window.updateSummary = function(data) {
-    var d = typeof data === 'string' ? JSON.parse(data) : data;
-    document.getElementById('summarySection').classList.add('visible');
-    document.getElementById('modulesCount').textContent = d.modules || 0;
-    document.getElementById('piecesCount').textContent = d.pieces || 0;
-    document.getElementById('materialsCount').textContent = d.materials ? (Array.isArray(d.materials) ? d.materials.length : d.materials) : 0;
-    document.getElementById('jointsCount').textContent = d.joints || 0;
-    document.getElementById('statusTimestamp').textContent = new Date().toLocaleTimeString('pt-BR');
-    addLog('Modelo analisado: ' + (d.pieces || 0) + ' pecas detectadas');
+/* ── Catálogo de módulos ──────────────────────────── */
+const MODULES = [
+  // Balcão
+  { type:'armario_base',  label:'Balcão',      cat:'base',    icon:'cabinet',
+    fields:['largura','altura','profundidade','material','espessura','puxador_esp'],
+    defaults:{ largura:600, altura:720, profundidade:550, material:'MDF18_BrancoTX', espessura:18, puxador_esp:128 }},
+  { type:'gaveteiro',     label:'Gaveteiro',   cat:'base',    icon:'drawers',
+    fields:['largura','altura','profundidade','material','espessura','num_gavetas'],
+    defaults:{ largura:600, altura:720, profundidade:550, material:'MDF18_BrancoTX', espessura:18, num_gavetas:3 }},
+  // Aéreo
+  { type:'armario_aereo', label:'Aéreo',       cat:'aereo',   icon:'wall-cabinet',
+    fields:['largura','altura','profundidade','material','espessura'],
+    defaults:{ largura:600, altura:700, profundidade:350, material:'MDF18_BrancoTX', espessura:18 }},
+  // Torre
+  { type:'armario_torre', label:'Torre',       cat:'torre',   icon:'tower',
+    fields:['largura','altura','profundidade','material','espessura'],
+    defaults:{ largura:600, altura:2200, profundidade:600, material:'MDF18_BrancoTX', espessura:18 }},
+  // Internos
+  { type:'nicho',         label:'Nicho',       cat:'interno', icon:'nicho',
+    fields:['largura','altura','profundidade','material','espessura','num_prateleiras'],
+    defaults:{ largura:400, altura:400, profundidade:300, material:'MDF18_BrancoTX', espessura:18, num_prateleiras:2 }},
+  { type:'prateleira',    label:'Prateleira',  cat:'interno', icon:'shelf',
+    fields:['largura','espessura','profundidade','material'],
+    defaults:{ largura:600, espessura:18, profundidade:300, material:'MDF18_BrancoTX' }},
+  { type:'divisoria',     label:'Divisória',   cat:'interno', icon:'divider',
+    fields:['altura','espessura','profundidade','material'],
+    defaults:{ altura:600, espessura:18, profundidade:300, material:'MDF18_BrancoTX' }},
+  { type:'sapateira',     label:'Sapateira',   cat:'interno', icon:'shelf',
+    fields:['largura','altura','profundidade','material','espessura'],
+    defaults:{ largura:600, altura:200, profundidade:300, material:'MDF18_BrancoTX', espessura:18 }},
+  { type:'cabideiro',     label:'Cabideiro',   cat:'interno', icon:'rail',
+    fields:['largura','altura_varao','material'],
+    defaults:{ largura:600, altura_varao:1200, material:'MDF18_BrancoTX' }},
+  // Acabamentos
+  { type:'tamponamento',  label:'Tampo lateral',cat:'acabamento',icon:'panel',
+    fields:['largura','altura','espessura','material'],
+    defaults:{ largura:60, altura:720, espessura:18, material:'MDF18_BrancoTX' }},
+  { type:'rodape',        label:'Rodapé',      cat:'acabamento',icon:'kickboard',
+    fields:['largura','altura','espessura','material'],
+    defaults:{ largura:600, altura:100, espessura:18, material:'MDF18_BrancoTX' }},
+  { type:'coluna_canto',  label:'Col. Canto',  cat:'acabamento',icon:'corner',
+    fields:['largura','altura','profundidade','material','espessura'],
+    defaults:{ largura:100, altura:720, profundidade:100, material:'MDF18_BrancoTX', espessura:18 }},
+];
+
+const FIELD_META = {
+  largura:         { label:'Largura',       unit:'mm', type:'number', min:100,  max:3000 },
+  altura:          { label:'Altura',        unit:'mm', type:'number', min:100,  max:3000 },
+  profundidade:    { label:'Prof.',         unit:'mm', type:'number', min:100,  max:1200 },
+  espessura:       { label:'Espessura',     unit:'mm', type:'number', min:6,    max:40   },
+  num_gavetas:     { label:'Gavetas',       unit:'un', type:'number', min:1,    max:8    },
+  num_prateleiras: { label:'Prateleiras',   unit:'un', type:'number', min:0,    max:12   },
+  puxador_esp:     { label:'Espaç. puxador',unit:'mm', type:'number', min:64,   max:320  },
+  altura_varao:    { label:'Alt. varão',    unit:'mm', type:'number', min:200,  max:3000 },
+  material:        { label:'Material',      unit:'',   type:'select',
+    options:[ 'MDF18_BrancoTX','MDF18_Grafite','MDF18_Carvalho','MDF15_BrancoTX',
+              'MDP15_BrancoTX','MDP18_BrancoTX','OSB18','Compensado15','Compensado18' ] },
+};
+
+/* ── State ─────────────────────────────────────────── */
+let currentCat  = 'all';
+let selectedMod = null;
+let logItems    = [];
+
+/* ── Icons SVG (inline) ────────────────────────────── */
+function modIcon(iconKey) {
+  const icons = {
+    cabinet:     '<rect x="3" y="6" width="18" height="15" rx="1.5"/><path d="M3 11h18M12 6v15"/>',
+    drawers:     '<rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/><line x1="12" y1="5.5" x2="12" y2="5.5"/><line x1="12" y1="12.5" x2="12" y2="12.5"/>',
+    'wall-cabinet':'<rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M3 10h18M12 4v13"/>',
+    tower:       '<rect x="6" y="2" width="12" height="20" rx="1.5"/><path d="M6 8h12M6 14h12"/>',
+    nicho:       '<rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M3 12h18M12 3v18"/>',
+    shelf:       '<rect x="2" y="10" width="20" height="3" rx="1"/><line x1="5" y1="10" x2="5" y2="21"/><line x1="19" y1="10" x2="19" y2="21"/>',
+    divider:     '<rect x="10" y="3" width="4" height="18" rx="1"/><line x1="3" y1="21" x2="21" y2="21"/><line x1="3" y1="3" x2="21" y2="3"/>',
+    rail:        '<line x1="3" y1="12" x2="21" y2="12" stroke-width="2.5"/><circle cx="12" cy="12" r="2"/>',
+    panel:       '<rect x="10" y="3" width="4" height="18" rx="1"/>',
+    kickboard:   '<rect x="3" y="16" width="18" height="5" rx="1"/>',
+    corner:      '<path d="M3 21V10l7-7h11v18H3z"/>',
   };
+  const d = icons[iconKey] || icons.cabinet;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">${d}</svg>`;
+}
 
-  window.setStep = function(stepNum, status) {
-    for (var i = 1; i <= 3; i++) {
-      var el = document.getElementById('step' + i);
-      el.classList.remove('active', 'done');
-      if (i < stepNum) el.classList.add('done');
-      else if (i === stepNum) el.classList.add(status === 'done' ? 'done' : 'active');
-    }
-  };
+/* ── Render biblioteca ─────────────────────────────── */
+function renderLib() {
+  const q   = (document.getElementById('searchInput').value || '').toLowerCase();
+  const grid = document.getElementById('libGrid');
+  const mods = MODULES.filter(m => {
+    const matchCat  = currentCat === 'all' || m.cat === currentCat;
+    const matchSearch = !q || m.label.toLowerCase().includes(q) || m.type.includes(q);
+    return matchCat && matchSearch;
+  });
+  if (!mods.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px 0;color:var(--text-3);font-size:11px;">Nenhum módulo encontrado</div>';
+    return;
+  }
+  grid.innerHTML = mods.map(m => `
+    <div class="mod-card${selectedMod === m.type ? ' selected' : ''}" onclick="selectMod('${m.type}')">
+      <div class="mod-icon">${modIcon(m.icon)}</div>
+      <div class="mod-name">${m.label}</div>
+    </div>`).join('');
+}
 
-  var logItems = [];
-  window.addLog = function(message) {
-    var time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    logItems.unshift({ time: time, msg: message });
-    if (logItems.length > 5) logItems = logItems.slice(0, 5);
-    renderLog();
-  };
+function filterModules() { renderLib(); }
+function setCat(cat, btn) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLib();
+}
 
-  function renderLog() {
-    var c = document.getElementById('logContainer');
-    if (logItems.length === 0) { c.innerHTML = document.getElementById('logEmpty') ? document.getElementById('logEmpty').outerHTML : ''; return; }
-    var html = '';
-    logItems.forEach(function(item) {
-      html += '<div class="log-item"><div class="log-dot"></div><span class="log-time">' + item.time + '</span><span class="log-msg">' + escHtml(item.msg) + '</span></div>';
+/* ── Seleção e configurador ────────────────────────── */
+function selectMod(type) {
+  selectedMod = type;
+  renderLib();
+  openCfg(type);
+}
+
+function openCfg(type) {
+  const mod = MODULES.find(m => m.type === type);
+  if (!mod) return;
+  document.getElementById('cfgTitle').textContent = mod.label;
+  document.getElementById('cfgBody').innerHTML = buildCfgFields(mod);
+  document.getElementById('configurator').classList.add('open');
+}
+
+function closeCfg() {
+  document.getElementById('configurator').classList.remove('open');
+  selectedMod = null;
+  renderLib();
+}
+
+function buildCfgFields(mod) {
+  // Agrupar campos: largura/altura/prof na mesma linha; material separado
+  const dimFields = mod.fields.filter(f => FIELD_META[f]?.type === 'number');
+  const selFields = mod.fields.filter(f => FIELD_META[f]?.type === 'select');
+
+  let html = '';
+
+  // Linha de dimensões (3 por linha)
+  for (let i = 0; i < dimFields.length; i += 3) {
+    const chunk = dimFields.slice(i, i + 3);
+    const cols = chunk.length === 1 ? 'half' : '';
+    html += `<div class="cfg-row ${cols}">`;
+    chunk.forEach(f => {
+      const meta = FIELD_META[f];
+      const val  = mod.defaults[f] ?? '';
+      html += `
+        <div class="field">
+          <div class="field-label">${meta.label}</div>
+          <div class="dim-input-wrap">
+            <input type="number" id="cfg_${f}" value="${val}" min="${meta.min}" max="${meta.max}">
+            <span class="dim-unit">${meta.unit}</span>
+          </div>
+        </div>`;
     });
-    c.innerHTML = html;
+    html += '</div>';
   }
 
-  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // Selects (material etc)
+  selFields.forEach(f => {
+    const meta = FIELD_META[f];
+    const val  = mod.defaults[f] ?? '';
+    const opts = meta.options.map(o => `<option value="${o}"${o===val?' selected':''}>${o.replace(/_/g,' ')}</option>`).join('');
+    html += `
+      <div class="cfg-row full">
+        <div class="field">
+          <div class="field-label">${meta.label}</div>
+          <select id="cfg_${f}">${opts}</select>
+        </div>
+      </div>`;
+  });
 
-  /* Toast */
-  window.showToast = function(msg, type) {
-    var t = document.getElementById('toast');
-    t.className = 'toast ' + (type || 'success');
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(function() { t.classList.remove('show'); }, 3000);
-  };
+  return html;
+}
+
+function insertModule() {
+  if (!selectedMod) return;
+  const mod = MODULES.find(m => m.type === selectedMod);
+  if (!mod) return;
+  const params = {};
+  mod.fields.forEach(f => {
+    const el = document.getElementById('cfg_' + f);
+    if (!el) return;
+    params[f] = el.type === 'number' ? parseFloat(el.value) : el.value;
+  });
+  try {
+    // Call Ruby via direct action callback: create_module(type, params_json)
+    // Registered in dialog_controller.rb → register_main_panel_callbacks
+    sketchup.create_module(selectedMod, JSON.stringify(params));
+    const dims = [params.largura, params.altura, params.profundidade].filter(Boolean).join('×');
+    addLog('Posicionando: ' + mod.label + (dims ? ' ' + dims + 'mm' : ''));
+    showToast('Clique no modelo para posicionar', 'success');
+  } catch(e) {
+    addLog('Erro ao inserir: ' + (e.message||e));
+    showToast('Erro ao inserir módulo', 'error');
+  }
+}
+
+/* ── Aba Modelo ────────────────────────────────────── */
+function analyzeModel() {
+  try { sketchup.analyze(); addLog('Escaneando modelo...'); }
+  catch(e) { addLog('analyze indisponível'); }
+}
+function doProcess() {
+  try { sketchup.process(); addLog('Processando ferragens...'); }
+  catch(e) { addLog('process indisponível'); }
+}
+
+window.updateSummary = function(data) {
+  const d = typeof data === 'string' ? JSON.parse(data) : data;
+  document.getElementById('statModulos').textContent   = d.modules   || 0;
+  document.getElementById('statPecas').textContent     = d.pieces    || 0;
+  document.getElementById('statJuncoes').textContent   = d.joints    || 0;
+  document.getElementById('statMateriais').textContent = (d.materials ? (Array.isArray(d.materials) ? d.materials.length : d.materials) : 0);
+  const b = document.getElementById('modBadge');
+  b.textContent = d.modules || 0;
+  b.style.display = (d.modules > 0) ? '' : 'none';
+  if (d.module_list) renderModuleList(d.module_list);
+  addLog('Modelo escaneado: ' + (d.pieces||0) + ' peças, ' + (d.modules||0) + ' módulos');
+};
+
+function renderModuleList(list) {
+  const el = document.getElementById('moduleList');
+  if (!list || !list.length) {
+    el.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-3);font-size:11px;">Nenhum módulo detectado</div>';
+    return;
+  }
+  el.innerHTML = list.map(m => `
+    <div class="module-row">
+      <div class="module-row-icon">${modIcon(m.icon||'cabinet')}</div>
+      <div class="module-row-info">
+        <div class="module-row-name">${esc(m.label||m.type)}</div>
+        <div class="module-row-dims">${m.largura||'?'}×${m.altura||'?'}×${m.profundidade||'?'}mm · ${esc(m.material||'')}</div>
+      </div>
+      <div class="module-row-actions">
+        <button class="icon-btn" onclick="editModule('${m.id}')" title="Editar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn danger" onclick="deleteModule('${m.id}')" title="Remover">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+function editModule(id) {
+  try { sketchup.select_module(id); }
+  catch(e) {}
+}
+function deleteModule(id) {
+  try { sketchup.delete_module(id); addLog('Módulo removido'); }
+  catch(e) {}
+}
+function addAmbiente() {
+  try { sketchup.add_ambiente(); }
+  catch(e) {}
+}
+
+window.updateAmbientes = function(list) {
+  const c = document.getElementById('ambChips');
+  const chips = ['<div class="amb-chip active" onclick="filterAmb(\'all\',this)">Todos</div>'];
+  (list||[]).forEach(a => {
+    chips.push(`<div class="amb-chip" onclick="filterAmb('${esc(a)}',this)">${esc(a)}</div>`);
+  });
+  c.innerHTML = chips.join('');
+};
+
+function filterAmb(amb, el) {
+  document.querySelectorAll('.amb-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  try { sketchup.filter_ambiente(amb); } catch(e) {}
+}
+
+/* ── Exportar ──────────────────────────────────────── */
+function testErp() {
+  const url = document.getElementById('erpUrl').value.trim();
+  if (!url) { showToast('Informe a URL do ERP', 'error'); return; }
+  try { sketchup.test_erp_connection(url); }
+  catch(e) { showToast('Callback não disponível', 'error'); }
+}
+function exportToErp() {
+  const url  = document.getElementById('erpUrl').value.trim();
+  const proj = document.getElementById('projectName').value.trim();
+  if (!url) { showToast('Informe a URL do ERP', 'error'); return; }
+  try { sketchup.export_to_erp(url, proj); addLog('Enviando para o ERP...'); }
+  catch(e) { showToast('Erro ao exportar', 'error'); }
+}
+function exportJson() {
+  try { sketchup.export_json(); addLog('JSON salvo'); }
+  catch(e) { showToast('export_json indisponível', 'error'); }
+}
+function exportCsv() {
+  try { sketchup.export_csv(); addLog('CSV exportado'); }
+  catch(e) { showToast('export_csv indisponível', 'error'); }
+}
+
+window.updateChecklist = function(items) {
+  const el = document.getElementById('checklist');
+  const iconOk   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>';
+  const iconWarn = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  const iconErr  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+  el.innerHTML = items.map(i => {
+    const cls = i.status === 'ok' ? 'ok' : i.status === 'warn' ? 'warn' : 'err';
+    const ico = i.status === 'ok' ? iconOk : i.status === 'warn' ? iconWarn : iconErr;
+    return `<div class="check-item ${cls}">${ico}${esc(i.label)}</div>`;
+  }).join('');
+};
+
+/* ── Tabs ──────────────────────────────────────────── */
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + t).classList.add('active');
+  document.getElementById('panel-' + t).classList.add('active');
+}
+
+/* ── Log ───────────────────────────────────────────── */
+function addLog(msg) {
+  const time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  logItems.unshift({ time, msg });
+  if (logItems.length > 6) logItems.length = 6;
+  renderLog();
+}
+function renderLog() {
+  const el = document.getElementById('logWrap');
+  if (!logItems.length) {
+    el.innerHTML = '<div class="log-empty">Nenhuma atividade</div>';
+    return;
+  }
+  el.innerHTML = logItems.map(i =>
+    `<div class="log-item">
+      <div class="log-dot"></div>
+      <span class="log-time">${i.time}</span>
+      <span class="log-msg">${esc(i.msg)}</span>
+    </div>`).join('');
+}
+window.addLog = addLog;
+
+/* ── Toast ─────────────────────────────────────────── */
+let _toastTimer;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.className = 'toast ' + (type||'info');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+window.showToast = showToast;
+
+/* ── Ruby callbacks ────────────────────────────────── */
+window.setStatus = function(connected) {
+  document.getElementById('statusDot').classList.toggle('off', !connected);
+};
+window.setVersion = function(v) {
+  document.getElementById('versionBadge').textContent = v;
+};
+
+/* ── Utils ─────────────────────────────────────────── */
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Ruby bridge aliases ───────────────────────────── */
+// Allow dialog_controller.rb to push messages via ornatoStatus()
+window.ornatoStatus = function(text) {
+  if (typeof addLog === 'function') addLog(text);
+  if (typeof showToast === 'function') showToast(text, 'info');
+};
+// No-op for command bus (not used by main_panel.html)
+window.commandCallback = function() {};
+// updateSummary is already defined above — re-export for safety
+window.updateSummary = window.updateSummary || function() {};
+
+/* ── Init ──────────────────────────────────────────── */
+renderLib();
+addLog('Ornato Design carregado');
 </script>
 </body>
 </html>
