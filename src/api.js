@@ -110,8 +110,6 @@ function uploadFile(path, file, onProgress) {
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
         formData.append('file', file);
-        // Token como campo do form (fallback caso header seja removido pelo proxy)
-        if (token) formData.append('_token', token);
 
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) {

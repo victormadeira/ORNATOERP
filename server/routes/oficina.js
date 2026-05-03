@@ -8,6 +8,14 @@ import { requireAuth } from '../auth.js';
 const router = Router();
 router.use(requireAuth);
 
+// Validar IDs numéricos em rotas com :id
+router.param('id', (req, res, next, val) => {
+    const id = parseInt(val);
+    if (!id || isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+    req.params.id = id;
+    next();
+});
+
 // ─── Schema (cria tabelas se não existirem) ────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS oficina_tarefas (

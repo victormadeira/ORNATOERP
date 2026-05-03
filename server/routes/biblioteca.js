@@ -39,16 +39,20 @@ r.post('/', requireAuth, (req, res) => {
 
 // PUT update
 r.put('/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
     const { tipo, cod, nome, descricao, unidade, preco, espessura, largura, altura, perda_pct, preco_m2, fita_preco, categoria } = req.body;
     db.prepare(
         'UPDATE biblioteca SET tipo=?, cod=?, nome=?, descricao=?, unidade=?, preco=?, espessura=?, largura=?, altura=?, perda_pct=?, preco_m2=?, fita_preco=?, categoria=?, atualizado_em=CURRENT_TIMESTAMP WHERE id=?'
-    ).run(tipo, cod || '', nome, descricao || '', unidade || 'un', preco || 0, espessura || 0, largura || 0, altura || 0, perda_pct || 0, preco_m2 || 0, fita_preco || 0, categoria || '', req.params.id);
+    ).run(tipo, cod || '', nome, descricao || '', unidade || 'un', preco || 0, espessura || 0, largura || 0, altura || 0, perda_pct || 0, preco_m2 || 0, fita_preco || 0, categoria || '', id);
     res.json({ ok: true });
 });
 
 // DELETE
 r.delete('/:id', requireAuth, (req, res) => {
-    db.prepare('UPDATE biblioteca SET ativo = 0 WHERE id = ?').run(req.params.id);
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    db.prepare('UPDATE biblioteca SET ativo = 0 WHERE id = ?').run(id);
     res.json({ ok: true });
 });
 

@@ -80,6 +80,8 @@ router.post('/', requireAuth, (req, res) => {
 
 // Atualizar item existente
 router.put('/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
     try {
         const { tipo_item, ...rest } = req.body;
         const nome = rest.nome || '';
@@ -87,7 +89,7 @@ router.put('/:id', requireAuth, (req, res) => {
         // Sempre recalcula dimsAplicaveis ao atualizar (garante consistência)
         rest.dimsAplicaveis = computeDimsAplicaveis(rest, tipo);
         db.prepare('UPDATE modulos_custom SET tipo_item = ?, nome = ?, json_data = ? WHERE id = ?')
-            .run(tipo, nome, JSON.stringify(rest), req.params.id);
+            .run(tipo, nome, JSON.stringify(rest), id);
         res.json({ message: 'Item atualizado' });
     } catch (err) {
         console.error('Erro ao atualizar item:', err);
@@ -97,8 +99,10 @@ router.put('/:id', requireAuth, (req, res) => {
 
 // Excluir item
 router.delete('/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
     try {
-        db.prepare('DELETE FROM modulos_custom WHERE id = ?').run(req.params.id);
+        db.prepare('DELETE FROM modulos_custom WHERE id = ?').run(id);
         res.json({ message: 'Item removido' });
     } catch (err) {
         console.error('Erro ao remover item:', err);
