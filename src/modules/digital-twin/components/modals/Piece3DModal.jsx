@@ -1,6 +1,7 @@
 // @ts-check
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { X } from 'lucide-react';
 import { PieceViewer } from '../3d/PieceViewer.jsx';
 import { pecaToPieceGeometry } from '../../lib/pecaAdapter.js';
 import { apiGCode } from '../../api.js';
@@ -105,7 +106,7 @@ export function Piece3DModal({ peca, piece: pieceProp, gcode: gcodeProp, onClose
             aria-label="Fechar visualização 3D"
             title="Fechar (Esc)"
           >
-            ✕
+            <X size={16} />
           </button>
         </header>
 

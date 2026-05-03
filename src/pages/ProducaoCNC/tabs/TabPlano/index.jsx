@@ -2176,7 +2176,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                 cursor: 'pointer', whiteSpace: 'nowrap',
                                             }}
                                         >
-                                            {multiMaqMode ? '✓ Multi-máquina' : 'Multi-máquina'}
+                                            {multiMaqMode ? <><Check size={12} style={{display:'inline',marginRight:3}} /> Multi-máquina</> : 'Multi-máquina'}
                                         </button>
                                     )}
                                 </div>
@@ -3620,7 +3620,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                 background: c.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
                                 border: `1px solid ${c.ok ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
                             }}>
-                                <span style={{ fontSize: 16 }}>{c.ok ? '✓' : '✗'}</span>
+                                {c.ok ? <Check size={16} style={{color:'var(--success)'}} /> : <X size={16} style={{color:'var(--danger)'}} />}
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: 12, fontWeight: 600, color: c.ok ? '#22c55e' : '#ef4444' }}>{c.label}</div>
                                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{c.detail}</div>
@@ -3839,10 +3839,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                         cursor: 'pointer', fontWeight: 700,
                                                     }}>Defeito</button>
                                                 </>)}
-                                                {st === 'ok' && <span style={{ fontSize: 9, color: '#22c55e', fontWeight: 700 }}>✓</span>}
+                                                {st === 'ok' && <Check size={9} style={{color:'#22c55e',display:'inline'}} strokeWidth={3} />}
                                                 {st === 'defeito' && (
                                                     <span style={{ fontSize: 9, color: '#ef4444', fontWeight: 600 }} title={conf?.defeito_obs || ''}>
-                                                        ✗ {conf?.defeito_tipo || 'defeito'}
+                                                        <X size={10} style={{display:'inline',marginRight:2}} /> {conf?.defeito_tipo || 'defeito'}
                                                     </span>
                                                 )}
                                             </div>
@@ -4511,7 +4511,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                             {/* Info banner */}
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 6, lineHeight: 1.5 }}>
                                 O sistema simulou quais retalhos podem ser aproveitados. Marque os que deseja usar.
-                                Retalhos sugeridos (✓) têm bom aproveitamento.
+                                Retalhos sugeridos têm bom aproveitamento.
                             </div>
 
                             {(retalhosPreview || []).map(grupo => (

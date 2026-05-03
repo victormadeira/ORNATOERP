@@ -22,7 +22,7 @@ import { PageHeader, TabBar, Spinner } from '../ui';
 import {
     Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu,
     ArrowLeft, AlertTriangle, GitCompare, ChevronDown, ShieldAlert, X, QrCode,
-    Calendar, Clock,
+    Calendar, Clock, User, MessageSquare,
 } from 'lucide-react';
 import useWebSocket from '../hooks/useWebSocket';
 import EditorEtiquetas from '../components/EditorEtiquetas';
@@ -295,8 +295,8 @@ export default function ProducaoCNC({ notify }) {
                     border: '1px solid var(--border)', fontSize: 11,
                 }}>
                     {loteAtual.cliente && (
-                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
-                            👤 {loteAtual.cliente}
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>
+                            <User size={13} style={{ display: 'inline', marginRight: 4 }} /> {loteAtual.cliente}
                             {loteAtual.projeto ? <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> / {loteAtual.projeto}</span> : null}
                         </span>
                     )}
@@ -322,13 +322,13 @@ export default function ProducaoCNC({ notify }) {
                             background: loteAtual.prioridade === 2 ? 'var(--danger-bg)' : 'var(--warning-bg)',
                             border: `1px solid ${loteAtual.prioridade === 2 ? 'var(--danger-border)' : 'var(--warning-border)'}`,
                         }}>
-                            {loteAtual.prioridade === 2 ? '🔴 URGENTE' : '🟡 ALTA PRIORIDADE'}
+                            {loteAtual.prioridade === 2 ? 'URGENTE' : 'ALTA PRIORIDADE'}
                         </span>
                     )}
                     {loteAtual.observacoes && (
-                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}
                             title={loteAtual.observacoes}>
-                            💬 {loteAtual.observacoes}
+                            <MessageSquare size={13} style={{ display: 'inline', marginRight: 4, flexShrink: 0 }} /> {loteAtual.observacoes}
                         </span>
                     )}
                 </div>

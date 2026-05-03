@@ -123,8 +123,8 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
 
     // Prioridade label e cor
     const PRIORIDADE = {
-        2: { label: '🔴 Urgente', color: 'var(--danger)', bg: 'var(--danger-bg)', border: 'var(--danger-border)' },
-        1: { label: '🟡 Alta',    color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' },
+        2: { label: 'Urgente', color: 'var(--danger)', bg: 'var(--danger-bg)', border: 'var(--danger-border)' },
+        1: { label: 'Alta',    color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' },
         0: null, // Normal — não exibe badge
     };
 

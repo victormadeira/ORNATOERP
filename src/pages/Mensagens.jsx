@@ -456,7 +456,7 @@ export default function Mensagens({ notify }) {
             const r = await api.post('/whatsapp/backfill', { limit: 1000 });
             const msg = r.chats_processados === 0
                 ? `Nenhum chat encontrado no cache da Evolution. Use "Histórico completo (re-parear)" pra puxar tudo do celular.`
-                : `✓ ${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`;
+                : `${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`;
             notify?.(msg);
             loadConversas();
             loadContadores();
@@ -472,7 +472,7 @@ export default function Mensagens({ notify }) {
         setBackfilling(true);
         try {
             const r = await api.post('/whatsapp/enable-full-history', { logout: true });
-            notify?.(`✓ Sincronização completa ativada. ${r.instrucoes || 'Re-escaneie o QR Code agora.'}`, 'success');
+            notify?.(`Sincronização completa ativada. ${r.instrucoes || 'Re-escaneie o QR Code agora.'}`, 'success');
         } catch (e) {
             notify?.(`Erro: ${e.error || e.message}. Tente manualmente: nas configs da Evolution, ative syncFullHistory e re-escaneie o QR.`, 'error');
         } finally { setBackfilling(false); }
@@ -483,7 +483,7 @@ export default function Mensagens({ notify }) {
         setBackfilling(true);
         try {
             const r = await api.post(`/whatsapp/conversas/${activeConv}/backfill`);
-            notify?.(`✓ ${r.inseridas}/${r.total} mensagens importadas`);
+            notify?.(`${r.inseridas}/${r.total} mensagens importadas`);
             loadMensagens(activeConv);
         } catch (e) { notify?.(e.error || 'Erro'); }
         finally { setBackfilling(false); }

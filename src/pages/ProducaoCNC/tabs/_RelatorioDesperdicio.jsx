@@ -25,14 +25,14 @@ export function RelatorioDesperdicio({ loteId, notify }) {
         setLoading(true);
         api.get(`/cnc/relatorio-desperdicio/${loteId}`)
             .then(setData)
-            .catch(() => {})
+            .catch(() => { notify?.('Erro ao carregar relatório de desperdício', 'error'); })
             .finally(() => setLoading(false));
     }, [loteId]);
 
     const loadHistorico = useCallback(() => {
         api.get('/cnc/relatorio-desperdicio-historico')
             .then(setHistorico)
-            .catch(() => {});
+            .catch(() => { notify?.('Erro ao carregar histórico', 'error'); });
     }, []);
 
     useEffect(() => { if (open && !data) load(); }, [open, data, load]);

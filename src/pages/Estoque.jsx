@@ -96,7 +96,7 @@ function MovModal({ tipo, materiais, projetos, onClose, onSave }) {
                 await onSave('/estoque/ajuste', { material_id: parseInt(materialId), quantidade_real: parseFloat(quantidade), descricao });
             }
             onClose();
-        } catch { } finally { setSaving(false); }
+        } catch(e) { notify(e?.error || 'Erro ao salvar movimentação', 'error'); } finally { setSaving(false); }
     };
 
     return (
@@ -405,6 +405,24 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
                 onCancel={() => setConfirmSaldo(false)}
             />
         )}
+        {confirmApontDel && (
+            <ConfirmModal
+                title="Excluir apontamento"
+                message="Tem certeza que deseja excluir este apontamento? Esta ação não pode ser desfeita."
+                confirmLabel="Excluir"
+                danger
+                onConfirm={async () => {
+                    const id = confirmApontDel;
+                    setConfirmApontDel(null);
+                    try {
+                        await api.del(`/recursos/apontamentos/${id}`);
+                        loadApontamentos(); loadDashMO();
+                        notify('Apontamento excluído');
+                    } catch(e) { notify(e?.error || 'Erro ao excluir', 'error'); }
+                }}
+                onCancel={() => setConfirmApontDel(null)}
+            />
+        )}
         </>
     );
 }
@@ -418,7 +436,7 @@ function ConfigModal({ material, onClose, onSave }) {
     const handle = async () => {
         setSaving(true);
         try { await onSave(material.id, { quantidade_minima: parseFloat(min) || 0, localizacao: loc }); onClose(); }
-        catch { } finally { setSaving(false); }
+        catch(e) { notify(e?.error || 'Erro ao salvar configuração', 'error'); } finally { setSaving(false); }
     };
 
     return (
@@ -463,6 +481,7 @@ export default function Estoque({ notify }) {
     const [apontamentos, setApontamentos] = useState([]);
     const [colabForm, setColabForm] = useState(null);
     const [apontForm, setApontForm] = useState(null);
+    const [confirmApontDel, setConfirmApontDel] = useState(null); // id do apontamento a excluir
     const [dashMO, setDashMO] = useState({ colaboradores_ativos: 0, horas_mes: 0, custo_mao_obra_mes: 0 });
 
     const loadColaboradores = () => api.get('/recursos/colaboradores?todos=1').then(setColaboradores).catch(e => notify(e.error || 'Erro ao carregar colaboradores'));
@@ -869,7 +888,7 @@ export default function Estoque({ notify }) {
                                         loadApontamentos();
                                         loadDashMO();
                                         notify('Apontamento registrado');
-                                    } catch { }
+                                    } catch(e) { notify(e?.error || 'Erro ao registrar apontamento', 'error'); }
                                 }}>Salvar</button>
                             </div>
                         </div>
@@ -901,15 +920,7 @@ export default function Estoque({ notify }) {
                                             <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)' }}>{a.descricao || '—'}</td>
                                             <td style={{ padding: '10px 14px' }}>
                                                 {isGerente && (
-                                                    <button onClick={async () => {
-                                                        if (!confirm('Excluir este apontamento?')) return;
-                                                        try {
-                                                            await api.del(`/recursos/apontamentos/${a.id}`);
-                                                            loadApontamentos();
-                                                            loadDashMO();
-                                                            notify('Apontamento excluído');
-                                                        } catch { }
-                                                    }} className={Z.btnD} title="Excluir" style={{ padding: '4px 8px' }}>
+                                                    <button onClick={() => setConfirmApontDel(a.id)} className={Z.btnD} title="Excluir apontamento" aria-label="Excluir apontamento" style={{ padding: '4px 8px' }}>
                                                         <Trash2 size={13} />
                                                     </button>
                                                 )}

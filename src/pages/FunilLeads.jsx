@@ -9,7 +9,7 @@ import {
     MoreVertical, Trash2, Edit3, Eye, X, Filter, Settings,
     ChevronDown, ExternalLink, BarChart3, PieChart,
     Flame, Snowflake, Droplets, ThermometerSun, Mail,
-    FileText, Link2, PlusCircle
+    FileText, Link2, PlusCircle, Check
 } from 'lucide-react';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, pointerWithin } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
@@ -211,7 +211,7 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc, onFollo
                                             className="ml-auto px-1.5 py-0.5 rounded font-semibold"
                                             style={{ background: 'var(--bg-card)', color: 'var(--success)', border: '1px solid var(--border)' }}
                                             title="Marcar como feito"
-                                        >✓ Feito</button>
+                                        ><Check size={12} style={{display:'inline',marginRight:4}} /> Feito</button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); onFollowUpAdiar?.(lead.proximo_followup_id, lead.id, 72); }}
                                             className="px-1.5 py-0.5 rounded font-semibold"

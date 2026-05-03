@@ -10,7 +10,7 @@ import {
   ArrowLeft, PenTool, Save, Copy, Star, Trash2, Undo2, Redo2,
   ZoomIn, ZoomOut, Grid3X3, ChevronDown, ChevronRight, Plus, X,
   Move, Maximize2, RotateCw, Palette, AlignLeft, AlignCenter, AlignRight,
-  Image, Map, Minus, Eye, Lock, Unlock
+  Image, Map, Minus, Eye, Lock, Unlock, Clipboard
 } from 'lucide-react';
 import { qrcodeMatrix } from '../utils/qrcode';
 import { code128Bars } from '../utils/code128';
@@ -1600,9 +1600,9 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 )}
                 {/* Alinhamento horizontal — múltiplo se 2+, senão relativo ao canvas */}
                 {[
-                  { id: 'left',    title: todosSelecionados.length > 1 ? 'Alinhar bordas esq.' : 'Alinhar à esquerda do canvas',  icon: '⬅' },
+                  { id: 'left',    title: todosSelecionados.length > 1 ? 'Alinhar bordas esq.' : 'Alinhar à esquerda do canvas',  icon: '←' },
                   { id: 'centerX', title: todosSelecionados.length > 1 ? 'Centralizar horizontalmente' : 'Centralizar no canvas (X)', icon: '↔' },
-                  { id: 'right',   title: todosSelecionados.length > 1 ? 'Alinhar bordas dir.' : 'Alinhar à direita do canvas',   icon: '➡' },
+                  { id: 'right',   title: todosSelecionados.length > 1 ? 'Alinhar bordas dir.' : 'Alinhar à direita do canvas',   icon: '→' },
                 ].map(a => (
                   <button key={a.id} onClick={() => alinharMultiplos(a.id)} title={a.title}
                     className={Z.btn2} style={{ padding: '2px 5px', fontSize: 11, borderRadius: 4 }}>
@@ -1612,9 +1612,9 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
                 {/* Alinhamento vertical */}
                 {[
-                  { id: 'top',     title: todosSelecionados.length > 1 ? 'Alinhar topos' : 'Alinhar ao topo do canvas',     icon: '⬆' },
+                  { id: 'top',     title: todosSelecionados.length > 1 ? 'Alinhar topos' : 'Alinhar ao topo do canvas',     icon: '↑' },
                   { id: 'centerY', title: todosSelecionados.length > 1 ? 'Centralizar verticalmente' : 'Centralizar no canvas (Y)', icon: '↕' },
-                  { id: 'bottom',  title: todosSelecionados.length > 1 ? 'Alinhar bases' : 'Alinhar à base do canvas',      icon: '⬇' },
+                  { id: 'bottom',  title: todosSelecionados.length > 1 ? 'Alinhar bases' : 'Alinhar à base do canvas',      icon: '↓' },
                 ].map(a => (
                   <button key={a.id} onClick={() => alinharMultiplos(a.id)} title={a.title}
                     className={Z.btn2} style={{ padding: '2px 5px', fontSize: 11, borderRadius: 4 }}>
@@ -1644,7 +1644,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                 <button onClick={() => addElement(clipboard.tipo, { ...clipboard, id: undefined, x: Math.min(clipboard.x + 4, canvasW - clipboard.w), y: Math.min(clipboard.y + 4, canvasH - clipboard.h), zIndex: elementos.length + 1 })}
                   title="Colar elemento (Ctrl+V)"
                   className={Z.btn2} style={{ padding: '2px 8px', fontSize: 10, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3, color: 'var(--primary)', fontWeight: 600 }}>
-                  📋 Colar
+                  <Clipboard size={13} style={{display:'inline',marginRight:4}} /> Colar
                 </button>
               </>
             )}
@@ -2378,7 +2378,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
                   ['Ctrl+D', 'duplicar no lugar'],
                   ['Ctrl+Z/Y', 'desfazer/refazer'],
                   ['Setas', 'mover 1mm (Shift: 5mm)'],
-                  ['⬅↔➡⬆↕⬇', 'alinhar ao canvas'],
+                  ['← ↔ → ↑ ↕ ↓', 'alinhar ao canvas'],
                   ['Esc', 'deselecionar'],
                 ].map(([key, desc]) => (
                   <div key={key} style={{ display: 'flex', gap: 6 }}>

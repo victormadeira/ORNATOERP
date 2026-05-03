@@ -5,7 +5,7 @@ import {
     Factory, ArrowRight, ArrowLeft, Scissors, Tag, Settings, CheckCircle2, Package,
     AlertTriangle, XCircle, Layers, Cpu, Printer, Download, Monitor, RefreshCw,
     Play, ChevronRight, PenTool, Eye, SlidersHorizontal, ChevronDown, ChevronUp,
-    RotateCw, Wrench, Save, Plus
+    RotateCw, Wrench, Save, Plus, X
 } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../components/EditorEtiquetas';
 
@@ -383,7 +383,7 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
                                             </div>
                                             <button onClick={() => { setJsonData(null); setJsonPreview(null); }}
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12 }}>
-                                                ✕ Limpar
+                                                <X size={12} style={{display:'inline',marginRight:4}} /> Limpar
                                             </button>
                                         </div>
 
@@ -779,7 +779,7 @@ function StepCorte({ op, notify }) {
                         <SlidersHorizontal size={16} />
                         <span style={{ fontSize: 13, fontWeight: 600 }}>Configurações de Otimização</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
-                            Disco {cfgCorte.kerf}mm · Refilo {cfgCorte.refilo}mm · {cfgCorte.direcao_corte === 'misto' ? 'Misto' : cfgCorte.direcao_corte === 'horizontal' ? 'Horizontal' : 'Vertical'}{cfgCorte.respeitar_veio ? ' · Veio ✓' : ''}
+                            Disco {cfgCorte.kerf}mm · Refilo {cfgCorte.refilo}mm · {cfgCorte.direcao_corte === 'misto' ? 'Misto' : cfgCorte.direcao_corte === 'horizontal' ? 'Horizontal' : 'Vertical'}{cfgCorte.respeitar_veio ? ' · Veio' : ''}
                         </span>
                     </div>
                     {showConfig ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

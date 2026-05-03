@@ -296,7 +296,7 @@ function UsinagemTipoModal({ data, onSave, onClose }) {
                     </div>
                     <div>
                         {i === 0 && <label className={Z.lbl} style={{ fontSize: 9 }}>&nbsp;</label>}
-                        <button onClick={() => delEst(i)} className={Z.btn2} style={{ fontSize: 10, padding: '3px 8px', color: '#ef4444' }}>✕</button>
+                        <button onClick={() => delEst(i)} className={Z.btn2} style={{ fontSize: 10, padding: '3px 8px', color: '#ef4444' }}><X size={12} /></button>
                     </div>
                 </div>
             ))}

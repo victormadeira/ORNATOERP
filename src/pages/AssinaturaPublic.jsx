@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckCircle2, AlertTriangle, FileText, PenTool, Shield, ChevronRight } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, FileText, PenTool, Shield, ChevronRight, Check, PenLine } from 'lucide-react';
 
 // ── Validação CPF brasileiro ──
 function validarCPF(cpf) {
@@ -171,7 +171,7 @@ export default function AssinaturaPublic({ token }) {
                 {['CPF', 'Documento', 'Assinar', 'Confirmar', 'Concluído'].map((l, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <div style={{ width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, background: step > i + 1 ? 'var(--success)' : step === i + 1 ? cor1 : '#e5e7eb', color: step >= i + 1 ? '#fff' : 'var(--muted)' }}>
-                            {step > i + 1 ? '✓' : i + 1}
+                            {step > i + 1 ? <Check size={12} strokeWidth={3} /> : i + 1}
                         </div>
                         <span style={{ fontSize: 10, color: step === i + 1 ? cor1 : 'var(--muted)', fontWeight: step === i + 1 ? 700 : 400, display: i < 4 ? 'none' : 'none' }}>{l}</span>
                         {i < 4 && <ChevronRight size={12} color="#d1d5db" />}
@@ -271,7 +271,7 @@ export default function AssinaturaPublic({ token }) {
                             <button onClick={() => { setSignatureImg(null); setStep(3); }} style={{ padding: '12px 20px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', fontSize: 13, cursor: 'pointer' }}>Refazer</button>
                             <button onClick={assinar} disabled={!aceite || submitting}
                                 style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: aceite ? 'var(--success)' : '#d1d5db', color: '#fff', fontSize: 15, fontWeight: 700, cursor: aceite ? 'pointer' : 'not-allowed' }}>
-                                {submitting ? 'Assinando...' : '✎ Assinar Documento'}
+                                {submitting ? 'Assinando...' : <><PenLine size={14} style={{display:'inline',marginRight:6}} /> Assinar Documento</>}
                             </button>
                         </div>
                     </div>

@@ -1,5 +1,6 @@
 // @ts-check
 import React, { useState } from 'react';
+import { X } from 'lucide-react';
 import { useCNCStore } from '../../store/useCNCStore.js';
 import { useScan } from '../scanner/useScan.js';
 
@@ -75,7 +76,7 @@ export function TopbarCNC({ onClose }) {
             onClick={onClose}
             title="Fechar (ESC)"
           >
-            ✕
+            <X size={16} />
           </button>
         )}
       </div>

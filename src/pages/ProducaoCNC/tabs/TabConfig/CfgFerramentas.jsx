@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import api from '../../../../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../../theme';
-import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
+import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize, Info } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
 import PecaViewer3D from '../../../../components/PecaViewer3D';
 import PecaEditor from '../../../../components/PecaEditor';
@@ -100,7 +100,7 @@ function ToolCard({ f, onEdit, onDel, onReset }) {
                     <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Ø{f.diametro}mm</span>
                     <span>{tc}</span>
                     <span>{f.rpm?.toLocaleString()} RPM</span>
-                    <span>✂ {f.velocidade_corte} mm/min</span>
+                    <span><Scissors size={11} style={{display:'inline',marginRight:3}} /> {f.velocidade_corte} mm/min</span>
                     <span>↓ {f.profundidade_max}mm max</span>
                     {f.doc && <span>DOC {f.doc}mm</span>}
                     {f.comprimento_util && <span>Lc {f.comprimento_util}mm</span>}
@@ -820,9 +820,9 @@ function CalculadoraParametros({ tipoCorte, diametro, numCortes, onApply }) {
 
                     {/* Aviso informativo */}
                     <div style={{ marginTop: 10, fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                        ℹ️ Valores calculados para fresas carbide com refrigeração a ar. fz ajustado para Ø{D}mm (referência Ø6mm).
+                        <><Info size={12} style={{display:'inline',marginRight:4}} /> Valores calculados para fresas carbide com refrigeração a ar. fz ajustado para Ø{D}mm (referência Ø6mm).
                         Modo <b>{modeLabels[modo]}</b>: Vc = {Vc} m/min · fz = {fz.toFixed(3)} mm/dente.
-                        Confirme com dados do fabricante antes de usar em produção.
+                        Confirme com dados do fabricante antes de usar em produção.</>
                     </div>
                 </div>
             )}

@@ -1832,7 +1832,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                             fontSize={Math.min(9, rw / 10)} fontWeight={600}
                                             fill={fillColor} stroke="#fff" strokeWidth={2} paintOrder="stroke"
                                             style={{ pointerEvents: 'none' }}>
-                                            {rd.type === 'retalho' ? '✓ RETALHO' : rd.type === 'refugo' ? '✗ REFUGO' : 'Clique p/ definir'}
+                                            {rd.type === 'retalho' ? 'RETALHO' : rd.type === 'refugo' ? 'REFUGO' : 'Clique p/ definir'}
                                         </text>
                                     )}
                                     {/* Split preview line */}
@@ -2516,11 +2516,11 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                     {/* Summary row */}
                     <div style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 10, flexWrap: 'wrap' }}>
                         <span style={{ color: '#059669', fontWeight: 600 }}>
-                            ✓ Retalhos: {retDefs.filter(r => r.type === 'retalho').length}
+                            Retalhos: {retDefs.filter(r => r.type === 'retalho').length}
                             {retDefs.filter(r => r.type === 'retalho').length > 0 && ` (${(retDefs.filter(r => r.type === 'retalho').reduce((s, r) => s + r.w * r.h, 0) / 1000000).toFixed(3)} m²)`}
                         </span>
                         <span style={{ color: '#dc2626', fontWeight: 600 }}>
-                            ✗ Refugos: {retDefs.filter(r => r.type === 'refugo').length}
+                            Refugos: {retDefs.filter(r => r.type === 'refugo').length}
                         </span>
                         <span style={{ color: 'var(--text-muted)' }}>
                             Sem definição: {retDefs.filter(r => !r.type).length}
@@ -2548,14 +2548,14 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                         background: rd.type === 'retalho' ? '#059669' : 'transparent',
                                         color: rd.type === 'retalho' ? '#fff' : '#059669',
                                         border: '1px solid #059669' }}>
-                                    ✓ Retalho
+                                    Retalho
                                 </button>
                                 <button onClick={() => { const n = [...retDefs]; n[retSelected] = { ...rd, type: 'refugo' }; setRetDefs(n); }}
                                     style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: 'pointer',
                                         background: rd.type === 'refugo' ? '#dc2626' : 'transparent',
                                         color: rd.type === 'refugo' ? '#fff' : '#dc2626',
                                         border: '1px solid #dc2626' }}>
-                                    ✗ Refugo
+                                    Refugo
                                 </button>
                                 <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>│</span>
                                 {canSplitH && (
@@ -2634,7 +2634,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                     border: `1px solid ${rd.type === 'retalho' ? '#059669' : rd.type === 'refugo' ? '#dc2626' : 'var(--border)'}`,
                                     color: rd.type === 'retalho' ? '#059669' : rd.type === 'refugo' ? '#dc2626' : 'var(--text-muted)',
                                 }}>
-                                {rd.type === 'retalho' ? '✓' : rd.type === 'refugo' ? '✗' : '○'} {Math.round(rd.w)}×{Math.round(rd.h)}
+                                {rd.type === 'retalho' ? '▪' : rd.type === 'refugo' ? '▫' : '○'} {Math.round(rd.w)}×{Math.round(rd.h)}
                             </div>
                         ))}
                     </div>
@@ -2723,7 +2723,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                 }}>
                                     {c.seq || ci + 1}. {c.dir === 'Horizontal' ? '━' : '┃'} {c.pos}mm
                                     {c.len ? ` (${c.len}mm)` : ''}
-                                    {isRet ? ' ✂ RET' : ''}
+                                    {isRet ? ' RET' : ''}
                                 </span>
                             );
                         })}

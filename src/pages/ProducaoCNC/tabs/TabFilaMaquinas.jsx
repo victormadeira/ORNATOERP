@@ -7,7 +7,7 @@ import { Spinner, EmptyState, SectionHeader, Modal } from '../../../ui';
 import {
     Monitor, Play, CheckCircle2, Clock, Trash2, Plus, RefreshCw,
     ArrowUp, ArrowDown, AlertTriangle, Package, Layers, Zap,
-    GripVertical, Send,
+    GripVertical, Send, MessageSquare, Check,
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -277,7 +277,7 @@ function FilaCard({ item, onStatus, onMaquina, onRemove, maquinas, highlight }) 
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', truncate: true, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         title={item.lote_observacoes || undefined}>
                         {item.lote_nome || `Lote #${item.lote_id}`}
-                        {item.lote_observacoes && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>💬</span>}
+                        {item.lote_observacoes && <MessageSquare size={10} style={{ color: 'var(--text-muted)', marginLeft: 4 }} />}
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
                         <span>Chapa {item.chapa_idx + 1}</span>
@@ -290,12 +290,12 @@ function FilaCard({ item, onStatus, onMaquina, onRemove, maquinas, highlight }) 
                         {/* Prioridade do lote */}
                         {(item.lote_prioridade || 0) >= 2 && (
                             <span style={{ padding: '1px 6px', borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', fontWeight: 800, fontSize: 9, border: '1px solid var(--danger-border)' }}>
-                                🔴 URGENTE
+                                URGENTE
                             </span>
                         )}
                         {(item.lote_prioridade || 0) === 1 && (
                             <span style={{ padding: '1px 6px', borderRadius: 4, background: 'var(--warning-bg)', color: 'var(--warning)', fontWeight: 800, fontSize: 9, border: '1px solid var(--warning-border)' }}>
-                                🟡 ALTA
+                                ALTA
                             </span>
                         )}
                         {/* Data de entrega */}
@@ -322,7 +322,7 @@ function FilaCard({ item, onStatus, onMaquina, onRemove, maquinas, highlight }) 
             {(item.inicio_em || item.fim_em) && (
                 <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 6 }}>
                     {item.inicio_em && <span>▶ {fmt(item.inicio_em)}</span>}
-                    {item.fim_em && <span style={{ marginLeft: 8 }}>✓ {fmt(item.fim_em)}</span>}
+                    {item.fim_em && <span style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center' }}><Check size={11} style={{ display: 'inline', marginRight: 2 }} />{fmt(item.fim_em)}</span>}
                 </div>
             )}
 

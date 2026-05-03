@@ -15,7 +15,7 @@
 // miniatura 2D, obs e barcodes de expedição.
 // ─────────────────────────────────────────────────────────────
 const INDUSTRIAL_COMPLETA = {
-    nome: 'Industrial Completa ★ (190×130mm)',
+    nome: 'Industrial Completa (190×130mm)',
     largura: 190,
     altura: 130,
     colunas_impressao: 1,

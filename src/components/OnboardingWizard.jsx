@@ -4,6 +4,7 @@
  * Passos: Empresa → Logo → Taxas → Convite equipe
  */
 import { useState, useRef } from 'react';
+import { Building2, Palette, DollarSign, Users, Image, Lightbulb, Check, X, ArrowRight, CheckCircle2 } from 'lucide-react';
 import api from '../api';
 
 const LS_KEY = 'ornato_onboarding_done';
@@ -20,10 +21,10 @@ export function markOnboardingDone() {
 }
 
 const STEPS = [
-    { id: 'empresa',  title: 'Sua empresa',         icon: '🏢', desc: 'Configure as informações básicas da sua marcenaria.' },
-    { id: 'logo',     title: 'Logo e identidade',    icon: '🎨', desc: 'Adicione o logo que aparece nas propostas e no sistema.' },
-    { id: 'taxas',    title: 'Taxas e margens',      icon: '💰', desc: 'Configure sua margem padrão e taxa de instalação.' },
-    { id: 'equipe',   title: 'Convidar equipe',      icon: '👥', desc: 'Adicione colaboradores ao sistema (opcional).' },
+    { id: 'empresa',  title: 'Sua empresa',         icon: Building2,   desc: 'Configure as informações básicas da sua marcenaria.' },
+    { id: 'logo',     title: 'Logo e identidade',    icon: Palette,     desc: 'Adicione o logo que aparece nas propostas e no sistema.' },
+    { id: 'taxas',    title: 'Taxas e margens',      icon: DollarSign,  desc: 'Configure sua margem padrão e taxa de instalação.' },
+    { id: 'equipe',   title: 'Convidar equipe',      icon: Users,       desc: 'Adicione colaboradores ao sistema (opcional).' },
 ];
 
 export default function OnboardingWizard({ onClose, notify, taxas }) {
@@ -164,7 +165,7 @@ export default function OnboardingWizard({ onClose, notify, taxas }) {
                                 fontWeight: 700, transition: 'all .3s',
                                 border: `2px solid ${i === step ? 'var(--primary)' : 'transparent'}`,
                             }}>
-                                {i < step ? '✓' : i + 1}
+                                {i < step ? <Check size={12} strokeWidth={3} /> : i + 1}
                             </div>
                             <div style={{ fontSize: 10, color: i === step ? 'var(--primary)' : 'var(--text-muted)', fontWeight: i === step ? 700 : 400, textAlign: 'center' }}>
                                 {s.title}
@@ -175,7 +176,7 @@ export default function OnboardingWizard({ onClose, notify, taxas }) {
 
                 {/* Content */}
                 <div style={{ padding: '28px 32px' }}>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>{STEPS[step].icon}</div>
+                    {(() => { const StepIcon = STEPS[step].icon; return <StepIcon size={32} style={{ color: 'var(--primary)', marginBottom: 8 }} />; })()}
                     <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{STEPS[step].title}</h2>
                     <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>{STEPS[step].desc}</p>
 
@@ -215,7 +216,7 @@ export default function OnboardingWizard({ onClose, notify, taxas }) {
                                     <img src={logoPreview} alt="Logo preview" style={{ maxHeight: 80, maxWidth: 260, objectFit: 'contain', margin: '0 auto', display: 'block', borderRadius: 8 }} />
                                 ) : (
                                     <>
-                                        <div style={{ fontSize: 36, marginBottom: 8 }}>🖼️</div>
+                                        <Image size={40} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
                                         <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Clique para selecionar o logo</div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>PNG, JPG até 2MB</div>
                                     </>
@@ -225,7 +226,8 @@ export default function OnboardingWizard({ onClose, notify, taxas }) {
                             {logoPreview && (
                                 <button onClick={() => { setLogoPreview(''); setLogoFile(null); if (fileRef.current) fileRef.current.value = ''; }}
                                     style={{ marginTop: 12, fontSize: 12, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                                    ✕ Remover logo
+                                    <><X size={12} /> Remover logo</>
+
                                 </button>
                             )}
                         </div>
@@ -260,11 +262,11 @@ export default function OnboardingWizard({ onClose, notify, taxas }) {
                             </div>
                             {emailSent && (
                                 <div style={{ marginTop: 12, fontSize: 12, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    ✓ Convite enviado! Você pode adicionar mais colaboradores em Configurações → Usuários.
+                                    <CheckCircle2 size={14} style={{ color: 'var(--success)', flexShrink: 0 }} /> Convite enviado! Você pode adicionar mais colaboradores em Configurações → Usuários.
                                 </div>
                             )}
                             <div style={{ marginTop: 20, padding: '14px', background: 'var(--bg-muted)', borderRadius: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                                💡 Você pode convidar colaboradores a qualquer momento em <strong>Configurações → Usuários</strong>.
+                                <Lightbulb size={12} style={{ display: 'inline', marginRight: 6, color: 'var(--warning)' }} /> Você pode convidar colaboradores a qualquer momento em <strong>Configurações → Usuários</strong>.
                             </div>
                         </div>
                     )}
@@ -282,7 +284,7 @@ export default function OnboardingWizard({ onClose, notify, taxas }) {
                             fontSize: 14, fontWeight: 700, opacity: saving ? 0.7 : 1,
                             display: 'flex', alignItems: 'center', gap: 8,
                         }}>
-                        {saving ? 'Salvando...' : step === STEPS.length - 1 ? '✓ Concluir configuração' : 'Próximo →'}
+                        {saving ? 'Salvando...' : step === STEPS.length - 1 ? <><Check size={14} /> Concluir configuração</> : <>Próximo <ArrowRight size={14} /></>}
                     </button>
                 </div>
             </div>

@@ -1267,7 +1267,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                                 Olá, {(projeto.cliente_nome || '').trim() || 'Cliente'}
                             </h1>
                             <p style={{ color: '#475569', fontSize: 13.5, margin: 0, lineHeight: 1.5, maxWidth: 420 }}>
-                                {concluidasPct >= 100 ? '🎉 Seu projeto foi concluído! Um prazer trabalhar com você.' :
+                                {concluidasPct >= 100 ? 'Seu projeto foi concluído! Um prazer trabalhar com você.' :
                                  concluidasPct > 0 ? `Seu projeto está em andamento — ${concluidasPct}% concluído.` :
                                  'Acompanhe aqui todas as etapas do seu projeto.'}
                             </p>

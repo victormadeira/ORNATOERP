@@ -4212,7 +4212,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     Abrir link
                                                 </button>
                                                 {cl.tel && <button onClick={enviarOficial} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--success)', color: '#fff', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
-                                                    📲 Enviar via WhatsApp oficial
+                                                    <Smartphone size={14} style={{display:'inline',marginRight:6}} /> Enviar via WhatsApp oficial
                                                 </button>}
                                                 {waLinkManual && <a href={waLinkManual} target="_blank" rel="noreferrer" style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: 'var(--text)', fontSize: 11, textDecoration: 'none', cursor: 'pointer' }}>
                                                     Enviar manual (wa.me)

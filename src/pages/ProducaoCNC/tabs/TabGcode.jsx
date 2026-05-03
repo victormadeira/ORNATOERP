@@ -230,7 +230,7 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                                 {maquinas.map(m => (
                                     <option key={m.id} value={m.id}>
                                         {m.nome}{m.fabricante ? ` — ${m.fabricante} ${m.modelo}` : ''}
-                                        {m.padrao ? ' ★' : ''} [{m.total_ferramentas} ferr.]
+                                        {m.padrao ? ' ·' : ''} [{m.total_ferramentas} ferr.]
                                     </option>
                                 ))}
                             </select>

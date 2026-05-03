@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Z, Ic, PageHeader, TabBar, EmptyState } from '../ui';
+import { Z, Ic, PageHeader, TabBar, EmptyState, ConfirmModal } from '../ui';
 import { R$, N } from '../engine';
 import api from '../api';
 import { Plus, Trash2, Edit2, X, Check, Search, Package, Wrench, Layers, PaintBucket, AlertCircle, Square, Sofa, RectangleHorizontal, GlassWater, Shapes, Download, Upload } from 'lucide-react';
@@ -69,6 +69,8 @@ export default function Cat({ notify }) {
     const [editId, setEditId] = useState(null);
     const [form, setForm] = useState({ ...emptyItem });
     const [showForm, setShowForm] = useState(false);
+    const [confirmDelId, setConfirmDelId] = useState(null);
+    const [confirmImport, setConfirmImport] = useState(null); // { arr, tiposNoArquivo }
 
     const load = () => api.get('/biblioteca').then(setItems).catch(e => console.error('Erro ao carregar biblioteca:', e));
     useEffect(() => { load(); }, []);
@@ -106,7 +108,7 @@ export default function Cat({ notify }) {
             setShowForm(false); load();
         } catch (ex) { console.error(ex); }
     };
-    const del = async (id) => { if (confirm('Excluir item?')) { await api.del(`/biblioteca/${id}`); load(); } };
+    const del = async (id) => setConfirmDelId(id);
     const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
     const importRef = useRef(null);
 
@@ -137,8 +139,12 @@ export default function Cat({ notify }) {
             const invalidos = arr.filter(i => !i.nome);
             if (invalidos.length) return notify(`${invalidos.length} item(ns) sem nome. Todos os itens precisam ter o campo "nome".`);
             const tiposNoArquivo = [...new Set(arr.map(i => i.tipo))].join(', ');
-            if (!confirm(`Importar ${arr.length} item(ns) (${tiposNoArquivo})?\nItens existentes não serão alterados.`)) return;
-            let ok = 0, erros = 0;
+            setConfirmImport({ arr, tiposNoArquivo });
+        } catch { notify('Erro ao ler arquivo. Verifique se é um JSON válido.'); }
+    };
+    const executarImport = async ({ arr }) => {
+        setConfirmImport(null);
+        let ok = 0, erros = 0;
             for (const item of arr) {
                 try {
                     await api.post('/biblioteca', {
@@ -161,7 +167,6 @@ export default function Cat({ notify }) {
             }
             load();
             notify(`Importação concluída: ${ok} de ${arr.length} item(ns) importados.${erros ? ` ${erros} erro(s).` : ''}`);
-        } catch { notify('Erro ao ler arquivo. Verifique se é um JSON válido.'); }
     };
 
     const tabs = [
@@ -405,6 +410,26 @@ export default function Cat({ notify }) {
             <div className="mt-4 flex gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
                 <span>Total: {items.length} itens em {tabs.length} categorias</span>
             </div>
+
+            {confirmDelId && (
+                <ConfirmModal
+                    title="Excluir item"
+                    message="Tem certeza que deseja excluir este item do catálogo? Esta ação não pode ser desfeita."
+                    confirmLabel="Excluir"
+                    danger
+                    onConfirm={async () => { await api.del(`/biblioteca/${confirmDelId}`); setConfirmDelId(null); load(); }}
+                    onCancel={() => setConfirmDelId(null)}
+                />
+            )}
+            {confirmImport && (
+                <ConfirmModal
+                    title="Importar itens"
+                    message={`Importar ${confirmImport.arr.length} item(ns) (${confirmImport.tiposNoArquivo})? Itens existentes não serão alterados.`}
+                    confirmLabel="Importar"
+                    onConfirm={() => executarImport(confirmImport)}
+                    onCancel={() => setConfirmImport(null)}
+                />
+            )}
         </div>
     );
 }

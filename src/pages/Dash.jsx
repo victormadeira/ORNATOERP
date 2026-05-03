@@ -1550,7 +1550,6 @@ function EquipeTab({ equipe }) {
                     <tbody>
                         {equipe.map((v, idx) => {
                             const pct = maxValor > 0 ? (v.valor_aprovados / maxValor) * 100 : 0;
-                            const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
                             return (
                                 <tr key={v.id} style={{
                                     borderBottom: '1px solid var(--border)',
@@ -1561,7 +1560,14 @@ function EquipeTab({ equipe }) {
                                     onMouseLeave={e => { e.currentTarget.style.background = idx === 0 ? 'rgba(19,121,240,0.04)' : ''; }}
                                 >
                                     <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text-muted)', width: 32 }}>
-                                        {medal || idx + 1}
+                                        <span style={{
+                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                            width: 22, height: 22, borderRadius: '50%', fontSize: 11, fontWeight: 800,
+                                            background: idx === 0 ? 'linear-gradient(135deg,#f59e0b,#d97706)' : idx === 1 ? 'linear-gradient(135deg,#94a3b8,#64748b)' : idx === 2 ? 'linear-gradient(135deg,#cd7c2f,#a86023)' : 'var(--bg-muted)',
+                                            color: idx < 3 ? '#fff' : 'var(--text-muted)',
+                                        }}>
+                                            {idx + 1}
+                                        </span>
                                     </td>
                                     <td style={{ padding: '12px 14px' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -8,7 +8,7 @@ import { SectionHeader, EmptyState, Spinner } from '../../../ui';
 import {
     DollarSign, Clock, TrendingDown, RefreshCw,
     ChevronDown, ChevronUp, AlertTriangle, Package,
-    Layers, Scissors, BarChart3, Download,
+    Layers, Scissors, BarChart3, Download, Settings,
 } from 'lucide-react';
 
 const fmt = (v) => `R$ ${Number(v || 0).toFixed(2).replace('.', ',')}`;
@@ -194,10 +194,10 @@ function ChapaRow({ ch, time, expanded, onToggle }) {
                                 ⏱ Tempo estimado: <b style={{ color: 'var(--text-primary)' }}>{fmtMin(time.tempo_estimado_min)}</b>
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                ✂ Corte: <b>{time.metros_corte}m lineares</b>
+                                <Scissors size={12} style={{display:'inline',marginRight:3}} /> Corte: <b>{time.metros_corte}m lineares</b>
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                ⚙ Usinagem: <b>{time.metros_usinagem}m</b>
+                                <Settings size={12} style={{display:'inline',marginRight:3}} /> Usinagem: <b>{time.metros_usinagem}m</b>
                             </span>
                         </div>
                     )}
@@ -303,8 +303,8 @@ export function TabCustos({ loteAtual, notify }) {
                 <SectionHeader icon={DollarSign} title="Análise de Custos Industrial" accent="var(--primary)">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {tempo?.maquina && (
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                ⚙ {tempo.maquina}
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '3px 8px', borderRadius: 6, background: 'var(--bg-muted)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Settings size={12} style={{display:'inline',marginRight:3}} /> {tempo.maquina}
                             </span>
                         )}
                         <button
@@ -405,8 +405,8 @@ export function TabCustos({ loteAtual, notify }) {
                         fontSize: 11, color: 'var(--text-muted)',
                         display: 'flex', gap: 16, flexWrap: 'wrap',
                     }}>
-                        <span>✂ Velocidade corte: <b>{tempo.config.velocidade_corte} mm/min</b></span>
-                        <span>⚙ Velocidade usinagem: <b>{tempo.config.velocidade_usinagem} mm/min</b></span>
+                        <span><Scissors size={12} style={{display:'inline',marginRight:3}} /> Velocidade corte: <b>{tempo.config.velocidade_corte} mm/min</b></span>
+                        <span><Settings size={12} style={{display:'inline',marginRight:3}} /> Velocidade usinagem: <b>{tempo.config.velocidade_usinagem} mm/min</b></span>
                         <span>⏱ Setup/chapa: <b>{tempo.config.tempo_setup_chapa} min</b></span>
                     </div>
                 )}

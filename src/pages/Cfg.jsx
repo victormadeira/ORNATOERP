@@ -3005,7 +3005,6 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                             border: `1px solid ${emp.ia_provider === 'gemini' ? '#a5d6a7' : emp.ia_provider === 'openai' ? '#90caf9' : '#ce93d8'}`,
                                                             fontWeight: 600,
                                                         }}>
-                                                            {emp.ia_provider === 'gemini' ? '✦ ' : emp.ia_provider === 'openai' ? '⊕ ' : '◆ '}
                                                             {emp.ia_model || emp.ia_provider}
                                                         </span>
                                                     )}
@@ -3467,7 +3466,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                         <div className="flex items-start justify-between mb-3">
                             <div>
                                 <h3 className="font-semibold text-sm" style={{ color: 'var(--primary)' }}>
-                                    💤 Reativação de clientes inativos (60d+)
+                                    <Clock size={13} style={{display:'inline',marginRight:4}} /> Reativação de clientes inativos (60d+)
                                 </h3>
                                 <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                     Candidatos filtrados por 6 sinais de segurança: orçamento perdido, IA bloqueada, conversa abandonada, lead com motivo de perda, projeto cancelado e notas negativas.
@@ -3534,7 +3533,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                         <span style={{ color: 'var(--warning)' }}>{p.dias_inativo}d inativo</span>
                                                         {' · último contato via '}{p.ultimo_contato_tipo}
                                                         {h.orcamento_aprovado && <span className="ml-2" style={{ color: 'var(--success)' }}>✓ virou cliente</span>}
-                                                        {!h.orcamento_aprovado && h.orcamentos_count > 0 && <span className="ml-2">🔸 só lead ({h.orcamentos_count} orç)</span>}
+                                                        {!h.orcamento_aprovado && h.orcamentos_count > 0 && <span className="ml-2">· só lead ({h.orcamentos_count} orç)</span>}
                                                     </div>
                                                     <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                                         {h.ultimo_ambiente && <>{h.ultimo_ambiente} · </>}
@@ -3755,7 +3754,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             />
                             <p className="text-[10.5px] mt-2" style={{ color: 'var(--text-muted)' }}>
                                 O tracking não roda em <code>localhost</code> — só em produção.
-                                {emp.clarity_project_id ? ' ✓ Ativo.' : ' ✗ Desativado.'}
+                                {emp.clarity_project_id ? <><CheckCircle2 size={12} style={{display:'inline',marginRight:3,color:'var(--success)'}} /> Ativo.</> : <><XCircle size={12} style={{display:'inline',marginRight:3,color:'var(--danger)'}} /> Desativado.</>}
                             </p>
                         </div>
 
@@ -3779,7 +3778,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         style={{ fontFamily: 'monospace' }}
                                     />
                                     <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                        {emp.fb_pixel_id ? '✓ Pixel ativo na landing page.' : '✗ Pixel desativado.'}
+                                        {emp.fb_pixel_id ? <><CheckCircle2 size={12} style={{display:'inline',marginRight:3,color:'var(--success)'}} /> Pixel ativo na landing page.</> : <><XCircle size={12} style={{display:'inline',marginRight:3,color:'var(--danger)'}} /> Pixel desativado.</>}
                                     </p>
                                 </div>
                                 <div>
@@ -3795,7 +3794,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         autoComplete="off"
                                     />
                                     <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                        {emp.fb_access_token ? '✓ CAPI ativo — leads e vendas enviados server-side.' : '✗ CAPI desativado (só Pixel client-side).'}
+                                        {emp.fb_access_token ? <><CheckCircle2 size={12} style={{display:'inline',marginRight:3,color:'var(--success)'}} /> CAPI ativo — leads e vendas enviados server-side.</> : <><XCircle size={12} style={{display:'inline',marginRight:3,color:'var(--danger)'}} /> CAPI desativado (só Pixel client-side).</>}
                                     </p>
                                 </div>
                                 <div>
@@ -3838,7 +3837,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         style={{ fontFamily: 'monospace' }}
                                     />
                                     <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                        {emp.n8n_webhook_url ? '✓ Webhook ativo — cada lead será enviado em paralelo.' : '✗ Integração desligada (vazio = sem disparo).'}
+                                        {emp.n8n_webhook_url ? <><CheckCircle2 size={12} style={{display:'inline',marginRight:3,color:'var(--success)'}} /> Webhook ativo — cada lead será enviado em paralelo.</> : <><XCircle size={12} style={{display:'inline',marginRight:3,color:'var(--danger)'}} /> Integração desligada (vazio = sem disparo).</>}
                                     </p>
                                 </div>
                                 <div>

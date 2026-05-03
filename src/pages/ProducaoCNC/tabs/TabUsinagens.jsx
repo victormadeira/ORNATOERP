@@ -8,7 +8,7 @@ import { SectionHeader, EmptyState, Spinner, Z } from '../../../ui';
 import {
     Wrench, RefreshCw, AlertTriangle, CheckCircle2,
     ChevronDown, ChevronUp, Clock, Eye, EyeOff,
-    ShieldAlert, Layers, Settings, Zap, X, List,
+    ShieldAlert, Layers, Settings, Zap, X, List, Check,
 } from 'lucide-react';
 
 // ── Constantes ────────────────────────────────────────────────────
@@ -24,7 +24,7 @@ const CAT_INFO = {
     hole:    { label: 'Furos',      color: '#dc2626', bg: '#fee2e2', icon: '●' },
     pocket:  { label: 'Rebaixos',  color: '#a855f7', bg: '#f3e8ff', icon: '▬' },
     groove:  { label: 'Rasgos',    color: '#eab308', bg: '#fef9c3', icon: '━' },
-    generic: { label: 'Usinagens', color: '#6366f1', bg: '#eef2ff', icon: '⚙' },
+    generic: { label: 'Usinagens', color: '#6366f1', bg: '#eef2ff', icon: <Settings size={11} /> },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -336,11 +336,11 @@ function PecaCard({ peca, overrides, warnings, faceCNC, onToggleWorker, onToggle
                         <button
                             onClick={() => onToggleAll(pid, workers, true)}
                             style={{ fontSize: 9, padding: '3px 8px', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 4, cursor: 'pointer', color: '#166534', fontWeight: 600 }}
-                        >✓ Ativar tudo</button>
+                        ><Check size={12} style={{display:'inline',marginRight:4}} /> Ativar tudo</button>
                         <button
                             onClick={() => onToggleAll(pid, workers, false)}
                             style={{ fontSize: 9, padding: '3px 8px', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 4, cursor: 'pointer', color: '#991b1b', fontWeight: 600 }}
-                        >✕ Desativar tudo</button>
+                        ><X size={12} style={{display:'inline',marginRight:4}} /> Desativar tudo</button>
                         <div style={{ flex: 1 }} />
                         <button
                             onClick={() => setShowFace(f => !f)}

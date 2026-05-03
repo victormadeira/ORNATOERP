@@ -425,17 +425,17 @@ export default function GerenteRevisional() {
                     ) : (
                         <>
                             {grupos.alta.length > 0 && (
-                                <Secao titulo={`🔴 Ações urgentes (${grupos.alta.length})`}>
+                                <Secao titulo={`Ações urgentes (${grupos.alta.length})`}>
                                     {grupos.alta.map(a => <AcaoCard key={a.id} acao={a} onResolver={resolverAcao} />)}
                                 </Secao>
                             )}
                             {grupos.media.length > 0 && (
-                                <Secao titulo={`🟡 Atenção média (${grupos.media.length})`}>
+                                <Secao titulo={`Atenção média (${grupos.media.length})`}>
                                     {grupos.media.map(a => <AcaoCard key={a.id} acao={a} onResolver={resolverAcao} />)}
                                 </Secao>
                             )}
                             {grupos.baixa.length > 0 && (
-                                <Secao titulo={`🔵 Observações (${grupos.baixa.length})`}>
+                                <Secao titulo={`Observações (${grupos.baixa.length})`}>
                                     {grupos.baixa.map(a => <AcaoCard key={a.id} acao={a} onResolver={resolverAcao} />)}
                                 </Secao>
                             )}

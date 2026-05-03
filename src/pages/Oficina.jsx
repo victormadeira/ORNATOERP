@@ -13,8 +13,10 @@ import {
   Edit2, Trash2, GripVertical, ExternalLink, Send, Check, Square, ArrowRight,
   Calendar, FolderOpen, Tag, RefreshCw, Maximize2, Filter, Play, Pause,
   CheckCircle, Lock, Unlock, Settings, ChevronDown, ZapOff, Zap,
+  AlertOctagon, Factory,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { ConfirmModal } from '../ui';
 
 // ─── Paleta de projetos (até 10 projetos simultâneos) ──────────
 const PROJ_COLORS = [
@@ -269,6 +271,7 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
   const [newAnexUrl, setNewAnexUrl] = useState('');
   const [saving, setSaving]   = useState(false);
   const [projList, setProjList] = useState([]);
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const load = useCallback(() =>
     japi(`/${cardId}`).then(d => { setData(d); setForm({ ...d }); }), [cardId]);
@@ -292,8 +295,9 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
     } finally { setSaving(false); }
   };
 
-  const del = async () => {
-    if (!window.confirm('Remover este card da Oficina?')) return;
+  const del = () => setConfirmDel(true);
+  const delConfirmado = async () => {
+    setConfirmDel(false);
     await japi(`/${cardId}`, { method: 'DELETE' });
     onDelete(cardId); onClose();
   };
@@ -588,6 +592,16 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
 
         </div>
       </div>
+      {confirmDel && (
+        <ConfirmModal
+          title="Remover card"
+          message="Remover este card da Oficina? Esta ação não pode ser desfeita."
+          confirmLabel="Remover"
+          danger
+          onConfirm={delConfirmado}
+          onCancel={() => setConfirmDel(false)}
+        />
+      )}
     </div>,
     document.body
   );
@@ -1073,7 +1087,7 @@ function TVCardActions({ card, onClose, onUpdate, onMove }) {
           </div>
           {card.bloqueio_motivo && (
             <div style={{ marginTop: 10, padding: '8px 10px', background: '#EF444415', border: '1px solid #EF444433', borderRadius: 8, fontSize: 12, color: '#EF4444' }}>
-              🛑 {card.bloqueio_motivo}
+              <AlertOctagon size={13} style={{display:'inline',marginRight:4,color:'var(--danger)'}} /> {card.bloqueio_motivo}
             </div>
           )}
         </div>
@@ -1379,7 +1393,7 @@ function OficinaDesktop({ notify }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0E1116', display: 'flex', alignItems: 'center', gap: 9 }}>
-              <span style={{ fontSize: 20 }}>🏭</span> Oficina
+              <Factory size={20} style={{display:'inline',marginRight:6}} /> Oficina
             </h1>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>Kanban de produção do chão de fábrica</div>
           </div>

@@ -1,6 +1,7 @@
 // @ts-check
 import React, { useCallback, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { X } from 'lucide-react';
 import { QRScanner } from '../scanner/QRScanner.jsx';
 import { Piece3DModal } from './Piece3DModal.jsx';
 import { apiScan } from '../../api.js';
@@ -98,7 +99,7 @@ export function QRScanModal({ onClose, onScanned, notify }) {
             aria-label="Fechar scanner"
             title="Fechar (Esc)"
           >
-            ✕
+            <X size={16} />
           </button>
         </header>
 

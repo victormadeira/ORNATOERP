@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import api from '../api';
 import PecaViewer3D from '../components/PecaViewer3D';
 import {
-    Package, CheckCircle, AlertCircle, Scan, ChevronDown, User,
+    Package, CheckCircle, CheckCircle2, AlertCircle, Scan, ChevronDown, User,
     Truck, BarChart2, Clock, X, RefreshCw, Award, Circle,
     CheckSquare, Square, Hand, Filter, Search, Check,
 } from 'lucide-react';
@@ -1616,7 +1616,7 @@ export default function Expedicao() {
                                                     color: allDone ? 'var(--success)' : 'var(--text-muted)',
                                                 }}>
                                                     {modScanned}/{pecas.length}
-                                                    {allDone && ' ✓'}
+                                                    {allDone && <CheckCircle2 size={14} style={{display:'inline',marginLeft:4,color:'var(--success)'}} />}
                                                 </span>
                                             </div>
 

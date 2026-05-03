@@ -4,6 +4,7 @@
  * 5 seções: Capa Hero → Sobre → Portfolio → Processo → CTA
  */
 import { useState, useEffect } from 'react';
+import { Star } from 'lucide-react';
 
 const BASE = '/api';
 
@@ -107,7 +108,7 @@ function ProposalLanding({ token }) {
                 }} />
                 <div style={{ position: 'relative', zIndex: 1, maxWidth: 760, margin: '0 auto' }}>
                     <div className="lp-fade" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${ca}18`, border: `1px solid ${ca}40`, borderRadius: 50, padding: '6px 18px', fontSize: 12, fontWeight: 600, color: ca, marginBottom: 28, letterSpacing: 1, textTransform: 'uppercase' }}>
-                        ✦ Proposta Exclusiva Nº {numero}
+                        Proposta Exclusiva Nº {numero}
                     </div>
                     <h1 className="lp-fade hero-title" style={{ fontSize: 52, fontWeight: 800, lineHeight: 1.12, marginBottom: 20, color: '#fff', animationDelay: '.1s' }}>
                         Olá{cliente_nome ? `, ${cliente_nome.split(' ')[0]}` : ''}!<br />
@@ -246,7 +247,7 @@ function ProposalLanding({ token }) {
                                 <div key={d.id || i} className="depo-card" style={{ background: '#13182280', border: '1px solid #ffffff10', borderRadius: 20, padding: '28px 24px' }}>
                                     <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>
                                         {Array.from({ length: d.estrelas || 5 }).map((_, j) => (
-                                            <span key={j} style={{ color: ca, fontSize: 16 }}>★</span>
+                                            <Star key={j} size={14} fill={ca} stroke={ca} />
                                         ))}
                                     </div>
                                     <p style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 16, fontStyle: 'italic' }}>"{d.texto}"</p>

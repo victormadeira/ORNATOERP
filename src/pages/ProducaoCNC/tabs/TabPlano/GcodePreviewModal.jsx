@@ -163,7 +163,7 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
                                     border: '1px solid currentColor',
                                     flexShrink: 0,
                                 }}>
-                                    {step.ok ? '✓' : idx + 1}
+                                    {step.ok ? <Check size={11} strokeWidth={3} /> : idx + 1}
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{step.label}</span>
                             </div>

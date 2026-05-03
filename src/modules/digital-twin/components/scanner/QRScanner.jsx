@@ -1,5 +1,6 @@
 // @ts-check
 import React, { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 /**
@@ -92,7 +93,7 @@ export function QRScanner({ onScan, onClose }) {
               onClick={onClose}
               aria-label="Fechar scanner"
             >
-              ✕
+              <X size={16} />
             </button>
           )}
         </div>
