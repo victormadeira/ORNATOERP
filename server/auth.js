@@ -30,10 +30,44 @@ const JWT_EXPIRY = '24h';
 // ═══════════════════════════════════════════════════════
 export function signToken(user) {
     return jwt.sign(
-        { id: user.id, email: user.email, role: user.role, nome: user.nome },
+        {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            nome: user.nome,
+            empresa_id: user.empresa_id || 1,
+        },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRY }
     );
+}
+
+// ═══════════════════════════════════════════════════════
+// MULTI-TENANT — helpers
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Retorna o empresa_id do usuário logado (1 se não definido — compatibilidade legada).
+ * Uso: const { empresa_id } = tenantOf(req);
+ */
+export function tenantOf(req) {
+    return { empresa_id: req.user?.empresa_id || 1 };
+}
+
+/**
+ * Middleware — garante que o usuário pertence à empresa informada no path ou body.
+ * Uso em rotas que precisam de isolamento estrito:
+ *   router.get('/:empresa_id/dados', requireAuth, requireSameTenant, handler)
+ */
+export function requireSameTenant(req, res, next) {
+    const requestedId = parseInt(req.params.empresa_id || req.body?.empresa_id || 0);
+    const userEmpresaId = req.user?.empresa_id || 1;
+    // Super-admins passam sempre; outros só se empresa_id bater
+    if (req.user?.is_super_admin) return next();
+    if (requestedId && requestedId !== userEmpresaId) {
+        return res.status(403).json({ error: 'Acesso negado: empresa incompatível' });
+    }
+    next();
 }
 
 // ═══════════════════════════════════════════════════════

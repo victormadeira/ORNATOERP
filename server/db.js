@@ -760,6 +760,10 @@ const migrations = [
   "ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT NULL",
   // users v3 — rastreamento de último acesso
   "ALTER TABLE users ADD COLUMN ultimo_acesso DATETIME DEFAULT NULL",
+  // users v4 — multi-tenant: empresa do usuário (NULL → empresa 1)
+  "ALTER TABLE users ADD COLUMN empresa_id INTEGER DEFAULT 1",
+  // users v5 — flag para indicar se o usuário pode criar empresas (super-admin)
+  "ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0",
   // biblioteca v2 — preço da fita de borda por material (R$/m)
   "ALTER TABLE biblioteca ADD COLUMN fita_preco REAL DEFAULT 0",
   // empresa_config v2 — template do contrato
@@ -2552,6 +2556,38 @@ const migrations = [
   //   'face_a_fixa' / 'face_b_fixa': forçar lado A ou B (alguns operadores preferem)
   "ALTER TABLE cnc_maquinas ADD COLUMN estrategia_face TEXT DEFAULT 'mais_usinagens'",
 ];
+
+// ═══ Multi-Tenant: tabela de empresas ═══
+db.exec(`
+  CREATE TABLE IF NOT EXISTS empresas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL,
+    nome TEXT NOT NULL DEFAULT '',
+    plano TEXT NOT NULL DEFAULT 'padrao',
+    ativo INTEGER DEFAULT 1,
+    max_usuarios INTEGER DEFAULT 10,
+    config_json TEXT DEFAULT '{}',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// Garante que a empresa-padrão (id=1) sempre existe para instâncias single-tenant
+try {
+  const defaultEmpresa = db.prepare('SELECT id FROM empresas WHERE id = 1').get();
+  if (!defaultEmpresa) {
+    // Busca nome no empresa_config para pré-preencher
+    const cfg = db.prepare('SELECT nome FROM empresa_config WHERE id = 1').get();
+    db.prepare(
+      `INSERT INTO empresas (id, slug, nome, plano) VALUES (1, 'default', ?, 'padrao')`
+    ).run(cfg?.nome || 'Minha Empresa');
+  }
+} catch (_) { /* safe */ }
+
+// Garante que todos os usuários existentes pertencem à empresa 1
+try {
+  db.prepare('UPDATE users SET empresa_id = 1 WHERE empresa_id IS NULL OR empresa_id = 0').run();
+} catch (_) { /* coluna pode ainda não existir em db muito antigo */ }
 
 // Tabela de retry queue para mensagens de IA que falharam (criada separado pois é nova, não ALTER)
 db.exec(`

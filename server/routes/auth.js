@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import db from '../db.js';
-import { signToken, requireAuth, requireRole, isAdmin } from '../auth.js';
+import { signToken, requireAuth, requireRole, isAdmin, tenantOf } from '../auth.js';
 import { audit } from './gestao-avancada.js';
 
 const router = Router();
@@ -34,7 +34,14 @@ router.post('/login', async (req, res) => {
     const token = signToken(user);
     res.json({
         token,
-        user: { id: user.id, nome: user.nome, email: user.email, role: user.role, permissions: user.permissions || null }
+        user: {
+            id: user.id,
+            nome: user.nome,
+            email: user.email,
+            role: user.role,
+            permissions: user.permissions || null,
+            empresa_id: user.empresa_id || 1,
+        }
     });
 });
 
@@ -59,17 +66,19 @@ router.post('/register', requireAuth, requireRole('admin'), async (req, res) => 
     const r = validRoles.includes(role) ? role : 'vendedor';
     const hash = await bcrypt.hash(senha, 12);
 
-    const result = db.prepare('INSERT INTO users (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)').run(nome, email, hash, r);
-    res.status(201).json({ id: result.lastInsertRowid, nome, email, role: r });
+    // Herda empresa do admin que criou (ou empresa 1 como fallback)
+    const empresa_id = req.user?.empresa_id || 1;
+    const result = db.prepare('INSERT INTO users (nome, email, senha_hash, role, empresa_id) VALUES (?, ?, ?, ?, ?)').run(nome, email, hash, r, empresa_id);
+    res.status(201).json({ id: result.lastInsertRowid, nome, email, role: r, empresa_id });
 });
 
 // ═══════════════════════════════════════════════════════
 // GET /api/auth/me — dados do usuário logado
 // ═══════════════════════════════════════════════════════
 router.get('/me', requireAuth, (req, res) => {
-    const user = db.prepare('SELECT id, nome, email, role, ativo, criado_em, permissions, ultimo_acesso FROM users WHERE id = ?').get(req.user.id);
+    const user = db.prepare('SELECT id, nome, email, role, ativo, criado_em, permissions, ultimo_acesso, empresa_id FROM users WHERE id = ?').get(req.user.id);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-    res.json(user);
+    res.json({ ...user, empresa_id: user.empresa_id || 1 });
 });
 
 // ═══════════════════════════════════════════════════════
@@ -173,6 +182,34 @@ router.put('/password', requireAuth, async (req, res) => {
     const hash = await bcrypt.hash(novaSenha, 12); // custo 12, igual ao registro
     db.prepare('UPDATE users SET senha_hash = ? WHERE id = ?').run(hash, req.user.id);
     res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/auth/empresa — dados da empresa do usuário logado
+// ═══════════════════════════════════════════════════════
+router.get('/empresa', requireAuth, (req, res) => {
+    const { empresa_id } = tenantOf(req);
+    const empresa = db.prepare('SELECT id, slug, nome, plano, max_usuarios, ativo FROM empresas WHERE id = ?').get(empresa_id);
+    if (!empresa) return res.status(404).json({ error: 'Empresa não encontrada' });
+    // Conta usuários ativos na empresa
+    const { total_usuarios } = db.prepare('SELECT COUNT(*) as total_usuarios FROM users WHERE empresa_id = ? AND ativo = 1').get(empresa_id);
+    res.json({ ...empresa, total_usuarios });
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/auth/empresas — listar todas (super-admin)
+// ═══════════════════════════════════════════════════════
+router.get('/empresas', requireAuth, (req, res) => {
+    if (!req.user.is_super_admin) return res.status(403).json({ error: 'Apenas super-admins' });
+    const empresas = db.prepare(`
+        SELECT e.id, e.slug, e.nome, e.plano, e.ativo, e.max_usuarios, e.criado_em,
+               COUNT(u.id) as total_usuarios
+        FROM empresas e
+        LEFT JOIN users u ON u.empresa_id = e.id AND u.ativo = 1
+        GROUP BY e.id
+        ORDER BY e.criado_em DESC
+    `).all();
+    res.json(empresas);
 });
 
 export default router;
