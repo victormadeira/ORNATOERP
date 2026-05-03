@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { todayBR } from './utils/dateBR.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -9,6 +10,10 @@ const __dirname = dirname(__filename);
 const db = new Database(join(__dirname, 'marcenaria.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+
+// today_sp() — equivalente a date('now') mas no fuso de São Paulo (UTC-3).
+// Resolve o bug das 21h–23h59 SP onde date('now') retornava o dia seguinte.
+db.function('today_sp', () => todayBR());
 
 // ═══════════════════════════════════════════════════════
 // SCHEMA

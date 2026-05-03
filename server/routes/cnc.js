@@ -20,6 +20,7 @@ import { parseDxf } from '../utils/dxfParser.js';
 import { seedTestData } from '../utils/seedTestData.js';
 import { audit } from './gestao-avancada.js';
 import { seedTestCabinet } from '../utils/seedTestCabinet.js';
+import { todayBR, todayPlusDaysBR } from '../utils/dateBR.js';
 
 const router = Router();
 
@@ -1347,8 +1348,8 @@ router.get('/lotes', requireAuth, (req, res) => {
     sql += ` ORDER BY
         CASE WHEN status = 'concluido' THEN 1 ELSE 0 END ASC,
         COALESCE(prioridade, 0) DESC,
-        CASE WHEN data_entrega IS NOT NULL AND data_entrega < date('now') AND status != 'concluido' THEN 0
-             WHEN data_entrega IS NOT NULL AND data_entrega <= date('now', '+3 days') AND status != 'concluido' THEN 1
+        CASE WHEN data_entrega IS NOT NULL AND data_entrega < today_sp() AND status != 'concluido' THEN 0
+             WHEN data_entrega IS NOT NULL AND data_entrega <= date(today_sp(), '+3 days') AND status != 'concluido' THEN 1
              WHEN data_entrega IS NOT NULL THEN 2
              ELSE 3 END ASC,
         COALESCE(data_entrega, '9999-12-31') ASC,
@@ -8604,8 +8605,8 @@ router.get('/relatorio-chapa/:loteId/:chapaIdx', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 
 router.get('/dashboard/stats', requireAuth, (req, res) => {
-    const de = req.query.de || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-    const ate = req.query.ate || new Date().toISOString().slice(0, 10);
+    const de = req.query.de || todayPlusDaysBR(-30);
+    const ate = req.query.ate || todayBR();
 
     const lotes = db.prepare(`
         SELECT id, nome, cliente, projeto, total_pecas, total_chapas, aproveitamento, status, criado_em, plano_json
@@ -8722,7 +8723,7 @@ router.get('/dashboard/materiais', requireAuth, (req, res) => {
 
 router.get('/dashboard/eficiencia', requireAuth, (req, res) => {
     const days = parseInt(req.query.days || '30', 10);
-    const desde = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const desde = todayPlusDaysBR(-days);
 
     const lotes = db.prepare(`
         SELECT total_chapas, aproveitamento, criado_em FROM cnc_lotes
@@ -11075,7 +11076,7 @@ router.get('/dashboard-produtividade', requireAuth, (req, res) => {
 
         const diasMap = { '7d': 7, '30d': 30, '90d': 90 };
         const dias = diasMap[periodo] || 30;
-        const dataInicio = new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+        const dataInicio = todayPlusDaysBR(-dias);
 
         let where = `WHERE date(s.escaneado_em) >= date(?)`;
         const params = [dataInicio];
@@ -12062,8 +12063,8 @@ router.get('/fila-producao', requireAuth, (req, res) => {
         ORDER BY
             COALESCE(l.prioridade, 0) DESC,
             f.prioridade DESC,
-            CASE WHEN l.data_entrega IS NOT NULL AND l.data_entrega < date('now') THEN 0
-                 WHEN l.data_entrega IS NOT NULL AND l.data_entrega <= date('now', '+3 days') THEN 1
+            CASE WHEN l.data_entrega IS NOT NULL AND l.data_entrega < today_sp() THEN 0
+                 WHEN l.data_entrega IS NOT NULL AND l.data_entrega <= date(today_sp(), '+3 days') THEN 1
                  ELSE 2 END ASC,
             f.ordem ASC, f.criado_em ASC
     `).all(req.user.id, req.user.id);

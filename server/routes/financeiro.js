@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as gdrive from '../services/gdrive.js';
+import { todayBR } from '../utils/dateBR.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -49,7 +50,7 @@ router.get('/lembretes', requireAuth, (req, res) => {
         SELECT cr.*, p.nome as projeto_nome
         FROM contas_receber cr
         JOIN projetos p ON p.id = cr.projeto_id
-        WHERE cr.status = 'pendente' AND cr.data_vencimento < date('now')
+        WHERE cr.status = 'pendente' AND cr.data_vencimento < today_sp()
         AND ${ND.replace(/deletado/g, 'cr.deletado')}
         ORDER BY cr.data_vencimento ASC
     `).all();
@@ -59,8 +60,8 @@ router.get('/lembretes', requireAuth, (req, res) => {
         FROM contas_receber cr
         JOIN projetos p ON p.id = cr.projeto_id
         WHERE cr.status = 'pendente'
-        AND cr.data_vencimento >= date('now')
-        AND cr.data_vencimento <= date('now', '+7 days')
+        AND cr.data_vencimento >= today_sp()
+        AND cr.data_vencimento <= date(today_sp(), '+7 days')
         AND ${ND.replace(/deletado/g, 'cr.deletado')}
         ORDER BY cr.data_vencimento ASC
     `).all();
@@ -116,7 +117,7 @@ router.get('/pagar', requireAuth, (req, res) => {
     const contas = db.prepare(sql).all(...params, pp, (pg - 1) * pp);
 
     // Marcar vencidas automaticamente
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = todayBR();
     contas.forEach(c => {
         if (c.status === 'pendente' && c.data_vencimento && c.data_vencimento < hoje) {
             c.vencida = true;
@@ -221,7 +222,7 @@ router.put('/pagar/bulk-status', requireAuth, (req, res) => {
 
     try {
         const placeholders = ids.map(() => '?').join(',');
-        const now = status === 'pago' ? new Date().toISOString().split('T')[0] : null;
+        const now = status === 'pago' ? todayBR() : null;
 
         if (status === 'pago' && now) {
             db.prepare(`UPDATE contas_pagar SET status = ?, data_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`).run(status, now, ...ids);
@@ -273,7 +274,7 @@ router.put('/pagar/:id', requireAuth, (req, res) => {
 
     const cat = CATEGORIAS_PAGAR.includes(categoria) ? categoria : undefined;
     const dataPgto = status === 'pago' && !data_pagamento
-        ? new Date().toISOString().slice(0, 10)
+        ? todayBR()
         : (data_pagamento || null);
 
     db.prepare(`
@@ -448,11 +449,11 @@ router.get('/pagar/resumo', requireAuth, (req, res) => {
             COALESCE(SUM(valor), 0) as total,
             COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as pago,
             COALESCE(SUM(CASE WHEN status = 'pendente' THEN valor ELSE 0 END), 0) as pendente,
-            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento < date('now') THEN valor ELSE 0 END), 0) as vencido,
-            COUNT(CASE WHEN status = 'pendente' AND data_vencimento < date('now') THEN 1 END) as qtd_vencidas,
-            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date('now', 'start of month') THEN valor ELSE 0 END), 0) as pago_mes,
-            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d,
-            COUNT(CASE WHEN status = 'pendente' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+7 days') THEN 1 END) as qtd_vencer_7d
+            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento < today_sp() THEN valor ELSE 0 END), 0) as vencido,
+            COUNT(CASE WHEN status = 'pendente' AND data_vencimento < today_sp() THEN 1 END) as qtd_vencidas,
+            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date(today_sp(), 'start of month') THEN valor ELSE 0 END), 0) as pago_mes,
+            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d,
+            COUNT(CASE WHEN status = 'pendente' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+7 days') THEN 1 END) as qtd_vencer_7d
         FROM contas_pagar WHERE ${ND}
     `).get();
 
@@ -493,7 +494,7 @@ router.get('/receber', requireAuth, (req, res) => {
     let sql = `SELECT cr.*, p.nome as projeto_nome, p.token as projeto_token ${where}${order} LIMIT ? OFFSET ?`;
     const contas = db.prepare(sql).all(...params, pp, (pg - 1) * pp);
 
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = todayBR();
     contas.forEach(c => {
         if (c.status === 'pendente' && c.data_vencimento && c.data_vencimento < hoje) {
             c.vencida = true;
@@ -585,10 +586,10 @@ router.get('/receber/resumo', requireAuth, (req, res) => {
             COALESCE(SUM(valor), 0) as total,
             COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as recebido,
             COALESCE(SUM(CASE WHEN status != 'pago' THEN valor ELSE 0 END), 0) as pendente,
-            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < date('now') THEN valor ELSE 0 END), 0) as vencido,
-            COUNT(CASE WHEN status != 'pago' AND data_vencimento < date('now') THEN 1 END) as qtd_vencidas,
-            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date('now', 'start of month') THEN valor ELSE 0 END), 0) as recebido_mes,
-            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d
+            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < today_sp() THEN valor ELSE 0 END), 0) as vencido,
+            COUNT(CASE WHEN status != 'pago' AND data_vencimento < today_sp() THEN 1 END) as qtd_vencidas,
+            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date(today_sp(), 'start of month') THEN valor ELSE 0 END), 0) as recebido_mes,
+            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d
         FROM contas_receber WHERE ${ND}
     `).get();
     res.json(r);
@@ -661,7 +662,7 @@ router.get('/fluxo', requireAuth, (req, res) => {
                COALESCE(SUM(valor), 0) as total
         FROM contas_pagar
         WHERE status = 'pendente' AND ${ND}
-        AND data_vencimento >= date('now', 'start of month')
+        AND data_vencimento >= date(today_sp(), 'start of month')
         AND data_vencimento < date('now', '+3 months')
         GROUP BY mes ORDER BY mes ASC
     `).all();
@@ -672,7 +673,7 @@ router.get('/fluxo', requireAuth, (req, res) => {
                COALESCE(SUM(valor), 0) as total
         FROM contas_receber
         WHERE status != 'pago' AND ${ND}
-        AND data_vencimento >= date('now', 'start of month')
+        AND data_vencimento >= date(today_sp(), 'start of month')
         AND data_vencimento < date('now', '+3 months')
         GROUP BY mes ORDER BY mes ASC
     `).all();
@@ -924,7 +925,7 @@ router.get('/:projeto_id/receber', requireAuth, (req, res) => {
     `).all(projeto_id);
 
     // Atualizar status de contas vencidas automaticamente
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = todayBR();
     contas.forEach(c => {
         if (c.status === 'pendente' && c.data_vencimento && c.data_vencimento < hoje) {
             c.status = 'atrasada';
@@ -962,7 +963,7 @@ router.put('/receber/bulk-status', requireAuth, (req, res) => {
 
     try {
         const placeholders = ids.map(() => '?').join(',');
-        const now = status === 'pago' ? new Date().toISOString().split('T')[0] : null;
+        const now = status === 'pago' ? todayBR() : null;
 
         if (status === 'pago' && now) {
             db.prepare(`UPDATE contas_receber SET status = ?, data_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`).run(status, now, ...ids);
@@ -1012,7 +1013,7 @@ router.put('/receber/:id', requireAuth, (req, res) => {
     }
 
     const dataPgto = status === 'pago' && !data_pagamento
-        ? new Date().toISOString().slice(0, 10)
+        ? todayBR()
         : (data_pagamento || null);
 
     db.prepare(`
@@ -1114,7 +1115,8 @@ router.post('/:projeto_id/importar-parcelas', requireAuth, (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?, 1)
     `);
 
-    const hoje = new Date();
+    // Usar data SP como base para evitar parcelas no dia errado das 21-23h59
+    const [baseY, baseM, baseD] = todayBR().split('-').map(Number);
     let parcNum = 0;
 
     for (const bloco of pagamento.blocos) {
@@ -1124,15 +1126,20 @@ router.post('/:projeto_id/importar-parcelas', requireAuth, (req, res) => {
 
         for (let i = 0; i < nParcelas; i++) {
             parcNum++;
-            const venc = new Date(hoje);
-            venc.setMonth(venc.getMonth() + i);
+            // Aritmética de meses sem depender de timezone do servidor
+            const totalM = baseM - 1 + i; // 0-indexed
+            const vY = baseY + Math.floor(totalM / 12);
+            const vM = (totalM % 12) + 1;
+            const maxD = new Date(vY, vM, 0).getDate(); // último dia do mês
+            const vD = Math.min(baseD, maxD);
+            const vencStr = `${vY}-${String(vM).padStart(2, '0')}-${String(vD).padStart(2, '0')}`;
             const descr = nParcelas > 1
                 ? `${bloco.descricao || 'Parcela'} ${i + 1}/${nParcelas}`
                 : bloco.descricao || `Pagamento ${parcNum}`;
 
             stmt.run(
                 projeto_id, orc.id, descr, valorParcela,
-                venc.toISOString().slice(0, 10),
+                vencStr,
                 MEIO_LABEL[bloco.meio] || bloco.meio || ''
             );
         }
@@ -1186,7 +1193,7 @@ router.get('/:projeto_id/resumo', requireAuth, (req, res) => {
             COALESCE(SUM(valor), 0) as total,
             COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as recebido,
             COALESCE(SUM(CASE WHEN status != 'pago' THEN valor ELSE 0 END), 0) as pendente,
-            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < date('now') THEN valor ELSE 0 END), 0) as vencido
+            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < today_sp() THEN valor ELSE 0 END), 0) as vencido
         FROM contas_receber WHERE projeto_id = ? AND ${ND}
     `).get(projeto_id);
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth, canSeeAll } from '../auth.js';
+import { todayBR, monthStartBR } from '../utils/dateBR.js';
 
 const router = Router();
 
@@ -70,7 +71,7 @@ router.get('/', requireAuth, (req, res) => {
             FROM contas_receber cr
             JOIN projetos p ON p.id = cr.projeto_id
             WHERE cr.status = 'pendente'
-            AND cr.data_vencimento < date('now')
+            AND cr.data_vencimento < today_sp()
             ${userFilterP.replace('o.', 'p.')}
             ORDER BY dias_atraso DESC
             LIMIT 10
@@ -117,8 +118,8 @@ router.get('/', requireAuth, (req, res) => {
             FROM contas_receber cr
             JOIN projetos p ON p.id = cr.projeto_id
             WHERE cr.status IN ('pendente')
-            AND cr.data_vencimento >= date('now')
-            AND cr.data_vencimento <= date('now', '+30 days')
+            AND cr.data_vencimento >= today_sp()
+            AND cr.data_vencimento <= date(today_sp(), '+30 days')
             ${userFilterP.replace('o.', 'p.')}
         `).get(...params);
 
@@ -127,8 +128,8 @@ router.get('/', requireAuth, (req, res) => {
             FROM contas_receber cr
             JOIN projetos p ON p.id = cr.projeto_id
             WHERE cr.status IN ('pendente')
-            AND cr.data_vencimento >= date('now')
-            AND cr.data_vencimento <= date('now', '+60 days')
+            AND cr.data_vencimento >= today_sp()
+            AND cr.data_vencimento <= date(today_sp(), '+60 days')
             ${userFilterP.replace('o.', 'p.')}
         `).get(...params);
 
@@ -146,24 +147,24 @@ router.get('/', requireAuth, (req, res) => {
             FROM contas_receber cr
             JOIN projetos p ON p.id = cr.projeto_id
             WHERE cr.status = 'pendente'
-            AND cr.data_vencimento < date('now')
+            AND cr.data_vencimento < today_sp()
             ${userFilterP.replace('o.', 'p.')}
         `).get(...params);
 
         // Saídas (contas a pagar)
         const sai30 = db.prepare(`
             SELECT COALESCE(SUM(valor), 0) as total FROM contas_pagar
-            WHERE status = 'pendente' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+30 days')
+            WHERE status = 'pendente' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+30 days')
         `).get();
 
         const sai60 = db.prepare(`
             SELECT COALESCE(SUM(valor), 0) as total FROM contas_pagar
-            WHERE status = 'pendente' AND data_vencimento >= date('now') AND data_vencimento <= date('now', '+60 days')
+            WHERE status = 'pendente' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+60 days')
         `).get();
 
         const saiVencidas = db.prepare(`
             SELECT COALESCE(SUM(valor), 0) as total FROM contas_pagar
-            WHERE status = 'pendente' AND data_vencimento < date('now')
+            WHERE status = 'pendente' AND data_vencimento < today_sp()
         `).get();
 
         const pagoMes = db.prepare(`
@@ -191,7 +192,7 @@ router.get('/', requireAuth, (req, res) => {
                    (SELECT COUNT(*) FROM ocorrencias_projeto oc WHERE oc.projeto_id = p.id AND oc.status = 'aberto') as ocorrencias_abertas,
                    (SELECT COALESCE(SUM(cr.valor), 0) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status = 'pago') as recebido,
                    (SELECT COALESCE(SUM(cr.valor), 0) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status != 'pago') as pendente,
-                   (SELECT COUNT(*) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status = 'pendente' AND cr.data_vencimento < date('now')) as contas_vencidas,
+                   (SELECT COUNT(*) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status = 'pendente' AND cr.data_vencimento < today_sp()) as contas_vencidas,
                    CAST(julianday(p.data_vencimento) - julianday('now') AS INTEGER) as dias_restantes
             FROM projetos p
             LEFT JOIN orcamentos o ON o.id = p.orc_id
@@ -280,7 +281,7 @@ router.get('/', requireAuth, (req, res) => {
             const prodsAtrasados = db.prepare(`
                 SELECT COUNT(*) as total FROM projetos
                 WHERE status IN ('em_andamento','em_producao','nao_iniciado')
-                AND data_vencimento < date('now')
+                AND data_vencimento < today_sp()
             `).get()?.total || 0;
 
             const horasSemana = db.prepare(`
@@ -296,13 +297,13 @@ router.get('/', requireAuth, (req, res) => {
 
             const entregasSemana = db.prepare(`
                 SELECT COUNT(*) as total FROM entregas
-                WHERE data_agendada >= date('now') AND data_agendada <= date('now', '+7 days')
+                WHERE data_agendada >= today_sp() AND data_agendada <= date(today_sp(), '+7 days')
                 AND status IN ('agendada','em_transito')
             `).get()?.total || 0;
 
             const instSemana = db.prepare(`
                 SELECT COUNT(*) as total FROM instalacoes
-                WHERE data_agendada >= date('now') AND data_agendada <= date('now', '+7 days')
+                WHERE data_agendada >= today_sp() AND data_agendada <= date(today_sp(), '+7 days')
                 AND status IN ('agendada','em_andamento')
             `).get()?.total || 0;
 
@@ -501,7 +502,7 @@ router.get('/financeiro', requireAuth, (req, res) => {
         const pagarVencidas = db.prepare(`
             SELECT COALESCE(SUM(valor), 0) as total, COUNT(*) as qtd
             FROM contas_pagar
-            WHERE status = 'pendente' AND data_vencimento < date('now')
+            WHERE status = 'pendente' AND data_vencimento < today_sp()
         `).get();
 
         res.json({
@@ -534,8 +535,8 @@ router.get('/financeiro', requireAuth, (req, res) => {
 router.get('/relatorio/:tipo', requireAuth, (req, res) => {
     const { tipo } = req.params;
     const { periodo_inicio, periodo_fim } = req.query;
-    const inicio = periodo_inicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-    const fim = periodo_fim || new Date().toISOString().slice(0, 10);
+    const inicio = periodo_inicio || monthStartBR();
+    const fim = periodo_fim || todayBR();
 
     try {
         switch (tipo) {
