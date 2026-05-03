@@ -1197,7 +1197,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 return updated;
             }),
         })));
-        if (changed) console.log('[Hidratação] caixaDef/compDef injetados do catálogo');
+        // if (changed) console.log('[Hidratação] caixaDef/compDef injetados do catálogo');
     }, [caixas, componentesCat]);
 
     const bib = useMemo(() => {

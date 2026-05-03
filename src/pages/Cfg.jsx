@@ -969,7 +969,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             </div>
                             <div>
                                 <label className={Z.lbl}>Telefone / WhatsApp</label>
-                                <input value={emp.telefone} onChange={e => setEmp({ ...emp, telefone: e.target.value })}
+                                <input type="tel" inputMode="tel" autoComplete="tel" value={emp.telefone} onChange={e => setEmp({ ...emp, telefone: e.target.value })}
                                     className={Z.inp} placeholder="(98) 99999-9999" disabled={!isGerente} />
                             </div>
                             <div>
@@ -4388,7 +4388,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             <div className="flex flex-col gap-3">
                                 {portfolio.map((p, i) => (
                                     <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                        <img src={p.imagem} alt={p.titulo} className="w-20 h-14 rounded-lg object-cover shrink-0" />
+                                        <img src={p.imagem} alt={p.titulo} loading="lazy" className="w-20 h-14 rounded-lg object-cover shrink-0" />
                                         <div className="flex-1 min-w-0">
                                             <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{p.titulo || 'Sem título'}</div>
                                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">

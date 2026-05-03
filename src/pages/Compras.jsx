@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import { Z, Ic, Modal, PageHeader, TabBar, EmptyState, Spinner, ConfirmModal } from '../ui';
 import { R$, N } from '../engine';
 import api from '../api';
@@ -40,6 +41,7 @@ function TabFornecedores({ notify }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 250);
     const [showForm, setShowForm] = useState(false);
     const [editId, setEditId] = useState(null);
     const [form, setForm] = useState({ ...emptyFornecedor });
@@ -60,15 +62,15 @@ function TabFornecedores({ notify }) {
     useEffect(() => { load(); }, [load]);
 
     const filtered = useMemo(() => {
-        if (!search) return items;
-        const s = search.toLowerCase();
+        if (!debouncedSearch) return items;
+        const s = debouncedSearch.toLowerCase();
         return items.filter(f =>
             f.nome?.toLowerCase().includes(s) ||
             f.cnpj?.includes(s) ||
             f.cidade?.toLowerCase().includes(s) ||
             f.contato?.toLowerCase().includes(s)
         );
-    }, [items, search]);
+    }, [items, debouncedSearch]);
 
     const openNew = () => { setForm({ ...emptyFornecedor }); setEditId(null); setShowForm(true); };
     const openEdit = (item) => { setForm({ ...item }); setEditId(item.id); setShowForm(true); };

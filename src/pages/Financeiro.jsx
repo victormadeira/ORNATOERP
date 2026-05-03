@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
     DollarSign, Plus, Trash2, AlertTriangle, Clock, Check, Search,
     Building2, Filter, X, Repeat, Paperclip, FileText, Image, Upload,
@@ -126,6 +127,7 @@ function SecaoPagar({ notify, projetos, user }) {
     const [fCategoria, setFCat]   = useState('');
     const [fProjeto, setFProj]    = useState('');
     const [fBusca, setFBusca]     = useState('');
+    const debouncedBusca = useDebounce(fBusca, 250);
     const [fSemana, setFSemana]   = useState(false);
     const [showForm, setShowForm] = useState(false);
     const emptyForm = { descricao: '', valor: '', data_vencimento: '', categoria: 'outros', fornecedor: '', meio_pagamento: '', codigo_barras: '', projeto_id: '', observacao: '', nf_numero: '', nf_chave: '', recorrente: false, frequencia: 'mensal', parcelado: false, num_parcelas: 2, tipo_intervalo: 'mensal', intervalo_dias: 30 };
@@ -233,8 +235,8 @@ function SecaoPagar({ notify, projetos, user }) {
             const wk = getWeekRange();
             if (c.data_vencimento < wk.start || c.data_vencimento > wk.end) return false;
         }
-        if (!fBusca) return true;
-        const b = fBusca.toLowerCase();
+        if (!debouncedBusca) return true;
+        const b = debouncedBusca.toLowerCase();
         return (c.descricao || '').toLowerCase().includes(b)
             || (c.fornecedor || '').toLowerCase().includes(b)
             || (c.projeto_nome || '').toLowerCase().includes(b)
@@ -631,6 +633,7 @@ function SecaoReceber({ notify, projetos, user }) {
     const [aba, setAba]           = useState('pendentes');
     const [fProjeto, setFProj]    = useState('');
     const [fBusca, setFBusca]     = useState('');
+    const debouncedBusca = useDebounce(fBusca, 250);
     const [fSemana, setFSemana]   = useState(false);
     const [showForm, setShowForm] = useState(false);
     const emptyForm = { descricao: '', valor: '', data_vencimento: '', meio_pagamento: '', codigo_barras: '', nf_numero: '', observacao: '', projeto_id: '', parcelado: false, num_parcelas: 2, tipo_intervalo: 'mensal', intervalo_dias: 30 };
@@ -700,8 +703,8 @@ function SecaoReceber({ notify, projetos, user }) {
             const wk = getWeekRange();
             if (c.data_vencimento < wk.start || c.data_vencimento > wk.end) return false;
         }
-        if (!fBusca) return true;
-        const b = fBusca.toLowerCase();
+        if (!debouncedBusca) return true;
+        const b = debouncedBusca.toLowerCase();
         return (c.descricao || '').toLowerCase().includes(b)
             || (c.projeto_nome || '').toLowerCase().includes(b)
             || (c.meio_pagamento || '').toLowerCase().includes(b);

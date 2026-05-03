@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
     Clock, ChevronLeft, ChevronRight, Users, Settings, CalendarDays,
     Plus, Trash2, Edit2, X, Save, Search, Download, Check, FileText, Upload
@@ -334,6 +335,7 @@ function FuncionariosModal({ onClose, notify }) {
     const [editId, setEditId] = useState(null);
     const [filtroAtivo, setFiltroAtivo] = useState(true);
     const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 250);
     const [form, setForm] = useState({ nome: '', cpf: '', cargo: '', data_admissao: '', salario_base: '' });
 
     const load = useCallback(async () => {
@@ -347,7 +349,7 @@ function FuncionariosModal({ onClose, notify }) {
     const filtered = funcionarios.filter(f => {
         if (filtroAtivo && !f.ativo) return false;
         if (!filtroAtivo && f.ativo) return false;
-        if (search) { const q = search.toLowerCase(); return f.nome.toLowerCase().includes(q) || (f.cpf || '').includes(q) || (f.cargo || '').toLowerCase().includes(q); }
+        if (debouncedSearch) { const q = debouncedSearch.toLowerCase(); return f.nome.toLowerCase().includes(q) || (f.cpf || '').includes(q) || (f.cargo || '').toLowerCase().includes(q); }
         return true;
     });
 

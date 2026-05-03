@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import api from '../api';
 import { Ic, Z, Modal, ConfirmModal, Spinner, Badge, PageHeader } from '../ui';
 import { STATUS_PROJ, STATUS_ETAPA, CATEGORIAS as CAT_DESPESAS, CAT_MAP, colorBg, colorBorder } from '../theme';
@@ -1732,7 +1733,7 @@ function TabArquivos({ data, notify }) {
                         {arquivos.map(f => (
                             <div key={f.nome} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                                 {isImage(f.tipo) ? (
-                                    <img src={`${API_BASE}${f.url}`} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', flexShrink: 0 }} />
+                                    <img src={`${API_BASE}${f.url}`} alt="" loading="lazy" decoding="async" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', flexShrink: 0 }} />
                                 ) : (
                                     <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', flexShrink: 0 }}>{f.tipo || '?'}</div>
                                 )}
@@ -1939,7 +1940,7 @@ function TabArquivos({ data, notify }) {
                                     onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                                     onMouseLeave={e => e.currentTarget.style.transform = ''}
                                 >
-                                    <img src={`${API_BASE}${foto.url}`} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+                                    <img src={`${API_BASE}${foto.url}`} alt="" loading="lazy" decoding="async" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
                                     {/* Badge visual (não clicável) */}
                                     <div style={{
                                         position: 'absolute', top: 6, right: 6,
@@ -3089,7 +3090,7 @@ function TabEntrega({ data, notify }) {
                                                             <div className="flex flex-wrap gap-2">
                                                                 {fotosGerais.map(f => (
                                                                     <div key={f.id} className="relative group">
-                                                                        <img src={f.url} alt="" className="w-16 h-16 object-cover rounded-lg cursor-pointer"
+                                                                        <img src={f.url} alt="" loading="lazy" decoding="async" className="w-16 h-16 object-cover rounded-lg cursor-pointer"
                                                                             style={{ border: '1px solid var(--border)' }} onClick={() => setPreviewImg(f.url)} />
                                                                         <button onClick={() => deletarFoto(f.id)}
                                                                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -3144,6 +3145,8 @@ function TabEntrega({ data, notify }) {
                                                                         <img
                                                                             src={f.url}
                                                                             alt=""
+                                                                            loading="lazy"
+                                                                            decoding="async"
                                                                             className="w-16 h-16 object-cover rounded-lg cursor-pointer"
                                                                             style={{ border: '1px solid var(--border)' }}
                                                                             onClick={() => setPreviewImg(f.url)}
@@ -3776,6 +3779,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
     const [selected, setSelected] = useState(null);
     const [showNew, setShowNew] = useState(false);
     const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 250);
     const [filterStatus, setFilterStatus] = useState('');
     const [loading, setLoading] = useState(true);
     const [confirmDel, setConfirmDel] = useState(null);
@@ -3809,7 +3813,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
     if (selected) return <ProjetoDetalhe proj={selected} onBack={() => setSelected(null)} orcs={orcs} notify={notify} reload={load} user={user} nav={nav} />;
 
     const filtered = projetos.filter(p => {
-        const q = search.toLowerCase();
+        const q = debouncedSearch.toLowerCase();
         const match = !q || p.nome?.toLowerCase().includes(q) || p.cliente_nome?.toLowerCase().includes(q);
         return match && (!filterStatus || p.status === filterStatus);
     });

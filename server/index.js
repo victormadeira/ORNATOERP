@@ -275,8 +275,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, '..', 'dist');
 
-// Servir arquivos estáticos do build (JS, CSS, imagens, etc.)
-app.use(express.static(distPath));
+// Hashed assets (Vite append content hash) — cache imutável por 1 ano
+app.use('/assets', express.static(path.join(distPath, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+}));
+
+// SPA shell — sempre revalidar (index.html nunca tem hash no nome)
+app.use(express.static(distPath, {
+    setHeaders(res, filePath) {
+        if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+    },
+}));
 
 // Servir uploads (fotos expedição etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

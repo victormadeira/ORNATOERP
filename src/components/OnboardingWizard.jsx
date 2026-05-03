@@ -190,7 +190,7 @@ export default function OnboardingWizard({ onClose, notify, taxas }) {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                 <div>
                                     <label style={lbl}>Telefone / WhatsApp</label>
-                                    <input style={inp} value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="(11) 99999-9999" />
+                                    <input style={inp} value={telefone} onChange={e => setTelefone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="(11) 99999-9999" />
                                 </div>
                                 <div>
                                     <label style={lbl}>Estado</label>

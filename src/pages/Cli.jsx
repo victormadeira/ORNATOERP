@@ -1150,7 +1150,7 @@ export default function Cli({ clis, reload, notify, nav }) {
                             <div>
                                 <label className={Z.lbl}>Nome Completo / Razão Social *</label>
                                 <input value={f.nome} onChange={e => sf({ ...f, nome: e.target.value })}
-                                    className={Z.inp} placeholder="Ex: João da Silva" autoFocus />
+                                    autoComplete="name" className={Z.inp} placeholder="Ex: João da Silva" autoFocus />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -1167,12 +1167,14 @@ export default function Cli({ clis, reload, notify, nav }) {
                                 <div>
                                     <label className={Z.lbl}>Telefone / WhatsApp</label>
                                     <input value={f.tel} onChange={e => sf({ ...f, tel: maskTel(e.target.value) })}
+                                        type="tel" inputMode="tel" autoComplete="tel"
                                         className={Z.inp} placeholder="(11) 90000-0000" />
                                 </div>
                             </div>
                             <div>
                                 <label className={Z.lbl}>E-mail</label>
                                 <input type="email" value={f.email} onChange={e => sf({ ...f, email: e.target.value })}
+                                    autoComplete="email"
                                     className={Z.inp} placeholder="cliente@email.com" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import api from '../api';
 import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, ConfirmModal } from '../ui';
 import { R$, N } from '../engine';
@@ -75,12 +76,13 @@ function MovModal({ tipo, materiais, projetos, onClose, onSave }) {
     const [descricao, setDescricao] = useState('');
     const [saving, setSaving] = useState(false);
     const [searchMat, setSearchMat] = useState('');
+    const debouncedSearchMat = useDebounce(searchMat, 200);
 
     const title = tipo === 'entrada' ? 'Registrar Entrada' : tipo === 'saida' ? 'Registrar Saída' : 'Ajuste de Inventário';
     const icon = tipo === 'entrada' ? <ArrowDownCircle size={16} color="var(--success)" /> : tipo === 'saida' ? <ArrowUpCircle size={16} color="var(--danger)" /> : <RefreshCw size={16} color="var(--primary)" />;
 
     const filteredMat = materiais.filter(m => {
-        const q = searchMat.toLowerCase();
+        const q = debouncedSearchMat.toLowerCase();
         return !q || m.nome.toLowerCase().includes(q) || (m.cod || '').toLowerCase().includes(q);
     });
 
@@ -469,6 +471,7 @@ export default function Estoque({ notify }) {
     const [projetos, setProjetos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 250);
     const [filterTipo, setFilterTipo] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [movModal, setMovModal] = useState(null);    // 'entrada' | 'saida' | 'ajuste'
@@ -527,7 +530,7 @@ export default function Estoque({ notify }) {
 
     // Filtros
     const filtered = materiais.filter(m => {
-        const q = search.toLowerCase();
+        const q = debouncedSearch.toLowerCase();
         const matchQ = !q || m.nome.toLowerCase().includes(q) || (m.cod || '').toLowerCase().includes(q);
         const matchTipo = !filterTipo || m.tipo === filterTipo;
         const matchStatus = !filterStatus || (() => {
@@ -544,7 +547,7 @@ export default function Estoque({ notify }) {
     });
     const estTotalPages = Math.ceil(filtered.length / EST_PER_PAGE);
     const filteredPaged = filtered.slice((estPage - 1) * EST_PER_PAGE, estPage * EST_PER_PAGE);
-    useEffect(() => setEstPage(1), [search, filterTipo, filterStatus, filterBaixo]);
+    useEffect(() => setEstPage(1), [debouncedSearch, filterTipo, filterStatus, filterBaixo]);
 
     // Estatísticas
     const totalItens = materiais.length;
