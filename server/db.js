@@ -3007,7 +3007,8 @@ if (!empExists) {
 // ═══════════════════════════════════════════════════════
 // SEED — Usuário admin + config padrão
 // ═══════════════════════════════════════════════════════
-const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@admin.com');
+// Verifica por ROLE (não por email) — evita criar duplicata se o email do admin foi alterado.
+const adminExists = db.prepare("SELECT id FROM users WHERE role = 'admin' AND ativo = 1 LIMIT 1").get();
 if (!adminExists) {
   const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
   const hash = bcrypt.hashSync(adminPass, 12);
