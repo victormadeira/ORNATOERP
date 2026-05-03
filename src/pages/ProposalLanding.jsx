@@ -8,6 +8,18 @@ import { Star } from 'lucide-react';
 
 const BASE = '/api';
 
+/** Extrai o ID de uma URL do YouTube (youtu.be/ID ou ?v=ID) */
+function getYouTubeId(url) {
+    if (!url) return null;
+    try {
+        const u = new URL(url);
+        if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+        return u.searchParams.get('v') || null;
+    } catch {
+        return null;
+    }
+}
+
 function ProposalLanding({ token }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -38,6 +50,7 @@ function ProposalLanding({ token }) {
     const { empresa, cliente_nome, numero, validade, portfolio, depoimentos, proposta_token } = data;
     const cp = empresa.cor_primaria || '#1B2A4A';
     const ca = empresa.cor_accent || '#C9A96E';
+    const videoId = getYouTubeId(empresa.video_url);
 
     const abrirProposta = () => {
         window.location.href = `/proposta/${proposta_token}`;
@@ -137,7 +150,8 @@ function ProposalLanding({ token }) {
             {/* ── SEÇÃO 2: SOBRE ── */}
             <section id="lp-sobre" style={{ padding: '80px 24px', background: `${cp}18`, borderTop: `1px solid ${cp}40`, borderBottom: `1px solid ${cp}40` }}>
                 <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
+                    {/* Topo: texto + vídeo (ou stats) lado a lado */}
+                    <div style={{ display: 'grid', gridTemplateColumns: videoId ? '1fr 1fr' : '1fr', gap: 60, alignItems: 'center', marginBottom: 48 }}>
                         <div>
                             <div style={{ fontSize: 12, fontWeight: 700, color: ca, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 16 }}>Sobre nós</div>
                             <h2 className="section-title" style={{ fontSize: 38, fontWeight: 800, color: '#fff', marginBottom: 20, lineHeight: 1.2 }}>
@@ -164,19 +178,35 @@ function ProposalLanding({ token }) {
                                 </div>
                             )}
                         </div>
-                        {/* Stats */}
-                        <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-                            {[
-                                { v: empresa.anos_experiencia || '10+', l: 'Anos de experiência' },
-                                { v: empresa.projetos_entregues || '500+', l: 'Projetos entregues' },
-                                { v: empresa.maquinas_industriais || '12', l: 'Máquinas industriais' },
-                            ].map((s, i) => (
-                                <div key={i} style={{ background: '#13182280', border: `1px solid ${cp}50`, borderRadius: 16, padding: '24px 16px', textAlign: 'center' }}>
-                                    <div style={{ fontSize: 36, fontWeight: 800, color: ca, lineHeight: 1 }}>{s.v}</div>
-                                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 8, lineHeight: 1.4 }}>{s.l}</div>
+
+                        {/* Vídeo institucional (somente se configurado) */}
+                        {videoId && (
+                            <div style={{ borderRadius: 16, overflow: 'hidden', background: '#0b0e13', border: `1px solid ${cp}50`, boxShadow: `0 20px 60px rgba(0,0,0,0.4)` }}>
+                                <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+                                    <iframe
+                                        title="Vídeo institucional"
+                                        src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&color=white`}
+                                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Stats — sempre em row abaixo do conteúdo */}
+                    <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+                        {[
+                            { v: empresa.anos_experiencia || '10+', l: 'Anos de experiência' },
+                            { v: empresa.projetos_entregues || '500+', l: 'Projetos entregues' },
+                            { v: empresa.maquinas_industriais || '12', l: 'Máquinas industriais' },
+                        ].map((s, i) => (
+                            <div key={i} style={{ background: '#13182280', border: `1px solid ${cp}50`, borderRadius: 16, padding: '24px 16px', textAlign: 'center' }}>
+                                <div style={{ fontSize: 36, fontWeight: 800, color: ca, lineHeight: 1 }}>{s.v}</div>
+                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 8, lineHeight: 1.4 }}>{s.l}</div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </section>

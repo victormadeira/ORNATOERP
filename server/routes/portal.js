@@ -248,7 +248,8 @@ router.get('/landing/:token', (req, res) => {
                proposta_cor_primaria, proposta_cor_accent,
                logo_sistema,
                anos_experiencia, projetos_entregues, maquinas_industriais,
-               texto_institucional, desc_maquinas
+               texto_institucional, desc_maquinas,
+               landing_hero_video_url
         FROM empresa_config WHERE id = 1
     `).get();
 
@@ -289,6 +290,7 @@ router.get('/landing/:token', (req, res) => {
             maquinas_industriais: emp?.maquinas_industriais || 0,
             texto_institucional: emp?.texto_institucional || '',
             desc_maquinas: emp?.desc_maquinas || '',
+            video_url: emp?.landing_hero_video_url || '',
         },
         portfolio,
         depoimentos,
