@@ -11,6 +11,7 @@ installGlobalErrorHandlers();
 // ── Páginas públicas lazy (cada rota puxa só seu próprio chunk) ──
 // Antes eram import eager → inflavam o main chunk em ~2MB (three.js + pages)
 const ProposalPublic        = lazy(() => import('./pages/ProposalPublic'));
+const ProposalLanding       = lazy(() => import('./pages/ProposalLanding'));
 const PortalCliente         = lazy(() => import('./pages/PortalCliente'));
 const MontadorUpload        = lazy(() => import('./pages/MontadorUpload'));
 const LandingPageV2         = lazy(() => import('./pages/LandingPageV2'));
@@ -50,6 +51,9 @@ const previewPropostaToken = (path.match(/^\/preview\/proposta\/([a-f0-9]+)$/i) 
 
 // Preview interno (sem notificações): /preview/portal/TOKEN
 const previewPortalToken = (path.match(/^\/preview\/portal\/([a-f0-9]+)$/i) || [])[1] || null;
+
+// Landing page da proposta: /lp/TOKEN (experiência completa)
+const lpToken = (path.match(/^\/lp\/([a-f0-9]+)$/i) || [])[1] || null;
 
 // Suporta: ?proposta=TOKEN ou /proposta/TOKEN
 const proposalToken = params.get('proposta')
@@ -108,6 +112,7 @@ function renderRoute() {
     if (isLandingV2)            return <LandingPageV2 />;
     if (isPortfolio)            return <PortfolioPublico />;
     if (apresentacaoToken)      return <PropostaApresentacao token={apresentacaoToken} />;
+    if (lpToken)                return <ProposalLanding token={lpToken} />;
     if (previewPropostaToken)   return <ProposalPublic token={previewPropostaToken} isPreview />;
     if (previewPortalToken)     return <PortalCliente token={previewPortalToken} isPreview />;
     if (proposalToken)          return <ProposalPublic token={proposalToken} />;
