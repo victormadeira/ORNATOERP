@@ -101,6 +101,8 @@ begin
   require_relative 'tools/collision_manager'
   require_relative 'tools/placement_tool'
   require_relative 'tools/neighbor_resolver'
+  require_relative 'tools/ambiente_tool'
+  require_relative 'tools/edit_tool'
   TOOLS_LOADED = true
 rescue LoadError => e
   puts "Ornato: Ferramentas interativas nao disponiveis (#{e.message})"
@@ -185,6 +187,11 @@ module Ornato
       menu.add_item('Agregar...') { show_dialog('agregador') }
       menu.add_item('Acabamentos...') { show_dialog('acabamentos') }
       menu.add_separator
+      if TOOLS_LOADED
+        menu.add_item('Desenhar Sala (Ambiente)') { show_ambiente_tool }
+        menu.add_item('Editar Modulo Selecionado') { edit_selected_module }
+        menu.add_separator
+      end
       menu.add_item('Analisar Modelo') { analyze_model }
       menu.add_item('Resolver Adjacencias') { resolve_neighbors } if TOOLS_LOADED
       menu.add_item('Processar Modelo Inteiro') { process_all_modules }
@@ -260,6 +267,18 @@ module Ornato
       toolbar.add_item(cmd_export)
 
       if TOOLS_LOADED
+        cmd_ambiente = ::UI::Command.new('Sala') { show_ambiente_tool }
+        cmd_ambiente.tooltip = 'Desenhar sala / ambiente (paredes automaticas)'
+        cmd_ambiente.small_icon = File.join(PLUGIN_DIR, 'icons', 'analyze_16.png')
+        cmd_ambiente.large_icon = File.join(PLUGIN_DIR, 'icons', 'analyze_24.png')
+        toolbar.add_item(cmd_ambiente)
+
+        cmd_edit_mod = ::UI::Command.new('Editar') { edit_selected_module }
+        cmd_edit_mod.tooltip = 'Editar modulo Ornato selecionado'
+        cmd_edit_mod.small_icon = File.join(PLUGIN_DIR, 'icons', 'process_16.png')
+        cmd_edit_mod.large_icon = File.join(PLUGIN_DIR, 'icons', 'process_24.png')
+        toolbar.add_item(cmd_edit_mod)
+
         cmd_add_hole = ::UI::Command.new('Furo') { activate_hole_tool }
         cmd_add_hole.tooltip = 'Adicionar furo manualmente'
         cmd_add_hole.small_icon = File.join(PLUGIN_DIR, 'icons', 'process_16.png')
@@ -714,6 +733,37 @@ module Ornato
     def self.activate_hole_edit_tool
       return unless TOOLS_LOADED
       Sketchup.active_model.select_tool(Tools::HoleEditTool.new)
+    end
+
+    # ─── Ambiente (Room Builder) ────────────────────
+    def self.show_ambiente_tool(wall_height: 2700.0)
+      return unless TOOLS_LOADED
+      ctrl = dialog_controller
+      tool = Tools::AmbienteTool.new(ctrl.main_panel_visible? ? ctrl : nil, wall_height: wall_height)
+      Sketchup.active_model.select_tool(tool)
+      Sketchup.status_text = 'Ornato: Clique para definir os cantos da sala | ESC=cancelar'
+    end
+
+    # ─── Edit selected Ornato module ────────────────
+    def self.edit_selected_module
+      return unless TOOLS_LOADED
+
+      model = Sketchup.active_model
+      sel = model.selection.first
+      unless sel && (sel.is_a?(Sketchup::Group) || sel.is_a?(Sketchup::ComponentInstance))
+        ::UI.messagebox('Selecione um modulo Ornato antes de editar.')
+        return
+      end
+
+      has_ornato = sel.get_attribute('Ornato', 'module_type') || sel.get_attribute('Ornato', 'params')
+      unless has_ornato
+        ::UI.messagebox('O grupo selecionado nao e um modulo Ornato.')
+        return
+      end
+
+      ctrl = dialog_controller
+      tool = Tools::EditTool.new(sel, ctrl.main_panel_visible? ? ctrl : nil)
+      model.select_tool(tool)
     end
 
     # NOTE: Construtor, Agregador, Troca, Acabamentos, Sobre

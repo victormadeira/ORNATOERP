@@ -68,6 +68,8 @@ module Ornato
       'tools/collision_manager.rb',
       'tools/placement_tool.rb',
       'tools/neighbor_resolver.rb',
+      'tools/ambiente_tool.rb',
+      'tools/edit_tool.rb',
 
       # Updater (optional)
       'updater/auto_updater.rb',

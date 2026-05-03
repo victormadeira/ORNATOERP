@@ -6,6 +6,7 @@
 # ═══════════════════════════════════════════════════════
 
 require_relative 'module_base'
+require_relative 'json_module_builder'
 require_relative 'modules/armario_base'
 require_relative 'modules/armario_aereo'
 require_relative 'modules/armario_torre'
@@ -48,37 +49,44 @@ module Ornato
       class << self
         # ─── Main Entry Point ─────────────────────────
         # Cria um modulo SketchUp completo a partir do tipo e parametros.
+        # Prioridade: JSON da biblioteca → builders Ruby legados.
         #
-        # @param type [String] chave do MODULE_TYPES (ex: 'armario_base')
-        # @param params [Hash] parametros do modulo (symbol keys)
+        # @param type [String] chave do MODULE_TYPES ou id da biblioteca
+        # @param params [Hash] parametros do modulo (symbol ou string keys)
         # @param position [Array<Float>] posicao [x, y, z] em mm (default [0,0,0])
         # @return [Sketchup::Group] grupo SketchUp criado
         def create_module(type, params, position = [0, 0, 0])
-          type_info = MODULE_TYPES[type.to_s]
-          raise ArgumentError, "Tipo de modulo desconhecido: #{type}" unless type_info
+          str_type  = type.to_s
+          sym_params = symbolize_params(params)
+
+          # ── Prioridade 1: JSON da biblioteca ──────────────────
+          # Tenta encontrar um JSON correspondente ao module_id.
+          # Isso permite adicionar novos módulos só com JSON, sem Ruby.
+          json_group = try_json_builder(str_type, sym_params, position)
+          return json_group if json_group
+
+          # ── Prioridade 2: Builders Ruby legados ───────────────
+          type_info = MODULE_TYPES[str_type]
+          raise ArgumentError, "Tipo de modulo desconhecido: #{str_type}" unless type_info
 
           model = Sketchup.active_model
           model.start_operation("Ornato: Criar #{type_info[:label]}", true)
 
           begin
-            # Criar grupo principal do modulo
             parent_group = model.active_entities.add_group
-            parent_group.name = "#{type_info[:label]} #{params[:largura] || ''}x#{params[:altura] || ''}x#{params[:profundidade] || ''}"
+            parent_group.name = "#{type_info[:label]} #{sym_params[:largura] || ''}x#{sym_params[:altura] || ''}x#{sym_params[:profundidade] || ''}"
 
-            # Posicionar o grupo
             tx = position[0].to_f
             ty = position[1].to_f
             tz = position[2].to_f
             tr = Geom::Transformation.new(Geom::Point3d.new(tx.mm, ty.mm, tz.mm))
             parent_group.transform!(tr)
 
-            # Atributos do modulo
-            parent_group.set_attribute('Ornato', 'module_type', type.to_s)
-            parent_group.set_attribute('Ornato', 'params', JSON.generate(params))
+            parent_group.set_attribute('Ornato', 'module_type', str_type)
+            parent_group.set_attribute('Ornato', 'params', JSON.generate(sym_params))
             parent_group.set_attribute('Ornato', 'created_at', Time.now.iso8601)
 
-            # Instanciar e construir
-            builder = type_info[:klass].new(symbolize_params(params))
+            builder = type_info[:klass].new(sym_params)
             builder.build(parent_group)
 
             model.commit_operation
@@ -90,6 +98,19 @@ module Ornato
             UI.messagebox("Erro ao criar modulo: #{e.message}")
             nil
           end
+        end
+
+        # ─── JSON-first builder ───────────────────────
+        # Procura JSON na biblioteca e usa JsonModuleBuilder.
+        # Retorna nil se não encontrar (permite fallback para Ruby).
+        def try_json_builder(type, params, position)
+          json_def = JsonModuleBuilder.load_definition(type)
+          return nil unless json_def
+
+          JsonModuleBuilder.create_from_json(type, params, position)
+        rescue => e
+          puts "Ornato: JsonModuleBuilder falhou para '#{type}': #{e.message}"
+          nil
         end
 
         # ─── Piece Creation ───────────────────────────

@@ -51,26 +51,28 @@ module Ornato
 
         @position    = nil   # Geom::Point3d — bottom-left-front corner (world)
         @valid       = true  # collision flag
-        @snapping_to = nil   # symbol: :none, :side_right, :side_left, :back, :front, :on_top
-        @snap_ref    = nil   # Geom::Point3d — reference used in snap line draw
-        @adjacent    = nil   # Sketchup::Group we are snapping to
+        @snapping_to = nil   # :none, :side_right, :side_left, :back, :front, :on_top, :wall
+        @snap_ref    = nil   # Geom::Point3d — reference for snap line
+        @adjacent    = nil   # Sketchup::Group snapping to
+        @wall_face   = nil   # Sketchup::Face — wall being snapped to
         @ip          = nil
-        @cm          = nil   # CollisionManager instance (built on activate)
+        @cm          = nil   # CollisionManager (built on activate)
+        @walls       = []    # cached wall faces from AmbienteTool
       end
 
       # ── Tool Interface ────────────────────────────────────────
 
       def activate
         @ip = Sketchup::InputPoint.new
-        # Build collision index once (rebuild on resume to catch model changes)
         @cm = CollisionManager.new
+        @walls = collect_walls
         update_status
         Sketchup.active_model.active_view.invalidate
       end
 
       def resume(view)
-        # Rebuild collision index in case user added/removed modules
         @cm = CollisionManager.new
+        @walls = collect_walls
         update_status
         view.invalidate
       end
@@ -92,26 +94,41 @@ module Ornato
         pt = pick_placement_point(view, x, y, ray)
 
         if pt
-          # 2. Snap to adjacent modules via CollisionManager
-          if @cm
-            snap_result = @cm.best_snap(pt, @w, @d, @h)
-            if snap_result[:type] != :none
-              pt            = snap_result[:pt]
-              @snapping_to  = snap_result[:type]
-              @adjacent     = snap_result[:group]
-              @snap_ref     = snap_result[:group]&.bounds&.center
+          # 2a. Snap to walls (highest priority — Ornato ambiente)
+          wall_snap = snap_to_wall(pt)
+          if wall_snap
+            pt           = wall_snap[:pt]
+            @snapping_to = :wall
+            @snap_ref    = wall_snap[:ref]
+            @wall_face   = wall_snap[:face]
+            @adjacent    = nil
+          else
+            @wall_face = nil
+
+            # 2b. Snap to adjacent modules via CollisionManager
+            if @cm
+              snap_result = @cm.best_snap(pt, @w, @d, @h)
+              if snap_result[:type] != :none
+                pt            = snap_result[:pt]
+                @snapping_to  = snap_result[:type]
+                @adjacent     = snap_result[:group]
+                @snap_ref     = snap_result[:group]&.bounds&.center
+              else
+                @snapping_to = :floor
+                @adjacent    = nil
+                @snap_ref    = nil
+              end
             else
               @snapping_to = :floor
-              @adjacent    = nil
-              @snap_ref    = nil
             end
+          end
 
-            # 3. Collision check via CollisionManager
+          # 3. Collision check
+          if @cm
             query = @cm.query(pt, @w, @d, @h)
             @valid = !query[:collides]
           else
-            @valid       = true
-            @snapping_to = :floor
+            @valid = true
           end
 
           # 4. Snap to 1mm grid
@@ -213,6 +230,107 @@ module Ornato
         end
 
         hit
+      end
+
+      # ── Wall detection & snap ────────────────────────────────
+      # Coleta todas as faces marcadas como Ornato wall no modelo
+
+      def collect_walls
+        walls = []
+        model = Sketchup.active_model
+        return walls unless model
+
+        model.active_entities.each do |e|
+          next unless e.is_a?(Sketchup::Group)
+          next unless e.get_attribute('Ornato', 'type') == 'ambiente'
+          e.entities.each do |sub|
+            next unless sub.is_a?(Sketchup::Face)
+            next unless sub.get_attribute('Ornato', 'type') == 'wall'
+            walls << { face: sub, group: e, transform: e.transformation }
+          end
+        end
+        walls
+      end
+
+      # Tenta snapping a uma parede. Retorna { pt:, ref:, face: } ou nil.
+      # Lógica: se o cursor está a menos de @d (profundidade do módulo)
+      # de uma face de parede, encosta o módulo na parede.
+      WALL_SNAP_DIST = 400.0 # mm — raio de captura de snap a parede
+
+      def snap_to_wall(pt)
+        return nil if @walls.empty?
+
+        best_dist = WALL_SNAP_DIST.mm
+        best = nil
+
+        @walls.each do |wall|
+          face = wall[:face]
+          tr   = wall[:transform]
+
+          # Normal da parede em coordenadas do mundo
+          world_normal = tr * face.normal
+          # Um ponto na face (1º vértice)
+          world_pt_on_face = tr * face.vertices.first.position
+
+          # Distância do cursor ao plano da parede
+          vec = pt - world_pt_on_face
+          dist = vec.dot(world_normal).abs
+
+          next if dist > best_dist
+
+          # Projetar o ponto no plano da parede
+          projected = pt - world_normal.clone.scale(vec.dot(world_normal))
+
+          # Verificar se a projeção está dentro dos limites da face
+          # (bounding box simplificado)
+          face_verts = face.vertices.map { |v| tr * v.position }
+          face_bb = Geom::BoundingBox.new
+          face_verts.each { |v| face_bb.add(v) }
+
+          # O snap ponto é: projeção no plano da parede, Z = 0 (chão)
+          # Posicionamos o módulo encostado na parede
+          # normal aponta para dentro da sala → módulo fica atrás da normal
+
+          # snap_pt: posicionar o módulo com o fundo encostado na parede
+          # O fundo do módulo fica na posição da parede (Y local)
+          # Então: snap_x = projeção.x, snap_y = parede - @d, snap_z = 0
+
+          # Calcular a posição de encosto
+          snap_pt = world_snap_point(pt, world_pt_on_face, world_normal, projected)
+          next unless snap_pt
+
+          dist2 = pt.distance(snap_pt)
+          if dist2 < best_dist
+            best_dist = dist2
+            best = { pt: snap_pt, ref: projected, face: face, normal: world_normal }
+          end
+        end
+
+        best
+      end
+
+      def world_snap_point(cursor_pt, wall_pt, wall_normal, projected)
+        # Encosta o fundo do módulo na parede
+        # O fundo é a face em Y+, portanto recuamos da parede em @d
+        # na direção contrária à normal
+
+        # Posição X: mantemos a posição projetada na parede
+        # Posição Y: a parede menos a profundidade do módulo
+        # Posição Z: 0 (chão)
+
+        # Calcular o vetor de recuo (oposto à normal, projetado no plano XY)
+        recuo = Geom::Vector3d.new(-wall_normal.x, -wall_normal.y, 0)
+        recuo = recuo.normalize rescue return nil
+        recuo = recuo.scale(@d)
+
+        snap = Geom::Point3d.new(
+          projected.x + recuo.x,
+          projected.y + recuo.y,
+          0
+        )
+        snap
+      rescue
+        nil
       end
 
       # ── Collect all Ornato module groups in model ─────────────
@@ -396,12 +514,13 @@ module Ornato
 
       def draw_snap_badge(view, pt)
         label = case @snapping_to
-                when :side_right, :side_left then 'Encostando lateral'
-                when :front, :back           then 'Encostando frente/fundo'
-                when :on_top                 then 'Empilhando sobre modulo'
-                when :align_left             then 'Alinhando esquerda'
-                when :align_right            then 'Alinhando direita'
-                when :surface                then 'Superficie detectada'
+                when :wall                   then '⊟ Encostando na parede'
+                when :side_right, :side_left then '⊞ Encostando lateral'
+                when :front, :back           then '⊡ Frente/fundo'
+                when :on_top                 then '↑ Empilhando'
+                when :align_left             then '← Alinhando esq'
+                when :align_right            then '→ Alinhando dir'
+                when :surface                then '⊠ Superficie'
                 else                              nil
                 end
         return unless label

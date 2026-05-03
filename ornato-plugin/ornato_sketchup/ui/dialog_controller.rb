@@ -86,6 +86,11 @@ module Ornato
         @main_panel && @main_panel.visible?
       end
 
+      # Exposed so Main module can check before passing self as controller
+      def main_panel
+        @main_panel
+      end
+
       # ── New Ornato Design Panel ────────────────────────
       # Floating utility panel with module library, model
       # summary and export — uses main_panel.html
@@ -249,6 +254,78 @@ module Ornato
           rescue => e
             panel_status("Erro de conexao: #{e.message}")
           end
+        end
+
+        # ── AmbienteTool — Desenhar sala ───────────────
+        @main_panel.add_action_callback('create_ambiente') do |_ctx, params_json|
+          begin
+            p = JSON.parse(params_json.to_s, symbolize_names: true)
+          rescue
+            p = {}
+          end
+          wall_height = p[:wall_height].to_f
+          wall_height = 2700.0 if wall_height <= 0
+          if defined?(TOOLS_LOADED) && TOOLS_LOADED
+            tool = Tools::AmbienteTool.new(self, wall_height: wall_height)
+            Sketchup.active_model.select_tool(tool)
+            panel_status("Clique para definir cantos da sala (#{wall_height.to_i}mm altura) | ESC=cancelar")
+          else
+            panel_status('Ferramentas nao carregadas')
+          end
+        end
+
+        # ── EditTool — Editar modulo selecionado ───────
+        @main_panel.add_action_callback('edit_module') do |_ctx, entity_id|
+          model = Sketchup.active_model
+          target = nil
+          if entity_id.to_s.empty?
+            target = model.selection.first
+          else
+            model.active_entities.each do |e|
+              if (e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)) &&
+                  e.entityID.to_s == entity_id.to_s
+                target = e
+                break
+              end
+            end
+          end
+
+          unless target && (target.get_attribute('Ornato', 'module_type') || target.get_attribute('Ornato', 'params'))
+            panel_status('Selecione um modulo Ornato para editar')
+            next
+          end
+
+          if defined?(TOOLS_LOADED) && TOOLS_LOADED
+            tool = Tools::EditTool.new(target, self)
+            model.select_tool(tool)
+            panel_status("Editando: #{target.name} — altere parametros e confirme")
+            # Store current edit tool for apply_edit
+            @current_edit_tool = tool
+          else
+            panel_status('Ferramentas nao carregadas')
+          end
+        end
+
+        # ── apply_edit — Confirmar edicao ─────────────
+        @main_panel.add_action_callback('apply_edit') do |_ctx, new_params_json|
+          unless @current_edit_tool
+            panel_status('Nenhuma edicao ativa')
+            next
+          end
+          begin
+            new_params = JSON.parse(new_params_json.to_s, symbolize_names: false)
+          rescue
+            new_params = {}
+          end
+          result = @current_edit_tool.apply_params(new_params)
+          if result
+            push_model_summary_to_panel
+            panel_status("Modulo atualizado: #{result.name}")
+          else
+            panel_status('Falha ao aplicar edicao')
+          end
+          @current_edit_tool = nil
+          Sketchup.active_model.select_tool(nil)
         end
       end
 
