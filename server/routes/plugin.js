@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { requireAuth } from '../auth.js';
+import db from '../db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -255,5 +256,191 @@ function compareVersions(a, b) {
     }
     return 0;
 }
+
+// ═══════════════════════════════════════════════════════
+// INTEGRAÇÃO PLUGIN ↔ ERP (Design → Orçamento)
+// ═══════════════════════════════════════════════════════
+
+// ─── GET /api/plugin/projeto/:id/info ───────────────────
+// Retorna dados do orçamento/projeto para exibir no plugin
+router.get('/projeto/:id/info', requireAuth, (req, res) => {
+    const orc = db.prepare(
+        `SELECT o.id, o.numero, o.cliente_nome, o.ambiente,
+                o.valor_venda, o.status, o.criado_em,
+                c.telefone as cliente_tel, c.email as cliente_email
+         FROM orcamentos o
+         LEFT JOIN clientes c ON o.cliente_id = c.id
+         WHERE o.id = ?`
+    ).get(req.params.id);
+
+    if (!orc) return res.status(404).json({ error: 'Projeto não encontrado' });
+    res.json({
+        id:           orc.id,
+        numero:       orc.numero,
+        cliente:      orc.cliente_nome,
+        cliente_tel:  orc.cliente_tel,
+        cliente_email: orc.cliente_email,
+        ambiente:     orc.ambiente,
+        valor_atual:  orc.valor_venda,
+        status:       orc.status,
+        criado_em:    orc.criado_em,
+    });
+});
+
+// ─── POST /api/plugin/projeto/init ──────────────────────
+// Inicia sessão de design — plugin envia numero/id do orçamento
+// e recebe dados completos para exibir no painel
+router.post('/projeto/init', requireAuth, (req, res) => {
+    const { orc_id, numero } = req.body;
+
+    let orc;
+    if (orc_id) {
+        orc = db.prepare(`SELECT * FROM orcamentos WHERE id = ?`).get(orc_id);
+    } else if (numero) {
+        orc = db.prepare(`SELECT * FROM orcamentos WHERE numero = ?`).get(numero);
+    }
+
+    if (!orc) {
+        return res.status(404).json({ error: 'Orçamento não encontrado. Informe um número ou ID válido.' });
+    }
+
+    // Parse stored materials/modules from mods_json
+    let ambientes = [];
+    try {
+        const data = JSON.parse(orc.mods_json || '{}');
+        ambientes = data.ambientes || [];
+    } catch (_) {}
+
+    res.json({
+        ok: true,
+        projeto: {
+            id:      orc.id,
+            numero:  orc.numero,
+            cliente: orc.cliente_nome,
+            ambiente: orc.ambiente,
+            status:  orc.status,
+            valor_venda: orc.valor_venda,
+            ambientes_count: ambientes.length,
+        },
+    });
+});
+
+// ─── POST /api/plugin/projeto/:id/bom ───────────────────
+// Push BOM ao vivo — plugin envia lista de peças enquanto o
+// usuário projeta; retorna custo estimado em tempo real
+router.post('/projeto/:id/bom', requireAuth, (req, res) => {
+    const { modulos, pecas, total_pecas, materiais } = req.body;
+    const orc_id = req.params.id;
+
+    // Verifica existência
+    const orc = db.prepare(`SELECT id, mods_json FROM orcamentos WHERE id = ?`).get(orc_id);
+    if (!orc) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    // Calcula custo estimado de material com base no estoque
+    let custo_estimado = 0;
+    const preco_por_peca = [];
+
+    if (Array.isArray(pecas)) {
+        pecas.forEach(p => {
+            // Tenta encontrar material no estoque para precificação
+            const mat = p.material ? db.prepare(
+                `SELECT preco FROM estoque WHERE codigo = ? OR nome LIKE ? LIMIT 1`
+            ).get(p.material, `%${p.material}%`) : null;
+
+            const area_m2 = ((p.largura || 0) * (p.comprimento || p.altura || 0)) / 1_000_000;
+            const preco_unit = mat?.preco || 0;
+            const custo = area_m2 * preco_unit;
+            custo_estimado += custo;
+            preco_por_peca.push({ nome: p.nome, material: p.material, custo: custo.toFixed(2) });
+        });
+    }
+
+    // Salva snapshot do BOM no orçamento (campo plugin_bom)
+    try {
+        db.prepare(
+            `UPDATE orcamentos SET plugin_bom = ?, atualizado_em = datetime('now')
+             WHERE id = ?`
+        ).run(JSON.stringify({ modulos, pecas, total_pecas, materiais, custo_estimado, updated_at: new Date().toISOString() }), orc_id);
+    } catch (_) {
+        // plugin_bom column may not exist yet — ignore gracefully
+    }
+
+    res.json({
+        ok: true,
+        custo_estimado: custo_estimado.toFixed(2),
+        total_pecas: total_pecas || (pecas?.length || 0),
+        preco_por_peca: preco_por_peca.slice(0, 20), // top 20
+    });
+});
+
+// ─── GET /api/plugin/projeto/:id/bom ────────────────────
+// Retorna BOM salvo mais recente para um projeto
+router.get('/projeto/:id/bom', requireAuth, (req, res) => {
+    const orc = db.prepare(`SELECT plugin_bom FROM orcamentos WHERE id = ?`).get(req.params.id);
+    if (!orc) return res.status(404).json({ error: 'Projeto não encontrado' });
+    const bom = orc.plugin_bom ? JSON.parse(orc.plugin_bom) : {};
+    res.json(bom);
+});
+
+// ─── POST /api/plugin/projeto/:id/proposta ──────────────
+// Cria/atualiza proposta a partir do design SketchUp
+// Preenche ambientes + materiais do orçamento com os dados do plugin
+router.post('/projeto/:id/proposta', requireAuth, (req, res) => {
+    const { design_summary, modulos, pecas, imagem_base64 } = req.body;
+    const orc_id = req.params.id;
+
+    const orc = db.prepare(`SELECT * FROM orcamentos WHERE id = ?`).get(orc_id);
+    if (!orc) return res.status(404).json({ error: 'Projeto não encontrado' });
+
+    // Montar novo ambiente do orçamento a partir do design
+    let existingData = {};
+    try { existingData = JSON.parse(orc.mods_json || '{}'); } catch (_) {}
+
+    // Criar ambiente "SketchUp Design" com os módulos
+    const novoAmbiente = {
+        nome: design_summary?.ambiente || 'Design SketchUp',
+        modulos: (modulos || []).map(m => ({
+            id:          m.type || 'generico',
+            nome:        m.label || m.name || m.type,
+            largura:     m.params?.largura || 0,
+            altura:      m.params?.altura || 0,
+            profundidade: m.params?.profundidade || 0,
+            material:    m.params?.material || '',
+            quantidade:  1,
+            preco:       0,
+        })),
+        pecas_total: pecas?.length || 0,
+    };
+
+    // Adicionar ou substituir ambiente SKP
+    const ambientes = (existingData.ambientes || []).filter(a => a.nome !== 'Design SketchUp');
+    ambientes.push(novoAmbiente);
+    existingData.ambientes = ambientes;
+
+    // Atualizar mods_json
+    db.prepare(
+        `UPDATE orcamentos SET mods_json = ?, atualizado_em = datetime('now') WHERE id = ?`
+    ).run(JSON.stringify(existingData), orc_id);
+
+    // URL da proposta no ERP
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const proposta_url = `${protocol}://${host}/proposta/${orc.numero}`;
+
+    res.json({
+        ok: true,
+        orc_id:      orc.id,
+        numero:      orc.numero,
+        proposta_url,
+        ambientes_total: ambientes.length,
+        modulos_inseridos: novoAmbiente.modulos.length,
+    });
+});
+
+// ─── GET /api/plugin/health ─────────────────────────────
+// Ping rápido para testar conectividade
+router.get('/health', (req, res) => {
+    res.json({ ok: true, server: 'Ornato ERP', time: new Date().toISOString() });
+});
 
 export default router;

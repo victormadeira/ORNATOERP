@@ -62,6 +62,9 @@ module Ornato
       'visual/hardware_components.rb',
       'visual/label_overlay.rb',
 
+      # Integration
+      'integration/erp_integrator.rb',
+
       # Tools (optional)
       'tools/hole_tool.rb',
       'tools/hole_edit_tool.rb',

@@ -62,13 +62,16 @@ rescue LoadError => e
   DC_READER_LOADED = false
 end
 
-# ─── Cut Optimizer Integration ───────────────────────
+# ─── ERP + Cut Optimizer Integration ────────────────
 begin
+  require_relative 'integration/erp_integrator'
   require_relative 'integration/cut_optimizer'
-  CUT_OPTIMIZER_LOADED = true
+  ERP_INTEGRATOR_LOADED = true
+  CUT_OPTIMIZER_LOADED  = true
 rescue LoadError => e
-  puts "Ornato: Cut Optimizer nao disponivel (#{e.message})"
-  CUT_OPTIMIZER_LOADED = false
+  puts "Ornato: Integracoes nao disponiveis (#{e.message})"
+  ERP_INTEGRATOR_LOADED = false
+  CUT_OPTIMIZER_LOADED  = false
 end
 
 # ─── Material Catalog ────────────────────────────────

@@ -685,32 +685,61 @@ select option { background: var(--bg-3); }
         </div>
       </div>
 
-      <!-- Destino ERP -->
+      <!-- Vincular projeto ERP -->
       <div class="export-card">
         <div class="export-card-head">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-          Destino
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+          Vincular Projeto ERP
         </div>
         <div class="export-card-body">
-          <div class="field" style="margin-bottom:8px;">
+          <!-- Project info (shown after linking) -->
+          <div id="erpProjectCard" style="display:none;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-size:11px;font-weight:700;color:var(--accent);" id="erpProjNumero">#0001</span>
+              <span style="font-size:10px;color:var(--green);">● vinculado</span>
+            </div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);" id="erpProjCliente">—</div>
+            <div style="font-size:10px;color:var(--text-3);" id="erpProjAmbiente">—</div>
+            <div style="margin-top:8px;display:flex;gap:5px;">
+              <div style="background:var(--bg-4);border-radius:var(--r-xs);padding:4px 8px;flex:1;text-align:center;">
+                <div style="font-size:16px;font-weight:700;color:var(--text);font-family:var(--mono);" id="erpCustoEst">R$—</div>
+                <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;">Custo mat. est.</div>
+              </div>
+              <div style="background:var(--bg-4);border-radius:var(--r-xs);padding:4px 8px;flex:1;text-align:center;">
+                <div style="font-size:16px;font-weight:700;color:var(--text);font-family:var(--mono);" id="erpTotalPecas">—</div>
+                <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;">Peças</div>
+              </div>
+            </div>
+          </div>
+          <!-- Link form -->
+          <div id="erpLinkForm">
+            <div class="field" style="margin-bottom:8px;">
+              <div class="field-label">Nº do orçamento ou ID</div>
+              <div class="erp-url-row">
+                <input type="text" id="erpProjectNum" placeholder="Ex: 2025-001 ou 42" />
+                <button class="btn-sm" onclick="erpInitProject()">Vincular</button>
+              </div>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:8px;margin-top:4px;">
             <div class="field-label">URL do ERP Ornato</div>
             <div class="erp-url-row">
               <input type="text" id="erpUrl" placeholder="https://gestaoornato.com" />
               <button class="btn-sm" onclick="testErp()">Testar</button>
             </div>
           </div>
-          <div class="field">
-            <div class="field-label">Projeto</div>
-            <input type="text" id="projectName" placeholder="Ex: Cozinha Maria Silva" />
-          </div>
         </div>
       </div>
 
       <!-- Botões de exportação -->
       <div class="export-actions">
-        <button class="btn-export primary" onclick="exportToErp()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-          Enviar para o ERP
+        <button class="btn-export primary" id="btnErpBom" onclick="erpPushBom()" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Atualizar BOM no ERP
+        </button>
+        <button class="btn-export primary" id="btnErpProposta" onclick="erpCreateProposal()" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Gerar Proposta no ERP
         </button>
         <button class="btn-export secondary" onclick="exportJson()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -1147,6 +1176,63 @@ window.ornatoStatus = function(text) {
 window.commandCallback = function() {};
 // updateSummary is already defined above — re-export for safety
 window.updateSummary = window.updateSummary || function() {};
+
+/* ── ERP Integration ───────────────────────────────── */
+let _erpProject = null;
+
+function erpInitProject() {
+  const num = document.getElementById('erpProjectNum').value.trim();
+  if (!num) { showToast('Informe o número ou ID do orçamento', 'error'); return; }
+  try {
+    sketchup.erp_init_project(num);
+    addLog('Vinculando projeto ERP: ' + num + '...');
+  } catch(e) {
+    addLog('erp_init_project indisponível: ' + (e.message||e));
+  }
+}
+
+function erpPushBom() {
+  try {
+    sketchup.erp_push_bom();
+    addLog('Enviando BOM para o ERP...');
+  } catch(e) { addLog('erp_push_bom indisponível'); }
+}
+
+function erpCreateProposal() {
+  try {
+    sketchup.erp_create_proposal('');
+    addLog('Gerando proposta no ERP...');
+  } catch(e) { addLog('erp_create_proposal indisponível'); }
+}
+
+// Called by Ruby when project is successfully linked
+window.setErpProject = function(proj) {
+  _erpProject = typeof proj === 'string' ? JSON.parse(proj) : proj;
+  // Update UI
+  document.getElementById('erpProjectCard').style.display = '';
+  document.getElementById('erpProjNumero').textContent  = '#' + (_erpProject.numero || _erpProject.id);
+  document.getElementById('erpProjCliente').textContent = _erpProject.cliente  || '—';
+  document.getElementById('erpProjAmbiente').textContent = _erpProject.ambiente || '—';
+  // Show ERP action buttons
+  document.getElementById('btnErpBom').style.display     = '';
+  document.getElementById('btnErpProposta').style.display = '';
+  showToast('Projeto vinculado: ' + (_erpProject.cliente || _erpProject.numero), 'success');
+};
+
+// Called by Ruby after push_bom
+window.setErpBom = function(data) {
+  data = typeof data === 'string' ? JSON.parse(data) : data;
+  document.getElementById('erpCustoEst').textContent  = 'R$ ' + (parseFloat(data.custo_estimado||0).toFixed(2));
+  document.getElementById('erpTotalPecas').textContent = data.total_pecas || '—';
+  showToast('BOM enviado com sucesso', 'success');
+};
+
+// Called by Ruby after create_proposal
+window.setErpProposal = function(data) {
+  data = typeof data === 'string' ? JSON.parse(data) : data;
+  addLog('Proposta gerada: ' + (data.numero||'') + ' — ' + (data.modulos_inseridos||0) + ' módulos');
+  showToast('Proposta criada no ERP!', 'success');
+};
 
 /* ── Edit Mode ─────────────────────────────────────── */
 // Called by EditTool.push_edit_state_to_panel via Ruby

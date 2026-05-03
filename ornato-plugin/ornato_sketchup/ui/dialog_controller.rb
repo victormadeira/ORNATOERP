@@ -256,6 +256,65 @@ module Ornato
           end
         end
 
+        # ── ERP: vincular projeto ──────────────────────
+        @main_panel.add_action_callback('erp_init_project') do |_ctx, numero_ou_id|
+          unless defined?(ERP_INTEGRATOR_LOADED) && ERP_INTEGRATOR_LOADED
+            panel_status('ERP Integrator nao disponivel')
+            next
+          end
+          erp = Integration::ErpIntegrator.new
+          result = erp.init_project(numero_ou_id.to_s.strip)
+          if result[:ok]
+            @erp_project = result[:projeto]
+            safe_proj = (@erp_project.to_json).gsub('\\', '\\\\\\\\').gsub("'", "\\\\'")
+            send_to_panel("typeof setErpProject==='function'&&setErpProject(#{@erp_project.to_json})")
+            panel_status("Projeto vinculado: #{@erp_project[:numero]} — #{@erp_project[:cliente]}")
+          else
+            panel_status("ERP: #{result[:error] || 'Projeto nao encontrado'}")
+          end
+        end
+
+        # ── ERP: push BOM ao vivo ──────────────────────
+        @main_panel.add_action_callback('erp_push_bom') do |_ctx|
+          unless @erp_project && @erp_project[:id]
+            panel_status('Vincule um projeto ERP antes de enviar o BOM')
+            next
+          end
+          modulos = collect_ornato_groups_from_model
+          erp = Integration::ErpIntegrator.new
+          result = erp.push_bom(@erp_project[:id], modulos)
+          if result[:ok]
+            custo = result[:custo_estimado]
+            total = result[:total_pecas]
+            send_to_panel("typeof setErpBom==='function'&&setErpBom(#{result.to_json})")
+            panel_status("BOM enviado: #{total} pecas | Custo mat. estimado: R$ #{custo}")
+          else
+            panel_status("Erro ao enviar BOM: #{result[:error]}")
+          end
+        end
+
+        # ── ERP: criar proposta a partir do design ─────
+        @main_panel.add_action_callback('erp_create_proposal') do |_ctx, ambiente_nome|
+          unless @erp_project && @erp_project[:id]
+            panel_status('Vincule um projeto ERP antes de gerar a proposta')
+            next
+          end
+          modulos = collect_ornato_groups_from_model
+          erp = Integration::ErpIntegrator.new
+          summary = { ambiente: (ambiente_nome.to_s.empty? ? @erp_project[:ambiente] : ambiente_nome) }
+          result = erp.create_proposal(@erp_project[:id], modulos, summary)
+          if result[:ok]
+            url = result[:proposta_url]
+            send_to_panel("typeof setErpProposal==='function'&&setErpProposal(#{result.to_json})")
+            panel_status("Proposta criada! #{result[:modulos_inseridos]} modulos enviados")
+            begin
+              ::UI.openURL(url) if url && !url.empty?
+            rescue; end
+          else
+            panel_status("Erro ao criar proposta: #{result[:error]}")
+          end
+        end
+
         # ── AmbienteTool — Desenhar sala ───────────────
         @main_panel.add_action_callback('create_ambiente') do |_ctx, params_json|
           begin

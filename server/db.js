@@ -2555,6 +2555,9 @@ const migrations = [
   //   'priorizar_furos': se máquina é centro de furação, prioriza face com furos
   //   'face_a_fixa' / 'face_b_fixa': forçar lado A ou B (alguns operadores preferem)
   "ALTER TABLE cnc_maquinas ADD COLUMN estrategia_face TEXT DEFAULT 'mais_usinagens'",
+
+  // ═══ Plugin SketchUp — BOM ao vivo ═══
+  "ALTER TABLE orcamentos ADD COLUMN plugin_bom TEXT DEFAULT NULL",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══
