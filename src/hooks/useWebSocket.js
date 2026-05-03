@@ -4,7 +4,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const WS_RECONNECT_DELAY = 3000;
+const WS_RECONNECT_BASE_MS = 1000; // 1s base → dobra a cada retry
+const WS_RECONNECT_MAX_MS  = 30000; // teto 30s
 const WS_MAX_RETRIES = 10;
 
 export default function useWebSocket(onMessage) {
@@ -50,8 +51,10 @@ export default function useWebSocket(onMessage) {
                 setConnected(false);
                 wsRef.current = null;
                 if (!unmountedRef.current && retriesRef.current < WS_MAX_RETRIES) {
+                    // Backoff exponencial: 1s → 2s → 4s → 8s → … → 30s (teto)
+                    const delay = Math.min(WS_RECONNECT_MAX_MS, WS_RECONNECT_BASE_MS * 2 ** retriesRef.current);
                     retriesRef.current++;
-                    reconnectTimerRef.current = setTimeout(connect, WS_RECONNECT_DELAY);
+                    reconnectTimerRef.current = setTimeout(connect, delay);
                 }
             };
 

@@ -34,17 +34,28 @@ async function request(method, path, body = null, retries = 1, { signal: externa
     const timeoutMs = getTimeout(path);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    // Se receber signal externo (ex: cancelamento), abortar o controller interno
+    // Se receber signal externo (ex: cancelamento), abortar o controller interno.
+    // Guardamos o handler para removê-lo após a request — sem isso o AbortController
+    // fica referenciado pelo externalSignal até ele ser coletado (memory leak).
+    let externalAbortHandler = null;
     if (externalSignal) {
-        externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+        externalAbortHandler = () => controller.abort();
+        externalSignal.addEventListener('abort', externalAbortHandler, { once: true });
     }
     opts.signal = controller.signal;
+
+    const cleanup = () => {
+        clearTimeout(timeoutId);
+        if (externalAbortHandler && externalSignal) {
+            externalSignal.removeEventListener('abort', externalAbortHandler);
+        }
+    };
 
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             const res = await fetch(`${BASE}${path}`, opts);
-            clearTimeout(timeoutId);
+            cleanup();
             let data;
             try {
                 data = await res.json();
@@ -55,7 +66,7 @@ async function request(method, path, body = null, retries = 1, { signal: externa
             if (!res.ok) throw { status: res.status, ...data };
             return data;
         } catch (err) {
-            clearTimeout(timeoutId);
+            cleanup();
             if (err.name === 'AbortError') {
                 // Se foi cancelamento externo (pelo usuário), propagar como AbortError
                 if (externalSignal && externalSignal.aborted) {
