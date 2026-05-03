@@ -636,9 +636,17 @@ export default function LandingPageV2() {
                 </div>
 
                 {(heroVideo || heroImage) && (
-                    <div className="lp-hero-media-wrap">
+                    <div className={`lp-hero-media-wrap${heroVideo ? ' lp-hero-media-wrap--video' : ''}`}>
                         {heroVideo?.type === 'youtube' ? (
-                            <iframe title="Vídeo" src={heroVideo.src} className="lp-hero-media" allow="autoplay; encrypted-media" allowFullScreen />
+                            <iframe
+                                title="Vídeo institucional"
+                                src={heroVideo.src}
+                                className="lp-hero-media"
+                                allow="autoplay; encrypted-media"
+                                style={{ pointerEvents: 'none' }}
+                                tabIndex={-1}
+                                aria-hidden="true"
+                            />
                         ) : heroVideo?.type === 'direct' ? (
                             <video src={heroVideo.src} poster={heroPoster} className="lp-hero-media" autoPlay muted loop playsInline />
                         ) : heroImage ? (
@@ -1326,7 +1334,10 @@ function buildCSS(acc) {
 .lp-aura-3 { top:35%; left:25%; width:45vw !important; height:45vw !important; animation:liquidMove3 25s infinite alternate-reverse ease-in-out; opacity:0.14 !important; }
 
 .lp-hero-media-wrap { position:absolute; inset:0; z-index:0; }
+/* Overlay para imagem: claro e denso (auras aparecem, conteúdo legível sobre fundo branco) */
 .lp-hero-media-wrap::after { content:''; position:absolute; inset:0; background:rgba(250,247,242,0.85); z-index:1; }
+/* Overlay para vídeo: escuro e semi-transparente (vídeo visível, texto legível) */
+.lp-hero-media-wrap--video::after { background:rgba(16,12,10,0.52); }
 .lp-hero-media { width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
 
 /* ── GLASS NAV ── */
