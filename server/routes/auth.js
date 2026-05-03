@@ -11,7 +11,7 @@ const router = Router();
 // ═══════════════════════════════════════════════════════
 // Hash "fantasma" usado quando o email não existe — evita timing attack
 // (sem isso, login de email inexistente retorna em 0ms, email existente em 70ms+).
-const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-resistance', 10);
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing-resistance', 12);
 
 router.post('/login', async (req, res) => {
     const { email, senha } = req.body;

@@ -3010,9 +3010,9 @@ if (!empExists) {
 const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@admin.com');
 if (!adminExists) {
   const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
-  const hash = bcrypt.hashSync(adminPass, 10);
+  const hash = bcrypt.hashSync(adminPass, 12);
   db.prepare('INSERT INTO users (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)').run('Administrador', 'admin@admin.com', hash, 'admin');
-  if (adminPass === 'admin123') console.log('⚠️  Admin criado com senha padrão. Defina ADMIN_PASSWORD em produção!');
+  if (adminPass === 'admin123') console.warn('[SEGURANÇA] Admin criado com senha padrão "admin123". Defina ADMIN_PASSWORD no ambiente de produção!');
   else console.log('✓ Admin criado: admin@admin.com (senha via env)');
 }
 

@@ -9358,6 +9358,8 @@ router.get('/export/:loteId/json', requireAuth, (req, res) => {
 
 router.get('/export/:loteId/resumo', requireAuth, (req, res) => {
     try {
+        const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
         const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
         if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
         if (!lote.plano_json) return res.status(400).json({ error: 'Lote sem plano' });
@@ -9379,7 +9381,7 @@ router.get('/export/:loteId/resumo', requireAuth, (req, res) => {
 
         const matRows = Object.values(matMap).map(m => `
             <tr>
-                <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb">${m.nome}</td>
+                <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb">${esc(m.nome)}</td>
                 <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${m.count}</td>
                 <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${m.count > 0 ? (m.sumAprov / m.count).toFixed(1) : 0}%</td>
                 <td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${m.preco.toFixed(2)}</td>
@@ -9387,7 +9389,7 @@ router.get('/export/:loteId/resumo', requireAuth, (req, res) => {
         `).join('');
 
         const html = `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="utf-8"><title>Resumo — ${lote.nome || 'Plano'}</title>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Resumo — ${esc(lote.nome) || 'Plano'}</title>
 <style>
     body{font-family:Inter,system-ui,sans-serif;padding:40px;max-width:900px;margin:0 auto;color:#1f2937}
     h1{font-size:22px;margin-bottom:4px}
@@ -9401,7 +9403,7 @@ router.get('/export/:loteId/resumo', requireAuth, (req, res) => {
     @media print{body{padding:20px}.grid{grid-template-columns:repeat(4,1fr)}}
 </style></head><body>
     <h1>Resumo do Plano de Corte</h1>
-    <div class="sub">${lote.nome || ''} ${lote.cliente ? '— ' + lote.cliente : ''} ${lote.projeto ? '— ' + lote.projeto : ''} — ${new Date().toLocaleDateString('pt-BR')}</div>
+    <div class="sub">${esc(lote.nome) || ''} ${lote.cliente ? '— ' + esc(lote.cliente) : ''} ${lote.projeto ? '— ' + esc(lote.projeto) : ''} — ${new Date().toLocaleDateString('pt-BR')}</div>
     <div class="grid">
         <div class="card"><div class="num">${totalChapas}</div><div class="lb">Chapas</div></div>
         <div class="card"><div class="num">${totalPecas}</div><div class="lb">Peças</div></div>

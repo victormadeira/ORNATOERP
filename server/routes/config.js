@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { timingSafeEqual } from 'crypto';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { backupToDrive, listBackups } from '../services/backup.js';
@@ -359,7 +360,9 @@ router.get('/n8n', (req, res) => {
     if (!expectedToken) {
         return res.status(503).json({ error: 'Integração n8n não configurada. Defina o Webhook Token nas configurações do sistema.' });
     }
-    if (!receivedToken || receivedToken !== expectedToken) {
+    const a = Buffer.from(receivedToken || '');
+    const b = Buffer.from(expectedToken || '');
+    if (!receivedToken || a.length !== b.length || !timingSafeEqual(a, b)) {
         // Log de tentativa de acesso inválido (sem revelar o token esperado)
         console.warn(`[SEC] /api/config/n8n — token inválido de ${req.ip}`);
         return res.status(401).json({ error: 'Token inválido' });

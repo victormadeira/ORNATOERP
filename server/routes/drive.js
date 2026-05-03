@@ -7,6 +7,9 @@ import { fileURLToPath } from 'url';
 import * as gdrive from '../services/gdrive.js';
 import multer from 'multer';
 
+// Escapa HTML para evitar XSS em respostas HTML geradas server-side
+const escapeHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
@@ -20,7 +23,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX
 
 // ── Upload: extensões permitidas e limite de tamanho ─────────────────────────
 const ALLOWED_EXTENSIONS = new Set([
-    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp',
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt',
     '.dxf', '.dwg', '.step', '.stp', '.stl', '.3dm',
     '.zip', '.rar', '.7z',
@@ -87,7 +90,7 @@ router.post('/auth-callback', requireAuth, async (req, res) => {
 router.get('/callback', async (req, res) => {
     const { code, error } = req.query;
     if (error) {
-        return res.send(`<html><body><h2>Erro na autorizacao</h2><p>${error}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`);
+        return res.send(`<html><body><h2>Erro na autorizacao</h2><p>${escapeHtml(error)}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`);
     }
     if (!code) {
         return res.status(400).send('<html><body><h2>Codigo nao recebido</h2></body></html>');
@@ -106,7 +109,7 @@ router.get('/callback', async (req, res) => {
             <div style="text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
                 <div style="font-size:48px;margin-bottom:16px">&#10060;</div>
                 <h2 style="color:#ef4444;margin:0 0 8px">Erro</h2>
-                <p style="color:#666">${err.message}</p>
+                <p style="color:#666">${escapeHtml(err.message)}</p>
             </div></div></body></html>`);
     }
 });
