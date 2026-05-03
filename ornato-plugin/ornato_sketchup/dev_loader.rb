@@ -65,6 +65,9 @@ module Ornato
       # Tools (optional)
       'tools/hole_tool.rb',
       'tools/hole_edit_tool.rb',
+      'tools/collision_manager.rb',
+      'tools/placement_tool.rb',
+      'tools/neighbor_resolver.rb',
 
       # Updater (optional)
       'updater/auto_updater.rb',
