@@ -9,6 +9,7 @@ import LoginPage from './pages/Login';
 import Dash from './pages/Dash';
 import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
+import OnboardingWizard, { shouldShowOnboarding } from './components/OnboardingWizard';
 
 // ── Code splitting: lazy load de paginas pesadas ──────────────────────────
 const Cli = lazy(() => import('./pages/Cli'));
@@ -159,6 +160,7 @@ export default function App() {
     const [clis, setClis] = useState([]);
     const [orcs, setOrcs] = useState([]);
     const [taxas, setTaxas] = useState({ imp: 8, com: 10, mont: 12, lucro: 20, frete: 2, mdo: 350, inst: 180 });
+    const [showOnboarding, setShowOnboarding] = useState(false);
     const [editOrc, setEditOrc] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
@@ -354,6 +356,9 @@ export default function App() {
     }, [user]);
 
     useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadNotifs, loadWaUnread, loadEmpresa]);
+
+    // Onboarding: mostrar para gerentes na primeira vez
+    useEffect(() => { if (user && shouldShowOnboarding(user)) setShowOnboarding(true); }, [user]);
 
     useEffect(() => {
         if (!user) return;
@@ -925,6 +930,15 @@ export default function App() {
 
             {/* Modal de Perfil */}
             {showPerfil && <PerfilModal user={user} onClose={() => setShowPerfil(false)} notify={notify} updateUser={updateUser} />}
+
+            {/* Onboarding Wizard — primeira vez */}
+            {showOnboarding && (
+                <OnboardingWizard
+                    onClose={() => setShowOnboarding(false)}
+                    notify={notify}
+                    taxas={taxas}
+                />
+            )}
         </div>
     );
 }

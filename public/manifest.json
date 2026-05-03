@@ -1,13 +1,40 @@
 {
   "name": "Ornato ERP",
   "short_name": "Ornato",
-  "description": "Sistema de gestão para marcenaria",
+  "description": "Sistema de gestão para marcenaria — orçamentos, produção e expedição",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0f172a",
   "theme_color": "#1379F0",
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Modo Operador CNC",
+      "short_name": "Operador",
+      "description": "Interface touch para operadores de CNC",
+      "url": "/operador-cnc",
+      "icons": [{ "src": "/simbolo-ornato.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "TV Corte CNC",
+      "short_name": "TV CNC",
+      "description": "Painel de fila de corte para TV",
+      "url": "/tv-corte",
+      "icons": [{ "src": "/simbolo-ornato.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Expedição",
+      "short_name": "Expedição",
+      "description": "Scanner de expedição",
+      "url": "/?pg=expedicao",
+      "icons": [{ "src": "/simbolo-ornato.png", "sizes": "96x96" }]
+    }
   ]
 }
