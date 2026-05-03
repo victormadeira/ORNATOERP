@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { randomBytes } from 'crypto';
 import db from '../db.js';
 
 // ═══════════════════════════════════════════════════════
@@ -6,6 +7,10 @@ import db from '../db.js';
 // ═══════════════════════════════════════════════════════
 
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
+
+// ─── CSRF State Map (OAuth2) ─────────────────────────
+// Armazena states pendentes com TTL de 10 minutos para prevenir CSRF no callback.
+const _pendingStates = new Map(); // state hex → expiry ms
 
 function getRedirectUri() {
     const host = process.env.PUBLIC_URL || 'https://gestaoornato.com';
@@ -38,12 +43,29 @@ export function getAuthUrl() {
     const cfg = getConfig();
     if (!cfg.gdrive_client_id || !cfg.gdrive_client_secret) return null;
 
+    // Gerar state CSRF — uso único, expira em 10 min
+    const now = Date.now();
+    for (const [k, exp] of _pendingStates) { if (exp < now) _pendingStates.delete(k); }
+    const state = randomBytes(16).toString('hex');
+    _pendingStates.set(state, now + 10 * 60 * 1000);
+
     const oauth2 = new google.auth.OAuth2(cfg.gdrive_client_id, cfg.gdrive_client_secret, getRedirectUri());
     return oauth2.generateAuthUrl({
         access_type: 'offline',
         prompt: 'consent',
         scope: SCOPES,
+        state,
     });
+}
+
+// ─── validateState ───────────────────────────────────
+/** Valida e consome o state CSRF recebido no callback OAuth. Retorna true se válido. */
+export function validateState(state) {
+    if (!state) return false;
+    const exp = _pendingStates.get(state);
+    if (!exp || exp < Date.now()) return false;
+    _pendingStates.delete(state); // uso único
+    return true;
 }
 
 // ─── exchangeCode ────────────────────────────────────

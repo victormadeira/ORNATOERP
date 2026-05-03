@@ -271,7 +271,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         responsavel_legal_cpf !== undefined ? responsavel_legal_cpf : '',
         assinatura_empresa_img !== undefined ? assinatura_empresa_img : '',
         portal_mostrar_pagamento ?? 0,
-        clarity_project_id !== undefined ? clarity_project_id : 'wed7zy3qnz',
+        clarity_project_id !== undefined ? clarity_project_id : '',
         fb_pixel_id !== undefined ? fb_pixel_id : '',
         google_ads_id !== undefined ? google_ads_id : '',
         fb_access_token_s !== undefined ? fb_access_token_s : '',

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import fs from 'fs';
@@ -16,6 +17,15 @@ const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
+
+// Rate limiter para endpoint público do portal (L3)
+const portalLimiter = rateLimit({
+    windowMs: 60_000,       // 1 minuto
+    max: 60,                // max 60 requisições por IP por minuto
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Muitas requisições. Tente novamente em breve.' },
+});
 
 // ── Multer config para upload multipart ──────────────────────────────────────
 const MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100 MB
@@ -88,7 +98,13 @@ router.post('/auth-callback', requireAuth, async (req, res) => {
 // GET /api/drive/callback — OAuth redirect do Google
 // ═══════════════════════════════════════════════════
 router.get('/callback', async (req, res) => {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
+
+    // Valida state CSRF — previne ataques de code injection via redirect forjado (M2)
+    if (!gdrive.validateState(state)) {
+        return res.status(400).send('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f4f8"><div style="text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1)"><h2 style="color:#ef4444">Requisição inválida</h2><p style="color:#666">State CSRF inválido ou expirado. Inicie o processo de autorização novamente.</p></div></body></html>');
+    }
+
     if (error) {
         return res.send(`<html><body><h2>Erro na autorizacao</h2><p>${escapeHtml(error)}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`);
     }
@@ -304,7 +320,10 @@ router.get('/arquivo/:projeto_id/montador/:filename', async (req, res) => {
             }
         }
 
-        // Local fallback
+        // Local fallback — exige registro no banco (L2: evita enumerar ficheiros sem auth)
+        const fotoLocal = foto || db.prepare('SELECT id FROM montador_fotos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
+        if (!fotoLocal) return res.status(404).json({ error: 'Arquivo não encontrado' });
+
         const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'montador', filename);
         const resolved = path.resolve(filePath);
         if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
@@ -344,6 +363,10 @@ router.get('/arquivo/:projeto_id/entrega/:filename', async (req, res) => {
             }
         }
 
+        // Local fallback — exige registro no banco (L2: evita enumerar ficheiros sem auth)
+        const fotoLocal = foto || db.prepare('SELECT id FROM entrega_fotos WHERE projeto_id = ? AND filename = ?').get(projeto_id, filename);
+        if (!fotoLocal) return res.status(404).json({ error: 'Arquivo não encontrado' });
+
         const filePath = path.join(UPLOADS_DIR, `projeto_${projeto_id}`, 'entrega', filename);
         const resolved = path.resolve(filePath);
         if (!resolved.startsWith(path.resolve(UPLOADS_DIR))) return res.status(403).json({ error: 'Acesso negado' });
@@ -362,7 +385,7 @@ router.get('/arquivo/:projeto_id/entrega/:filename', async (req, res) => {
 // GET /api/drive/arquivo-portal/:projeto_id/:filename — servir arquivo público (portal)
 // Só serve arquivos com visivel_portal = 1
 // ═══════════════════════════════════════════════════
-router.get('/arquivo-portal/:projeto_id/:filename', async (req, res) => {
+router.get('/arquivo-portal/:projeto_id/:filename', portalLimiter, async (req, res) => {
     try {
         const projeto_id = String(req.params.projeto_id).replace(/[^a-zA-Z0-9_-]/g, '');
         const filename = path.basename(decodeURIComponent(req.params.filename));
