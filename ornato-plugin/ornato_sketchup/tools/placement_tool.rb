@@ -297,6 +297,20 @@ module Ornato
           Sketchup.active_model.selection.clear
           Sketchup.active_model.selection.add(group)
 
+          # Resolve adjacency with neighboring modules
+          begin
+            adjacencies = NeighborResolver.resolve_for(group)
+            if adjacencies.any?
+              adj_count = adjacencies.length
+              suppressed = adjacencies.count { |a| a[:suppress_lateral] }
+              status_parts = ["#{adj_count} adjacência(s) detectada(s)"]
+              status_parts << "#{suppressed} lateral(is) compartilhada(s)" if suppressed > 0
+              Sketchup.status_text = "Ornato: #{status_parts.join(' · ')}"
+            end
+          rescue => e
+            puts "Ornato PlacementTool: NeighborResolver error: #{e.message}"
+          end
+
           # Notify the panel
           if @controller&.respond_to?(:panel_status)
             label = Library::ParametricEngine::MODULE_TYPES[@type]&.dig(:label) || @type

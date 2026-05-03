@@ -99,6 +99,7 @@ begin
   require_relative 'tools/hole_tool'
   require_relative 'tools/hole_edit_tool'
   require_relative 'tools/placement_tool'
+  require_relative 'tools/neighbor_resolver'
   TOOLS_LOADED = true
 rescue LoadError => e
   puts "Ornato: Ferramentas interativas nao disponiveis (#{e.message})"
@@ -184,6 +185,7 @@ module Ornato
       menu.add_item('Acabamentos...') { show_dialog('acabamentos') }
       menu.add_separator
       menu.add_item('Analisar Modelo') { analyze_model }
+      menu.add_item('Resolver Adjacencias') { resolve_neighbors } if TOOLS_LOADED
       menu.add_item('Processar Modelo Inteiro') { process_all_modules }
       menu.add_item('Processar Modulo Selecionado') { process_selected_module }
       menu.add_separator
@@ -324,6 +326,32 @@ module Ornato
     end
 
     # ─── Core Actions ───────────────────────────────
+    def self.resolve_neighbors
+      return unless TOOLS_LOADED
+
+      adjacencies = Tools::NeighborResolver.resolve_all
+
+      if adjacencies.empty?
+        ::UI.messagebox("Nenhuma adjacencia encontrada.\n\nCertifique-se de que os modulos estao encostados.")
+      else
+        suppressed = adjacencies.count { |a| a[:suppress_lateral] }
+        total_minifix = adjacencies.sum { |a| a[:minifix_positions].length }
+
+        msg  = "Adjacencias resolvidas!\n\n"
+        msg += "#{adjacencies.length} par(es) de modulos adjacentes\n"
+        msg += "#{suppressed} lateral(is) compartilhada(s) detectada(s)\n"
+        msg += "#{total_minifix} posicoes de minifix calculadas\n\n"
+
+        adjacencies.each do |adj|
+          side_label = { right: 'direita→esquerda', back: 'fundo→frente' }[adj[:contact_axis] == :x ? :right : :back] || adj[:contact_side].to_s
+          suppress_note = adj[:suppress_lateral] ? ' [lateral suprimida]' : ''
+          msg += "  #{adj[:group_a_name]} ↔ #{adj[:group_b_name]} (#{side_label})#{suppress_note}\n"
+        end
+
+        ::UI.messagebox(msg)
+      end
+    end
+
     def self.analyze_model
       model = Sketchup.active_model
       unless model
