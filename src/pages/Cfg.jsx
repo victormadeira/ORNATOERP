@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Z, Ic } from '../ui';
+import { Z, Ic, ConfirmModal } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
@@ -281,6 +281,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [fuRegras, setFuRegras] = useState([]);
     const [fuForm, setFuForm] = useState({ coluna_id: '', tipo: 'whatsapp', horas_apos: 24, notas: '' });
     const [fuEditId, setFuEditId] = useState(null);
+    const [cfgConfirm, setCfgConfirm] = useState(null); // { msg, onOk }
 
     const loadFollowUps = () => {
         Promise.all([
@@ -409,14 +410,15 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         }
     };
 
-    const excluirTemplate = async (id) => {
-        if (!confirm('Excluir este template?')) return;
-        try {
-            await api.delete(`/templates/${id}`);
-            loadTemplates();
-        } catch (e) {
-            notify(e.error || 'Erro ao excluir');
-        }
+    const excluirTemplate = (id) => {
+        setCfgConfirm({ msg: 'Excluir este template?', onOk: async () => {
+            try {
+                await api.delete(`/templates/${id}`);
+                loadTemplates();
+            } catch (e) {
+                notify(e.error || 'Erro ao excluir');
+            }
+        }});
     };
 
     const baixarExtensao = async () => {
@@ -453,14 +455,15 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         }
     };
 
-    const revogarExtToken = async (id) => {
-        if (!confirm('Revogar este token? A extensão que o usa vai parar de funcionar.')) return;
-        try {
-            await api.delete(`/ext/tokens/${id}`);
-            loadExtTokens();
-        } catch (e) {
-            notify(e.error || 'Erro ao revogar');
-        }
+    const revogarExtToken = (id) => {
+        setCfgConfirm({ msg: 'Revogar este token? A extensão que o usa vai parar de funcionar.', onOk: async () => {
+            try {
+                await api.delete(`/ext/tokens/${id}`);
+                loadExtTokens();
+            } catch (e) {
+                notify(e.error || 'Erro ao revogar');
+            }
+        }});
     };
 
     const salvarEscCfg = async () => {
@@ -781,21 +784,23 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
 
     const resetProspeccaoPrompt = () => {
         if (!prospeccao?.prompt_default) return;
-        if (!confirm('Substituir o prompt de prospecção pelo texto padrão? O texto atual será perdido ao salvar.')) return;
-        setProspeccaoDraft(d => ({ ...d, prompt: prospeccao.prompt_default }));
-        setProspeccaoMode('edit');
+        setCfgConfirm({ msg: 'Substituir o prompt de prospecção pelo texto padrão? O texto atual será perdido ao salvar.', onOk: () => {
+            setProspeccaoDraft(d => ({ ...d, prompt: prospeccao.prompt_default }));
+            setProspeccaoMode('edit');
+        }});
     };
 
-    const resetIaPrompt = async () => {
-        if (!confirm('Restaurar o prompt padrão da Sofia? Seu prompt customizado será apagado.')) return;
-        setIaPromptSaving(true);
-        try {
-            await api.post('/ia/prompt/reset');
-            await loadIaPrompt();
-            setIaPromptMode('view');
-            notify?.('Prompt restaurado para o padrão Sofia v2', 'success');
-        } catch (e) { notify?.('Erro ao restaurar: ' + e.message, 'error'); }
-        setIaPromptSaving(false);
+    const resetIaPrompt = () => {
+        setCfgConfirm({ msg: 'Restaurar o prompt padrão da Sofia? Seu prompt customizado será apagado.', onOk: async () => {
+            setIaPromptSaving(true);
+            try {
+                await api.post('/ia/prompt/reset');
+                await loadIaPrompt();
+                setIaPromptMode('view');
+                notify?.('Prompt restaurado para o padrão Sofia v2', 'success');
+            } catch (e) { notify?.('Erro ao restaurar: ' + e.message, 'error'); }
+            setIaPromptSaving(false);
+        }});
     };
 
     useEffect(() => {
@@ -4415,12 +4420,11 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 <button onClick={() => setPortEdit({ ...p })} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--primary)' }} title="Editar">
                                                     <Pencil size={14} />
                                                 </button>
-                                                <button onClick={async () => {
-                                                    if (!confirm('Remover esta foto do portfolio?')) return;
+                                                <button onClick={() => setCfgConfirm({ msg: 'Remover esta foto do portfolio?', onOk: async () => {
                                                     await api.del(`/portfolio/${p.id}`);
                                                     notify?.('Foto removida');
                                                     loadPortfolio();
-                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--danger)' }} title="Excluir">
+                                                }})} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--danger)' }} title="Excluir">
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
@@ -4570,12 +4574,11 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 <button onClick={() => setDepEdit({ ...dep })} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--primary)' }} title="Editar">
                                                     <Pencil size={14} />
                                                 </button>
-                                                <button onClick={async () => {
-                                                    if (!confirm('Remover este depoimento?')) return;
+                                                <button onClick={() => setCfgConfirm({ msg: 'Remover este depoimento?', onOk: async () => {
                                                     await api.del(`/depoimentos/${dep.id}`);
                                                     notify?.('Depoimento removido');
                                                     loadDepoimentos();
-                                                }} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--danger)' }} title="Excluir">
+                                                }})} className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style={{ color: 'var(--danger)' }} title="Excluir">
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
@@ -4752,14 +4755,13 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             <Pencil size={12} style={{ color: 'var(--text-muted)' }} />
                                         </button>
                                         <button
-                                            onClick={async () => {
-                                                if (!confirm('Excluir esta regra?')) return;
+                                            onClick={() => setCfgConfirm({ msg: 'Excluir esta regra?', onOk: async () => {
                                                 try {
                                                     await api.del(`/follow-ups/regras/${r.id}`);
                                                     loadFollowUps();
                                                     notify?.('Regra removida');
                                                 } catch (e) { notify?.(e?.error || 'Erro'); }
-                                            }}
+                                            }})}
                                             className="p-1.5 rounded hover:bg-[var(--bg-card)]"
                                             title="Excluir"
                                         >
@@ -5344,24 +5346,22 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     type="file"
                                     accept=".json"
                                     className="hidden"
-                                    onChange={async (e) => {
+                                    onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (!file) return;
-                                        if (!confirm(`Tem certeza que deseja importar o backup "${file.name}"?\n\nIsso vai SUBSTITUIR os dados atuais do sistema.`)) {
-                                            e.target.value = '';
-                                            return;
-                                        }
-                                        setBackupLoading(true); setBackupResult(null);
-                                        try {
-                                            const text = await file.text();
-                                            const json = JSON.parse(text);
-                                            const resp = await api.post('/config/backup', json);
-                                            setBackupResult({ ok: true, msg: resp.mensagem || 'Backup importado com sucesso!' });
-                                            if (reload) reload();
-                                        } catch (err) {
-                                            setBackupResult({ ok: false, msg: err.error || err.message || 'Erro ao importar backup' });
-                                        }
-                                        setBackupLoading(false);
+                                        setCfgConfirm({ msg: `Importar o backup "${file.name}"? Os dados atuais serão SUBSTITUÍDOS.`, onOk: async () => {
+                                            setBackupLoading(true); setBackupResult(null);
+                                            try {
+                                                const text = await file.text();
+                                                const json = JSON.parse(text);
+                                                const resp = await api.post('/config/backup', json);
+                                                setBackupResult({ ok: true, msg: resp.mensagem || 'Backup importado com sucesso!' });
+                                                if (reload) reload();
+                                            } catch (err) {
+                                                setBackupResult({ ok: false, msg: err.error || err.message || 'Erro ao importar backup' });
+                                            }
+                                            setBackupLoading(false);
+                                        }});
                                         e.target.value = '';
                                     }}
                                 />
@@ -5497,6 +5497,15 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                         </div>
                     </div>
                 </div>
+            )}
+
+            {cfgConfirm && (
+                <ConfirmModal
+                    title="Confirmar ação"
+                    message={cfgConfirm.msg}
+                    onConfirm={() => { const fn = cfgConfirm.onOk; setCfgConfirm(null); fn(); }}
+                    onCancel={() => setCfgConfirm(null)}
+                />
             )}
         </div>
     );

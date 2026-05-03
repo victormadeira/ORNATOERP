@@ -1150,16 +1150,26 @@ function SecaoNFs({ notify }) {
 // ═══════════════════════════════════════════════════════════════
 // SEÇÃO: FLUXO DE CAIXA
 // ═══════════════════════════════════════════════════════════════
-function SecaoFluxo() {
+function SecaoFluxo({ notify }) {
     const [dados, setDados]     = useState(null);
     const [loading, setLoading] = useState(true);
+    const [erro, setErro]       = useState(false);
 
     useEffect(() => {
-        api.get('/financeiro/fluxo').then(setDados).catch(e => console.error('Erro ao carregar fluxo:', e)).finally(() => setLoading(false));
+        api.get('/financeiro/fluxo')
+            .then(setDados)
+            .catch(() => { setErro(true); notify?.('Erro ao carregar fluxo de caixa', 'error'); })
+            .finally(() => setLoading(false));
     }, []);
 
-    if (loading) return <Spinner text="Carregando..." />;
-    if (!dados) return null;
+    if (loading) return <Spinner text="Carregando fluxo de caixa..." />;
+    if (erro || !dados) return (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            <BarChart2 size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+            <div>Não foi possível carregar o fluxo de caixa.</div>
+            <button className={Z.btn2} style={{ marginTop: 12, fontSize: 12 }} onClick={() => { setErro(false); setLoading(true); api.get('/financeiro/fluxo').then(setDados).catch(() => setErro(true)).finally(() => setLoading(false)); }}>Tentar novamente</button>
+        </div>
+    );
 
     // Montar meses dos últimos 12 meses
     const meses = [];
@@ -1197,9 +1207,19 @@ function SecaoFluxo() {
     const totalSaidas   = rows.reduce((s, r) => s + r.saidas, 0);
     const saldoTotal    = totalEntradas - totalSaidas;
 
+    const semDados = totalEntradas === 0 && totalSaidas === 0;
+
     return (
         <div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Entradas e saídas realizadas nos últimos 12 meses</div>
+
+            {semDados && (
+                <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
+                    <BarChart2 size={28} style={{ opacity: 0.25, marginBottom: 8 }} />
+                    <div>Nenhuma movimentação financeira registrada ainda.</div>
+                    <div style={{ fontSize: 11, marginTop: 4 }}>Registre contas a pagar e a receber para visualizar o fluxo.</div>
+                </div>
+            )}
 
             {/* Cards totais */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 20 }}>
@@ -1611,7 +1631,7 @@ export default function Financeiro({ notify, user, nav }) {
             {secao === 'pagar'   && <SecaoPagar   notify={notify} projetos={projetos} user={user} />}
             {secao === 'receber' && <SecaoReceber  notify={notify} projetos={projetos} user={user} />}
             {secao === 'nfs'     && <SecaoNFs      notify={notify} />}
-            {secao === 'fluxo'   && <SecaoFluxo    />}
+            {secao === 'fluxo'   && <SecaoFluxo    notify={notify} />}
             {secao === 'lixeira' && <SecaoLixeira  notify={notify} />}
         </div>
     );

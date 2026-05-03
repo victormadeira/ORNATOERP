@@ -67,7 +67,12 @@ const GANTT_ERP_STYLES = `
 // ─── Gantt Chart Premium (ERP) ────────────────────────────
 function GanttChart({ etapas, onEdit, zoom = 1 }) {
     const [hoveredIdx, setHoveredIdx] = useState(null);
-    const isMobile = window.innerWidth < 768;
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+    useEffect(() => {
+        const fn = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', fn);
+        return () => window.removeEventListener('resize', fn);
+    }, []);
 
     if (!etapas || etapas.length === 0) return (
         <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>

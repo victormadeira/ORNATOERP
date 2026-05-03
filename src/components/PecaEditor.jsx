@@ -147,9 +147,11 @@ export default function PecaEditor({ peca, loteId, onSave, onClose, materiais = 
     }), [form, workers]);
     const previewPeca = useDebounce(previewPecaRaw, 400);
 
+    const [saveError, setSaveError] = useState('');
     const handleSave = async () => {
         if (!form.comprimento || !form.largura) return;
         setSaving(true);
+        setSaveError('');
         try {
             await onSave({
                 ...form,
@@ -157,6 +159,7 @@ export default function PecaEditor({ peca, loteId, onSave, onClose, materiais = 
             });
         } catch (err) {
             console.error('Erro ao salvar peça:', err);
+            setSaveError(err?.error || err?.message || 'Erro ao salvar peça');
             setSaving(false);
         }
     };
@@ -190,6 +193,9 @@ export default function PecaEditor({ peca, loteId, onSave, onClose, materiais = 
                         )}
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {saveError && (
+                            <span style={{ fontSize: 11, color: 'var(--danger)', maxWidth: 200 }}>{saveError}</span>
+                        )}
                         <button onClick={() => setShow3d(v => !v)} title={show3d ? 'Esconder 3D' : 'Mostrar 3D'}
                             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--text-muted)' }}>
                             {show3d ? <EyeOff size={12} /> : <Eye size={12} />} 3D

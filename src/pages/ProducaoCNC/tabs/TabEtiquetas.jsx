@@ -155,6 +155,51 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
         setTimeout(() => container.remove(), 1000);
     };
 
+    const imprimirTeste = () => {
+        if (etiquetasFiltradas.length === 0) {
+            notify('Nenhuma etiqueta para teste');
+            return;
+        }
+        const styleId = 'etiqueta-print-test-style';
+        let styleEl = document.getElementById(styleId);
+        if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
+        const wMm = usarTemplate && templatePadrao ? (templatePadrao.largura || 100) : (FORMATOS_ETIQUETA[cfg?.formato]?.w || 100);
+        const hMm = usarTemplate && templatePadrao ? (templatePadrao.altura || 70) : (FORMATOS_ETIQUETA[cfg?.formato]?.h || 70);
+        const margem = (usarTemplate && templatePadrao ? templatePadrao.margem_pagina : cfg?.margem_pagina) || 8;
+        styleEl.textContent = `
+            @media print {
+                body * { visibility: hidden !important; }
+                .etiqueta-print-test, .etiqueta-print-test * { visibility: visible !important; }
+                .etiqueta-print-test {
+                    position: absolute !important; left: 0 !important; top: 0 !important;
+                    width: ${wMm}mm !important; height: ${hMm}mm !important;
+                    outline: 0.5mm dashed #ef4444 !important;
+                }
+                .etiqueta-print-test .etiqueta-svg-wrap,
+                .etiqueta-print-test .etiqueta-card-print,
+                .etiqueta-print-test svg {
+                    width: ${wMm}mm !important; height: ${hMm}mm !important;
+                }
+                .no-print { display: none !important; }
+                @page { margin: ${margem}mm !important; size: A4 !important; }
+            }
+        `;
+        const existing = document.getElementById('etiqueta-print-test-container');
+        if (existing) existing.remove();
+        const src = document.querySelector('.etiqueta-svg-wrap, .etiqueta-card-print');
+        if (!src) {
+            notify('Preview da etiqueta ainda não está pronto');
+            return;
+        }
+        const container = document.createElement('div');
+        container.id = 'etiqueta-print-test-container';
+        container.className = 'etiqueta-print-test';
+        container.appendChild(src.cloneNode(true));
+        document.body.appendChild(container);
+        window.print();
+        setTimeout(() => container.remove(), 1000);
+    };
+
     // (impressão e ZPL agora são por chapa — definidos após filtros)
 
     // Filtrar etiquetas
@@ -307,7 +352,11 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                     {/* Barra de ações global */}
                     <div className="no-print" style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         {/* Toggle template vs legacy */}
-                        {templatePadrao && (
+                        {templateLoading ? (
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <RefreshCw size={12} className="animate-spin" /> Carregando template...
+                            </span>
+                        ) : templatePadrao && (
                             <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', padding: '6px 10px', background: 'var(--bg-muted)', borderRadius: 6, border: '1px solid var(--border)' }}>
                                 <input type="checkbox" checked={usarTemplate} onChange={e => setUsarTemplate(e.target.checked)} />
                                 Template personalizado
@@ -328,6 +377,12 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', fontSize: 11, fontWeight: 700,
                                 borderRadius: 6, border: 'none', cursor: 'pointer', background: 'var(--primary)', color: '#fff' }}>
                             <Printer size={13} /> Imprimir Tudo
+                        </button>
+
+                        <button onClick={imprimirTeste}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', fontSize: 11, fontWeight: 700,
+                                borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                            <Printer size={13} /> Teste 1 etiqueta
                         </button>
 
                         {/* Config QR */}

@@ -12,7 +12,7 @@ import {
     Truck, BarChart2, Clock, X, RefreshCw, Award, Circle,
     CheckSquare, Square, Hand, Filter, Search, Check,
 } from 'lucide-react';
-import { SearchableSelect } from '../ui';
+import { SearchableSelect, ConfirmModal } from '../ui';
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
 
@@ -281,6 +281,7 @@ export default function Expedicao() {
     const [dashData, setDashData] = useState(null);
     const [dashPeriodo, setDashPeriodo] = useState('30d');
     const [dashLoading, setDashLoading] = useState(false);
+    const [confirmDesmarcar, setConfirmDesmarcar] = useState(null); // peca obj
 
     const loadDashboard = useCallback((periodo) => {
         setDashLoading(true);
@@ -1635,7 +1636,7 @@ export default function Expedicao() {
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             if (isScanned) {
-                                                                if (confirm(`Desmarcar "${p.descricao || 'peca'}"?`)) handleDesmarcar(p.id);
+                                                                setConfirmDesmarcar(p);
                                                             } else {
                                                                 toggleSelect(p.id);
                                                             }
@@ -2108,6 +2109,15 @@ export default function Expedicao() {
                     }
                 }
             `}</style>
+
+            {confirmDesmarcar && (
+                <ConfirmModal
+                    title="Desmarcar Peça"
+                    message={`Desmarcar "${confirmDesmarcar.descricao || 'peça'}" da expedição?`}
+                    onConfirm={() => { handleDesmarcar(confirmDesmarcar.id); setConfirmDesmarcar(null); }}
+                    onCancel={() => setConfirmDesmarcar(null)}
+                />
+            )}
         </div>
     );
 }

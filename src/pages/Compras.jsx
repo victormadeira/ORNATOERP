@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Z, Ic, Modal, PageHeader, TabBar, EmptyState, Spinner } from '../ui';
+import { Z, Ic, Modal, PageHeader, TabBar, EmptyState, Spinner, ConfirmModal } from '../ui';
 import { R$, N } from '../engine';
 import api from '../api';
 import {
@@ -44,6 +44,7 @@ function TabFornecedores({ notify }) {
     const [editId, setEditId] = useState(null);
     const [form, setForm] = useState({ ...emptyFornecedor });
     const [saving, setSaving] = useState(false);
+    const [confirmDelId, setConfirmDelId] = useState(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -87,8 +88,10 @@ function TabFornecedores({ notify }) {
         } finally { setSaving(false); }
     };
 
-    const del = async (id) => {
-        if (!confirm('Excluir este fornecedor?')) return;
+    const del = (id) => setConfirmDelId(id);
+    const delConfirmado = async () => {
+        const id = confirmDelId;
+        setConfirmDelId(null);
         try {
             await api.del(`/compras/fornecedores/${id}`);
             notify?.('Fornecedor excluido', 'success');
@@ -144,6 +147,15 @@ function TabFornecedores({ notify }) {
                         </tbody>
                     </table>
                 </div>
+            )}
+
+            {confirmDelId && (
+                <ConfirmModal
+                    title="Excluir Fornecedor"
+                    message="Tem certeza que deseja excluir este fornecedor? Esta ação não pode ser desfeita."
+                    onConfirm={delConfirmado}
+                    onCancel={() => setConfirmDelId(null)}
+                />
             )}
 
             {/* Modal Form */}
