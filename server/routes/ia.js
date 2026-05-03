@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import ai, { SOFIA_DEFAULT_PROMPT } from '../services/ai.js';
+import { safeParse } from '../utils/safeParse.js';
 
 const router = Router();
 
@@ -114,7 +115,8 @@ router.get('/base-conhecimento', requireAuth, (req, res) => {
         // ── Montar seção CAIXAS ──
         const caixasPorCat = {};
         for (const cx of caixas) {
-            const d = JSON.parse(cx.json_data);
+            const d = safeParse(cx.json_data, {});
+            if (!d.cat) continue; // registro corrompido — ignora
             if (!caixasPorCat[d.cat]) caixasPorCat[d.cat] = [];
             caixasPorCat[d.cat].push({ nome: d.nome, desc: d.desc, coef: d.coef, dims: (d.dimsAplicaveis || ['L','A','P']).join(',') });
         }
@@ -131,7 +133,8 @@ router.get('/base-conhecimento', requireAuth, (req, res) => {
         // ── Montar seção COMPONENTES ──
         let secaoComps = '| Componente | Descricao | Tem Frente |\n|------------|-----------|------------|\n';
         for (const cp of comps) {
-            const d = JSON.parse(cp.json_data);
+            const d = safeParse(cp.json_data, {});
+            if (!d.nome) continue; // registro corrompido — ignora
             const temFrente = d.frente_externa?.ativa ? 'Sim' : 'Nao';
             secaoComps += `| ${d.nome} | ${d.desc} | ${temFrente} |\n`;
         }
@@ -209,7 +212,7 @@ ${secaoMats}
 ## 5. ESTRUTURA JSON — CAIXA (exemplo)
 
 \`\`\`json
-${exCaixa ? JSON.stringify(JSON.parse(exCaixa.json_data), null, 2) : '{}'}
+${exCaixa ? JSON.stringify(safeParse(exCaixa.json_data, {}), null, 2) : '{}'}
 \`\`\`
 
 ### Campos:
@@ -224,7 +227,7 @@ ${exCaixa ? JSON.stringify(JSON.parse(exCaixa.json_data), null, 2) : '{}'}
 ## 6. ESTRUTURA JSON — COMPONENTE (exemplo)
 
 \`\`\`json
-${exComp ? JSON.stringify(JSON.parse(exComp.json_data), null, 2) : '{}'}
+${exComp ? JSON.stringify(safeParse(exComp.json_data, {}), null, 2) : '{}'}
 \`\`\`
 
 ### Campos:
@@ -489,10 +492,10 @@ Quando voce interpretar um projeto e quiser gerar o orcamento, voce DEVE gerar u
 Os nomes de \`caixa\` e \`componente.nome\` devem ser EXATAMENTE iguais aos nomes do catalogo (case-insensitive). Se o nome nao corresponder, o item sera ignorado e um aviso sera gerado.
 
 #### Nomes de CAIXAS disponiveis:
-${caixas.map(c => `- \`"${JSON.parse(c.json_data).nome}"\``).join('\n')}
+${caixas.map(c => { const d = safeParse(c.json_data, {}); return d.nome ? `- \`"${d.nome}"\`` : null; }).filter(Boolean).join('\n')}
 
 #### Nomes de COMPONENTES disponiveis:
-${comps.map(c => `- \`"${JSON.parse(c.json_data).nome}"\``).join('\n')}
+${comps.map(c => { const d = safeParse(c.json_data, {}); return d.nome ? `- \`"${d.nome}"\`` : null; }).filter(Boolean).join('\n')}
 
 ### Variaveis dos componentes (COMPLETO)
 

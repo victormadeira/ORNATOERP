@@ -8,6 +8,7 @@ import { sendCAPIEvent } from '../services/meta-capi.js';
 import { dispatchOutbound } from '../services/webhook_outbound.js';
 import { sendGadsConversion } from '../services/google-ads.js';
 import { audit } from './gestao-avancada.js';
+import { safeParse } from '../utils/safeParse.js';
 
 const router = Router();
 
@@ -259,7 +260,7 @@ router.post('/importar', requireAuth, (req, res) => {
                     warnings.push(`Caixa "${itemIA.caixa}" não encontrada no catálogo (ambiente: ${amb.nome})`);
                     continue;
                 }
-                const caixaDef = { db_id: cxRow.id, ...JSON.parse(cxRow.json_data) };
+                const caixaDef = { db_id: cxRow.id, ...safeParse(cxRow.json_data, {}) };
                 const dimsAplic = caixaDef.dimsAplicaveis || ['L','A','P'];
 
                 const dims = {
@@ -290,7 +291,7 @@ router.post('/importar', requireAuth, (req, res) => {
                             warnings.push(`Componente "${compIA.nome || compIA.componente}" não encontrado (item: ${item.nome})`);
                             continue;
                         }
-                        const compDef = { db_id: cpRow.id, ...JSON.parse(cpRow.json_data) };
+                        const compDef = { db_id: cpRow.id, ...safeParse(cpRow.json_data, {}) };
 
                         // Montar vars do componente
                         const vars = {};
