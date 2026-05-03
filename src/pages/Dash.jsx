@@ -1503,6 +1503,108 @@ function FollowUpsWidget({ nav, notify }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// EQUIPE TAB — Ranking de vendedores do mês (só gerente/admin)
+// ══════════════════════════════════════════════════════════════════
+function EquipeTab({ equipe }) {
+    if (!equipe || equipe.length === 0) {
+        return (
+            <div className="chart-card-pro animate-fade-up" style={{ textAlign: 'center', padding: 40 }}>
+                <div className="empty-state-icon">
+                    <Users size={28} style={{ color: 'var(--text-muted)' }} />
+                </div>
+                <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>Nenhum vendedor cadastrado</p>
+            </div>
+        );
+    }
+
+    const maxValor = Math.max(...equipe.map(e => e.valor_aprovados), 1);
+
+    return (
+        <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon" style={{ background: 'rgba(19,121,240,0.10)', borderColor: 'rgba(19,121,240,0.25)', color: 'var(--primary)' }}>
+                        <Users size={15} strokeWidth={2.2} />
+                    </span>
+                    <h3>Desempenho da equipe · mês atual</h3>
+                </div>
+                <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>
+                    {equipe.length} colaborador{equipe.length !== 1 ? 'es' : ''}
+                </span>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            {['#', 'Colaborador', 'Orçamentos', 'Aprovados', 'Valor aprovado', 'Conversão', 'Ticket médio', 'Ativos'].map((h, i) => (
+                                <th key={i} style={{
+                                    padding: '10px 14px', textAlign: i < 2 ? 'left' : 'right',
+                                    fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+                                    textTransform: 'uppercase', letterSpacing: '0.07em',
+                                    whiteSpace: 'nowrap',
+                                }}>{h}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {equipe.map((v, idx) => {
+                            const pct = maxValor > 0 ? (v.valor_aprovados / maxValor) * 100 : 0;
+                            const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+                            return (
+                                <tr key={v.id} style={{
+                                    borderBottom: '1px solid var(--border)',
+                                    background: idx === 0 ? 'rgba(19,121,240,0.04)' : undefined,
+                                    transition: 'background 150ms',
+                                }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-muted)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = idx === 0 ? 'rgba(19,121,240,0.04)' : ''; }}
+                                >
+                                    <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text-muted)', width: 32 }}>
+                                        {medal || idx + 1}
+                                    </td>
+                                    <td style={{ padding: '12px 14px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{v.nome}</span>
+                                            <div style={{ width: 120, height: 4, borderRadius: 9999, background: 'var(--border)', overflow: 'hidden' }}>
+                                                <div style={{ height: '100%', width: `${pct}%`, borderRadius: 9999, background: idx === 0 ? 'var(--primary)' : 'var(--success)', transition: 'width 0.6s ease' }} />
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{v.total_orcs}</td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                        <span style={{ color: v.aprovados > 0 ? 'var(--success)' : 'var(--text-muted)', fontWeight: v.aprovados > 0 ? 700 : 400 }}>{v.aprovados}</span>
+                                    </td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                                        {v.valor_aprovados > 0 ? R$(v.valor_aprovados) : '—'}
+                                    </td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                        <span style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 3,
+                                            padding: '2px 8px', borderRadius: 99, fontSize: 11.5, fontWeight: 700,
+                                            background: v.taxa_conversao >= 50 ? 'rgba(159,191,126,0.15)' : v.taxa_conversao >= 25 ? 'rgba(176,120,32,0.15)' : 'rgba(100,116,139,0.12)',
+                                            color: v.taxa_conversao >= 50 ? 'var(--success)' : v.taxa_conversao >= 25 ? 'var(--warning)' : 'var(--text-muted)',
+                                        }}>{v.taxa_conversao}%</span>
+                                    </td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                                        {v.ticket_medio > 0 ? R$(v.ticket_medio) : '—'}
+                                    </td>
+                                    <td style={{ padding: '12px 14px', textAlign: 'right', color: v.ativos > 0 ? 'var(--info)' : 'var(--text-muted)', fontWeight: 600 }}>{v.ativos}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+                * Aprovados e valores referentes ao mês atual. Conversão = aprovados ÷ total de orçamentos criados no mês.
+            </div>
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // DASH — Componente principal
 // ══════════════════════════════════════════════════════════════════
 export default function Dash({ nav, notify, user }) {
@@ -1604,6 +1706,7 @@ export default function Dash({ nav, notify, user }) {
                 tabs={[
                     { id: 'geral', label: 'Visão geral', icon: Activity },
                     ...(!isVendedor ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
+                    ...(!isVendedor && data?.equipe ? [{ id: 'equipe', label: 'Equipe', icon: Users }] : []),
                 ]}
                 active={tab}
                 onChange={setTab}
@@ -1671,6 +1774,10 @@ export default function Dash({ nav, notify, user }) {
                         <button onClick={loadFin} className={`${Z.btn} text-xs`}>Tentar novamente</button>
                     </div>
                 )
+            )}
+
+            {tab === 'equipe' && !isVendedor && (
+                <EquipeTab equipe={data?.equipe} />
             )}
         </div>
     );

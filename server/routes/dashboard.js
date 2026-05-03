@@ -271,6 +271,49 @@ router.get('/', requireAuth, (req, res) => {
             vendedorMetrics.novos_clientes_mes = meusClientes.total;
         }
 
+        // ── Histórico Faturamento (últimos 8 meses) ──────────────────
+        const historico_faturamento = [];
+        for (let i = 7; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const row = db.prepare(`
+                SELECT COALESCE(SUM(o.valor_venda), 0) as total
+                FROM orcamentos o
+                WHERE o.kb_col IN ('ok','prod','done')
+                AND strftime('%Y-%m', o.atualizado_em) = ?
+                ${userFilter}
+            `).get(mes, ...params);
+            historico_faturamento.push(row.total);
+        }
+
+        // ── Equipe — ranking de vendedores (só gerentes/admin) ──────
+        let equipe = null;
+        if (all) {
+            try {
+                const mesIni = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                equipe = db.prepare(`
+                    SELECT u.id, u.nome,
+                           COUNT(o.id) as total_orcs,
+                           COALESCE(SUM(o.valor_venda), 0) as valor_orcs,
+                           COUNT(CASE WHEN o.kb_col IN ('ok','prod','done') THEN 1 END) as aprovados,
+                           COALESCE(SUM(CASE WHEN o.kb_col IN ('ok','prod','done') THEN o.valor_venda ELSE 0 END), 0) as valor_aprovados,
+                           COUNT(CASE WHEN o.kb_col = 'perdido' THEN 1 END) as perdidos,
+                           COUNT(CASE WHEN o.kb_col NOT IN ('done','arquivo','perdido') THEN 1 END) as ativos
+                    FROM users u
+                    LEFT JOIN orcamentos o ON o.user_id = u.id
+                        AND o.tipo != 'aditivo'
+                        AND o.criado_em >= ?
+                    WHERE u.role IN ('admin','gerente','vendedor') AND u.ativo = 1
+                    GROUP BY u.id
+                    ORDER BY valor_aprovados DESC
+                `).all(mesIni).map(r => ({
+                    ...r,
+                    taxa_conversao: r.total_orcs > 0 ? Math.round((r.aprovados / r.total_orcs) * 100) : 0,
+                    ticket_medio: r.aprovados > 0 ? Math.round(r.valor_aprovados / r.aprovados) : 0,
+                }));
+            } catch(e) { /* segurança */ }
+        }
+
         // ── Resumo Produção + Entregas ─────────────────────────────
         let producao_resumo = null;
         try {
@@ -329,6 +372,8 @@ router.get('/', requireAuth, (req, res) => {
             atividades,
             vendedor: Object.keys(vendedorMetrics).length > 0 ? vendedorMetrics : undefined,
             producao_resumo,
+            historico_faturamento,
+            equipe,
         });
 
     } catch (err) {
