@@ -1,7 +1,7 @@
 // Extraído automaticamente de ProducaoCNC.jsx (linhas 12243-12392).
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect, ConfirmModal } from '../../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../../theme';
 import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
@@ -16,6 +16,7 @@ import { STATUS_COLORS } from '../../shared/constants.js';
 export function CfgChapas({ notify }) {
     const [chapas, setChapas] = useState([]);
     const [modal, setModal] = useState(null);
+    const [cncConfirm, setCncConfirm] = useState(null); // { msg, title?, onOk }
     const load = () => api.get('/cnc/chapas').then(setChapas).catch(e => notify(e.error || 'Erro ao carregar chapas'));
     useEffect(() => { load(); }, []);
 
@@ -34,14 +35,15 @@ export function CfgChapas({ notify }) {
     };
 
     const del = async (id) => {
-        if (!confirm('Excluir esta chapa?')) return;
-        try {
-            await api.del(`/cnc/chapas/${id}`);
-            notify('Chapa excluída');
-            load();
-        } catch (err) {
-            notify('Erro ao excluir chapa: ' + (err.message || err.error || ''), 'error');
-        }
+        setCncConfirm({ msg: 'Excluir esta chapa?', onOk: async () => {
+            try {
+                await api.del(`/cnc/chapas/${id}`);
+                notify('Chapa excluída');
+                load();
+            } catch (err) {
+                notify('Erro ao excluir chapa: ' + (err.message || err.error || ''), 'error');
+            }
+        }});
     };
 
     return (
@@ -101,6 +103,12 @@ export function CfgChapas({ notify }) {
             </div>
 
             {modal && <ChapaModal data={modal} onSave={save} onClose={() => setModal(null)} />}
+            {cncConfirm && (
+                <ConfirmModal title={cncConfirm.title || 'Confirmar'}
+                    message={cncConfirm.msg}
+                    onConfirm={() => { const fn = cncConfirm.onOk; setCncConfirm(null); fn(); }}
+                    onCancel={() => setCncConfirm(null)} />
+            )}
         </div>
     );
 }

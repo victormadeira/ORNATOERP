@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react';
-import { Z, Ic, Modal, SearchableSelect, PageHeader } from '../ui';
+import { Z, Ic, Modal, SearchableSelect, PageHeader, ConfirmModal } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, calcCustoHora, calcConsumiveis, estimarCorteReal, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
 import { buildRelatorioHtml } from './RelatorioMateriais';
@@ -1142,6 +1142,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [importJson, setImportJson] = useState('');
     const [importLoading, setImportLoading] = useState(false);
     const [importResult, setImportResult] = useState(null);
+    const [novoConfirm, setNovoConfirm] = useState(null); // { msg, title?, onOk }
 
     // Catálogo e biblioteca do banco
     const [caixas, setCaixas] = useState([]);
@@ -1461,7 +1462,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const removeAmb = id => {
         const amb = ambientes.find(a => a.id === id);
         const nItens = (amb?.itens?.length || 0) + (amb?.paineis?.length || 0) + (amb?.itensEspeciais?.length || 0);
-        if (nItens > 0 && !confirm(`Remover "${amb?.nome || 'Ambiente'}" com ${nItens} item(ns)?`)) return;
+        if (nItens > 0) {
+            setNovoConfirm({ msg: `Remover "${amb?.nome || 'Ambiente'}" com ${nItens} item(ns)?`, onOk: () => setAmbientes(p => p.filter(a => a.id !== id)) });
+            return;
+        }
         setAmbientes(p => p.filter(a => a.id !== id));
     };
 
@@ -3460,8 +3464,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 return (
                                                     <button key={p.label} onClick={() => {
                                                         if (isActive) return;
-                                                        if (!confirm(`Aplicar preset "${p.label}"?\nFabricados: ${p.fab}% · Comprados: ${p.comp}% · Lucro: ${p.lucro}%`)) return;
-                                                        setMargemFab(p.fab); setMargemComp(p.comp); setTaxa('lucro', p.lucro);
+                                                        setNovoConfirm({ msg: `Aplicar preset "${p.label}"?\nFabricados: ${p.fab}% · Comprados: ${p.comp}% · Lucro: ${p.lucro}%`, onOk: () => { setMargemFab(p.fab); setMargemComp(p.comp); setTaxa('lucro', p.lucro); } });
                                                     }}
                                                         className="flex-1 py-1.5 rounded text-[9px] font-bold transition-all"
                                                         style={isActive
@@ -4377,13 +4380,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     </button>
                                 )}
                                 {(doc.status === 'pendente' || doc.status === 'parcial') && (
-                                    <button onClick={async () => {
-                                        if (!confirm('Cancelar esta sessão de assinatura?')) return;
-                                        try {
-                                            await api.post(`/assinaturas/${doc.id}/cancelar`, { motivo: 'Cancelado pelo operador' });
-                                            setAssinaturas(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'cancelado' } : d));
-                                            notify('Sessão cancelada');
-                                        } catch (ex) { notify(ex.error || 'Erro ao cancelar'); }
+                                    <button onClick={() => {
+                                        setNovoConfirm({ msg: 'Cancelar esta sessão de assinatura?', onOk: async () => {
+                                            try {
+                                                await api.post(`/assinaturas/${doc.id}/cancelar`, { motivo: 'Cancelado pelo operador' });
+                                                setAssinaturas(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'cancelado' } : d));
+                                                notify('Sessão cancelada');
+                                            } catch (ex) { notify(ex.error || 'Erro ao cancelar'); }
+                                        } });
                                     }} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: 'var(--danger-hover)', cursor: 'pointer' }}>
                                         <X size={11} /> Cancelar
                                     </button>
@@ -4599,13 +4603,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                             {/* Resetar estatísticas */}
                             <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                <button onClick={async () => {
-                                    if (!confirm('Resetar todas as estatísticas de visualização desta proposta? Esta ação não pode ser desfeita.')) return;
-                                    try {
-                                        await api.del(`/portal/views/${editOrc.id}`);
-                                        setViewsData(v => ({ ...v, total: 0, new_visits: 0, unique_ips: 0, unique_devices: 0, max_tempo: 0, max_scroll: 0, views: [], dispositivos: [], section_resumo: [], lead_score: { score: 0 } }));
-                                        notify('Estatísticas resetadas');
-                                    } catch (ex) { notify(ex.detail || 'Erro ao resetar'); }
+                                <button onClick={() => {
+                                    setNovoConfirm({ msg: 'Resetar todas as estatísticas de visualização desta proposta? Esta ação não pode ser desfeita.', onOk: async () => {
+                                        try {
+                                            await api.del(`/portal/views/${editOrc.id}`);
+                                            setViewsData(v => ({ ...v, total: 0, new_visits: 0, unique_ips: 0, unique_devices: 0, max_tempo: 0, max_scroll: 0, views: [], dispositivos: [], section_resumo: [], lead_score: { score: 0 } }));
+                                            notify('Estatísticas resetadas');
+                                        } catch (ex) { notify(ex.detail || 'Erro ao resetar'); }
+                                    } });
                                 }} className="text-[10px] px-3 py-1.5 rounded flex items-center gap-1.5 cursor-pointer"
                                     style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
                                     onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'var(--danger-border)'; }}
@@ -4991,12 +4996,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 }} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer" style={{ color: 'var(--text-muted)' }} title="Renomear">
                                                     <Settings size={12} />
                                                 </button>
-                                                <button onClick={async (e) => {
+                                                <button onClick={(e) => {
                                                     e.stopPropagation();
-                                                    if (!confirm(`Excluir template "${tpl.nome}"?`)) return;
-                                                    await api.del(`/orcamentos/templates/${tpl.id}`);
-                                                    setAmbTemplates(await api.get('/orcamentos/templates'));
-                                                    notify('Template excluído');
+                                                    setNovoConfirm({ msg: `Excluir template "${tpl.nome}"?`, onOk: async () => {
+                                                        await api.del(`/orcamentos/templates/${tpl.id}`);
+                                                        setAmbTemplates(await api.get('/orcamentos/templates'));
+                                                        notify('Template excluído');
+                                                    } });
                                                 }} className="p-1 rounded hover:bg-red-500/10 cursor-pointer" style={{ color: 'var(--text-muted)' }} title="Excluir">
                                                     <Trash2 size={12} />
                                                 </button>
@@ -5533,6 +5539,15 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         </div>
                     </div>
                 </div>
+            )}
+
+            {novoConfirm && (
+                <ConfirmModal
+                    title={novoConfirm.title || 'Confirmar ação'}
+                    message={novoConfirm.msg}
+                    onConfirm={() => { const fn = novoConfirm.onOk; setNovoConfirm(null); fn(); }}
+                    onCancel={() => setNovoConfirm(null)}
+                />
             )}
         </div>
     );

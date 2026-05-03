@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════
 
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
-import { Z } from '../ui';
+import { Z, ConfirmModal } from '../ui';
 import {
   Tag, Type, Square, BarChart2, Layers, MousePointer, QrCode,
   ArrowLeft, PenTool, Save, Copy, Star, Trash2, Undo2, Redo2,
@@ -662,6 +662,7 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
   const [previewEtiquetas, setPreviewEtiquetas] = useState([]);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [etiqConfirm, setEtiqConfirm] = useState(null);
   const textoInputRef = useRef(null);
 
   const svgRef = useRef(null);
@@ -1162,16 +1163,18 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
     setShowNomeModal(false);
   };
 
-  const excluir = async () => {
-    if (!template || !confirm('Excluir este template?')) return;
-    try {
-      await api.del(`/cnc/etiqueta-templates/${template.id}`);
-      notify?.('Template excluído', 'success');
-      setTemplate(null);
-      setElementos([]);
-      setSelecionado(null);
-      loadTemplates();
-    } catch (e) { notify?.('Erro ao excluir', 'error'); }
+  const excluir = () => {
+    if (!template) return;
+    setEtiqConfirm({ msg: 'Excluir este template?', onOk: async () => {
+      try {
+        await api.del(`/cnc/etiqueta-templates/${template.id}`);
+        notify?.('Template excluído', 'success');
+        setTemplate(null);
+        setElementos([]);
+        setSelecionado(null);
+        loadTemplates();
+      } catch (e) { notify?.('Erro ao excluir', 'error'); }
+    }});
   };
 
   const duplicar = async () => {
@@ -2548,6 +2551,12 @@ export default function EditorEtiquetas({ api, notify, etiquetaConfig, onBack, i
           </div>
         </div>
       </div>
+
+      {etiqConfirm && (
+        <ConfirmModal title="Confirmar" message={etiqConfirm.msg}
+          onConfirm={() => { const fn = etiqConfirm.onOk; setEtiqConfirm(null); fn(); }}
+          onCancel={() => setEtiqConfirm(null)} />
+      )}
 
       {/* ══ Save As Modal ═══════════════════════════════ */}
       {showNomeModal && (

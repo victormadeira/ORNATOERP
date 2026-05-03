@@ -1,7 +1,7 @@
 // Extraído automaticamente de ProducaoCNC.jsx (linhas 13585-13639).
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect, ConfirmModal } from '../../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../../theme';
 import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
@@ -15,14 +15,16 @@ import { STATUS_COLORS } from '../../shared/constants.js';
 
 export function CfgRetalhos({ notify }) {
     const [retalhos, setRetalhos] = useState([]);
+    const [cncConfirm, setCncConfirm] = useState(null); // { msg, title?, onOk }
     const load = () => api.get('/cnc/retalhos').then(setRetalhos).catch(e => notify(e.error || 'Erro ao carregar retalhos'));
     useEffect(() => { load(); }, []);
 
     const del = async (id) => {
-        if (!confirm('Marcar este retalho como indisponível?')) return;
-        await api.del(`/cnc/retalhos/${id}`);
-        notify('Retalho removido');
-        load();
+        setCncConfirm({ msg: 'Marcar este retalho como indisponível?', onOk: async () => {
+            await api.del(`/cnc/retalhos/${id}`);
+            notify('Retalho removido');
+            load();
+        }});
     };
 
     return (
@@ -64,6 +66,12 @@ export function CfgRetalhos({ notify }) {
                         </tbody>
                     </table>
                 </div>
+            )}
+            {cncConfirm && (
+                <ConfirmModal title={cncConfirm.title || 'Confirmar'}
+                    message={cncConfirm.msg}
+                    onConfirm={() => { const fn = cncConfirm.onOk; setCncConfirm(null); fn(); }}
+                    onCancel={() => setCncConfirm(null)} />
             )}
         </div>
     );

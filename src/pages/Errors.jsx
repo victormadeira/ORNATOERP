@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { PageHeader, Modal } from '../ui';
+import { PageHeader, Modal, ConfirmModal } from '../ui';
 import api from '../api';
 import { AlertTriangle, AlertCircle, Bug, RefreshCw, Check, Trash2, X, Filter, Activity } from 'lucide-react';
 
@@ -29,6 +29,7 @@ export default function Errors({ notify }) {
     const [filter, setFilter] = useState({ source: '', resolved: '0', q: '' });
     const [offset, setOffset] = useState(0);
     const [selected, setSelected] = useState(null);
+    const [errConfirm, setErrConfirm] = useState(null);
     const limit = 50;
 
     const load = useCallback(async () => {
@@ -71,27 +72,29 @@ export default function Errors({ notify }) {
         }
     };
 
-    const remove = async (id) => {
-        if (!confirm('Remover este erro do log?')) return;
-        try {
-            await api.del(`/errors/${id}`);
-            setRows(rs => rs.filter(r => r.id !== id));
-            setTotal(t => Math.max(0, t - 1));
-            if (selected?.id === id) setSelected(null);
-        } catch (err) {
-            notify?.('Erro: ' + (err.error || err.message));
-        }
+    const remove = (id) => {
+        setErrConfirm({ msg: 'Remover este erro do log?', onOk: async () => {
+            try {
+                await api.del(`/errors/${id}`);
+                setRows(rs => rs.filter(r => r.id !== id));
+                setTotal(t => Math.max(0, t - 1));
+                if (selected?.id === id) setSelected(null);
+            } catch (err) {
+                notify?.('Erro: ' + (err.error || err.message));
+            }
+        }});
     };
 
-    const purgeOld = async () => {
-        if (!confirm('Remover erros com mais de 30 dias?')) return;
-        try {
-            const r = await api.del('/errors?days=30');
-            notify?.(`${r.deleted} erros removidos`);
-            load();
-        } catch (err) {
-            notify?.('Erro: ' + (err.error || err.message));
-        }
+    const purgeOld = () => {
+        setErrConfirm({ msg: 'Remover erros com mais de 30 dias?', onOk: async () => {
+            try {
+                const r = await api.del('/errors?days=30');
+                notify?.(`${r.deleted} erros removidos`);
+                load();
+            } catch (err) {
+                notify?.('Erro: ' + (err.error || err.message));
+            }
+        }});
     };
 
     return (
@@ -316,6 +319,11 @@ export default function Errors({ notify }) {
                     close={() => setSelected(null)}
                     onChanged={() => load()}
                 />
+            )}
+            {errConfirm && (
+                <ConfirmModal title="Confirmar" message={errConfirm.msg}
+                    onConfirm={() => { const fn = errConfirm.onOk; setErrConfirm(null); fn(); }}
+                    onCancel={() => setErrConfirm(null)} />
             )}
         </div>
     );

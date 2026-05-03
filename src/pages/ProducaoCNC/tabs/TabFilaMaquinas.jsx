@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../api';
-import { Spinner, EmptyState, SectionHeader, Modal } from '../../../ui';
+import { Spinner, EmptyState, SectionHeader, Modal, ConfirmModal } from '../../../ui';
 import {
     Monitor, Play, CheckCircle2, Clock, Trash2, Plus, RefreshCw,
     ArrowUp, ArrowDown, AlertTriangle, Package, Layers, Zap,
@@ -26,6 +26,7 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
     const [addPrioridade, setAddPrioridade] = useState(0);
     const [adding, setAdding] = useState(false);
     const [filterMaquina, setFilterMaquina] = useState(''); // '' = todas
+    const [cncConfirm, setCncConfirm] = useState(null); // { msg, title?, onOk }
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -49,16 +50,21 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
         // P13: confirmação antes de mudanças críticas de status
         const item = fila.find(f => f.id === id);
         const loteLabel = item ? (item.lote_nome || `Lote #${item.lote_id}`) + ` · Chapa ${(item.chapa_idx ?? 0) + 1}` : '';
+        const doUpdate = async () => {
+            try {
+                await api.put(`/cnc/fila-producao/${id}`, { status });
+                setFila(prev => prev.map(f => f.id === id ? { ...f, status } : f));
+                notify(`Status atualizado: ${STATUS_CONFIG[status]?.label || status}`);
+            } catch (err) { notify(err.error || 'Erro ao atualizar status'); }
+        };
         if (status === 'em_producao') {
-            if (!confirm(`Iniciar produção de ${loteLabel}?`)) return;
+            setCncConfirm({ msg: `Iniciar produção de ${loteLabel}?`, onOk: doUpdate });
+            return;
         } else if (status === 'concluido') {
-            if (!confirm(`Marcar como concluída: ${loteLabel}?`)) return;
+            setCncConfirm({ msg: `Marcar como concluída: ${loteLabel}?`, onOk: doUpdate });
+            return;
         }
-        try {
-            await api.put(`/cnc/fila-producao/${id}`, { status });
-            setFila(prev => prev.map(f => f.id === id ? { ...f, status } : f));
-            notify(`Status atualizado: ${STATUS_CONFIG[status]?.label || status}`);
-        } catch (err) { notify(err.error || 'Erro ao atualizar status'); }
+        doUpdate();
     };
 
     const atribuirMaquina = async (id, maquinaId) => {
@@ -75,12 +81,13 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
     };
 
     const remover = async (id) => {
-        if (!confirm('Remover da fila?')) return;
-        try {
-            await api.del(`/cnc/fila-producao/${id}`);
-            setFila(prev => prev.filter(f => f.id !== id));
-            notify('Removido da fila');
-        } catch (err) { notify(err.error || 'Erro ao remover'); }
+        setCncConfirm({ msg: 'Remover da fila?', onOk: async () => {
+            try {
+                await api.del(`/cnc/fila-producao/${id}`);
+                setFila(prev => prev.filter(f => f.id !== id));
+                notify('Removido da fila');
+            } catch (err) { notify(err.error || 'Erro ao remover'); }
+        }});
     };
 
     const adicionarLote = async () => {
@@ -213,6 +220,13 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
                     description="Adicione um lote otimizado à fila para iniciar a produção."
                     action={{ label: 'Adicionar Lote', onClick: () => setAddModal(true) }}
                 />
+            )}
+
+            {cncConfirm && (
+                <ConfirmModal title={cncConfirm.title || 'Confirmar'}
+                    message={cncConfirm.msg}
+                    onConfirm={() => { const fn = cncConfirm.onOk; setCncConfirm(null); fn(); }}
+                    onCancel={() => setCncConfirm(null)} />
             )}
 
             {/* Modal adicionar lote */}

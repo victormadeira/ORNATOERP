@@ -1,7 +1,7 @@
 // Extraído automaticamente de ProducaoCNC.jsx (linhas 1325-2128).
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect, ConfirmModal } from '../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../theme';
 import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../../../components/EditorEtiquetas';
@@ -17,6 +17,8 @@ import { InfoCard } from '../shared/InfoCard.jsx';
 export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpen3DCSG }) {
     const [pecas, setPecas] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [cncConfirm, setCncConfirm] = useState(null); // { msg, title?, onOk }
+    const [espelharConfirm, setEspelharConfirm] = useState(null); // { onConfirm: (espelhar) => void, onCancel: (espelhar) => void }
     const [filtroMat, setFiltroMat] = useState('');
     const [filtroMod, setFiltroMod] = useState('');
     const [busca, setBusca] = useState('');
@@ -170,15 +172,16 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
     };
 
     const handleDeletePeca = async (p) => {
-        if (!confirm(`Excluir peça "${p.descricao || p.upmcode || 'sem nome'}"?`)) return;
-        try {
-            await api.del(`/cnc/pecas/${p.id}`);
-            notify('Peça excluída');
-            if (pecaSel?.id === p.id) setPecaSel(null);
-            load();
-        } catch (e) {
-            notify('Erro ao excluir peça: ' + (e.error || e.message || ''), 'error');
-        }
+        setCncConfirm({ msg: `Excluir peça "${p.descricao || p.upmcode || 'sem nome'}"?`, onOk: async () => {
+            try {
+                await api.del(`/cnc/pecas/${p.id}`);
+                notify('Peça excluída');
+                if (pecaSel?.id === p.id) setPecaSel(null);
+                load();
+            } catch (e) {
+                notify('Erro ao excluir peça: ' + (e.error || e.message || ''), 'error');
+            }
+        }});
     };
 
     const handleDuplicarPeca = async (p) => {
@@ -759,24 +762,27 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
             {templateLib && <MachiningTemplateLibrary notify={notify} onClose={() => setTemplateLib(false)} onApply={(tpl) => {
                 setTemplateLib(false);
                 if (templateApplyTarget) {
-                    // Direct apply — ask for mirror
-                    const espelhar = confirm('Espelhar usinagens? (para peças par esquerda/direita)');
-                    api.post(`/cnc/machining-templates/${tpl.id}/aplicar`, { peca_id: templateApplyTarget.id, espelhar }).then(() => {
-                        notify('Template aplicado com sucesso');
-                        setTemplateApplyTarget(null);
-                        load();
-                    }).catch(err => notify('Erro: ' + (err.error || err.message), 'error'));
+                    const doApply = (espelhar) => {
+                        api.post(`/cnc/machining-templates/${tpl.id}/aplicar`, { peca_id: templateApplyTarget.id, espelhar }).then(() => {
+                            notify('Template aplicado com sucesso');
+                            setTemplateApplyTarget(null);
+                            load();
+                        }).catch(err => notify('Erro: ' + (err.error || err.message), 'error'));
+                    };
+                    setEspelharConfirm({ onConfirm: () => doApply(true), onCancel: () => doApply(false) });
                 }
             }} />}
 
             {/* Apply Template Modal (triggered from piece action button) */}
             {templateApplyTarget && !templateLib && <MachiningTemplateLibrary notify={notify} onClose={() => setTemplateApplyTarget(null)} applyMode pecaTarget={templateApplyTarget} onApply={(tpl) => {
-                const espelhar = confirm('Espelhar usinagens? (para peças par esquerda/direita)');
-                api.post(`/cnc/machining-templates/${tpl.id}/aplicar`, { peca_id: templateApplyTarget.id, espelhar }).then(() => {
-                    notify('Template aplicado com sucesso');
-                    setTemplateApplyTarget(null);
-                    load();
-                }).catch(err => notify('Erro: ' + (err.error || err.message), 'error'));
+                const doApply = (espelhar) => {
+                    api.post(`/cnc/machining-templates/${tpl.id}/aplicar`, { peca_id: templateApplyTarget.id, espelhar }).then(() => {
+                        notify('Template aplicado com sucesso');
+                        setTemplateApplyTarget(null);
+                        load();
+                    }).catch(err => notify('Erro: ' + (err.error || err.message), 'error'));
+                };
+                setEspelharConfirm({ onConfirm: () => doApply(true), onCancel: () => doApply(false) });
             }} />}
 
             {/* Next step — go to optimization */}
@@ -793,6 +799,18 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                         Próxima: Otimizar Plano de Corte <ChevronRight size={16} />
                     </button>
                 </div>
+            )}
+
+            {cncConfirm && (
+                <ConfirmModal title={cncConfirm.title || 'Confirmar'}
+                    message={cncConfirm.msg}
+                    onConfirm={() => { const fn = cncConfirm.onOk; setCncConfirm(null); fn(); }}
+                    onCancel={() => setCncConfirm(null)} />
+            )}
+            {espelharConfirm && (
+                <ConfirmModal title="Espelhar usinagens?" message="Para peças par esquerda/direita"
+                    onConfirm={() => { const fn = espelharConfirm.onConfirm; setEspelharConfirm(null); fn(); }}
+                    onCancel={() => { const fn = espelharConfirm.onCancel; setEspelharConfirm(null); fn(); }} />
             )}
         </div>
     );
@@ -818,11 +836,13 @@ function MachiningTemplateLibrary({ notify, onClose, onApply, applyMode, pecaTar
 
     useEffect(() => { load(); }, [load]);
 
+    const [tmplConfirm, setTmplConfirm] = useState(null); // { msg, title?, onOk }
     const del = async (id) => {
-        if (!confirm('Excluir este template?')) return;
-        await api.del(`/cnc/machining-templates/${id}`);
-        notify('Template excluído');
-        load();
+        setTmplConfirm({ msg: 'Excluir este template?', onOk: async () => {
+            await api.del(`/cnc/machining-templates/${id}`);
+            notify('Template excluído');
+            load();
+        }});
     };
 
     const save = async (data) => {
@@ -900,6 +920,12 @@ function MachiningTemplateLibrary({ notify, onClose, onApply, applyMode, pecaTar
             )}
 
             {modal && <MachiningTemplateModal data={modal} onSave={save} onClose={() => setModal(null)} />}
+            {tmplConfirm && (
+                <ConfirmModal title={tmplConfirm.title || 'Confirmar'}
+                    message={tmplConfirm.msg}
+                    onConfirm={() => { const fn = tmplConfirm.onOk; setTmplConfirm(null); fn(); }}
+                    onCancel={() => setTmplConfirm(null)} />
+            )}
         </Modal>
     );
 }

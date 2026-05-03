@@ -3,7 +3,7 @@ import {
     Clock, ChevronLeft, ChevronRight, Users, Settings, CalendarDays,
     Plus, Trash2, Edit2, X, Save, Search, Download, Check, FileText, Upload
 } from 'lucide-react';
-import { Z, Modal, PageHeader, Spinner, EmptyState } from '../ui';
+import { Z, Modal, PageHeader, Spinner, EmptyState, ConfirmModal } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
 
@@ -778,6 +778,7 @@ export default function Ponto({ notify }) {
     const [showFeriados, setShowFeriados] = useState(false);
     const [showRelatorio, setShowRelatorio] = useState(false);
     const [planilhaFunc, setPlanilhaFunc] = useState(null);
+    const [pontoConfirm, setPontoConfirm] = useState(null);
 
     const mesKey = `${ano}-${String(mes + 1).padStart(2, '0')}`;
     const daysCount = daysIn(ano, mes);
@@ -914,14 +915,15 @@ export default function Ponto({ notify }) {
                         <CalendarDays size={13} /> Feriados
                     </button>
                     <span style={{ width: 1, height: 18, background: 'var(--border)' }} />
-                    <button onClick={async () => {
+                    <button onClick={() => {
                         if (!funcionarios.length) { notify('Cadastre funcionários primeiro'); return; }
-                        if (!confirm(`Preencher ${MESES[mes]}/${ano} com horário padrão para TODOS os ${funcionarios.length} funcionários ativos?\n\nDias já preenchidos NÃO serão sobrescritos.`)) return;
-                        try {
-                            const r = await api.post('/ponto/registros/lote-todos', { mes: mesKey, sobrescrever: false });
-                            notify(`${r.inseridos} registros criados para ${r.funcionarios} funcionários`, 'success');
-                            loadData();
-                        } catch (e) { notify(e.error || 'Erro ao preencher', 'error'); }
+                        setPontoConfirm({ msg: `Preencher ${MESES[mes]}/${ano} com horário padrão para TODOS os ${funcionarios.length} funcionários ativos?\n\nDias já preenchidos NÃO serão sobrescritos.`, onOk: async () => {
+                            try {
+                                const r = await api.post('/ponto/registros/lote-todos', { mes: mesKey, sobrescrever: false });
+                                notify(`${r.inseridos} registros criados para ${r.funcionarios} funcionários`, 'success');
+                                loadData();
+                            } catch (e) { notify(e.error || 'Erro ao preencher', 'error'); }
+                        }});
                     }} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, background: 'var(--accent-gradient)', border: '1px solid var(--accent-bright)', color: '#fff', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(201,169,110,0.25)' }}>
                         <CalendarDays size={13} /> Preencher Mês
                     </button>
@@ -1107,6 +1109,11 @@ export default function Ponto({ notify }) {
             )}
 
             {/* Modals */}
+            {pontoConfirm && (
+                <ConfirmModal title="Confirmar" message={pontoConfirm.msg}
+                    onConfirm={() => { const fn = pontoConfirm.onOk; setPontoConfirm(null); fn(); }}
+                    onCancel={() => setPontoConfirm(null)} />
+            )}
             {planilhaFunc && (
                 <PlanilhaModal
                     funcionario={planilhaFunc}

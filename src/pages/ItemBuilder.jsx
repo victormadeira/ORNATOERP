@@ -824,6 +824,7 @@ export default function ItemBuilder({ notify }) {
     const [loading, setLoading] = useState(false);
     const [busca, setBusca] = useState('');
     const [confirmDel, setConfirmDel] = useState(null);
+    const [itemConfirm, setItemConfirm] = useState(null);
     const [bibItems, setBibItems] = useState([]);
 
     const load = async () => {
@@ -905,17 +906,18 @@ export default function ItemBuilder({ notify }) {
             const invalidos = arr.filter(i => !i.nome);
             if (invalidos.length) return alert(`${invalidos.length} item(ns) sem nome. Todos os itens precisam ter o campo "nome".`);
             const tipoLabel = aba === 'caixas' ? 'caixa(s)' : 'componente(s)';
-            if (!confirm(`Importar ${arr.length} ${tipoLabel}?\nItens existentes não serão alterados.`)) return;
-            let ok = 0, erros = 0;
-            for (const item of arr) {
-                try {
-                    const tipoItem = item.tipo_item || (aba === 'caixas' ? 'caixa' : 'componente');
-                    await api.post('/catalogo', { tipo_item: tipoItem, ...item });
-                    ok++;
-                } catch { erros++; }
-            }
-            await load();
-            notify?.(`Importação concluída: ${ok} de ${arr.length} importados.${erros ? ` ${erros} erro(s).` : ''}`);
+            setItemConfirm({ msg: `Importar ${arr.length} ${tipoLabel}?\nItens existentes não serão alterados.`, onOk: async () => {
+                let ok = 0, erros = 0;
+                for (const item of arr) {
+                    try {
+                        const tipoItem = item.tipo_item || (aba === 'caixas' ? 'caixa' : 'componente');
+                        await api.post('/catalogo', { tipo_item: tipoItem, ...item });
+                        ok++;
+                    } catch { erros++; }
+                }
+                await load();
+                notify?.(`Importação concluída: ${ok} de ${arr.length} importados.${erros ? ` ${erros} erro(s).` : ''}`);
+            }});
         } catch { alert('Erro ao ler arquivo. Verifique se é um JSON válido.'); }
     };
 
@@ -1060,6 +1062,11 @@ export default function ItemBuilder({ notify }) {
                     onConfirm={() => { handleDelete(confirmDel.id); setConfirmDel(null); }}
                     onCancel={() => setConfirmDel(null)}
                 />
+            )}
+            {itemConfirm && (
+                <ConfirmModal title="Confirmar" message={itemConfirm.msg}
+                    onConfirm={() => { const fn = itemConfirm.onOk; setItemConfirm(null); fn(); }}
+                    onCancel={() => setItemConfirm(null)} />
             )}
         </div>
     );

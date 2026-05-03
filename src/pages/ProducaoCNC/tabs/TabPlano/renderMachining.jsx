@@ -1,7 +1,7 @@
 // Extraído automaticamente de ProducaoCNC.jsx (linhas 7719-10382).
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect, ConfirmModal } from '../../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../../theme';
 import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
@@ -382,6 +382,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
     const [showMachining, setShowMachining] = useState(true);
     const [machTip, setMachTip] = useState(null);
     const [dragging, setDragging] = useState(null);
+    const [renderConfirm, setRenderConfirm] = useState(null); // { msg, title?, onOk }
     const [draggingBandeja, setDraggingBandeja] = useState(null); // { bandejaIdx, materialKey, w, h, newX, newY }
     const [dragCollision, setDragCollision] = useState(false);
     const [snapGuides, setSnapGuides] = useState([]);
@@ -915,7 +916,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                 {timerInfo.running ? 'Pausar' : 'Iniciar'}
                             </button>
                             {timerInfo.hasTimer && !timerInfo.running && timerInfo.elapsed > 0 && (
-                                <button onClick={(e) => { e.stopPropagation(); if (confirm('Resetar timer?')) timerInfo.onReset(); }}
+                                <button onClick={(e) => { e.stopPropagation(); setRenderConfirm({ msg: 'Resetar timer?', onOk: timerInfo.onReset }); }}
                                     style={{ padding: '1px 4px', borderRadius: 4, fontSize: 9, cursor: 'pointer', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)' }}
                                     title="Resetar timer">
                                     <Undo2 size={9} />
@@ -2729,6 +2730,13 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                         })}
                     </div>
                 </details>
+            )}
+
+            {renderConfirm && (
+                <ConfirmModal title={renderConfirm.title || 'Confirmar'}
+                    message={renderConfirm.msg}
+                    onConfirm={() => { const fn = renderConfirm.onOk; setRenderConfirm(null); fn(); }}
+                    onCancel={() => setRenderConfirm(null)} />
             )}
         </div>
     );

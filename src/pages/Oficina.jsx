@@ -719,6 +719,7 @@ function TeamModal({ onClose, onSaved, notify }) {
   const [team, setTeam]   = useState([]);
   const [editing, setEditing] = useState(null); // null|object (blank=new)
   const [loading, setLoading] = useState(true);
+  const [oficConfirm, setOficConfirm] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -747,14 +748,15 @@ function TeamModal({ onClose, onSaved, notify }) {
     } catch (e) { notify?.('error', 'Erro ao salvar'); }
   };
 
-  const delOne = async (m) => {
-    if (!confirm(`Remover ${m.nome} da equipe? Cards atribuídos ficarão sem responsável.`)) return;
-    try {
-      await japi(`/marceneiros/list/${m.id}`, { method: 'DELETE' });
-      notify?.('success', `${m.nome} removido`);
-      load();
-      onSaved?.();
-    } catch { notify?.('error', 'Erro ao remover'); }
+  const delOne = (m) => {
+    setOficConfirm({ msg: `Remover ${m.nome} da equipe? Cards atribuídos ficarão sem responsável.`, onOk: async () => {
+      try {
+        await japi(`/marceneiros/list/${m.id}`, { method: 'DELETE' });
+        notify?.('success', `${m.nome} removido`);
+        load();
+        onSaved?.();
+      } catch { notify?.('error', 'Erro ao remover'); }
+    }});
   };
 
   const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
@@ -832,6 +834,11 @@ function TeamModal({ onClose, onSaved, notify }) {
           )}
         </div>
       </div>
+      {oficConfirm && (
+        <ConfirmModal title="Confirmar" message={oficConfirm.msg}
+          onConfirm={() => { const fn = oficConfirm.onOk; setOficConfirm(null); fn(); }}
+          onCancel={() => setOficConfirm(null)} />
+      )}
     </div>,
     document.body
   );

@@ -1,7 +1,7 @@
 // Extraído automaticamente de ProducaoCNC.jsx (linhas 13287-13584).
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../../api';
-import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect } from '../../../../ui';
+import { Ic, Z, Modal, Spinner, tagStyle, tagClass, PageHeader, TabBar, EmptyState, StatusBadge, ToolbarButton, ToolbarDivider, ProgressBar as PBar, SearchableSelect, ConfirmModal } from '../../../../ui';
 import { colorBg, colorBorder, getStatus, STATUS_COLORS as GLOBAL_STATUS } from '../../../../theme';
 import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Trash2, Plus, Edit, Settings, Eye, BarChart3, Tag as TagIcon, Layers, Package, Box, Scissors, RotateCw, Copy, Monitor, Cpu, Wrench, Server, PenTool, ArrowLeft, Star, Lock, Unlock, ArrowLeftRight, Maximize2, Undo2, Redo2, Zap, ArrowUp, ArrowDown, GripVertical, X, FlipVertical2, ShieldAlert, DollarSign, Clock, FileDown, Play, GitCompare, FileUp, ClipboardCheck, History, Send, Circle, Square, Minus, Check, Search as SearchIcon, Grid, List, LayoutGrid, Tv, QrCode, Maximize } from 'lucide-react';
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
@@ -17,6 +17,7 @@ export function CfgUsinagem({ notify }) {
     const [tipos, setTipos] = useState([]);
     const [modal, setModal] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [cncConfirm, setCncConfirm] = useState(null); // { msg, title?, onOk }
 
     const load = () => {
         setLoading(true);
@@ -39,10 +40,11 @@ export function CfgUsinagem({ notify }) {
     };
 
     const del = async (id) => {
-        if (!confirm('Excluir este tipo de usinagem?')) return;
-        await api.del(`/cnc/usinagem-tipos/${id}`);
-        notify('Tipo excluído');
-        load();
+        setCncConfirm({ msg: 'Excluir este tipo de usinagem?', onOk: async () => {
+            await api.del(`/cnc/usinagem-tipos/${id}`);
+            notify('Tipo excluído');
+            load();
+        }});
     };
 
     const moverPrioridade = async (tipo, dir) => {
@@ -149,6 +151,12 @@ export function CfgUsinagem({ notify }) {
             )}
 
             {modal && <UsinagemTipoModal data={modal} onSave={save} onClose={() => setModal(null)} />}
+            {cncConfirm && (
+                <ConfirmModal title={cncConfirm.title || 'Confirmar'}
+                    message={cncConfirm.msg}
+                    onConfirm={() => { const fn = cncConfirm.onOk; setCncConfirm(null); fn(); }}
+                    onCancel={() => setCncConfirm(null)} />
+            )}
         </div>
     );
 }
@@ -320,6 +328,7 @@ export function CfgUsinagemCatalog({ notify }) {
     const [loading, setLoading] = useState(false);
     const [modal, setModal] = useState(null);   // null | 'new' | entry_obj
     const [search, setSearch] = useState('');
+    const [cncConfirm, setCncConfirm] = useState(null); // { msg, title?, onOk }
 
     const load = () => {
         setLoading(true);
@@ -347,12 +356,13 @@ export function CfgUsinagemCatalog({ notify }) {
     };
 
     const del = async (id) => {
-        if (!confirm('Excluir esta entrada do catálogo?')) return;
-        try {
-            await api.del(`/cnc/usinagem-catalog/${id}`);
-            notify('Entrada excluída');
-            load();
-        } catch (err) { notify('Erro ao excluir', 'error'); }
+        setCncConfirm({ msg: 'Excluir esta entrada do catálogo?', onOk: async () => {
+            try {
+                await api.del(`/cnc/usinagem-catalog/${id}`);
+                notify('Entrada excluída');
+                load();
+            } catch (err) { notify('Erro ao excluir', 'error'); }
+        }});
     };
 
     const toggleAtivo = async (entry) => {
@@ -520,6 +530,12 @@ export function CfgUsinagemCatalog({ notify }) {
                     onSave={save}
                     onClose={() => setModal(null)}
                 />
+            )}
+            {cncConfirm && (
+                <ConfirmModal title={cncConfirm.title || 'Confirmar'}
+                    message={cncConfirm.msg}
+                    onConfirm={() => { const fn = cncConfirm.onOk; setCncConfirm(null); fn(); }}
+                    onCancel={() => setCncConfirm(null)} />
             )}
         </div>
     );
