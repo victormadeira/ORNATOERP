@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Z, Ic, Modal, PageHeader, TabBar, EmptyState } from '../ui';
+import { Z, Ic, Modal, PageHeader, TabBar, EmptyState, ConfirmModal } from '../ui';
 import { colorBg, colorBorder } from '../theme';
 import api from '../api';
 import { useAuth } from '../auth';
@@ -148,6 +148,9 @@ export default function Mensagens({ notify }) {
     const [diag, setDiag] = useState(null);           // resultado de /api/whatsapp/diagnostico
     const [diagOpen, setDiagOpen] = useState(false);  // modal aberto?
     const [iaToggling, setIaToggling] = useState(false);
+    const [confirmBackfill, setConfirmBackfill] = useState(false);
+    const [confirmFullSync, setConfirmFullSync] = useState(false);
+    const [confirmIA, setConfirmIA] = useState(null); // { alvo: bool, msg: string }
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -179,7 +182,7 @@ export default function Mensagens({ notify }) {
 
     // Lista de atendentes para atribuição
     useEffect(() => {
-        api.get('/whatsapp/usuarios-disponiveis').then(setUsuarios).catch(() => { });
+        api.get('/whatsapp/usuarios-disponiveis').then(setUsuarios).catch(() => { notify?.('Erro ao carregar atendentes', 'error'); });
     }, []);
 
     // Persistir aba
@@ -444,7 +447,10 @@ export default function Mensagens({ notify }) {
 
     // ═══ Backfill (puxar histórico da Evolution) ═══
     const rodarBackfill = async () => {
-        if (!confirm('Puxar histórico de conversas antigas da Evolution? Pode demorar alguns minutos.')) return;
+        setConfirmBackfill(true);
+    };
+    const rodarBackfillConfirmado = async () => {
+        setConfirmBackfill(false);
         setBackfilling(true);
         try {
             const r = await api.post('/whatsapp/backfill', { limit: 1000 });
@@ -460,22 +466,15 @@ export default function Mensagens({ notify }) {
     };
 
     // ═══ Re-parear com syncFullHistory (puxa ~6 meses do celular) ═══
-    const rodarFullHistorySync = async () => {
-        const ok = confirm(
-            'ATENÇÃO: vou ativar a sincronização completa e DESCONECTAR a instância.\n\n' +
-            'Depois você precisa:\n' +
-            '1. Abrir a tela de QR Code\n' +
-            '2. Escanear o QR com o celular\n\n' +
-            'A Evolution vai puxar até ~6 meses de histórico (pode levar alguns minutos).\n\n' +
-            'Continuar?'
-        );
-        if (!ok) return;
+    const rodarFullHistorySync = () => setConfirmFullSync(true);
+    const rodarFullHistorySyncConfirmado = async () => {
+        setConfirmFullSync(false);
         setBackfilling(true);
         try {
             const r = await api.post('/whatsapp/enable-full-history', { logout: true });
             notify?.(`✓ Sincronização completa ativada. ${r.instrucoes || 'Re-escaneie o QR Code agora.'}`, 'success');
         } catch (e) {
-            notify?.(`Erro: ${e.error || e.message}. Você pode tentar manualmente: nas configs da Evolution, ative syncFullHistory e re-escaneie o QR.`, 'error');
+            notify?.(`Erro: ${e.error || e.message}. Tente manualmente: nas configs da Evolution, ative syncFullHistory e re-escaneie o QR.`, 'error');
         } finally { setBackfilling(false); }
     };
 
@@ -500,13 +499,17 @@ export default function Mensagens({ notify }) {
         }
     }, []);
 
-    const toggleIA = async () => {
+    const toggleIA = () => {
         if (!isGerente) return;
         const alvo = !diag?.ia_ativa;
         const msg = alvo
             ? 'Reativar a IA (Sofia)? Ela voltará a responder mensagens e capturar leads automaticamente.'
             : 'DESATIVAR a IA (Sofia)? Nenhuma mensagem nova será respondida e nenhum lead será capturado até você reativar.';
-        if (!confirm(msg)) return;
+        setConfirmIA({ alvo, msg });
+    };
+    const toggleIAConfirmado = async () => {
+        const alvo = confirmIA?.alvo;
+        setConfirmIA(null);
         setIaToggling(true);
         try {
             const r = await api.post('/whatsapp/ia/toggle', { ativa: alvo });
@@ -569,9 +572,9 @@ export default function Mensagens({ notify }) {
 
                 {/* ═══ Painel Esquerdo: Lista de Conversas ═══ */}
                 <div style={{
-                    width: 360, minWidth: 360, borderRight: '1px solid var(--border)',
-                    display: 'flex', flexDirection: 'column', background: 'var(--bg-card)',
-                    ...(mobileShowChat ? { display: 'none' } : {}),
+                    width: 'clamp(260px, 28vw, 380px)', minWidth: 0, borderRight: '1px solid var(--border)',
+                    display: mobileShowChat ? 'none' : 'flex', flexDirection: 'column', background: 'var(--bg-card)',
+                    flexShrink: 0,
                 }}
                     className="conv-list-panel"
                 >
@@ -1414,9 +1417,9 @@ export default function Mensagens({ notify }) {
                 {/* ═══ Painel Direito: Dados do Cliente / Lead ═══ */}
                 {activeConv && showPanel && (
                     <div style={{
-                        width: 340, minWidth: 340, borderLeft: '1px solid var(--border)',
+                        width: 'clamp(240px, 24vw, 360px)', minWidth: 0, borderLeft: '1px solid var(--border)',
                         background: 'var(--bg-card)', display: 'flex', flexDirection: 'column',
-                        overflowY: 'auto',
+                        overflowY: 'auto', flexShrink: 0,
                     }}
                         className="lead-panel"
                     >
@@ -2007,6 +2010,36 @@ export default function Mensagens({ notify }) {
                         );
                     })()}
                 </Modal>
+            )}
+
+            {confirmBackfill && (
+                <ConfirmModal
+                    title="Puxar histórico de conversas"
+                    message="Vai importar o histórico de conversas antigas da Evolution. Pode demorar alguns minutos."
+                    confirmLabel="Puxar histórico"
+                    onConfirm={rodarBackfillConfirmado}
+                    onCancel={() => setConfirmBackfill(false)}
+                />
+            )}
+            {confirmFullSync && (
+                <ConfirmModal
+                    title="Sincronização completa (re-parear)"
+                    message="Vai ativar o syncFullHistory e DESCONECTAR a instância. Depois você precisa abrir o QR Code e escanear com o celular. A Evolution puxará até ~6 meses de histórico."
+                    confirmLabel="Continuar"
+                    danger
+                    onConfirm={rodarFullHistorySyncConfirmado}
+                    onCancel={() => setConfirmFullSync(false)}
+                />
+            )}
+            {confirmIA && (
+                <ConfirmModal
+                    title={confirmIA.alvo ? 'Ativar IA (Sofia)' : 'Desativar IA (Sofia)'}
+                    message={confirmIA.msg}
+                    confirmLabel={confirmIA.alvo ? 'Ativar' : 'Desativar'}
+                    danger={!confirmIA.alvo}
+                    onConfirm={toggleIAConfirmado}
+                    onCancel={() => setConfirmIA(null)}
+                />
             )}
         </div>
     );

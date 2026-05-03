@@ -1,6 +1,7 @@
 // Constantes compartilhadas entre as tabs da Produção CNC.
 // Mantidas aqui pra evitar import circular entre tabs e o shell principal.
 import { Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu, Workflow, Wrench, DollarSign } from 'lucide-react';
+import { STATUS_COLORS as THEME_STATUS } from '../../../theme';
 
 // Nível 1 — sempre visível na topbar
 export const TABS_MAIN = [
@@ -21,10 +22,10 @@ export const TABS_LOTE = [
     { id: 'custos',    lb: 'Custos',          ic: DollarSign, step: 5 },
 ];
 
-// Paleta de status de lote (TODO Fase B: migrar pra getStatus() em theme.js).
+// Paleta de status de lote — re-exporta de theme.js como mapa de cores (backward compat)
 export const STATUS_COLORS = {
-    importado: '#3b82f6',
-    otimizado: '#22c55e',
-    produzindo: '#f59e0b',
-    concluido: '#8b5cf6',
+    importado: THEME_STATUS.importado?.color || '#3b82f6',
+    otimizado: THEME_STATUS.otimizado?.color || '#22c55e',
+    produzindo: THEME_STATUS.produzindo?.color || '#f59e0b',
+    concluido: THEME_STATUS.concluido?.color  || '#8b5cf6',
 };

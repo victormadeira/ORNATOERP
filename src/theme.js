@@ -131,6 +131,11 @@ export const STATUS_COLORS = {
     cortada:       { label: 'Cortada',       color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
     conferida:     { label: 'Conferida',     color: 'var(--success)', bg: 'var(--success-bg)', icon: 'checkDouble' },
 
+    // CNC Lote status
+    importado:     { label: 'Importado',     color: '#3b82f6',        bg: '#eff6ff',           icon: 'upload' },
+    otimizado:     { label: 'Otimizado',     color: '#22c55e',        bg: '#f0fdf4',           icon: 'check' },
+    produzindo:    { label: 'Produzindo',    color: '#f59e0b',        bg: '#fffbeb',           icon: 'play' },
+
     // Produção/Expedição
     em_producao:   { label: 'Em produção',   color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'factory' },
     aguardando:    { label: 'Aguardando',    color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'clock' },
