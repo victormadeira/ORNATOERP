@@ -57,14 +57,34 @@ function parseOrcData(row) {
 
 // ═══════════════════════════════════════════════════════
 // GET /api/orcamentos
+// ?slim=1  → omite mods_json (mais rápido para Kanban/listas)
+// ?limit=N&offset=M → paginação server-side (sem esses parâmetros retorna todos)
 // ═══════════════════════════════════════════════════════
 router.get('/', requireAuth, (req, res) => {
-    const sql = canSeeAll(req.user)
-        ? `SELECT o.*, u.nome as criado_por FROM orcamentos o LEFT JOIN users u ON o.user_id = u.id ORDER BY o.atualizado_em DESC`
-        : `SELECT o.*, u.nome as criado_por FROM orcamentos o LEFT JOIN users u ON o.user_id = u.id WHERE o.user_id = ? ORDER BY o.atualizado_em DESC`;
+    const slim   = req.query.slim === '1';
+    const limit  = parseInt(req.query.limit)  || null;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const cols = slim
+        ? `o.id, o.numero, o.cliente_id, o.cliente_nome, o.ambiente, o.status, o.kb_col,
+           o.valor_venda, o.custo_material, o.criado_em, o.atualizado_em,
+           o.user_id, o.parent_orc_id, o.tipo, o.data_vencimento, u.nome as criado_por`
+        : `o.*, u.nome as criado_por`;
+
+    const whereClause = canSeeAll(req.user) ? '' : 'WHERE o.user_id = ?';
+    const limitClause = limit ? `LIMIT ${limit} OFFSET ${offset}` : '';
+    const sql = `SELECT ${cols} FROM orcamentos o LEFT JOIN users u ON o.user_id = u.id ${whereClause} ORDER BY o.atualizado_em DESC ${limitClause}`;
     const params = canSeeAll(req.user) ? [] : [req.user.id];
     const rows = db.prepare(sql).all(...params);
-    rows.forEach(r => parseOrcData(r));
+    if (!slim) rows.forEach(r => parseOrcData(r));
+
+    if (limit) {
+        const countSql = canSeeAll(req.user)
+            ? 'SELECT COUNT(*) as total FROM orcamentos'
+            : 'SELECT COUNT(*) as total FROM orcamentos WHERE user_id = ?';
+        const { total } = db.prepare(countSql).get(...params);
+        return res.json({ rows, total, limit, offset });
+    }
     res.json(rows);
 });
 

@@ -137,18 +137,30 @@ router.get('/me', requireExtToken, (req, res) => {
 router.get('/cliente-por-tel/:tel', requireExtToken, (req, res) => {
     const tel = req.params.tel;
     const nrm = normalizarTelefone(tel);
-    // Tenta match exato primeiro
-    let cliente = db.prepare(`
-        SELECT id, nome, email, tel, cidade, estado, endereco, bairro, numero,
-               cpf, cnpj, tipo_pessoa, obs, criado_em
-        FROM clientes
-        WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(tel, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') LIKE ?
-        LIMIT 1
-    `).get('%' + nrm);
+    // Extrair somente dígitos do número normalizado (últimos 9 dígitos = sufixo único)
+    const nrmDigits = nrm.replace(/\D/g, '');
+    const sufixo = nrmDigits.slice(-9); // evita falsos positivos de DDI
+    // LIKE sufixo% (trailing wildcard) pode usar índice parcial, mas telefone não tem índice.
+    // Estratégia: buscar candidatos pelo sufixo final e depois validar com telefonesBatem.
+    let cliente = null;
+    if (sufixo.length >= 8) {
+        const candidatos = db.prepare(`
+            SELECT id, nome, email, tel, cidade, estado, endereco, bairro, numero,
+                   cpf, cnpj, tipo_pessoa, obs, criado_em
+            FROM clientes
+            WHERE tel LIKE ? OR tel LIKE ?
+            LIMIT 50
+        `).all('%' + sufixo, '%' + sufixo.slice(-8));
+        cliente = candidatos.find(c => telefonesBatem(c.tel, tel)) || null;
+    }
     if (!cliente && nrm) {
-        // Busca ampla: varre clientes e compara com match flexível
-        const todos = db.prepare('SELECT id, nome, email, tel, cidade, estado, endereco, bairro, numero, cpf, cnpj, tipo_pessoa, obs, criado_em FROM clientes').all();
-        cliente = todos.find(c => telefonesBatem(c.tel, tel));
+        // Fallback: busca por REPLACE normalizado nos últimos 500 clientes ativos (data desc)
+        const recentes = db.prepare(`
+            SELECT id, nome, email, tel, cidade, estado, endereco, bairro, numero,
+                   cpf, cnpj, tipo_pessoa, obs, criado_em
+            FROM clientes ORDER BY id DESC LIMIT 500
+        `).all();
+        cliente = recentes.find(c => telefonesBatem(c.tel, tel)) || null;
     }
 
     // Conversa correspondente
@@ -230,10 +242,20 @@ router.post('/import-batch', requireExtToken, (req, res) => {
     const tel = normalizarTelefone(telefone);
     if (!tel) return res.status(400).json({ error: 'telefone inválido' });
 
-    // Busca ou cria conversa
+    // Busca ou cria conversa (usa sufixo para evitar fullscan)
     let conversa = null;
-    const convs = db.prepare('SELECT * FROM chat_conversas').all();
-    conversa = convs.find(c => telefonesBatem(c.wa_phone, tel));
+    const telDigits = tel.replace(/\D/g, '');
+    const telSufixo = telDigits.slice(-9);
+    if (telSufixo.length >= 8) {
+        const candidates = db.prepare(
+            "SELECT * FROM chat_conversas WHERE wa_phone LIKE ? OR wa_phone LIKE ? LIMIT 20"
+        ).all('%' + telSufixo, '%' + telSufixo.slice(-8));
+        conversa = candidates.find(c => telefonesBatem(c.wa_phone, tel)) || null;
+    }
+    if (!conversa) {
+        const recent = db.prepare('SELECT * FROM chat_conversas ORDER BY id DESC LIMIT 500').all();
+        conversa = recent.find(c => telefonesBatem(c.wa_phone, tel)) || null;
+    }
 
     if (!conversa) {
         const r = db.prepare(`

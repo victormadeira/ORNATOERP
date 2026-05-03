@@ -3782,7 +3782,7 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
 
     const load = useCallback(() => {
         setLoading(true);
-        api.get('/projetos').then(d => { setProjetos(d); setLoading(false); }).catch(() => setLoading(false));
+        api.get('/projetos?slim=1').then(d => { setProjetos(d); setLoading(false); }).catch(() => setLoading(false));
     }, []);
 
     useEffect(() => { load(); }, [load]);

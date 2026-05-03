@@ -166,6 +166,9 @@ router.post('/pagar/parcelado', requireAuth, (req, res) => {
     if (!descricao || !parcelas || !Array.isArray(parcelas) || parcelas.length === 0) {
         return res.status(400).json({ error: 'Descrição e parcelas obrigatórias' });
     }
+    if (parcelas.length > 120) {
+        return res.status(400).json({ error: 'Número máximo de parcelas é 120' });
+    }
 
     const cat = CATEGORIAS_PAGAR.includes(categoria) ? categoria : 'outros';
     const total = parcelas.length;
@@ -539,6 +542,9 @@ router.post('/receber/parcelado', requireAuth, (req, res) => {
             projeto_id, nf_numero } = req.body;
     if (!descricao || !parcelas || !Array.isArray(parcelas) || !projeto_id) {
         return res.status(400).json({ error: 'Descrição, parcelas e projeto obrigatórios' });
+    }
+    if (parcelas.length > 120) {
+        return res.status(400).json({ error: 'Número máximo de parcelas é 120' });
     }
     const proj = db.prepare('SELECT id, orc_id FROM projetos WHERE id = ?').get(parseInt(projeto_id));
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });

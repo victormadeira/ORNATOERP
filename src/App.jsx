@@ -331,7 +331,7 @@ export default function App() {
     }, []);
 
     const loadClis = useCallback(() => { if (user) api.get('/clientes').then(setClis).catch(err => console.warn('loadClis:', err)); }, [user]);
-    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos').then(setOrcs).catch(err => console.warn('loadOrcs:', err)); }, [user]);
+    const loadOrcs = useCallback(() => { if (user) api.get('/orcamentos?slim=1').then(setOrcs).catch(err => console.warn('loadOrcs:', err)); }, [user]);
     const loadTaxas = useCallback(() => { if (user) api.get('/config').then(setTaxas).catch(err => console.warn('loadTaxas:', err)); }, [user]);
     const loadNotifs = useCallback(() => { if (user) api.get('/notificacoes').then(setNotifs).catch(err => console.warn('loadNotifs:', err)); }, [user]);
     const loadWaUnread = useCallback(() => { if (user) api.get('/whatsapp/nao-lidas').then(d => setWaUnread(d.total)).catch(err => console.warn('loadWaUnread:', err)); }, [user]);

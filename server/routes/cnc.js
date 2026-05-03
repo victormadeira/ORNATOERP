@@ -7154,10 +7154,15 @@ router.post('/pecas/:pecaId/machining-lado-b', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 
 router.get('/maquinas', requireAuth, (req, res) => {
-    const maquinas = db.prepare('SELECT * FROM cnc_maquinas ORDER BY padrao DESC, nome').all();
-    // Include tool count per machine
-    const countStmt = db.prepare('SELECT COUNT(*) as c FROM cnc_ferramentas WHERE maquina_id = ?');
-    res.json(maquinas.map(m => ({ ...m, total_ferramentas: countStmt.get(m.id).c })));
+    // Single query with LEFT JOIN to avoid N+1 on tool count
+    const maquinas = db.prepare(`
+        SELECT m.*, COALESCE(f.total_ferramentas, 0) as total_ferramentas
+        FROM cnc_maquinas m
+        LEFT JOIN (SELECT maquina_id, COUNT(*) as total_ferramentas FROM cnc_ferramentas GROUP BY maquina_id) f
+            ON f.maquina_id = m.id
+        ORDER BY m.padrao DESC, m.nome
+    `).all();
+    res.json(maquinas);
 });
 
 router.get('/maquinas/:id', requireAuth, (req, res) => {

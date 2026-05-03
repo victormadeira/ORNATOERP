@@ -484,18 +484,20 @@ router.get('/:id/portal-acessos', requireAuth, (req, res) => {
 
 // ═══════════════════════════════════════════════════
 // GET /api/projetos — listar todos (auth)
+// ?slim=1 → omite subqueries de contagens (mais rápido para Projetos.jsx inicial)
 // ═══════════════════════════════════════════════════
 router.get('/', requireAuth, (req, res) => {
-    const rows = db.prepare(`
-        SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.ambiente as orc_nome, o.valor_venda,
+    const slim = req.query.slim === '1';
+    const sql = slim
+        ? `SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.ambiente as orc_nome, o.valor_venda
+           FROM projetos p LEFT JOIN orcamentos o ON o.id = p.orc_id ORDER BY p.criado_em DESC`
+        : `SELECT p.*, COALESCE(NULLIF(p.cliente_nome,''), o.cliente_nome) as cliente_nome, o.ambiente as orc_nome, o.valor_venda,
             (SELECT COUNT(*) FROM etapas_projeto e WHERE e.projeto_id = p.id) as total_etapas,
             (SELECT COUNT(*) FROM etapas_projeto e WHERE e.projeto_id = p.id AND e.status = 'concluida') as etapas_concluidas,
             (SELECT COUNT(*) FROM ocorrencias_projeto oc WHERE oc.projeto_id = p.id AND oc.status = 'aberto') as ocorrencias_abertas,
             (SELECT COUNT(*) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status = 'pendente' AND cr.data_vencimento <= date('now')) as contas_vencidas
-        FROM projetos p
-        LEFT JOIN orcamentos o ON o.id = p.orc_id
-        ORDER BY p.criado_em DESC
-    `).all();
+           FROM projetos p LEFT JOIN orcamentos o ON o.id = p.orc_id ORDER BY p.criado_em DESC`;
+    const rows = db.prepare(sql).all();
     res.json(rows);
 });
 
