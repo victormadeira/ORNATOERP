@@ -2073,9 +2073,13 @@ function TabProducao({ data, notify, nav }) {
 
     useEffect(() => {
         if (!data?.id) return;
+        const ctrl = new AbortController();
         setLoading(true);
-        api.get(`/producao/${data.id}`).then(d => { setProdData(d); setLoading(false); }).catch(() => setLoading(false));
+        api.get(`/producao/${data.id}`, { signal: ctrl.signal })
+            .then(d => { if (!ctrl.signal.aborted) { setProdData(d); setLoading(false); } })
+            .catch(e => { if (e?.name !== 'AbortError') setLoading(false); });
         loadLotes();
+        return () => ctrl.abort();
     }, [data?.id, loadLotes]);
 
     const handleIndustrializar = async () => {
@@ -2671,10 +2675,12 @@ function PortalAcessosHistory({ projetoId }) {
     const [mapId, setMapId] = useState(null);
 
     useEffect(() => {
-        api.get(`/projetos/${projetoId}/portal-acessos`)
-            .then(d => { if (Array.isArray(d)) setAcessos(d); })
+        const ctrl = new AbortController();
+        api.get(`/projetos/${projetoId}/portal-acessos`, { signal: ctrl.signal })
+            .then(d => { if (!ctrl.signal.aborted && Array.isArray(d)) setAcessos(d); })
             .catch(() => {})
-            .finally(() => setLoading(false));
+            .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
+        return () => ctrl.abort();
     }, [projetoId]);
 
     if (loading || acessos.length === 0) return null;
@@ -3605,12 +3611,21 @@ function ProjetoDetalhe({ proj, onBack, orcs, notify, reload, user, nav }) {
     const [tab, setTab] = useState('cronograma');
     const [users, setUsers] = useState([]);
 
+    const loadAbortRef = useRef(null);
     const load = useCallback(() => {
+        loadAbortRef.current?.abort();
+        const ctrl = new AbortController();
+        loadAbortRef.current = ctrl;
         setLoading(true);
-        api.get(`/projetos/${proj.id}`).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+        api.get(`/projetos/${proj.id}`, { signal: ctrl.signal })
+            .then(d => { if (!ctrl.signal.aborted) { setData(d); setLoading(false); } })
+            .catch(e => { if (e?.name !== 'AbortError') setLoading(false); });
     }, [proj.id]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        load();
+        return () => loadAbortRef.current?.abort();
+    }, [load]);
     useEffect(() => { api.get('/projetos/users-list').then(setUsers).catch(e => notify(e.error || 'Erro ao carregar usuários')); }, []);
 
     const updateStatus = (status) => {
