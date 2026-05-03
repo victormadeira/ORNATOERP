@@ -49,6 +49,7 @@ export async function sendText(phoneOrJid, text) {
             number: dest,
             textMessage: { text },
         }),
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -75,6 +76,7 @@ export async function sendMedia(phone, mediaUrl, caption, mediatype = 'image') {
             media: mediaUrl,
             caption: caption || '',
         }),
+        signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) throw new Error(`Evolution API error: ${res.status}`);
     return res.json();
@@ -120,6 +122,7 @@ export async function getQRCode() {
     const url = `${cfg.wa_instance_url}/instance/connect/${cfg.wa_instance_name}`;
     const res = await fetch(url, {
         headers: { 'apikey': cfg.wa_api_key },
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) throw new Error(`Erro ao obter QR Code: ${res.status}`);
     const data = await res.json();
@@ -137,6 +140,7 @@ export async function sendPresence(phoneOrJid, presence = 'composing', delayMs =
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
             body: JSON.stringify({ number: dest, presence, delay: delayMs }),
+            signal: AbortSignal.timeout(8000),
         });
     } catch (_) { /* silencioso */ }
 }
@@ -150,6 +154,7 @@ export async function baixarMidiaBase64(messageKey) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
         body: JSON.stringify({ message: { key: messageKey }, convertToMp4: false }),
+        signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) throw new Error(`Evolution getBase64: ${res.status}`);
     const data = await res.json();
@@ -171,7 +176,7 @@ export async function enableFullHistorySync() {
     let currentSettings = {};
     for (const path of [`/settings/find/${cfg.wa_instance_name}`, `/instance/fetchInstances?instanceName=${cfg.wa_instance_name}`]) {
         try {
-            const res = await fetch(`${baseUrl}${path}`, { headers });
+            const res = await fetch(`${baseUrl}${path}`, { headers, signal: AbortSignal.timeout(8000) });
             if (res.ok) {
                 const data = await res.json().catch(() => null);
                 if (data && typeof data === 'object') {
@@ -208,6 +213,7 @@ export async function enableFullHistorySync() {
         try {
             const res = await fetch(`${baseUrl}${c.path}`, {
                 method: c.method, headers, body: JSON.stringify(c.body),
+                signal: AbortSignal.timeout(10000),
             });
             if (res.ok) {
                 const data = await res.json().catch(() => ({}));
@@ -236,7 +242,7 @@ export async function logoutInstance() {
     ];
     for (const c of candidatos) {
         try {
-            const res = await fetch(`${cfg.wa_instance_url}${c.path}`, { method: c.method, headers });
+            const res = await fetch(`${cfg.wa_instance_url}${c.path}`, { method: c.method, headers, signal: AbortSignal.timeout(10000) });
             if (res.ok) {
                 const data = await res.json().catch(() => ({}));
                 console.log(`[evolution] logout via ${c.method} ${c.path}`);
