@@ -738,7 +738,7 @@ export default function App() {
             />
 
             {/* ═══ Main ═══ */}
-            <main className="flex-1 relative overflow-y-auto overflow-x-hidden">
+            <main className="flex-1 relative overflow-y-auto overflow-x-hidden" aria-label="Conteúdo principal">
                 <Topbar
                     isMobile={isMobile} setMobileOpen={setMobileOpen} pg={pg} ALL_MENUS={ALL_MENUS} nav={nav}
                     canGoBack={navDepth > 0} goBack={goBack}
@@ -774,7 +774,7 @@ export default function App() {
 
             {/* ═══ Mobile Bottom Nav ═══ */}
             {isMobile && (
-                <div className="mobile-bottom-nav no-print">
+                <nav className="mobile-bottom-nav no-print" aria-label="Navegação principal">
                     {MOBILE_NAV.map(item => {
                         const active = item.id === 'more' ? false : pg === item.id;
                         const I = item.ic;
@@ -783,13 +783,15 @@ export default function App() {
                                 key={item.id}
                                 onClick={() => item.id === 'more' ? setMobileOpen(true) : nav(item.id)}
                                 className={`mobile-bottom-nav-item ${active ? 'mobile-bottom-nav-item-active' : ''}`}
+                                aria-label={item.lb}
+                                aria-current={active ? 'page' : undefined}
                             >
                                 <I size={20} />
                                 <span>{item.lb}</span>
                             </button>
                         );
                     })}
-                </div>
+                </nav>
             )}
 
             {/* Command Palette (Ctrl+K) */}

@@ -391,26 +391,30 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
 
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                         <div className="login-field-anim">
-                            <label style={{ fontSize: 10, fontWeight: 600, color: 'rgba(201, 169, 110, 0.75)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'ui-monospace, Menlo, monospace' }}>
+                            <label htmlFor="login-email" style={{ fontSize: 10, fontWeight: 600, color: 'rgba(201, 169, 110, 0.75)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'ui-monospace, Menlo, monospace' }}>
                                 E-mail
                             </label>
                             <input
+                                id="login-email"
                                 type="email"
                                 value={email}
                                 onChange={e => setEmail(e.target.value)}
                                 placeholder="seu@email.com"
                                 autoFocus
+                                autoComplete="email"
                             />
                         </div>
                         <div className="login-field-anim">
-                            <label style={{ fontSize: 10, fontWeight: 600, color: 'rgba(201, 169, 110, 0.75)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'ui-monospace, Menlo, monospace' }}>
+                            <label htmlFor="login-senha" style={{ fontSize: 10, fontWeight: 600, color: 'rgba(201, 169, 110, 0.75)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'ui-monospace, Menlo, monospace' }}>
                                 Senha
                             </label>
                             <input
+                                id="login-senha"
                                 type="password"
                                 value={senha}
                                 onChange={e => setSenha(e.target.value)}
                                 placeholder="••••••••"
+                                autoComplete="current-password"
                             />
                         </div>
                         <button

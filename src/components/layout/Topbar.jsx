@@ -168,6 +168,7 @@ export default function Topbar({
                     }}
                     className="hover:bg-[var(--bg-hover)]"
                     title={`${waUnread} mensagem(ns) nao lida(s)`}
+                    aria-label={`WhatsApp — ${waUnread} mensagem(ns) não lida(s)`}
                 >
                     <Ic.WhatsApp />
                     <span className="badge-pulse" style={{
@@ -192,6 +193,8 @@ export default function Topbar({
                     }}
                     className="hover:bg-[var(--bg-hover)]"
                     title={notifs.nao_lidas > 0 ? `${notifs.nao_lidas} notificacao(oes) nao lida(s)` : 'Notificacoes'}
+                    aria-label={notifs.nao_lidas > 0 ? `Notificações — ${notifs.nao_lidas} não lida(s)` : 'Notificações'}
+                    aria-expanded={showNotifs}
                 >
                     <Ic.Bell />
                     {notifs.nao_lidas > 0 && (
