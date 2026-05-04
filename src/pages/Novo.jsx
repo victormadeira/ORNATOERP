@@ -3190,65 +3190,95 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     {isExpAmb && amb.tipo !== 'manual' && (
                                         <div className="px-4 pb-4" style={{ borderTop: '1px solid var(--border)' }}>
                                             {/* ── Material Global do Ambiente ── */}
-                                            {!readOnly && (
-                                                <div className="py-3 pb-2 mb-1" style={{ borderBottom: '1px dashed var(--border)' }}>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Layers size={12} style={{ color: 'var(--primary)' }} />
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--primary)' }}>Material do Ambiente</span>
-                                                        {(amb.matInt || amb.matExt) && (
-                                                            <button onClick={() => upAmb(amb.id, a => { a.matInt = ''; a.matExt = ''; })}
-                                                                className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer"
-                                                                style={{ color: 'var(--text-muted)', background: 'var(--bg-muted)', border: '1px solid var(--border)' }}
-                                                                title="Limpar materiais do ambiente (cada módulo usará seu próprio)">
-                                                                Limpar
+                                            {!readOnly && (() => {
+                                                const hasAmbMat = !!(amb.matInt || amb.matExt);
+                                                const isMatExp = hasAmbMat || !!amb._matExpanded;
+                                                const allMatsDB = [...chapasDB, ...acabDB.filter(a => a.preco > 0)];
+                                                const matIntNome = allMatsDB.find(m => m.id === amb.matInt)?.nome || '';
+                                                const matExtNome = allMatsDB.find(m => m.id === amb.matExt)?.nome || '';
+
+                                                if (!isMatExp) {
+                                                    return (
+                                                        <div className="py-2 mb-1" style={{ borderBottom: '1px dashed var(--border)' }}>
+                                                            <button onClick={() => upAmb(amb.id, a => { a._matExpanded = true; })}
+                                                                className="text-[10px] flex items-center gap-1.5 cursor-pointer opacity-45 hover:opacity-100 transition-opacity w-full"
+                                                                style={{ color: 'var(--primary)' }}>
+                                                                <Layers size={10} /> Definir material do ambiente...
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                const nItens = (amb.itens || []).filter(i => i.tipo !== 'avulso').length;
+                                                const nCustom = (amb.itens || []).filter(i => i.tipo !== 'avulso' && i._matCustom).length;
+                                                const showSelectors = !hasAmbMat || !!amb._matExpanded;
+                                                return (
+                                                    <div className="py-2 mb-1" style={{ borderBottom: '1px dashed var(--border)' }}>
+                                                        {hasAmbMat && (
+                                                            <div className="flex items-center justify-between mb-1.5">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Layers size={10} style={{ color: 'var(--primary)', opacity: 0.7 }} />
+                                                                    <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)' }}>{matIntNome}</span>
+                                                                    {matExtNome && <><span style={{ color: 'var(--text-muted)', fontSize: 9 }}>·</span><span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{matExtNome}</span></>}
+                                                                    {nItens > 0 && <span className="text-[9px]" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>({nCustom > 0 ? `${nItens - nCustom}/${nItens} módulos` : `${nItens} módulos`})</span>}
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button onClick={() => upAmb(amb.id, a => { a._matExpanded = !a._matExpanded; })}
+                                                                        className="text-[9px] cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+                                                                        style={{ color: 'var(--primary)' }}>
+                                                                        {amb._matExpanded ? 'fechar' : 'editar'}
+                                                                    </button>
+                                                                    <button onClick={() => upAmb(amb.id, a => { a.matInt = ''; a.matExt = ''; a._matExpanded = false; })}
+                                                                        className="text-[9px] cursor-pointer opacity-40 hover:opacity-100 transition-opacity"
+                                                                        style={{ color: 'var(--danger)' }}>
+                                                                        limpar
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {showSelectors && (
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Interno (corpo + fundo)</label>
+                                                                    <SearchableSelect
+                                                                        value={amb.matInt || ''}
+                                                                        onChange={val => upAmb(amb.id, a => { a.matInt = val; })}
+                                                                        groups={[
+                                                                            ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                            { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                        ]}
+                                                                        emptyOption="Sem padrão (por módulo)"
+                                                                        placeholder="Selecionar..."
+                                                                        className={Z.inp}
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Externo (tamponamento)</label>
+                                                                    <SearchableSelect
+                                                                        value={amb.matExt ?? ''}
+                                                                        onChange={val => upAmb(amb.id, a => { a.matExt = val; })}
+                                                                        groups={[
+                                                                            ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
+                                                                            { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                                                            { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
+                                                                        ]}
+                                                                        emptyOption="Sem tamponamento"
+                                                                        placeholder="Selecionar..."
+                                                                        className={Z.inp}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {!hasAmbMat && isMatExp && (
+                                                            <button onClick={() => upAmb(amb.id, a => { a._matExpanded = false; })}
+                                                                className="text-[9px] mt-1.5 cursor-pointer opacity-40 hover:opacity-100 transition-opacity"
+                                                                style={{ color: 'var(--text-muted)' }}>
+                                                                fechar
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <div>
-                                                            <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Interno (corpo + fundo)</label>
-                                                            <SearchableSelect
-                                                                value={amb.matInt || ''}
-                                                                onChange={val => upAmb(amb.id, a => { a.matInt = val; })}
-                                                                groups={[
-                                                                    ...(bib?.topChapas?.length > 0 ? [{ label: 'Mais usados', options: bib.topChapas.map(c => ({ value: c.id, label: c.nome })) }] : []),
-                                                                    { label: 'Todas as chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                                                ]}
-                                                                emptyOption="Sem padrão (por módulo)"
-                                                                placeholder="Selecionar..."
-                                                                className={Z.inp}
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Externo (tamponamento)</label>
-                                                            <SearchableSelect
-                                                                value={amb.matExt ?? ''}
-                                                                onChange={val => upAmb(amb.id, a => { a.matExt = val; })}
-                                                                groups={[
-                                                                    ...(bib?.topChapas?.length > 0 || bib?.topAcab?.length > 0 ? [{ label: 'Mais usados', options: [...(bib?.topChapas || []), ...(bib?.topAcab || [])].map(c => ({ value: c.id, label: c.nome })) }] : []),
-                                                                    { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                                                    { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
-                                                                ]}
-                                                                emptyOption="Sem tamponamento"
-                                                                placeholder="Selecionar..."
-                                                                className={Z.inp}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    {(amb.matInt || amb.matExt) && (() => {
-                                                        const nItens = (amb.itens || []).filter(i => i.tipo !== 'avulso').length;
-                                                        const nCustom = (amb.itens || []).filter(i => i.tipo !== 'avulso' && i._matCustom).length;
-                                                        return (
-                                                            <div className="mt-1.5 text-[9px]" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
-                                                                {nCustom > 0
-                                                                    ? `${nItens - nCustom} de ${nItens} módulos herdando · ${nCustom} customizado${nCustom > 1 ? 's' : ''}`
-                                                                    : `Todos os ${nItens} módulos herdam este material`
-                                                                }
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            )}
+                                                );
+                                            })()}
                                             {/* Selector de caixa com busca */}
                                             {!readOnly && (
                                                 <div className="py-3">
