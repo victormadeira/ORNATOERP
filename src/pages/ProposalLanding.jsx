@@ -50,7 +50,8 @@ function ProposalLanding({ token }) {
     const { empresa, cliente_nome, numero, validade, portfolio, depoimentos, proposta_token } = data;
     const cp = empresa.cor_primaria || '#1B2A4A';
     const ca = empresa.cor_accent || '#C9A96E';
-    const videoId = getYouTubeId(empresa.video_url);
+    const videoId        = getYouTubeId(empresa.video_url);
+    const videoProcessoId = getYouTubeId(empresa.video_processo);
 
     const abrirProposta = () => {
         window.location.href = `/proposta/${proposta_token}`;
@@ -91,18 +92,31 @@ function ProposalLanding({ token }) {
                 .port-card:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,.5); }
                 .depo-card { transition: transform .2s; }
                 .depo-card:hover { transform: translateY(-2px); }
+                @media (max-width: 768px) {
+                    .sobre-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+                    .port-grid { grid-template-columns: repeat(2,1fr) !important; }
+                    .etapa-grid { grid-template-columns: repeat(2,1fr) !important; }
+                }
                 @media (max-width: 640px) {
-                    .hero-title { font-size: 32px !important; }
-                    .hero-sub { font-size: 16px !important; }
-                    .section-title { font-size: 28px !important; }
+                    .hero-title { font-size: 30px !important; line-height: 1.2 !important; }
+                    .hero-sub { font-size: 15px !important; }
+                    .section-title { font-size: 26px !important; }
                     .port-grid { grid-template-columns: 1fr !important; }
-                    .stat-grid { grid-template-columns: repeat(2,1fr) !important; }
+                    .stat-grid { grid-template-columns: repeat(3,1fr) !important; }
                     .etapa-grid { grid-template-columns: 1fr !important; }
+                    .etapa-arrow { display: none !important; }
+                    .lp-section-pad { padding: 56px 20px !important; }
+                    .lp-hero-pad { padding: 60px 20px 72px !important; }
+                    .lp-cta-title { font-size: 32px !important; }
+                    .lp-btn { padding: 14px 28px !important; font-size: 14px !important; }
+                    .lp-processo-selos { gap: 20px !important; }
+                    .port-card-img { height: 180px !important; }
+                    .lp-header { padding: 16px 20px !important; }
                 }
             `}</style>
 
             {/* ── HEADER ── */}
-            <header style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1200, margin: '0 auto' }}>
+            <header className="lp-header" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1200, margin: '0 auto' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {empresa.logo && (
                         <img src={empresa.logo} alt={empresa.nome} style={{ height: 36, objectFit: 'contain' }} />
@@ -113,7 +127,7 @@ function ProposalLanding({ token }) {
             </header>
 
             {/* ── SEÇÃO 1: CAPA HERO ── */}
-            <section style={{ position: 'relative', padding: '80px 24px 100px', textAlign: 'center', overflow: 'hidden' }}>
+            <section className="lp-hero-pad" style={{ position: 'relative', padding: '80px 24px 100px', textAlign: 'center', overflow: 'hidden' }}>
                 {/* Background gradient */}
                 <div style={{
                     position: 'absolute', inset: 0, zIndex: 0,
@@ -148,10 +162,10 @@ function ProposalLanding({ token }) {
             </section>
 
             {/* ── SEÇÃO 2: SOBRE ── */}
-            <section id="lp-sobre" style={{ padding: '80px 24px', background: `${cp}18`, borderTop: `1px solid ${cp}40`, borderBottom: `1px solid ${cp}40` }}>
+            <section id="lp-sobre" className="lp-section-pad" style={{ padding: '80px 24px', background: `${cp}18`, borderTop: `1px solid ${cp}40`, borderBottom: `1px solid ${cp}40` }}>
                 <div style={{ maxWidth: 1100, margin: '0 auto' }}>
                     {/* Topo: texto + vídeo (ou stats) lado a lado */}
-                    <div style={{ display: 'grid', gridTemplateColumns: videoId ? '1fr 1fr' : '1fr', gap: 60, alignItems: 'center', marginBottom: 48 }}>
+                    <div className="sobre-grid" style={{ display: 'grid', gridTemplateColumns: videoId ? '1fr 1fr' : '1fr', gap: 60, alignItems: 'center', marginBottom: 48 }}>
                         <div>
                             <div style={{ fontSize: 12, fontWeight: 700, color: ca, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 16 }}>Sobre nós</div>
                             <h2 className="section-title" style={{ fontSize: 38, fontWeight: 800, color: '#fff', marginBottom: 20, lineHeight: 1.2 }}>
@@ -213,7 +227,7 @@ function ProposalLanding({ token }) {
 
             {/* ── SEÇÃO 3: PORTFOLIO ── */}
             {portfolio && portfolio.length > 0 && (
-                <section style={{ padding: '80px 24px' }}>
+                <section className="lp-section-pad" style={{ padding: '80px 24px' }}>
                     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
                         <div style={{ textAlign: 'center', marginBottom: 48 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: ca, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Portfolio</div>
@@ -224,7 +238,7 @@ function ProposalLanding({ token }) {
                             {portfolio.slice(0, 6).map((p, i) => (
                                 <div key={p.id || i} className="port-card" style={{ borderRadius: 16, overflow: 'hidden', background: '#13182280', border: '1px solid #ffffff12' }}>
                                     {p.imagem && (
-                                        <div style={{ height: 220, overflow: 'hidden' }}>
+                                        <div className="port-card-img" style={{ height: 220, overflow: 'hidden' }}>
                                             <img src={p.imagem} alt={p.titulo || 'Projeto'} loading="lazy" decoding="async"
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .4s' }}
                                                 onMouseEnter={e => e.target.style.transform = 'scale(1.05)'}
@@ -243,7 +257,7 @@ function ProposalLanding({ token }) {
             )}
 
             {/* ── SEÇÃO 4: PROCESSO ── */}
-            <section style={{ padding: '80px 24px', background: '#111827' }}>
+            <section className="lp-section-pad" style={{ padding: '80px 24px', background: '#111827' }}>
                 <div style={{ maxWidth: 1100, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 56 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: ca, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Como trabalhamos</div>
@@ -256,7 +270,7 @@ function ProposalLanding({ token }) {
                                 <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 10 }}>{e.titulo}</div>
                                 <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>{e.desc}</div>
                                 {i < ETAPAS.length - 1 && (
-                                    <div style={{ position: 'absolute', top: '50%', right: -12, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ca, fontSize: 18, transform: 'translateY(-50%)' }}>›</div>
+                                    <div className="etapa-arrow" style={{ position: 'absolute', top: '50%', right: -12, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ca, fontSize: 18, transform: 'translateY(-50%)' }}>›</div>
                                 )}
                             </div>
                         ))}
@@ -264,9 +278,69 @@ function ProposalLanding({ token }) {
                 </div>
             </section>
 
+            {/* ── SEÇÃO 4b: VÍDEO DO PROCESSO ── */}
+            {videoProcessoId && (
+                <section className="lp-section-pad" style={{ padding: '80px 24px', background: '#0b0e13', position: 'relative', overflow: 'hidden' }}>
+                    {/* Glow de fundo */}
+                    <div style={{
+                        position: 'absolute', inset: 0, pointerEvents: 'none',
+                        background: `radial-gradient(ellipse 70% 60% at 50% 100%, ${cp}55 0%, transparent 70%)`,
+                    }} />
+                    <div style={{ position: 'relative', maxWidth: 860, margin: '0 auto' }}>
+                        {/* Label + título */}
+                        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${ca}18`, border: `1px solid ${ca}40`, borderRadius: 50, padding: '5px 16px', fontSize: 11, fontWeight: 700, color: ca, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 18 }}>
+                                ▶ Tour pela fábrica
+                            </div>
+                            <h2 className="section-title" style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
+                                Veja como seu móvel<br />
+                                <span style={{ color: ca }}>é fabricado</span>
+                            </h2>
+                            <p style={{ fontSize: 15, color: '#64748b', marginTop: 14, lineHeight: 1.6 }}>
+                                Da matéria-prima ao acabamento — precisão industrial em cada etapa.
+                            </p>
+                        </div>
+
+                        {/* Player */}
+                        <div style={{
+                            borderRadius: 20, overflow: 'hidden',
+                            border: `1px solid ${ca}25`,
+                            boxShadow: `0 0 0 1px ${cp}40, 0 32px 80px rgba(0,0,0,0.6), 0 0 60px ${cp}30`,
+                            position: 'relative',
+                        }}>
+                            {/* Barra decorativa superior */}
+                            <div style={{ height: 3, background: `linear-gradient(90deg, ${cp}, ${ca}, ${cp})` }} />
+                            <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
+                                <iframe
+                                    title="Processo de fabricação"
+                                    src={`https://www.youtube.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white`}
+                                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
+                            </div>
+                        </div>
+
+                        {/* Selos abaixo do vídeo */}
+                        <div className="lp-processo-selos" style={{ display: 'flex', justifyContent: 'center', gap: 32, marginTop: 36, flexWrap: 'wrap' }}>
+                            {[
+                                { icon: '🏭', label: 'Fábrica própria' },
+                                { icon: '⚙️', label: 'CNC de precisão' },
+                                { icon: '✅', label: 'Controle de qualidade' },
+                            ].map((s, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
+                                    <span style={{ fontSize: 18 }}>{s.icon}</span>
+                                    <span>{s.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
+
             {/* ── DEPOIMENTOS (se houver) ── */}
             {depoimentos && depoimentos.length > 0 && (
-                <section style={{ padding: '80px 24px' }}>
+                <section className="lp-section-pad" style={{ padding: '80px 24px' }}>
                     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
                         <div style={{ textAlign: 'center', marginBottom: 48 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: ca, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Depoimentos</div>
@@ -290,7 +364,7 @@ function ProposalLanding({ token }) {
             )}
 
             {/* ── SEÇÃO 5: CTA ── */}
-            <section style={{ padding: '100px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+            <section className="lp-section-pad" style={{ padding: '100px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
                 <div style={{
                     position: 'absolute', inset: 0,
                     background: `radial-gradient(ellipse 100% 100% at 50% 100%, ${cp}aa, transparent 70%)`,
@@ -298,7 +372,7 @@ function ProposalLanding({ token }) {
                 }} />
                 <div style={{ position: 'relative', maxWidth: 680, margin: '0 auto' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: ca, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 20 }}>Proposta exclusiva</div>
-                    <h2 style={{ fontSize: 44, fontWeight: 800, color: '#fff', marginBottom: 20, lineHeight: 1.15 }}>
+                    <h2 className="lp-cta-title" style={{ fontSize: 44, fontWeight: 800, color: '#fff', marginBottom: 20, lineHeight: 1.15 }}>
                         Pronto para{' '}
                         <span style={{ color: ca }}>transformar</span>
                         <br />seu ambiente?

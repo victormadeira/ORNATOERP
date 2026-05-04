@@ -143,6 +143,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         fb_pixel_id, google_ads_id, fb_access_token,
         google_ads_dev_token, google_ads_conversion_label,
         n8n_webhook_url, n8n_webhook_secret,
+        video_processo,
     } = req.body;
 
     // Campos sensíveis: se vier valor mascarado (••••), manter o que está no banco
@@ -204,6 +205,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       fb_pixel_id=?, google_ads_id=?, fb_access_token=?,
       google_ads_dev_token=?, google_ads_conversion_label=?,
       n8n_webhook_url=?, n8n_webhook_secret=?,
+      video_processo=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
   `).run(
@@ -280,6 +282,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         google_ads_conversion_label !== undefined ? google_ads_conversion_label : '',
         n8n_webhook_url_s !== undefined ? n8n_webhook_url_s : '',
         n8n_webhook_secret_s !== undefined ? n8n_webhook_secret_s : '',
+        video_processo !== undefined ? video_processo : '',
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     // Mascarar campos sensíveis também na resposta do PUT
