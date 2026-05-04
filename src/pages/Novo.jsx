@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import { Z, Ic, Modal, SearchableSelect, PageHeader, ConfirmModal } from '../ui';
 import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, calcCustoHora, calcConsumiveis, estimarCorteReal, LOCKED_COLS, compareVersions } from '../engine';
 import api from '../api';
@@ -101,8 +102,8 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                 <span className="truncate" style={{ maxWidth: 100 }}>{selected?.nome || 'Puxador'}</span>
                 <ChevronDown size={10} style={{ opacity: 0.6 }} />
             </button>
-            {open && (
-                <div ref={ref} className="fixed rounded-lg shadow-lg overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', width: 220, zIndex: 9999, top: pos.top, left: pos.left }}>
+            {open && createPortal(
+                <div ref={ref} style={{ position: 'fixed', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', width: 220, zIndex: 99999, top: pos.top, left: pos.left, overflow: 'hidden' }}>
                     <div className="px-2 pt-2 pb-1">
                         <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                             <Search size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -138,7 +139,8 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                             <div className="px-3 py-2 text-[10px] text-center" style={{ color: 'var(--text-muted)' }}>Nenhum puxador para "{q}"</div>
                         )}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
