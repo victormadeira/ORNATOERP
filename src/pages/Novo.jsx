@@ -945,21 +945,10 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
             {/* Expanded */}
             {exp && (
                 <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                    {/* Nome + Grupo */}
-                    <div className={grupos?.length > 0 ? 'grid grid-cols-2 gap-2' : ''}>
-                        <div>
-                            <label className={Z.lbl}>Nome</label>
-                            <input className={Z.inp} value={item.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder={`Ex: ${tipoInfo.nome} Bisotê, Painel Estofado...`} />
-                        </div>
-                        {grupos?.length > 0 && (
-                            <div>
-                                <label className={Z.lbl}>Grupo</label>
-                                <select className={Z.inp} value={item.grupo_id || ''} onChange={e => up({ grupo_id: e.target.value })}>
-                                    <option value="">— Sem grupo —</option>
-                                    {grupos.map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
-                                </select>
-                            </div>
-                        )}
+                    {/* Nome */}
+                    <div>
+                        <label className={Z.lbl}>Nome</label>
+                        <input className={Z.inp} value={item.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder={`Ex: ${tipoInfo.nome} Bisotê, Painel Estofado...`} />
                     </div>
 
                     {/* Dimensões + qtd */}
@@ -1790,14 +1779,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     });
 
     // ── Itens Especiais CRUD ────────────────────────────────────────────────
-    const addItemEspecial = (ambId, tipo) => upAmb(ambId, a => {
+    const addItemEspecial = (ambId, tipo, grupoId = '') => upAmb(ambId, a => {
         if (!a.itensEspeciais) a.itensEspeciais = [];
         const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === tipo) || TIPOS_ESPECIAIS[4];
         a.itensEspeciais.push({
             id: uid(), tipo, nome: '', L: 0, A: 0, qtd: 1,
             precoUnit: 0, unidade: tipoInfo.unidade, materialId: '',
-            perfis: tipo === 'aluminio' ? [] : [],
-            vidro: null, custoInstalacao: 0, obs: '', grupo_id: '',
+            perfis: [], vidro: null, custoInstalacao: 0, obs: '', grupo_id: grupoId,
         });
     });
     const removeItemEspecial = (ambId, itemId) => upAmb(ambId, a => {
@@ -3323,6 +3311,21 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                             </div>
                                                                         )}
                                                                     </>)}
+                                                                    {/* Botões para adicionar especiais diretamente no grupo */}
+                                                                    {!readOnly && (
+                                                                        <div className="flex items-center gap-1 flex-wrap mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(245,158,11,0.1)' }}>
+                                                                            <span className="text-[9px] font-medium mr-0.5" style={{ color: 'var(--text-muted)' }}>+ Especial:</span>
+                                                                            {TIPOS_ESPECIAIS.map(t => (
+                                                                                <button key={t.id}
+                                                                                    onClick={() => addItemEspecial(amb.id, t.id, grupo.id)}
+                                                                                    className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer font-medium"
+                                                                                    style={{ background: `${t.cor}18`, color: t.cor, border: `1px solid ${t.cor}35` }}
+                                                                                    title={`Adicionar ${t.nome} neste grupo`}>
+                                                                                    {t.nome}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         );
