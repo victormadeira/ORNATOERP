@@ -769,13 +769,15 @@ export default function PropostaApresentacao({ token }) {
                                 Da matéria-prima ao acabamento — precisão industrial em cada etapa.
                             </p>
                         </div>
+                        {/* Player vertical 9:16 — centralizado, max 380px */}
                         <div ref={reveal} className="ap-reveal" style={{
-                            borderRadius: 16, overflow: 'hidden',
+                            borderRadius: 20, overflow: 'hidden',
                             border: `1px solid ${c2}20`,
-                            maxWidth: 860, margin: '0 auto',
+                            maxWidth: 380, margin: '0 auto',
+                            boxShadow: `0 8px 40px rgba(0,0,0,0.35)`,
                         }}>
                             {videoProcessoId ? (
-                                <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
+                                <div style={{ position: 'relative', paddingBottom: '177.78%', background: '#000' }}>
                                     <iframe
                                         title="Processo de fabricação"
                                         src={`https://www.youtube.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white`}
@@ -785,12 +787,12 @@ export default function PropostaApresentacao({ token }) {
                                     />
                                 </div>
                             ) : (
-                                <div style={{ position: 'relative', paddingBottom: '56.25%', background: `rgba(255,255,255,0.04)`, border: `1px dashed ${c2}30`, borderRadius: 16 }}>
+                                <div style={{ position: 'relative', paddingBottom: '177.78%', background: `rgba(255,255,255,0.04)`, border: `1px dashed ${c2}30`, borderRadius: 20 }}>
                                     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
                                         <div style={{ width: 64, height: 64, borderRadius: '50%', border: `1px solid ${c2}40`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <svg width="24" height="24" viewBox="0 0 24 24" fill={c2} style={{ marginLeft: 3 }}><polygon points="5,3 19,12 5,21" /></svg>
                                         </div>
-                                        <div style={{ textAlign: 'center' }}>
+                                        <div style={{ textAlign: 'center', padding: '0 20px' }}>
                                             <div style={{ fontSize: 14, fontWeight: 400, color: `${cream}60`, marginBottom: 4 }}>Vídeo de processo não configurado</div>
                                             <div style={{ fontSize: 11, color: `${cream}35`, letterSpacing: '0.05em' }}>
                                                 Configure em <strong style={{ color: c2, fontWeight: 600 }}>Configurações → Landing da Proposta</strong>
