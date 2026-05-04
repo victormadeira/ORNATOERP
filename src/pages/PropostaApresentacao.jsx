@@ -1044,7 +1044,7 @@ function buildCSS(c1, c2, cream) {
 .ap-about-text { font-size:15px; line-height:1.75; max-width:640px; margin-bottom:48px; }
 
 /* ── Stats ── */
-.ap-stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; }
+.ap-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; }
 .ap-stat-card { text-align:center; padding:28px 16px; border-radius:14px; background:rgba(255,255,255,0.85); box-shadow:0 2px 12px rgba(0,0,0,0.06); }
 .ap-stat-value { font-size:clamp(34px, 5vw, 52px); font-weight:900; line-height:1; margin-bottom:8px; letter-spacing:-0.02em; }
 .ap-stat-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; color:${c1}; }
@@ -1094,7 +1094,7 @@ function buildCSS(c1, c2, cream) {
 .ap-cta-btn:hover { transform:translateY(-2px); box-shadow:0 6px 28px ${c2}60; }
 @keyframes ctaGlow { 0%,100%{box-shadow:0 4px 20px ${c2}40;} 50%{box-shadow:0 6px 32px ${c2}70;} }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
-.ap-cta-contacts { display:flex; gap:24px; justify-content:center; flex-wrap:wrap; }
+.ap-cta-contacts { display:flex; gap:24px; justify-content:center; flex-wrap:wrap; align-items:center; }
 .ap-contact-link { display:inline-flex; align-items:center; gap:8px; font-size:13px; text-decoration:none; color:inherit; transition:opacity 0.2s; }
 .ap-contact-link:hover { opacity:1 !important; }
 
@@ -1106,12 +1106,12 @@ function buildCSS(c1, c2, cream) {
     .ap-section-title { font-size:22px; margin-bottom:14px; }
     .ap-about-text { font-size:14px; line-height:1.65; margin-bottom:32px; }
 
-    /* Stats mobile: 2 colunas menores */
-    .ap-stats { grid-template-columns:repeat(2, 1fr); gap:10px; }
-    .ap-stat-card { padding:18px 10px; border-radius:10px; }
-    .ap-stat-value { font-size:28px; }
-    .ap-stat-label { font-size:10px; }
-    .ap-stat-desc { font-size:9px; }
+    /* Stats mobile: 3 colunas simétricas (1 por card) */
+    .ap-stats { grid-template-columns:repeat(3, 1fr); gap:8px; }
+    .ap-stat-card { padding:16px 8px; border-radius:10px; }
+    .ap-stat-value { font-size:26px; }
+    .ap-stat-label { font-size:9px; letter-spacing:0.05em; }
+    .ap-stat-desc { font-size:8px; }
 
     /* Portfolio mobile: empilhado, imagem + texto abaixo */
     .ap-portfolio-list { gap:32px; margin-top:32px; }
@@ -1149,8 +1149,8 @@ function buildCSS(c1, c2, cream) {
 
     /* CTA mobile */
     .ap-cta { padding:48px 0; }
-    .ap-cta-btn { padding:14px 36px; font-size:14px; }
-    .ap-cta-contacts { gap:16px; }
+    .ap-cta-btn { padding:14px 28px; font-size:13px; width:100%; max-width:320px; justify-content:center; text-align:center; white-space:normal; line-height:1.4; }
+    .ap-cta-contacts { gap:16px; flex-direction:column; align-items:center; }
     .ap-contact-link { font-size:12px; }
 }
 
