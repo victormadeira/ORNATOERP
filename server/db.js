@@ -1163,6 +1163,7 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN landing_hero_video_url TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_hero_video_poster TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_video_institucional TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN video_processo TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_grafismo_imagem TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_cor_fundo TEXT DEFAULT '#1E1917'",
   "ALTER TABLE empresa_config ADD COLUMN landing_cor_destaque TEXT DEFAULT '#93614C'",

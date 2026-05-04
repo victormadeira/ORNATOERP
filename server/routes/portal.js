@@ -243,16 +243,7 @@ router.get('/landing/:token', (req, res) => {
     const orc = db.prepare('SELECT id, cliente_nome, numero, mods_json, criado_em FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
     if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
 
-    const emp = db.prepare(`
-        SELECT nome, telefone, email, site, instagram,
-               proposta_cor_primaria, proposta_cor_accent,
-               logo_sistema,
-               anos_experiencia, projetos_entregues, maquinas_industriais,
-               texto_institucional, desc_maquinas,
-               landing_hero_video_url,
-               video_processo
-        FROM empresa_config WHERE id = 1
-    `).get();
+    const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
 
     const portfolio = db.prepare(
         'SELECT id, titulo, designer, descricao, imagem FROM portfolio WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
