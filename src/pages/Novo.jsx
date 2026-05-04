@@ -103,20 +103,18 @@ function PuxadorSelect({ puxadores, value, onChange }) {
             </button>
             {open && (
                 <div ref={ref} className="fixed rounded-lg shadow-lg overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', width: 220, zIndex: 9999, top: pos.top, left: pos.left }}>
-                    {puxadores.length > 4 && (
-                        <div className="px-2 pt-2 pb-1">
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                <Search size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                                <input
-                                    type="text" value={q} autoFocus
-                                    placeholder="Buscar puxador..."
-                                    onChange={e => setQ(e.target.value)}
-                                    className="flex-1 bg-transparent outline-none text-[11px]"
-                                    style={{ color: 'var(--text-primary)', minWidth: 0 }} />
-                                {q && <button onClick={() => setQ('')} className="cursor-pointer"><X size={10} style={{ color: 'var(--text-muted)' }} /></button>}
-                            </div>
+                    <div className="px-2 pt-2 pb-1">
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <Search size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            <input
+                                type="text" value={q} autoFocus
+                                placeholder="Buscar puxador..."
+                                onChange={e => setQ(e.target.value)}
+                                className="flex-1 bg-transparent outline-none text-[11px]"
+                                style={{ color: 'var(--text-primary)', minWidth: 0 }} />
+                            {q && <button onClick={() => setQ('')} className="cursor-pointer"><X size={10} style={{ color: 'var(--text-muted)' }} /></button>}
                         </div>
-                    )}
+                    </div>
                     <div className="overflow-y-auto" style={{ maxHeight: 180 }}>
                         {filtered.map(p => {
                             const isActive = p.id === value;
