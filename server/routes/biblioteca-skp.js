@@ -9,6 +9,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { requireAuth } from '../auth.js';
+import db from '../db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -201,7 +202,7 @@ router.post('/personalizado', requireAuth, uploadSkp.single('modelo'), (req, res
 
 
 // ═══════════════════════════════════════════════════════
-// 6. GET /personalizados — Lista modulos do usuario
+// 6. GET /personalizados — Lista modulos .skp do usuario
 // ═══════════════════════════════════════════════════════
 router.get('/personalizados', requireAuth, (req, res) => {
     const userId = String(req.user.id);
@@ -210,6 +211,184 @@ router.get('/personalizados', requireAuth, (req, res) => {
 
     const userModules = index.modulos.filter(m => String(m.user_id) === userId);
     res.json(userModules);
+});
+
+
+// ═══════════════════════════════════════════════════════
+// TEMPLATES JSON — Biblioteca Cloud de módulos paramétricos
+// Endpoints: POST, GET (lista), GET (item), DELETE
+// ═══════════════════════════════════════════════════════
+
+// 7. POST /template — Publicar template JSON na nuvem
+router.post('/template', requireAuth, (req, res) => {
+    const { nome, descricao, categoria, tags, template, thumbnail, publico } = req.body;
+
+    if (!nome || !template) {
+        return res.status(400).json({ error: 'nome e template são obrigatórios' });
+    }
+
+    // Valida que template é JSON válido
+    let parsed;
+    try {
+        parsed = typeof template === 'string' ? JSON.parse(template) : template;
+    } catch {
+        return res.status(400).json({ error: 'template deve ser um JSON válido' });
+    }
+
+    const tagsJson = Array.isArray(tags) ? JSON.stringify(tags) : (tags || '[]');
+    const templateStr = typeof template === 'string' ? template : JSON.stringify(parsed);
+    const isPublico = publico === false ? 0 : 1;
+
+    const result = db.prepare(`
+        INSERT INTO biblioteca_templates
+            (user_id, nome, descricao, categoria, tags, template, thumbnail, publico)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        req.user.id,
+        nome,
+        descricao || '',
+        categoria || 'geral',
+        tagsJson,
+        templateStr,
+        thumbnail || '',
+        isPublico
+    );
+
+    res.json({
+        ok: true,
+        id: result.lastInsertRowid,
+        nome,
+        categoria: categoria || 'geral',
+    });
+});
+
+// 8. GET /templates — Listar templates públicos (+ os do próprio usuário)
+router.get('/templates', requireAuth, (req, res) => {
+    const { categoria, q } = req.query;
+    const userId = req.user.id;
+
+    let sql = `
+        SELECT t.id, t.nome, t.descricao, t.categoria, t.tags, t.thumbnail,
+               t.publico, t.downloads, t.criado_em, t.atualizado_em,
+               u.nome AS autor,
+               CASE WHEN t.user_id = ? THEN 1 ELSE 0 END AS proprio
+        FROM biblioteca_templates t
+        LEFT JOIN users u ON u.id = t.user_id
+        WHERE (t.publico = 1 OR t.user_id = ?)
+    `;
+    const params = [userId, userId];
+
+    if (categoria) {
+        sql += ' AND t.categoria = ?';
+        params.push(categoria);
+    }
+    if (q) {
+        sql += ' AND (t.nome LIKE ? OR t.descricao LIKE ? OR t.tags LIKE ?)';
+        const like = `%${q}%`;
+        params.push(like, like, like);
+    }
+
+    sql += ' ORDER BY t.downloads DESC, t.criado_em DESC';
+
+    const rows = db.prepare(sql).all(...params);
+
+    // Parse tags JSON
+    const items = rows.map(r => ({
+        ...r,
+        tags: (() => { try { return JSON.parse(r.tags); } catch { return []; } })(),
+    }));
+
+    res.json(items);
+});
+
+// 9. GET /template/:id — Baixar template específico (retorna JSON completo)
+router.get('/template/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+    const userId = req.user.id;
+    const row = db.prepare(`
+        SELECT t.*, u.nome AS autor
+        FROM biblioteca_templates t
+        LEFT JOIN users u ON u.id = t.user_id
+        WHERE t.id = ? AND (t.publico = 1 OR t.user_id = ?)
+    `).get(id, userId);
+
+    if (!row) return res.status(404).json({ error: 'Template não encontrado' });
+
+    // Incrementa contador de downloads (só para templates de outros)
+    if (row.user_id !== userId) {
+        db.prepare('UPDATE biblioteca_templates SET downloads = downloads + 1 WHERE id = ?').run(id);
+    }
+
+    // Retorna o template completo
+    let templateData;
+    try { templateData = JSON.parse(row.template); } catch { templateData = row.template; }
+
+    res.json({
+        id:         row.id,
+        nome:       row.nome,
+        descricao:  row.descricao,
+        categoria:  row.categoria,
+        tags:       (() => { try { return JSON.parse(row.tags); } catch { return []; } })(),
+        autor:      row.autor,
+        downloads:  row.downloads,
+        criado_em:  row.criado_em,
+        proprio:    row.user_id === userId,
+        template:   templateData,
+    });
+});
+
+// 10. PUT /template/:id — Atualizar template próprio
+router.put('/template/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+    const row = db.prepare('SELECT user_id FROM biblioteca_templates WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Template não encontrado' });
+    if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Não autorizado' });
+
+    const { nome, descricao, categoria, tags, template, thumbnail, publico } = req.body;
+    const tagsJson = Array.isArray(tags) ? JSON.stringify(tags) : (tags || '[]');
+
+    db.prepare(`
+        UPDATE biblioteca_templates
+        SET nome=?, descricao=?, categoria=?, tags=?, template=?, thumbnail=?,
+            publico=?, atualizado_em=CURRENT_TIMESTAMP
+        WHERE id=?
+    `).run(
+        nome, descricao || '', categoria || 'geral', tagsJson,
+        typeof template === 'string' ? template : JSON.stringify(template),
+        thumbnail || '', publico === false ? 0 : 1, id
+    );
+
+    res.json({ ok: true });
+});
+
+// 11. DELETE /template/:id — Remover template próprio
+router.delete('/template/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+    const row = db.prepare('SELECT user_id FROM biblioteca_templates WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Template não encontrado' });
+    if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Não autorizado' });
+
+    db.prepare('DELETE FROM biblioteca_templates WHERE id = ?').run(id);
+    res.json({ ok: true });
+});
+
+// 12. GET /templates/categorias — Listar categorias disponíveis
+router.get('/templates/categorias', requireAuth, (req, res) => {
+    const rows = db.prepare(`
+        SELECT categoria, COUNT(*) AS total
+        FROM biblioteca_templates
+        WHERE publico = 1 OR user_id = ?
+        GROUP BY categoria
+        ORDER BY total DESC
+    `).all(req.user.id);
+
+    res.json(rows);
 });
 
 

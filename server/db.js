@@ -383,6 +383,24 @@ db.exec(`
     -- Campos gerais
     ativo INTEGER DEFAULT 1,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fita_preco REAL DEFAULT 0,
+    categoria TEXT DEFAULT ''
+  );
+
+  -- ── Biblioteca Cloud: templates JSON de módulos compartilhados ─────────
+  CREATE TABLE IF NOT EXISTS biblioteca_templates (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    nome       TEXT NOT NULL,
+    descricao  TEXT DEFAULT '',
+    categoria  TEXT DEFAULT 'geral',
+    tags       TEXT DEFAULT '[]',       -- JSON array
+    template   TEXT NOT NULL,           -- JSON do template completo
+    thumbnail  TEXT DEFAULT '',         -- base64 ou URL
+    publico    INTEGER DEFAULT 1,       -- 1=visível para todos, 0=só dono
+    downloads  INTEGER DEFAULT 0,
+    criado_em  DATETIME DEFAULT CURRENT_TIMESTAMP,
     atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -1144,6 +1162,7 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN landing_hero_imagem TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_hero_video_url TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_hero_video_poster TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN landing_video_institucional TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_grafismo_imagem TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN landing_cor_fundo TEXT DEFAULT '#1E1917'",
   "ALTER TABLE empresa_config ADD COLUMN landing_cor_destaque TEXT DEFAULT '#93614C'",

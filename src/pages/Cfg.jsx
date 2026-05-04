@@ -181,6 +181,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         landing_hero_imagem: '',
         landing_hero_video_url: '',
         landing_hero_video_poster: '',
+        landing_video_institucional: '',
         landing_grafismo_imagem: '',
         landing_cor_fundo: '#1E1917',
         landing_cor_destaque: '#93614C',
@@ -362,6 +363,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_hero_imagem: d.landing_hero_imagem || '',
                 landing_hero_video_url: d.landing_hero_video_url || '',
                 landing_hero_video_poster: d.landing_hero_video_poster || '',
+                landing_video_institucional: d.landing_video_institucional || '',
                 landing_grafismo_imagem: d.landing_grafismo_imagem || '',
                 landing_cor_fundo: d.landing_cor_fundo || '#1E1917',
                 landing_cor_destaque: d.landing_cor_destaque || '#93614C',
@@ -557,6 +559,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_hero_imagem: emp.landing_hero_imagem,
                 landing_hero_video_url: emp.landing_hero_video_url,
                 landing_hero_video_poster: emp.landing_hero_video_poster,
+                landing_video_institucional: emp.landing_video_institucional,
                 landing_grafismo_imagem: emp.landing_grafismo_imagem,
                 landing_cor_fundo: emp.landing_cor_fundo,
                 landing_cor_destaque: emp.landing_cor_destaque,
@@ -3658,14 +3661,27 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div className="md:col-span-2">
-                                        <label className={Z.lbl}>URL do vídeo institucional (opcional)</label>
+                                        <label className={Z.lbl}>Vídeo de fundo do hero (opcional)</label>
                                         <input
                                             className={Z.inp}
                                             value={emp.landing_hero_video_url}
                                             onChange={e => setEmp({ ...emp, landing_hero_video_url: e.target.value })}
                                             disabled={!isGerente}
-                                            placeholder="Ex: https://.../institucional.mp4 ou link do YouTube"
+                                            placeholder="YouTube ou MP4 — toca em loop mudo no fundo da tela"
                                         />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className={Z.lbl}>🎬 Vídeo institucional na pill direita (YouTube)</label>
+                                        <input
+                                            className={Z.inp}
+                                            value={emp.landing_video_institucional || ''}
+                                            onChange={e => setEmp({ ...emp, landing_video_institucional: e.target.value })}
+                                            disabled={!isGerente}
+                                            placeholder="Ex: https://www.youtube.com/watch?v=... — aparece no destaque oval do hero"
+                                        />
+                                        <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                                            Quando preenchido, o "O" decorativo é substituído pelo vídeo com thumbnail e botão play. O cliente clica e assiste sem sair da página.
+                                        </p>
                                     </div>
                                     <div className="md:col-span-2">
                                         <ImageUploader

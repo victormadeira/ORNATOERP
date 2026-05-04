@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Biblioteca Ornato</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg:        #0c0e14;
+      --bg-card:   #141821;
+      --bg-input:  #1a1f2e;
+      --border:    #2a3040;
+      --text:      #e4e8f0;
+      --text-dim:  #8892a4;
+      --accent:    #1379F0;
+      --accent-h:  #2589ff;
+      --accent-dim:rgba(19,121,240,0.12);
+      --success:   #2ecc71;
+      --danger:    #e74c3c;
+      --warn:      #f39c12;
+      --gold:      #C9A96E;
+      --radius:    8px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .tab-btn {
+      flex: 1; padding: 10px 8px; font-size: 12px; font-weight: 600;
+      color: var(--text-dim); background: none; border: none;
+      border-bottom: 2px solid transparent; cursor: pointer; transition: all .2s;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      padding: 10px 14px;
+      display: flex; gap: 8px; align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .toolbar input {
+      flex: 1; padding: 7px 10px; background: var(--bg-input);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text); font-size: 12px; outline: none;
+    }
+    .toolbar input:focus { border-color: var(--accent); }
+    .toolbar select {
+      padding: 7px 8px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text); font-size: 12px; outline: none;
+    }
+
+    /* ── Botões ── */
+    .btn {
+      padding: 7px 12px; border-radius: var(--radius); border: none;
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-success:hover { filter: brightness(1.1); }
+    .btn-danger  { background: var(--danger); color: #fff; }
+    .btn-sm { padding: 5px 9px; font-size: 11px; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Cards de template ── */
+    .content { flex: 1; overflow-y: auto; padding: 12px 14px; }
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px;
+      transition: all .2s; cursor: pointer;
+    }
+    .card:hover { border-color: var(--accent); background: var(--accent-dim); }
+    .card.proprio { border-color: rgba(201,169,110,.35); }
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-nome { font-weight: 600; font-size: 12px; line-height: 1.3; }
+    .card-cat {
+      font-size: 10px; padding: 2px 6px; border-radius: 10px;
+      background: var(--accent-dim); color: var(--accent); white-space: nowrap;
+    }
+    .card-desc { font-size: 11px; color: var(--text-dim); margin: 5px 0 8px; line-height: 1.4; }
+    .card-meta { display: flex; gap: 10px; font-size: 10px; color: var(--text-dim); }
+    .card-meta span { display: flex; align-items: center; gap: 3px; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+    .tag {
+      font-size: 10px; padding: 2px 6px; border-radius: 8px;
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text-dim);
+    }
+    .card-actions { margin-top: 10px; display: flex; gap: 6px; }
+    .badge-proprio {
+      font-size: 9px; padding: 1px 5px; border-radius: 8px;
+      background: rgba(201,169,110,.2); color: var(--gold); border: 1px solid rgba(201,169,110,.3);
+    }
+
+    /* ── Publicar form ── */
+    .publish-form { display: flex; flex-direction: column; gap: 12px; padding: 4px 0; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label { font-size: 11px; color: var(--text-dim); font-weight: 600; }
+    .form-group input, .form-group textarea, .form-group select {
+      padding: 8px 10px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text); font-size: 12px; outline: none;
+      font-family: inherit;
+    }
+    .form-group input:focus, .form-group textarea:focus { border-color: var(--accent); }
+    .form-group textarea { resize: vertical; min-height: 60px; }
+    .toggle-row { display: flex; align-items: center; gap: 10px; }
+    .toggle { width: 36px; height: 20px; background: var(--border); border-radius: 10px;
+      position: relative; cursor: pointer; transition: background .2s; border: none; }
+    .toggle.on { background: var(--accent); }
+    .toggle::after { content: ''; position: absolute; width: 14px; height: 14px;
+      background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: left .2s; }
+    .toggle.on::after { left: 19px; }
+
+    /* ── Status / empty ── */
+    .empty { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+    .empty-icon { font-size: 36px; margin-bottom: 10px; }
+    .status-bar {
+      padding: 8px 14px; border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--text-dim); display: flex;
+      justify-content: space-between; align-items: center;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+    .dot.online { background: var(--success); }
+    .dot.offline { background: var(--danger); }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 20px; height: 20px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .7s linear infinite; margin: 30px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+    .text-success { color: var(--success); }
+    .text-danger { color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<!-- ── Tabs ── -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('explorar')">🌐 Explorar</button>
+  <button class="tab-btn" onclick="showTab('meus')">📁 Meus</button>
+  <button class="tab-btn" onclick="showTab('publicar')">☁ Publicar</button>
+</div>
+
+<!-- ═══════════ TAB: EXPLORAR ═══════════ -->
+<div id="tab-explorar">
+  <div class="toolbar">
+    <input id="busca" type="text" placeholder="Buscar template..." oninput="debounceBusca()">
+    <select id="filtro-cat" onchange="carregarTemplates()">
+      <option value="">Todas</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="carregarTemplates()">↺</button>
+  </div>
+  <div class="content">
+    <div id="lista-explorar" class="grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: MEUS ═══════════ -->
+<div id="tab-meus" class="hidden">
+  <div class="toolbar">
+    <span style="font-size:12px;color:var(--text-dim)">Seus templates publicados</span>
+    <button class="btn btn-primary btn-sm" onclick="carregarMeus()">↺ Atualizar</button>
+  </div>
+  <div class="content">
+    <div id="lista-meus" class="grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: PUBLICAR ═══════════ -->
+<div id="tab-publicar" class="hidden">
+  <div class="content">
+    <div id="info-modulo" style="margin-bottom:14px;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">MÓDULO SELECIONADO</div>
+      <div id="modulo-nome" style="font-weight:600;font-size:13px;">Nenhum módulo selecionado</div>
+      <div id="modulo-params" style="font-size:10px;color:var(--text-dim);margin-top:2px;"></div>
+    </div>
+
+    <div class="publish-form">
+      <div class="form-group">
+        <label>NOME DO TEMPLATE *</label>
+        <input id="pub-nome" type="text" placeholder="Ex: Armário Aéreo 60cm">
+      </div>
+      <div class="form-group">
+        <label>DESCRIÇÃO</label>
+        <textarea id="pub-desc" placeholder="Descreva o módulo: dimensões padrão, características, uso recomendado..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>CATEGORIA</label>
+        <select id="pub-cat">
+          <option value="geral">Geral</option>
+          <option value="cozinha">Cozinha</option>
+          <option value="dormitorio">Dormitório / Closet</option>
+          <option value="banheiro">Banheiro</option>
+          <option value="sala">Sala</option>
+          <option value="escritorio">Escritório</option>
+          <option value="area_servico">Área de Serviço</option>
+          <option value="ferragem">Ferragem / Componente</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>TAGS (separadas por vírgula)</label>
+        <input id="pub-tags" type="text" placeholder="aereo, 60cm, duas portas, blum">
+      </div>
+      <div class="form-group">
+        <label>VISIBILIDADE</label>
+        <div class="toggle-row">
+          <button class="toggle on" id="toggle-publico" onclick="togglePublico()"></button>
+          <span id="label-publico" style="font-size:12px;">Público — visível para todos da empresa</span>
+        </div>
+      </div>
+      <button class="btn btn-success" id="btn-publicar" onclick="publicar()" style="margin-top:4px;">
+        ☁ Publicar na Nuvem
+      </button>
+      <div id="pub-status" style="font-size:12px;text-align:center;min-height:18px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Status bar ── -->
+<div class="status-bar">
+  <span><span class="dot online" id="status-dot"></span><span id="status-txt">Conectado</span></span>
+  <span id="status-count"></span>
+</div>
+
+<script>
+// ── Estado global ──────────────────────────────────────
+let isPublico = true;
+let buscarTimer = null;
+let moduloSelecionado = null;
+
+// ── Bridge com Ruby ────────────────────────────────────
+function callRuby(action, data) {
+  return new Promise((resolve, reject) => {
+    if (window.sketchup && window.sketchup.cloud_library) {
+      window.sketchup.cloud_library(JSON.stringify({ action, ...data }));
+      // Ruby calls back via window.ornato_callback(json)
+      window._pendingResolve = resolve;
+    } else {
+      // Dev mode — mock data
+      resolve(mockData(action, data));
+    }
+  });
+}
+
+// Callback chamado pelo Ruby
+window.ornato_callback = function(json) {
+  const data = JSON.parse(json);
+  if (window._pendingResolve) {
+    window._pendingResolve(data);
+    window._pendingResolve = null;
+  }
+};
+
+// ── Tabs ──────────────────────────────────────────────
+function showTab(name) {
+  ['explorar','meus','publicar'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('hidden', t !== name);
+    document.querySelectorAll('.tab-btn')[['explorar','meus','publicar'].indexOf(t)]
+      .classList.toggle('active', t === name);
+  });
+  if (name === 'explorar') carregarTemplates();
+  if (name === 'meus') carregarMeus();
+  if (name === 'publicar') atualizarModuloSelecionado();
+}
+
+// ── Carregar categorias ────────────────────────────────
+async function carregarCategorias() {
+  const res = await callRuby('list_categories', {});
+  const sel = document.getElementById('filtro-cat');
+  // Remove antigas (exceto "Todas")
+  while (sel.options.length > 1) sel.remove(1);
+  (res.categorias || []).forEach(c => {
+    const opt = new Option(`${c.categoria} (${c.total})`, c.categoria);
+    sel.add(opt);
+  });
+}
+
+// ── Carregar templates (explorar) ─────────────────────
+async function carregarTemplates() {
+  const lista = document.getElementById('lista-explorar');
+  lista.innerHTML = '<div class="spinner"></div>';
+  const busca = document.getElementById('busca').value;
+  const cat   = document.getElementById('filtro-cat').value;
+
+  const res = await callRuby('list_templates', { busca, categoria: cat });
+  const items = res.templates || [];
+
+  document.getElementById('status-count').textContent = `${items.length} template${items.length !== 1 ? 's' : ''}`;
+
+  if (!items.length) {
+    lista.innerHTML = '<div class="empty"><div class="empty-icon">📦</div>Nenhum template encontrado.</div>';
+    return;
+  }
+  lista.innerHTML = items.map(t => cardHtml(t, false)).join('');
+}
+
+// ── Meus templates ────────────────────────────────────
+async function carregarMeus() {
+  const lista = document.getElementById('lista-meus');
+  lista.innerHTML = '<div class="spinner"></div>';
+  const res = await callRuby('list_my_templates', {});
+  const items = res.templates || [];
+
+  if (!items.length) {
+    lista.innerHTML = '<div class="empty"><div class="empty-icon">🗂</div>Você ainda não publicou nenhum template.<br><br><button class="btn btn-primary" onclick="showTab(\'publicar\')">☁ Publicar agora</button></div>';
+    return;
+  }
+  lista.innerHTML = items.map(t => cardHtml(t, true)).join('');
+}
+
+// ── Card HTML ─────────────────────────────────────────
+function cardHtml(t, showDelete) {
+  const tags = (t.tags || []).slice(0, 4).map(tg => `<span class="tag">${tg}</span>`).join('');
+  const propBadge = t.proprio ? '<span class="badge-proprio">✦ meu</span>' : '';
+  const pubBadge  = t.publico === 0 ? '<span class="tag" style="color:var(--warn)">privado</span>' : '';
+  return `
+  <div class="card ${t.proprio ? 'proprio' : ''}">
+    <div class="card-top">
+      <div class="card-nome">${esc(t.nome)} ${propBadge}</div>
+      <span class="card-cat">${esc(t.categoria)}</span>
+    </div>
+    <div class="card-desc">${esc(t.descricao || '—')}</div>
+    <div class="card-meta">
+      <span>👤 ${esc(t.autor || '—')}</span>
+      <span>⬇ ${t.downloads || 0}</span>
+      ${pubBadge}
+    </div>
+    ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+    <div class="card-actions">
+      <button class="btn btn-primary btn-sm" onclick="baixar(${t.id}, '${esc(t.nome)}')">
+        ⬇ Baixar e Inserir
+      </button>
+      ${showDelete ? `<button class="btn btn-danger btn-sm" onclick="deletar(${t.id})">🗑</button>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Baixar template ───────────────────────────────────
+async function baixar(id, nome) {
+  setStatus(`Baixando "${nome}"...`);
+  const res = await callRuby('download_template', { id });
+  if (res.ok) {
+    setStatus(`✅ "${nome}" inserido no modelo!`, true);
+  } else {
+    setStatus(`❌ Erro: ${res.error || 'falha no download'}`, false, true);
+  }
+}
+
+// ── Deletar template ──────────────────────────────────
+async function deletar(id) {
+  if (!confirm('Remover este template da nuvem? Esta ação não pode ser desfeita.')) return;
+  const res = await callRuby('delete_template', { id });
+  if (res.ok) { carregarMeus(); }
+  else { alert('Erro ao remover: ' + (res.error || 'desconhecido')); }
+}
+
+// ── Atualizar módulo selecionado ──────────────────────
+async function atualizarModuloSelecionado() {
+  const res = await callRuby('get_selected_module', {});
+  moduloSelecionado = res.modulo || null;
+
+  document.getElementById('modulo-nome').textContent =
+    moduloSelecionado ? moduloSelecionado.nome : 'Nenhum módulo selecionado';
+  document.getElementById('modulo-params').textContent =
+    moduloSelecionado
+      ? `${Object.keys(moduloSelecionado.params || {}).length} parâmetros · ${moduloSelecionado.tipo || 'módulo'}`
+      : 'Selecione um grupo com tipo=modulo no SketchUp';
+
+  document.getElementById('btn-publicar').disabled = !moduloSelecionado;
+  if (moduloSelecionado) {
+    document.getElementById('pub-nome').value = moduloSelecionado.nome || '';
+  }
+}
+
+// ── Publicar ──────────────────────────────────────────
+async function publicar() {
+  if (!moduloSelecionado) {
+    setStatus('❌ Selecione um módulo no SketchUp primeiro.', false, true);
+    return;
+  }
+  const nome = document.getElementById('pub-nome').value.trim();
+  if (!nome) {
+    setStatus('❌ Nome é obrigatório.', false, true);
+    return;
+  }
+
+  document.getElementById('btn-publicar').disabled = true;
+  setStatus('Publicando...');
+
+  const tags = document.getElementById('pub-tags').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  const res = await callRuby('publish_template', {
+    nome,
+    descricao: document.getElementById('pub-desc').value,
+    categoria: document.getElementById('pub-cat').value,
+    tags,
+    publico: isPublico,
+  });
+
+  document.getElementById('btn-publicar').disabled = false;
+
+  if (res.ok || res.id) {
+    setStatus(`✅ "${nome}" publicado! ID #${res.id}`, true);
+    document.getElementById('pub-nome').value = '';
+    document.getElementById('pub-desc').value = '';
+    document.getElementById('pub-tags').value = '';
+  } else {
+    setStatus(`❌ Erro: ${res.error || 'falha na publicação'}`, false, true);
+  }
+}
+
+// ── Toggle público ────────────────────────────────────
+function togglePublico() {
+  isPublico = !isPublico;
+  const btn = document.getElementById('toggle-publico');
+  const lbl = document.getElementById('label-publico');
+  btn.classList.toggle('on', isPublico);
+  lbl.textContent = isPublico
+    ? 'Público — visível para todos da empresa'
+    : 'Privado — só você pode ver';
+}
+
+// ── Status ────────────────────────────────────────────
+function setStatus(msg, success, danger) {
+  const el = document.getElementById('pub-status');
+  el.textContent = msg;
+  el.className = success ? 'text-success' : (danger ? 'text-danger' : '');
+}
+
+// ── Debounce busca ────────────────────────────────────
+function debounceBusca() {
+  clearTimeout(buscarTimer);
+  buscarTimer = setTimeout(carregarTemplates, 400);
+}
+
+// ── Escape HTML ───────────────────────────────────────
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Mock data para dev ────────────────────────────────
+function mockData(action, data) {
+  if (action === 'list_templates' || action === 'list_my_templates') {
+    return { templates: [
+      { id:1, nome:'Armário Aéreo 60cm', descricao:'Carcaça padrão com 2 portas', categoria:'cozinha',
+        tags:['aereo','blum','60cm'], autor:'Victor', downloads:12, proprio:true, publico:1 },
+      { id:2, nome:'Gaveteiro 4 Gavetas', descricao:'Com corrediça Tandem 500mm', categoria:'cozinha',
+        tags:['gaveta','tandem'], autor:'Ornato', downloads:8, proprio:false, publico:1 },
+    ]};
+  }
+  if (action === 'list_categories') {
+    return { categorias: [
+      {categoria:'cozinha',total:5},{categoria:'dormitorio',total:3}
+    ]};
+  }
+  if (action === 'get_selected_module') {
+    return { modulo: { nome: 'Armario_Aereo_60', tipo: 'modulo', params: { modulo_largura: 600 } } };
+  }
+  if (action === 'publish_template') return { ok: true, id: 99 };
+  if (action === 'download_template') return { ok: true };
+  if (action === 'delete_template') return { ok: true };
+  return {};
+}
+
+// ── Init ──────────────────────────────────────────────
+carregarCategorias();
+carregarTemplates();
+</script>
+</body>
+</html>

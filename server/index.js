@@ -294,6 +294,12 @@ app.use(express.static(distPath, {
 // Servir uploads (fotos expedição etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Documentação do plugin SketchUp — servida diretamente (sem SPA fallback)
+app.use('/docs/plugin', express.static(
+    path.join(__dirname, '..', 'ornato-plugin', 'docs'),
+    { maxAge: 0, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } }
+));
+
 // SPA fallback: qualquer rota que não é /api → envia index.html
 // Isso permite que o React lide com rotas como /orcs, /cli, /cfg etc.
 app.get('*', (req, res) => {

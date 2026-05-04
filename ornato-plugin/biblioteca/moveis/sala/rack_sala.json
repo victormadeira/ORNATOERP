@@ -1,0 +1,155 @@
+{
+  "id": "rack_sala",
+  "nome": "Rack Sala",
+  "categoria": "sala",
+  "descricao": "Rack baixo para sala com portas, gavetas e nichos abertos para equipamentos",
+  "icone": "rack",
+  "thumbnail": "rack_sala.png",
+
+  "parametros": {
+    "largura":      { "label": "Largura (mm)",     "default": 1800, "min": 900,  "max": 3000, "step": 100 },
+    "altura":       { "label": "Altura (mm)",      "default": 550,  "min": 400,  "max": 800,  "step": 10  },
+    "profundidade": { "label": "Profundidade (mm)", "default": 450,  "min": 350,  "max": 600,  "step": 10  },
+    "espessura":    { "label": "Espessura MDF",    "default": 18,   "min": 15,   "max": 25,   "step": 1   },
+    "altura_rodape":{ "label": "Rodapé (mm)",      "default": 80,   "min": 0,    "max": 150,  "step": 10  },
+    "material":     { "label": "Material",         "default": "MDF18_BrancoTX" },
+    "com_tampo":    { "label": "Com tampo",        "default": true  },
+    "com_fundo":    { "label": "Com fundo",        "default": true  },
+    "largura_nicho_central": { "label": "Largura nicho central (mm)", "default": 600, "min": 300, "max": 1200, "step": 50 },
+    "n_portas":     { "label": "Portas (por lado)", "default": 1, "min": 1, "max": 2, "step": 1 }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esq",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Lateral Dir",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Divisória Nicho Esq",
+      "role": "divider",
+      "largura":   "{altura} - {altura_rodape} - {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} - {largura_nicho_central}) / 2 - {espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura}"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Divisória Nicho Dir",
+      "role": "divider",
+      "largura":   "{altura} - {altura_rodape} - {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} + {largura_nicho_central}) / 2",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura}"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Tampo",
+      "role": "top",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_tampo} == true"
+    },
+    {
+      "nome": "Traseira",
+      "role": "back_panel",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura} - {altura_rodape} - 2 * {espessura}",
+      "espessura": 3,
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frente": false, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_fundo} == true"
+    },
+    {
+      "nome": "Porta Esq",
+      "role": "door",
+      "largura":   "{altura} - {altura_rodape} - 2 * {espessura} - 2",
+      "altura":    "({largura} - {largura_nicho_central}) / 2 - 2 * {espessura} - 2",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura} + 1",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + 1"
+      },
+      "bordas": { "frente": true, "topo": true, "base": true, "tras": true }
+    },
+    {
+      "nome": "Porta Dir",
+      "role": "door",
+      "largura":   "{altura} - {altura_rodape} - 2 * {espessura} - 2",
+      "altura":    "({largura} - {largura_nicho_central}) / 2 - 2 * {espessura} - 2",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} + {largura_nicho_central}) / 2 + {espessura} + 1",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + 1"
+      },
+      "bordas": { "frente": true, "topo": true, "base": true, "tras": true }
+    },
+    {
+      "nome": "Prateleira Nicho",
+      "role": "shelf",
+      "largura":   "{largura_nicho_central} - {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} - {largura_nicho_central}) / 2",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - 2 * {espessura}) / 2)"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Rodapé",
+      "role": "kick",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura_rodape}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{altura_rodape} > 0"
+    }
+  ],
+
+  "ferragens_auto": [
+    { "tipo": "dobradica",  "aplica_em": "door", "quantidade_por_folha": 2 },
+    { "tipo": "puxador",   "aplica_em": "door",  "espacamento": 128 },
+    { "tipo": "minifix",   "aplica_em": ["lateral", "divider", "base", "top"] },
+    { "tipo": "cavilha",   "aplica_em": ["lateral", "shelf"] }
+  ],
+
+  "agregados_sugeridos": ["led"]
+}

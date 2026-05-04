@@ -186,7 +186,7 @@ module Ornato
       # @param module_id [String] module identifier
       # @return [String, nil] local file path
       def download_custom_module(module_id)
-        data = api_get("/api/biblioteca/personalizado/#{module_id}", binary: true)
+        data = api_get("/api/biblioteca-skp/personalizado/#{module_id}", binary: true)
         return nil unless data
 
         dir = File.join(CACHE_DIR, 'personalizados')
@@ -197,6 +197,170 @@ module Ornato
         path
       rescue StandardError
         nil
+      end
+
+      # =====================================================================
+      # CLOUD TEMPLATES — JSON paramétricos compartilhados
+      # =====================================================================
+
+      # Listar templates disponíveis na nuvem (públicos + os do usuário)
+      # @param categoria [String, nil] filtrar por categoria
+      # @param busca [String, nil] busca por nome/tags
+      # @return [Array<Hash>] lista de templates com metadados
+      def list_cloud_templates(categoria: nil, busca: nil)
+        path = '/api/biblioteca-skp/templates'
+        params = []
+        params << "categoria=#{URI.encode_www_form_component(categoria)}" if categoria
+        params << "q=#{URI.encode_www_form_component(busca)}"             if busca
+        path += "?#{params.join('&')}" unless params.empty?
+
+        data = api_get(path)
+        return [] unless data
+
+        JSON.parse(data)
+      rescue StandardError => e
+        puts "Ornato Library: list_cloud_templates falhou: #{e.message}"
+        []
+      end
+
+      # Listar categorias de templates disponíveis
+      # @return [Array<Hash>] [{ "categoria" => "cozinha", "total" => 5 }, ...]
+      def list_template_categories
+        data = api_get('/api/biblioteca-skp/templates/categorias')
+        return [] unless data
+
+        JSON.parse(data)
+      rescue StandardError
+        []
+      end
+
+      # Baixar um template da nuvem e salvar localmente
+      # @param template_id [Integer] ID do template
+      # @param salvar_em [String, nil] pasta onde salvar (nil = cache padrão)
+      # @return [Hash, nil] hash com :path (arquivo local) e :template (dados JSON)
+      def download_cloud_template(template_id, salvar_em: nil)
+        data = api_get("/api/biblioteca-skp/template/#{template_id}")
+        return nil unless data
+
+        response = JSON.parse(data)
+        template = response['template']
+        nome_slug = (response['nome'] || "template_#{template_id}").downcase.gsub(/[^a-z0-9_]/, '_')
+
+        # Salvar no cache ou em pasta específica
+        dir = salvar_em || File.join(CACHE_DIR, 'templates_cloud')
+        FileUtils.mkdir_p(dir)
+
+        local_path = File.join(dir, "#{nome_slug}_#{template_id}.json")
+        File.write(local_path, JSON.pretty_generate(template))
+
+        {
+          path:       local_path,
+          template:   template,
+          nome:       response['nome'],
+          categoria:  response['categoria'],
+          autor:      response['autor'],
+          downloads:  response['downloads'],
+          id:         template_id,
+        }
+      rescue StandardError => e
+        puts "Ornato Library: download_cloud_template falhou: #{e.message}"
+        nil
+      end
+
+      # Publicar template JSON na nuvem
+      # @param nome [String] nome do template
+      # @param template [Hash] dados do template JSON
+      # @param options [Hash] descricao:, categoria:, tags:, thumbnail:, publico:
+      # @return [Hash, nil] { id:, nome:, categoria: } ou nil em caso de erro
+      def publish_template(nome, template, options = {})
+        require 'net/http'
+        require 'uri'
+        require 'json'
+
+        payload = {
+          nome:       nome,
+          descricao:  options[:descricao]  || '',
+          categoria:  options[:categoria]  || 'geral',
+          tags:       options[:tags]       || [],
+          template:   template,
+          thumbnail:  options[:thumbnail]  || '',
+          publico:    options.fetch(:publico, true),
+        }
+
+        url = URI.parse("#{@server_url}/api/biblioteca-skp/template")
+        http = Net::HTTP.new(url.host, url.port)
+        http.use_ssl   = (url.scheme == 'https')
+        http.open_timeout = 15
+        http.read_timeout = 30
+
+        request = Net::HTTP::Post.new(url.path)
+        request['Authorization'] = "Bearer #{@auth_token}"
+        request['Content-Type']  = 'application/json'
+        request.body = JSON.generate(payload)
+
+        response = http.request(request)
+
+        if response.code == '200' || response.code == '201'
+          JSON.parse(response.body)
+        else
+          puts "Ornato Library: publish_template falhou (#{response.code}): #{response.body}"
+          nil
+        end
+      rescue StandardError => e
+        puts "Ornato Library: publish_template erro: #{e.message}"
+        nil
+      end
+
+      # Publicar o template do módulo selecionado no SketchUp
+      # @param module_group [Sketchup::Group] grupo do módulo selecionado
+      # @param nome [String] nome para publicar
+      # @param options [Hash] opções adicionais
+      # @return [Hash, nil] resultado da publicação
+      def publish_selected_module(module_group, nome, options = {})
+        return nil unless module_group.is_a?(Sketchup::Group)
+
+        # Lê params do módulo
+        params_raw  = module_group.get_attribute('Ornato', 'params', '{}')
+        template_id = module_group.get_attribute('Ornato', 'template_id', nil)
+        params      = JSON.parse(params_raw) rescue {}
+
+        # Monta template para publicar
+        template = {
+          nome:      nome,
+          versao:    '1.0',
+          params:    params,
+          origem:    'sketchup_export',
+          exportado_em: Time.now.iso8601,
+        }
+
+        # Se tinha template_id, inclui referência
+        template[:template_origem_id] = template_id if template_id
+
+        publish_template(nome, template, options)
+      rescue StandardError => e
+        puts "Ornato Library: publish_selected_module erro: #{e.message}"
+        nil
+      end
+
+      # Deletar um template próprio da nuvem
+      # @param template_id [Integer] ID do template
+      # @return [Boolean] sucesso
+      def delete_cloud_template(template_id)
+        require 'net/http'
+        require 'uri'
+
+        url = URI.parse("#{@server_url}/api/biblioteca-skp/template/#{template_id}")
+        http = Net::HTTP.new(url.host, url.port)
+        http.use_ssl = (url.scheme == 'https')
+
+        request = Net::HTTP::Delete.new(url.path)
+        request['Authorization'] = "Bearer #{@auth_token}"
+
+        response = http.request(request)
+        response.code == '200'
+      rescue StandardError => e
+        puts "Ornato Library: delete_cloud_template erro: #{e.message}"
+        false
       end
 
       # =====================================================================

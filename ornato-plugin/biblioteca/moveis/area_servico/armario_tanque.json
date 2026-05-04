@@ -1,0 +1,172 @@
+{
+  "id": "armario_tanque",
+  "nome": "Armário de Tanque",
+  "categoria": "area_servico",
+  "descricao": "Armário para área de serviço com abertura central para tanque e portas laterais com prateleiras",
+  "icone": "armario_tanque",
+  "thumbnail": "armario_tanque.png",
+
+  "parametros": {
+    "largura":       { "label": "Largura total (mm)",   "default": 1200, "min": 900,  "max": 2000, "step": 50 },
+    "altura":        { "label": "Altura (mm)",          "default": 850,  "min": 700,  "max": 1000, "step": 10 },
+    "profundidade":  { "label": "Profundidade (mm)",    "default": 600,  "min": 500,  "max": 700,  "step": 10 },
+    "espessura":     { "label": "Espessura MDF",        "default": 18,   "min": 15,   "max": 25,   "step": 1  },
+    "altura_rodape": { "label": "Rodapé (mm)",          "default": 150,  "min": 100,  "max": 250,  "step": 10 },
+    "material":      { "label": "Material",             "default": "MDF18_BrancoTX" },
+    "com_tampo":     { "label": "Com tampo",            "default": false },
+    "com_fundo":     { "label": "Com fundo",            "default": true  },
+    "largura_tanque":{ "label": "Largura do vão do tanque (mm)", "default": 600, "min": 400, "max": 900, "step": 50 },
+    "n_prateleiras": { "label": "Prateleiras por módulo lateral", "default": 1, "min": 0, "max": 3, "step": 1 }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esq",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Lateral Dir",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Divisória Tanque Esq",
+      "role": "divider",
+      "largura":   "{altura} - {altura_rodape} - {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} - {largura_tanque}) / 2 - {espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura}"
+      },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Divisória Tanque Dir",
+      "role": "divider",
+      "largura":   "{altura} - {altura_rodape} - {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} + {largura_tanque}) / 2",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura}"
+      },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Tampo",
+      "role": "top",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_tampo} == true"
+    },
+    {
+      "nome": "Traseira",
+      "role": "back_panel",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura} - {altura_rodape} - 2 * {espessura}",
+      "espessura": 3,
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frente": false, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_fundo} == true"
+    },
+    {
+      "nome": "Porta Esq",
+      "role": "door",
+      "largura":   "{altura} - {altura_rodape} - 2 * {espessura} - 2",
+      "altura":    "({largura} - {largura_tanque}) / 2 - 2 * {espessura} - 2",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura} + 1",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + 1"
+      },
+      "bordas": { "frente": true, "topo": true, "base": true, "tras": true }
+    },
+    {
+      "nome": "Porta Dir",
+      "role": "door",
+      "largura":   "{altura} - {altura_rodape} - 2 * {espessura} - 2",
+      "altura":    "({largura} - {largura_tanque}) / 2 - 2 * {espessura} - 2",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} + {largura_tanque}) / 2 + {espessura} + 1",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + 1"
+      },
+      "bordas": { "frente": true, "topo": true, "base": true, "tras": true }
+    },
+    {
+      "nome": "Prateleira Módulo Esq",
+      "role": "shelf",
+      "largura":   "({largura} - {largura_tanque}) / 2 - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - 2 * {espessura}) / ({n_prateleiras} + 1))"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{n_prateleiras} >= 1"
+    },
+    {
+      "nome": "Prateleira Módulo Dir",
+      "role": "shelf",
+      "largura":   "({largura} - {largura_tanque}) / 2 - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "({largura} + {largura_tanque}) / 2 + {espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - 2 * {espessura}) / ({n_prateleiras} + 1))"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{n_prateleiras} >= 1"
+    },
+    {
+      "nome": "Rodapé",
+      "role": "kick",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura_rodape}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{altura_rodape} > 0"
+    }
+  ],
+
+  "ferragens_auto": [
+    { "tipo": "dobradica",  "aplica_em": "door", "quantidade_por_folha": 2 },
+    { "tipo": "puxador",   "aplica_em": "door",  "espacamento": 128 },
+    { "tipo": "minifix",   "aplica_em": ["lateral", "divider", "base"] },
+    { "tipo": "cavilha",   "aplica_em": ["lateral", "shelf"] }
+  ],
+
+  "observacao": "O vão central é reservado para o tanque. Dimensione a largura do vão de acordo com o modelo do tanque a ser instalado.",
+
+  "agregados_sugeridos": []
+}

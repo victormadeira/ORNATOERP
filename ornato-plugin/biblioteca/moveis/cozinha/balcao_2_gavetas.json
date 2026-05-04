@@ -1,0 +1,128 @@
+{
+  "id": "balcao_2_gavetas",
+  "nome": "Balcão 2 Gavetas",
+  "categoria": "cozinha",
+  "descricao": "Balcão de cozinha com 2 gavetas frontais e porta inferior opcional",
+  "icone": "gaveteiro",
+  "thumbnail": "balcao_2_gavetas.png",
+
+  "parametros": {
+    "largura":      { "label": "Largura (mm)",    "default": 600,  "min": 300,  "max": 1200, "step": 50 },
+    "altura":       { "label": "Altura (mm)",     "default": 850,  "min": 700,  "max": 950,  "step": 10 },
+    "profundidade": { "label": "Profundidade (mm)","default": 550,  "min": 400,  "max": 700,  "step": 10 },
+    "espessura":    { "label": "Espessura MDF",   "default": 18,   "min": 15,   "max": 25,   "step": 1  },
+    "altura_rodape":{ "label": "Rodapé (mm)",     "default": 100,  "min": 0,    "max": 150,  "step": 10 },
+    "material":     { "label": "Material",        "default": "MDF18_BrancoTX" },
+    "com_tampo":    { "label": "Com tampo",       "default": true  },
+    "com_fundo":    { "label": "Com fundo",       "default": true  },
+    "gaveta_sup_h": { "label": "Altura gaveta superior (mm)", "default": 200, "min": 100, "max": 350, "step": 10 }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esq",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Lateral Dir",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Tampo",
+      "role": "top",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_tampo} == true"
+    },
+    {
+      "nome": "Traseira",
+      "role": "back_panel",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura} - {altura_rodape} - 2 * {espessura}",
+      "espessura": 3,
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frente": false, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_fundo} == true"
+    },
+    {
+      "nome": "Prateleira Gavetas",
+      "role": "shelf",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {gaveta_sup_h} + {espessura} + 2"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Gaveta Sup Esquerda",
+      "role": "drawer_front",
+      "largura":   "{gaveta_sup_h} - 2",
+      "altura":    "({largura} - 2 * {espessura}) / 2 - 2",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura} + 1",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + 1"
+      },
+      "bordas": { "frente": true, "topo": true, "base": true, "tras": false }
+    },
+    {
+      "nome": "Gaveta Sup Direita",
+      "role": "drawer_front",
+      "largura":   "{gaveta_sup_h} - 2",
+      "altura":    "({largura} - 2 * {espessura}) / 2 - 2",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura} + 1",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + {gaveta_sup_h} + 1"
+      },
+      "bordas": { "frente": true, "topo": true, "base": true, "tras": false }
+    },
+    {
+      "nome": "Rodapé",
+      "role": "kick",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura_rodape}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{altura_rodape} > 0"
+    }
+  ],
+
+  "ferragens_auto": [
+    { "tipo": "corredica", "aplica_em": "drawer_front", "modelo": "{corredica}" },
+    { "tipo": "puxador",   "aplica_em": "drawer_front", "espacamento": 128 },
+    { "tipo": "minifix",   "aplica_em": ["lateral", "base", "top"] },
+    { "tipo": "cavilha",   "aplica_em": ["lateral", "shelf"] }
+  ],
+
+  "agregados_sugeridos": ["frente_falsa"]
+}

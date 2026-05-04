@@ -134,6 +134,23 @@ function getHeroVideoSource(rawUrl) {
     } catch { return { type: 'direct', src: url }; }
 }
 
+/** Extrai o ID do YouTube de qualquer URL válida */
+function getYouTubeId(rawUrl) {
+    const url = (rawUrl || '').trim();
+    if (!url) return null;
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+        if (host === 'youtu.be') return parsed.pathname.split('/').filter(Boolean)[0] || null;
+        if (host.endsWith('youtube.com')) {
+            if (parsed.pathname.includes('/shorts/')) return parsed.pathname.split('/shorts/')[1]?.split('/')[0] || null;
+            if (parsed.pathname.includes('/embed/')) return parsed.pathname.split('/embed/')[1]?.split('/')[0] || null;
+            return parsed.searchParams.get('v') || null;
+        }
+    } catch { /* ignora */ }
+    return null;
+}
+
 function useCountUp(end, duration, trigger) {
     const [val, setVal] = useState(0);
     useEffect(() => {
@@ -168,6 +185,7 @@ export default function LandingPageV2() {
     const [menuOpen, setMenuOpen]             = useState(false);
     const [popupOpen, setPopupOpen]           = useState(false);
     const [popupShown, setPopupShown]         = useState(false);
+    const [pillPlaying, setPillPlaying]       = useState(false);
     const [popupForm, setPopupForm]           = useState({ nome: '', telefone: '' });
     const [popupEnviando, setPopupEnviando]   = useState(false);
 
@@ -545,6 +563,9 @@ export default function LandingPageV2() {
     const heroImage  = config?.landing_hero_imagem || '';
     const heroVideo  = getHeroVideoSource(config?.landing_hero_video_url);
     const heroPoster = config?.landing_hero_video_poster || heroImage;
+    // Vídeo institucional na pill direita do hero (separado do background)
+    const pillVideoUrl = config?.landing_video_institucional || '';
+    const pillYtId     = getYouTubeId(pillVideoUrl);
 
     const telLimpo = (config?.telefone || '').replace(/\D/g, '');
     const waNum    = telLimpo ? (telLimpo.startsWith('55') ? telLimpo : `55${telLimpo}`) : '';
@@ -761,7 +782,49 @@ export default function LandingPageV2() {
                         </div>
 
                         <div className="lp-hero-image-side lp-animate-blur-in lp-delay-2">
-                            {heroImage ? (
+                            {pillYtId ? (
+                                /* ── Vídeo institucional na pill ── */
+                                <div className="lp-hero-image-wrapper lp-animate-float lp-pill-video" style={{ overflow: 'hidden', position: 'relative', cursor: pillPlaying ? 'default' : 'pointer' }}
+                                    onClick={() => !pillPlaying && setPillPlaying(true)}>
+                                    {pillPlaying ? (
+                                        <iframe
+                                            src={`https://www.youtube.com/embed/${pillYtId}?autoplay=1&rel=0&modestbranding=1&color=white`}
+                                            title="Vídeo institucional"
+                                            allow="autoplay; encrypted-media; picture-in-picture"
+                                            allowFullScreen
+                                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                                        />
+                                    ) : (
+                                        <>
+                                            {/* Thumbnail do YouTube */}
+                                            <img
+                                                src={`https://img.youtube.com/vi/${pillYtId}/maxresdefault.jpg`}
+                                                alt="Vídeo institucional"
+                                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                                                onError={e => { e.target.src = `https://img.youtube.com/vi/${pillYtId}/hqdefault.jpg`; }}
+                                            />
+                                            {/* Overlay escuro + botão play */}
+                                            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                                                <div style={{
+                                                    width: 64, height: 64, borderRadius: '50%',
+                                                    background: acc, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    boxShadow: `0 0 0 12px ${acc}30, 0 8px 32px ${acc}60`,
+                                                    transition: 'transform .2s',
+                                                }}>
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#111" style={{ marginLeft: 3 }}>
+                                                        <path d="M8 5v14l11-7z"/>
+                                                    </svg>
+                                                </div>
+                                                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', letterSpacing: '0.08em', fontWeight: 500, textTransform: 'uppercase' }}>Assistir vídeo</span>
+                                            </div>
+                                            {/* Badge "Institucional" no canto */}
+                                            <div style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', borderRadius: 20, padding: '4px 12px', fontSize: 10, color: acc, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', border: `1px solid ${acc}40` }}>
+                                                ▶ Institucional
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ) : heroImage ? (
                                 <div className="lp-hero-image-wrapper lp-animate-float">
                                     <img
                                         src={heroImage}

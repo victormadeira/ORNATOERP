@@ -1,0 +1,171 @@
+{
+  "id": "torre_closet",
+  "nome": "Torre Closet",
+  "categoria": "closet",
+  "descricao": "Torre alta de closet com seção superior de cabideiro e inferior com prateleiras ou gavetas",
+  "icone": "torre",
+  "thumbnail": "torre_closet.png",
+
+  "parametros": {
+    "largura":      { "label": "Largura (mm)",     "default": 600,  "min": 400,  "max": 900,  "step": 50  },
+    "altura":       { "label": "Altura (mm)",      "default": 2200, "min": 1800, "max": 2800, "step": 50  },
+    "profundidade": { "label": "Profundidade (mm)", "default": 600,  "min": 500,  "max": 700,  "step": 10  },
+    "espessura":    { "label": "Espessura MDF",    "default": 18,   "min": 15,   "max": 25,   "step": 1   },
+    "altura_rodape":{ "label": "Rodapé (mm)",      "default": 0,    "min": 0,    "max": 150,  "step": 10  },
+    "material":     { "label": "Material",         "default": "MDF18_BrancoTX" },
+    "com_tampo":    { "label": "Com tampo",        "default": true  },
+    "com_fundo":    { "label": "Com fundo",        "default": true  },
+    "n_prateleiras":{ "label": "Prateleiras na seção inferior", "default": 3, "min": 0, "max": 8, "step": 1 },
+    "altura_cabideiro": { "label": "Altura seção cabideiro (mm)", "default": 1100, "min": 600, "max": 1500, "step": 50 }
+  },
+
+  "pecas": [
+    {
+      "nome": "Lateral Esq",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Lateral Dir",
+      "role": "lateral",
+      "largura":   "{altura} - {altura_rodape}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Tampo",
+      "role": "top",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_tampo} == true"
+    },
+    {
+      "nome": "Traseira",
+      "role": "back_panel",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura} - {altura_rodape} - 2 * {espessura}",
+      "espessura": 3,
+      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
+      "bordas": { "frente": false, "topo": false, "base": false, "tras": false },
+      "condicao": "{com_fundo} == true"
+    },
+    {
+      "nome": "Divisória Cabideiro",
+      "role": "shelf",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 0,
+        "z": "{altura} - {espessura} - {altura_cabideiro}"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Cabideiro",
+      "role": "rail",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade} - 60",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 30,
+        "z": "{altura} - {espessura} - {altura_cabideiro} + round({altura_cabideiro} * 0.6)"
+      },
+      "bordas": { "frente": false, "topo": false, "base": false, "tras": false }
+    },
+    {
+      "nome": "Prateleira 1",
+      "role": "shelf",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - {altura_cabideiro} - 2 * {espessura}) / ({n_prateleiras} + 1))"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{n_prateleiras} >= 1"
+    },
+    {
+      "nome": "Prateleira 2",
+      "role": "shelf",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - {altura_cabideiro} - 2 * {espessura}) * 2 / ({n_prateleiras} + 1))"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{n_prateleiras} >= 2"
+    },
+    {
+      "nome": "Prateleira 3",
+      "role": "shelf",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - {altura_cabideiro} - 2 * {espessura}) * 3 / ({n_prateleiras} + 1))"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{n_prateleiras} >= 3"
+    },
+    {
+      "nome": "Prateleira 4",
+      "role": "shelf",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{profundidade} - 20",
+      "espessura": "{espessura}",
+      "posicao": {
+        "x": "{espessura}",
+        "y": 0,
+        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - {altura_cabideiro} - 2 * {espessura}) * 4 / ({n_prateleiras} + 1))"
+      },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{n_prateleiras} >= 4"
+    },
+    {
+      "nome": "Rodapé",
+      "role": "kick",
+      "largura":   "{largura} - 2 * {espessura}",
+      "altura":    "{altura_rodape}",
+      "espessura": "{espessura}",
+      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
+      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "condicao": "{altura_rodape} > 0"
+    }
+  ],
+
+  "ferragens_auto": [
+    { "tipo": "minifix",  "aplica_em": ["lateral", "base", "top"] },
+    { "tipo": "cavilha",  "aplica_em": ["lateral", "shelf"] },
+    { "tipo": "system32", "aplica_em": "lateral", "condicao": "{n_prateleiras} > 0" }
+  ],
+
+  "agregados_sugeridos": ["cabideiro", "led", "gaveta"]
+}

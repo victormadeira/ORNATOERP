@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configurações da Marcenaria</title>
+<style>
+/* ═══════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════ */
+:root {
+  --bg:      #0d1018;
+  --bg-2:    #141920;
+  --bg-3:    #1b2130;
+  --bg-4:    #232b3c;
+  --bg-5:    #2a3347;
+  --border:  #2e3a50;
+  --text:    #dde3f0;
+  --text-2:  #8b94a8;
+  --accent:  #1379F0;
+  --accent-h:#1a8fff;
+  --green:   #22c55e;
+  --red:     #ef4444;
+  --amber:   #f59e0b;
+  --radius:  6px;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ── Top bar ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.topbar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar-title svg { color: var(--accent); }
+.topbar-actions { display: flex; gap: 6px; }
+.btn-sm {
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-sm:hover { opacity: .85; }
+.btn-ghost {
+  background: var(--bg-4);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text-2); }
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--accent-h); }
+
+/* ── Tab nav ── */
+.tabs {
+  display: flex;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.tabs::-webkit-scrollbar { height: 3px; }
+.tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.tab-btn {
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Content area ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+.content::-webkit-scrollbar { width: 5px; }
+.content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Section headers ── */
+.sec {
+  margin-bottom: 18px;
+}
+.sec-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+.sec-title::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Field grid ── */
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.field-grid.cols-1 { grid-template-columns: 1fr; }
+.field-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field.full { grid-column: 1 / -1; }
+.field label {
+  font-size: 11px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.field input[type="number"],
+.field input[type="text"],
+.field select {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+  -moz-appearance: textfield;
+}
+.field input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+.field input:focus,
+.field select:focus { border-color: var(--accent); }
+.field select option { background: var(--bg-4); }
+.field-hint { font-size: 10px; color: var(--text-2); margin-top: 2px; }
+
+/* ── Toggle / checkbox ── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.toggle-row label {
+  font-size: 12px;
+  color: var(--text);
+}
+.toggle {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-5);
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .2s;
+}
+.toggle input:checked ~ .toggle-track { background: var(--accent); border-color: var(--accent); }
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform .2s;
+}
+.toggle input:checked ~ .toggle-track::after { transform: translateX(16px); }
+
+/* ── Card (info box) ── */
+.info-card {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.info-card b { color: var(--text); }
+
+/* ── Folga group ── */
+.folga-group {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.folga-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.folga-group-title .pip {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  background: var(--accent);
+}
+.pip-copper { background: #C9A96E !important; }
+.pip-pink   { background: #f472b6 !important; }
+.pip-purple { background: #a78bfa !important; }
+.pip-blue   { background: #60a5fa !important; }
+.pip-green  { background: var(--green) !important; }
+.pip-gray   { background: var(--text-2) !important; }
+
+/* ── Footer ── */
+.footer {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.save-status {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.save-status.ok  { color: var(--green); }
+.save-status.err { color: var(--red); }
+
+/* ── Toast ── */
+.toast-wrap {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 999;
+  pointer-events: none;
+}
+.toast {
+  background: var(--bg-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text);
+  pointer-events: auto;
+  transition: opacity .3s;
+  max-width: 220px;
+}
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error   { border-left: 3px solid var(--red);   }
+.toast.info    { border-left: 3px solid var(--accent); }
+.toast.fade    { opacity: 0; }
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ── -->
+<div class="topbar">
+  <div class="topbar-title">
+    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+    Configurações Globais
+  </div>
+  <div class="topbar-actions">
+    <button class="btn-sm btn-danger" onclick="doReset()">Restaurar Padrões</button>
+    <button class="btn-sm btn-ghost" onclick="window.close()">Fechar</button>
+  </div>
+</div>
+
+<!-- ── Tab nav ── -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="folgas">Folgas</button>
+  <button class="tab-btn" data-tab="dobradica">Dobradiças</button>
+  <button class="tab-btn" data-tab="juncao">Junção</button>
+  <button class="tab-btn" data-tab="corredica">Corrediça</button>
+  <button class="tab-btn" data-tab="puxador">Puxador</button>
+  <button class="tab-btn" data-tab="system32">Sistema 32</button>
+  <button class="tab-btn" data-tab="fundo">Rasgo Fundo</button>
+  <button class="tab-btn" data-tab="outros">Outros</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     CONTENT
+══════════════════════════════════════ -->
+<div class="content">
+
+  <!-- ─────────────────── FOLGAS ─────────────────── -->
+  <div class="tab-panel active" id="tab-folgas">
+    <div class="info-card">
+      <b>Folgas de fabricação</b> — espaço deixado entre a peça e o caixote.<br>
+      Esses valores alimentam as expressões nos JSONs de módulo (ex: <b>{largura} - 2*{folga_porta_lateral}</b>).
+      Ajuste conforme o material e a máquina da sua marcenaria.
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Porta de Abrir</div>
+      <div class="folga-group">
+        <div class="folga-group-title"><span class="pip pip-copper"></span>Porta de Abrir</div>
+        <div class="field-grid cols-3">
+          <div class="field">
+            <label>Lateral (cada lado) mm</label>
+            <input type="number" step="0.5" id="f_porta_abrir_lateral">
+          </div>
+          <div class="field">
+            <label>Topo mm</label>
+            <input type="number" step="0.5" id="f_porta_abrir_topo">
+          </div>
+          <div class="field">
+            <label>Base mm</label>
+            <input type="number" step="0.5" id="f_porta_abrir_base">
+          </div>
+        </div>
+        <div class="field-grid cols-1" style="margin-top:8px">
+          <div class="field">
+            <label>Entre 2 portas (total) mm</label>
+            <input type="number" step="0.5" id="f_porta_abrir_entre_portas">
+            <span class="field-hint">Somada nos dois batentes centrais. 2 mm = 1 mm cada porta.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="folga-group">
+        <div class="folga-group-title"><span class="pip pip-copper"></span>Porta de Correr</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>Folga trilho superior mm</label>
+            <input type="number" step="0.5" id="f_porta_correr_topo">
+          </div>
+          <div class="field">
+            <label>Folga trilho inferior mm</label>
+            <input type="number" step="0.5" id="f_porta_correr_base">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Gaveta</div>
+      <div class="folga-group">
+        <div class="folga-group-title"><span class="pip pip-pink"></span>Gaveta (caixa interna)</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>Lateral (cada lado) mm</label>
+            <input type="number" step="0.5" id="f_gaveta_lateral">
+            <span class="field-hint">Corrediça tandem Blum = 12,5 mm cada lado.</span>
+          </div>
+          <div class="field">
+            <label>Entre gavetas mm</label>
+            <input type="number" step="0.5" id="f_gaveta_entre_gavetas">
+          </div>
+          <div class="field">
+            <label>Fundo (caixa↔base) mm</label>
+            <input type="number" step="0.5" id="f_gaveta_fundo">
+          </div>
+          <div class="field">
+            <label>Topo (caixa↔acima) mm</label>
+            <input type="number" step="0.5" id="f_gaveta_topo">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Prateleira e Divisória</div>
+      <div class="folga-group">
+        <div class="folga-group-title"><span class="pip pip-purple"></span>Prateleira</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>Lateral (cada lado) mm</label>
+            <input type="number" step="0.5" id="f_prateleira_lateral">
+          </div>
+          <div class="field">
+            <label>Recuo traseiro mm</label>
+            <input type="number" step="0.5" id="f_prateleira_traseira">
+            <span class="field-hint">Distância da prateleira ao fundo do módulo.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="folga-group">
+        <div class="folga-group-title"><span class="pip pip-blue"></span>Divisória</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>Topo mm</label>
+            <input type="number" step="0.5" id="f_divisoria_topo">
+          </div>
+          <div class="field">
+            <label>Base mm</label>
+            <input type="number" step="0.5" id="f_divisoria_base">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── DOBRADIÇAS ─────────────────── -->
+  <div class="tab-panel" id="tab-dobradica">
+    <div class="sec">
+      <div class="sec-title">Modelo</div>
+      <div class="field-grid cols-1">
+        <div class="field">
+          <label>Modelo padrão</label>
+          <select id="d_modelo"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Geometria do Cup</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Diâmetro do cup mm</label>
+          <input type="number" step="0.5" id="d_cup_dia">
+          <span class="field-hint">Padrão Blum: 35 mm</span>
+        </div>
+        <div class="field">
+          <label>Profundidade do cup mm</label>
+          <input type="number" step="0.5" id="d_cup_depth">
+        </div>
+        <div class="field">
+          <label>Offset da borda frontal mm</label>
+          <input type="number" step="0.5" id="d_edge_offset">
+          <span class="field-hint">Centro do cup → borda da porta.</span>
+        </div>
+        <div class="field">
+          <label>Ângulo de abertura °</label>
+          <input type="number" step="5" id="d_angulo">
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Furos Piloto</div>
+      <div class="field-grid cols-3">
+        <div class="field">
+          <label>Diâmetro piloto mm</label>
+          <input type="number" step="0.5" id="d_pilot_dia">
+        </div>
+        <div class="field">
+          <label>Profundidade piloto mm</label>
+          <input type="number" step="0.5" id="d_pilot_depth">
+        </div>
+        <div class="field">
+          <label>Offset ±Y piloto mm</label>
+          <input type="number" step="0.5" id="d_pilot_offset">
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Posicionamento</div>
+      <div class="field-grid cols-1">
+        <div class="field">
+          <label>Offset superior / inferior (1ª e última dobradiça) mm</label>
+          <input type="number" step="5" id="d_top_offset">
+          <span class="field-hint">Distância da borda da porta ao centro da 1ª dobradiça.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Opcionais</div>
+      <div class="toggle-row">
+        <label>Soft-close integrado</label>
+        <label class="toggle">
+          <input type="checkbox" id="d_soft_close">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <label>Amortecedor externo</label>
+        <label class="toggle">
+          <input type="checkbox" id="d_amortecedor">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── JUNÇÃO ─────────────────── -->
+  <div class="tab-panel" id="tab-juncao">
+    <div class="sec">
+      <div class="sec-title">Tipo padrão de junção</div>
+      <div class="field-grid cols-1">
+        <div class="field">
+          <label>Junção estrutural</label>
+          <select id="j_tipo">
+            <option value="minifix">Minifix (parafuso cam)</option>
+            <option value="confirmat">Confirmat (parafuso)</option>
+            <option value="dowel">Cavilha</option>
+          </select>
+          <span class="field-hint">Usado para junção lateral↔base, lateral↔tampo, etc.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Minifix</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Ø corpo (face) mm</label>
+          <input type="number" step="0.5" id="m_body_dia">
+        </div>
+        <div class="field">
+          <label>Prof. corpo mm</label>
+          <input type="number" step="0.5" id="m_body_depth">
+        </div>
+        <div class="field">
+          <label>Ø pino (topo) mm</label>
+          <input type="number" step="0.5" id="m_pin_dia">
+        </div>
+        <div class="field">
+          <label>Prof. pino mm</label>
+          <input type="number" step="0.5" id="m_pin_depth">
+        </div>
+        <div class="field">
+          <label>Ø parafuso mm</label>
+          <input type="number" step="0.5" id="m_bolt_dia">
+        </div>
+        <div class="field">
+          <label>Prof. parafuso mm</label>
+          <input type="number" step="0.5" id="m_bolt_depth">
+        </div>
+        <div class="field">
+          <label>Espaçamento entre pares mm</label>
+          <input type="number" step="8" id="m_spacing">
+        </div>
+        <div class="field">
+          <label>Dist. mínima da borda mm</label>
+          <input type="number" step="1" id="m_min_edge">
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Confirmat</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Ø furo face mm</label>
+          <input type="number" step="0.5" id="c_face_dia">
+        </div>
+        <div class="field">
+          <label>Prof. furo face mm</label>
+          <input type="number" step="0.5" id="c_face_depth">
+        </div>
+        <div class="field">
+          <label>Ø furo topo mm</label>
+          <input type="number" step="0.5" id="c_edge_dia">
+        </div>
+        <div class="field">
+          <label>Prof. furo topo mm</label>
+          <input type="number" step="0.5" id="c_edge_depth">
+        </div>
+        <div class="field">
+          <label>Espaçamento mm</label>
+          <input type="number" step="8" id="c_spacing">
+        </div>
+        <div class="field">
+          <label>Dist. mínima borda mm</label>
+          <input type="number" step="1" id="c_min_edge">
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Cavilha</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Diâmetro mm</label>
+          <input type="number" step="0.5" id="cv_dia">
+        </div>
+        <div class="field">
+          <label>Profundidade (em cada peça) mm</label>
+          <input type="number" step="0.5" id="cv_depth">
+        </div>
+        <div class="field">
+          <label>Espaçamento mm</label>
+          <input type="number" step="8" id="cv_spacing">
+        </div>
+        <div class="field">
+          <label>Dist. mínima borda mm</label>
+          <input type="number" step="1" id="cv_min_edge">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── CORREDIÇA ─────────────────── -->
+  <div class="tab-panel" id="tab-corredica">
+    <div class="sec">
+      <div class="sec-title">Corrediça de Gaveta</div>
+      <div class="field-grid cols-1">
+        <div class="field">
+          <label>Modelo padrão</label>
+          <select id="cr_modelo"></select>
+        </div>
+        <div class="field">
+          <label>Comprimento padrão mm</label>
+          <select id="cr_comprimento">
+            <option value="300">300 mm</option>
+            <option value="350">350 mm</option>
+            <option value="400">400 mm</option>
+            <option value="450">450 mm</option>
+            <option value="500">500 mm</option>
+            <option value="550">550 mm</option>
+            <option value="600">600 mm</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Altura do 1º furo de fixação mm</label>
+          <input type="number" step="0.5" id="cr_altura_fixacao">
+          <span class="field-hint">Posição Y do primeiro furo medida da base do módulo.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Opções</div>
+      <div class="toggle-row">
+        <label>Extração total</label>
+        <label class="toggle">
+          <input type="checkbox" id="cr_extracao_total">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <b>Padrão de furos</b> — cada modelo define posições de furo por comprimento.<br>
+      Ajuste o modelo e o comprimento; o sistema usa o padrão do fabricante automaticamente.
+    </div>
+  </div>
+
+  <!-- ─────────────────── PUXADOR ─────────────────── -->
+  <div class="tab-panel" id="tab-puxador">
+    <div class="sec">
+      <div class="sec-title">Puxador</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Espaçamento entre furos mm</label>
+          <select id="p_espacamento">
+            <option value="96">96 mm</option>
+            <option value="128">128 mm</option>
+            <option value="160">160 mm</option>
+            <option value="192">192 mm</option>
+            <option value="256">256 mm</option>
+            <option value="320">320 mm</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Posição na porta</label>
+          <select id="p_posicao">
+            <option value="topo">Topo</option>
+            <option value="centro">Centro</option>
+            <option value="baixo">Baixo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Diâmetro do furo mm</label>
+          <input type="number" step="0.5" id="p_dia_furo">
+          <span class="field-hint">Furo passante (ambas as faces).</span>
+        </div>
+        <div class="field">
+          <label>Recuo da borda oposta mm</label>
+          <input type="number" step="1" id="p_recuo">
+          <span class="field-hint">X do eixo do puxador à borda sem dobradiça.</span>
+        </div>
+        <div class="field">
+          <label>Y da borda superior da porta mm</label>
+          <input type="number" step="5" id="p_y_porta">
+          <span class="field-hint">Deslocamento vertical do puxador em portas (posição=topo).</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── SISTEMA 32 ─────────────────── -->
+  <div class="tab-panel" id="tab-system32">
+    <div class="sec">
+      <div class="sec-title">Sistema 32 (furos de prateleira)</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Diâmetro mm</label>
+          <input type="number" step="0.5" id="s_dia">
+        </div>
+        <div class="field">
+          <label>Profundidade mm</label>
+          <input type="number" step="0.5" id="s_depth">
+        </div>
+        <div class="field">
+          <label>Espaçamento (módulo) mm</label>
+          <input type="number" step="1" id="s_spacing">
+          <span class="field-hint">Padrão: 32 mm.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Margens (offset dos eixos de furos)</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Offset frontal (borda da frente) mm</label>
+          <input type="number" step="0.5" id="s_front_offset">
+        </div>
+        <div class="field">
+          <label>Offset traseiro (borda do fundo) mm</label>
+          <input type="number" step="0.5" id="s_rear_offset">
+        </div>
+        <div class="field">
+          <label>Margem superior mm</label>
+          <input type="number" step="0.5" id="s_top_margin">
+        </div>
+        <div class="field">
+          <label>Margem inferior mm</label>
+          <input type="number" step="0.5" id="s_bottom_margin">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── RASGO FUNDO ─────────────────── -->
+  <div class="tab-panel" id="tab-fundo">
+    <div class="sec">
+      <div class="sec-title">Rasgo de Fundo (back panel dado)</div>
+      <div class="info-card">
+        Rasgo na face interna das laterais, base e tampo para encaixar o fundo do módulo.
+      </div>
+      <div class="field-grid cols-3">
+        <div class="field">
+          <label>Largura do rasgo mm</label>
+          <input type="number" step="0.5" id="rf_largura">
+          <span class="field-hint">Deve caber a espessura do fundo (ex: 3 ou 6 mm).</span>
+        </div>
+        <div class="field">
+          <label>Profundidade mm</label>
+          <input type="number" step="0.5" id="rf_profundidade">
+        </div>
+        <div class="field">
+          <label>Recuo da borda traseira mm</label>
+          <input type="number" step="0.5" id="rf_recuo">
+          <span class="field-hint">Distância da borda traseira ao início do rasgo.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────── OUTROS ─────────────────── -->
+  <div class="tab-panel" id="tab-outros">
+    <div class="sec">
+      <div class="sec-title">Pistão a Gás</div>
+      <div class="field-grid cols-1">
+        <div class="field">
+          <label>Força padrão N</label>
+          <input type="number" step="10" id="pt_forca_padrao">
+          <span class="field-hint">Força de cada pistão em Newtons (típico: 60–120 N).</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<!-- /content -->
+
+<!-- ── Footer ── -->
+<div class="footer">
+  <span class="save-status" id="saveStatus">Carregando...</span>
+  <button class="btn-sm btn-ghost" onclick="doReset()">Padrões</button>
+  <button class="btn-sm btn-primary" onclick="doSave()">Salvar</button>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let _cfg = {};
+let _catalog = {};
+let _dirty = false;
+
+// ════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  });
+});
+
+// ════════════════════════════════════════════
+//  LOAD / POPULATE
+// ════════════════════════════════════════════
+window.setShopConfig = function(data) {
+  _cfg     = data.config   || {};
+  _catalog = data.catalog  || {};
+  populateCatalogs();
+  populateFields();
+  setStatus('Configurações carregadas', '');
+};
+
+function populateCatalogs() {
+  // Dobradiças
+  const dSel = document.getElementById('d_modelo');
+  dSel.innerHTML = '';
+  (_catalog.dobradica || []).forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.id;
+    opt.textContent = item.label;
+    dSel.appendChild(opt);
+  });
+
+  // Corrediças
+  const crSel = document.getElementById('cr_modelo');
+  crSel.innerHTML = '';
+  (_catalog.corredica || []).forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item.id;
+    opt.textContent = item.label;
+    crSel.appendChild(opt);
+  });
+}
+
+function setVal(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.type === 'checkbox') {
+    el.checked = !!val;
+  } else {
+    el.value = val !== undefined && val !== null ? val : '';
+  }
+}
+
+function populateFields() {
+  const d  = _cfg.dobradica      || {};
+  const p  = _cfg.puxador        || {};
+  const mf = _cfg.minifix        || {};
+  const cf = _cfg.confirmat      || {};
+  const cv = _cfg.cavilha        || {};
+  const s  = _cfg.system32       || {};
+  const cr = _cfg.corredica      || {};
+  const rf = _cfg.rasgo_fundo    || {};
+  const pt = _cfg.pistao         || {};
+  const fg = _cfg.folgas         || {};
+  const fpa = fg.porta_abrir     || {};
+  const fpc = fg.porta_correr    || {};
+  const fgv = fg.gaveta          || {};
+  const fpr = fg.prateleira      || {};
+  const fdv = fg.divisoria       || {};
+
+  // ── Folgas
+  setVal('f_porta_abrir_lateral',      fpa.lateral);
+  setVal('f_porta_abrir_topo',         fpa.topo);
+  setVal('f_porta_abrir_base',         fpa.base);
+  setVal('f_porta_abrir_entre_portas', fpa.entre_portas);
+  setVal('f_porta_correr_topo',        fpc.topo);
+  setVal('f_porta_correr_base',        fpc.base);
+  setVal('f_gaveta_lateral',           fgv.lateral);
+  setVal('f_gaveta_entre_gavetas',     fgv.entre_gavetas);
+  setVal('f_gaveta_fundo',             fgv.fundo);
+  setVal('f_gaveta_topo',              fgv.topo);
+  setVal('f_prateleira_lateral',       fpr.lateral);
+  setVal('f_prateleira_traseira',      fpr.traseira);
+  setVal('f_divisoria_topo',           fdv.topo);
+  setVal('f_divisoria_base',           fdv.base);
+
+  // ── Dobradiça
+  setVal('d_modelo',       d.modelo);
+  setVal('d_cup_dia',      d.cup_dia);
+  setVal('d_cup_depth',    d.cup_depth);
+  setVal('d_edge_offset',  d.edge_offset);
+  setVal('d_angulo',       d.angulo);
+  setVal('d_pilot_dia',    d.pilot_dia);
+  setVal('d_pilot_depth',  d.pilot_depth);
+  setVal('d_pilot_offset', d.pilot_offset);
+  setVal('d_top_offset',   d.top_offset);
+  setVal('d_soft_close',   d.soft_close);
+  setVal('d_amortecedor',  d.amortecedor);
+
+  // ── Junção
+  setVal('j_tipo', _cfg.juncao || 'minifix');
+  setVal('m_body_dia',   mf.body_dia);
+  setVal('m_body_depth', mf.body_depth);
+  setVal('m_pin_dia',    mf.pin_dia);
+  setVal('m_pin_depth',  mf.pin_depth);
+  setVal('m_bolt_dia',   mf.bolt_dia);
+  setVal('m_bolt_depth', mf.bolt_depth);
+  setVal('m_spacing',    mf.spacing);
+  setVal('m_min_edge',   mf.min_edge);
+  setVal('c_face_dia',   cf.face_dia);
+  setVal('c_face_depth', cf.face_depth);
+  setVal('c_edge_dia',   cf.edge_dia);
+  setVal('c_edge_depth', cf.edge_depth);
+  setVal('c_spacing',    cf.spacing);
+  setVal('c_min_edge',   cf.min_edge);
+  setVal('cv_dia',       cv.dia);
+  setVal('cv_depth',     cv.depth);
+  setVal('cv_spacing',   cv.spacing);
+  setVal('cv_min_edge',  cv.min_edge);
+
+  // ── Corrediça
+  setVal('cr_modelo',         cr.modelo);
+  setVal('cr_comprimento',    cr.comprimento);
+  setVal('cr_altura_fixacao', cr.altura_fixacao);
+  setVal('cr_extracao_total', cr.extracao_total);
+
+  // ── Puxador
+  setVal('p_espacamento', p.espacamento);
+  setVal('p_posicao',     p.posicao);
+  setVal('p_dia_furo',    p.dia_furo);
+  setVal('p_recuo',       p.recuo);
+  setVal('p_y_porta',     p.y_porta);
+
+  // ── Sistema 32
+  setVal('s_dia',           s.dia);
+  setVal('s_depth',         s.depth);
+  setVal('s_spacing',       s.spacing);
+  setVal('s_front_offset',  s.front_offset);
+  setVal('s_rear_offset',   s.rear_offset);
+  setVal('s_top_margin',    s.top_margin);
+  setVal('s_bottom_margin', s.bottom_margin);
+
+  // ── Rasgo Fundo
+  setVal('rf_largura',      rf.largura);
+  setVal('rf_profundidade', rf.profundidade);
+  setVal('rf_recuo',        rf.recuo);
+
+  // ── Outros
+  setVal('pt_forca_padrao', pt.forca_padrao);
+
+  // mark dirty on any change
+  document.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('change', () => markDirty());
+  });
+}
+
+function markDirty() {
+  _dirty = true;
+  setStatus('Há mudanças não salvas', 'warn');
+}
+
+// ════════════════════════════════════════════
+//  COLLECT → config object
+// ════════════════════════════════════════════
+function getVal(id) {
+  const el = document.getElementById(id);
+  if (!el) return undefined;
+  if (el.type === 'checkbox') return el.checked;
+  if (el.type === 'number') return parseFloat(el.value) || 0;
+  return el.value;
+}
+
+function collectConfig() {
+  return {
+    juncao: getVal('j_tipo'),
+
+    dobradica: {
+      modelo:       getVal('d_modelo'),
+      angulo:       getVal('d_angulo'),
+      edge_offset:  getVal('d_edge_offset'),
+      cup_dia:      getVal('d_cup_dia'),
+      cup_depth:    getVal('d_cup_depth'),
+      pilot_dia:    getVal('d_pilot_dia'),
+      pilot_depth:  getVal('d_pilot_depth'),
+      pilot_offset: getVal('d_pilot_offset'),
+      top_offset:   getVal('d_top_offset'),
+      soft_close:   getVal('d_soft_close'),
+      amortecedor:  getVal('d_amortecedor'),
+    },
+
+    puxador: {
+      espacamento: parseInt(getVal('p_espacamento')) || 128,
+      posicao:     getVal('p_posicao'),
+      dia_furo:    getVal('p_dia_furo'),
+      recuo:       getVal('p_recuo'),
+      y_porta:     getVal('p_y_porta'),
+    },
+
+    minifix: {
+      body_dia:   getVal('m_body_dia'),
+      body_depth: getVal('m_body_depth'),
+      pin_dia:    getVal('m_pin_dia'),
+      pin_depth:  getVal('m_pin_depth'),
+      bolt_dia:   getVal('m_bolt_dia'),
+      bolt_depth: getVal('m_bolt_depth'),
+      spacing:    getVal('m_spacing'),
+      min_edge:   getVal('m_min_edge'),
+    },
+
+    confirmat: {
+      face_dia:   getVal('c_face_dia'),
+      face_depth: getVal('c_face_depth'),
+      edge_dia:   getVal('c_edge_dia'),
+      edge_depth: getVal('c_edge_depth'),
+      spacing:    getVal('c_spacing'),
+      min_edge:   getVal('c_min_edge'),
+    },
+
+    cavilha: {
+      dia:      getVal('cv_dia'),
+      depth:    getVal('cv_depth'),
+      spacing:  getVal('cv_spacing'),
+      min_edge: getVal('cv_min_edge'),
+    },
+
+    system32: {
+      dia:           getVal('s_dia'),
+      depth:         getVal('s_depth'),
+      spacing:       getVal('s_spacing'),
+      front_offset:  getVal('s_front_offset'),
+      rear_offset:   getVal('s_rear_offset'),
+      top_margin:    getVal('s_top_margin'),
+      bottom_margin: getVal('s_bottom_margin'),
+    },
+
+    corredica: {
+      modelo:          getVal('cr_modelo'),
+      comprimento:     parseInt(getVal('cr_comprimento')) || 450,
+      extracao_total:  getVal('cr_extracao_total'),
+      altura_fixacao:  getVal('cr_altura_fixacao'),
+    },
+
+    rasgo_fundo: {
+      largura:      getVal('rf_largura'),
+      profundidade: getVal('rf_profundidade'),
+      recuo:        getVal('rf_recuo'),
+    },
+
+    pistao: {
+      forca_padrao: getVal('pt_forca_padrao'),
+    },
+
+    folgas: {
+      porta_abrir: {
+        lateral:      getVal('f_porta_abrir_lateral'),
+        topo:         getVal('f_porta_abrir_topo'),
+        base:         getVal('f_porta_abrir_base'),
+        entre_portas: getVal('f_porta_abrir_entre_portas'),
+      },
+      porta_correr: {
+        topo: getVal('f_porta_correr_topo'),
+        base: getVal('f_porta_correr_base'),
+      },
+      gaveta: {
+        lateral:       getVal('f_gaveta_lateral'),
+        fundo:         getVal('f_gaveta_fundo'),
+        topo:          getVal('f_gaveta_topo'),
+        entre_gavetas: getVal('f_gaveta_entre_gavetas'),
+      },
+      prateleira: {
+        lateral:  getVal('f_prateleira_lateral'),
+        traseira: getVal('f_prateleira_traseira'),
+      },
+      divisoria: {
+        topo: getVal('f_divisoria_topo'),
+        base: getVal('f_divisoria_base'),
+      },
+    },
+  };
+}
+
+// ════════════════════════════════════════════
+//  ACTIONS
+// ════════════════════════════════════════════
+function doSave() {
+  const cfg = collectConfig();
+  try {
+    sketchup.save_shop_config(JSON.stringify(cfg));
+    _dirty = false;
+    setStatus('Configurações salvas com sucesso', 'ok');
+    showToast('Configurações salvas', 'success');
+  } catch(e) {
+    setStatus('Erro ao salvar: ' + e.message, 'err');
+    showToast('Erro ao salvar', 'error');
+  }
+}
+
+function doReset() {
+  if (!confirm('Restaurar todos os valores para o padrão de fábrica?\nEssa ação não pode ser desfeita.')) return;
+  try {
+    sketchup.reset_shop_config();
+    showToast('Configurações restauradas', 'info');
+    _dirty = false;
+  } catch(e) {
+    showToast('Erro ao resetar', 'error');
+  }
+}
+
+// ════════════════════════════════════════════
+//  STATUS + TOAST
+// ════════════════════════════════════════════
+function setStatus(msg, type) {
+  const el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.className = 'save-status' + (type ? ' ' + type : '');
+}
+
+function showToast(msg, type) {
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type || 'info');
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => { t.classList.add('fade'); setTimeout(() => t.remove(), 320); }, 2400);
+}
+
+// ════════════════════════════════════════════
+//  INIT — request config from Ruby
+// ════════════════════════════════════════════
+window.addEventListener('load', () => {
+  try {
+    sketchup.get_shop_config();
+  } catch(e) {
+    setStatus('Modo preview (sem SketchUp)', '');
+    // Dev fallback — load with dummy data
+    window.setShopConfig({ config: {}, catalog: { dobradica: [], corredica: [] } });
+  }
+});
+</script>
+</body>
+</html>
