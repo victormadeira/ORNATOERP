@@ -917,7 +917,7 @@ const getEspecialIcon = (tipo) => ESPECIAL_ICON[tipo] || Shapes;
 const getEspecialCor = (tipo) => (TIPOS_ESPECIAIS.find(t => t.id === tipo)?.cor) || '#a78bfa';
 
 // ── Componente: card de item especial ────────────────────────────────────────
-function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly, grupos }) {
+function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly, grupos, draggable: isDraggable, onDragStart, onDragEnd }) {
     const [exp, setExp] = useState(false);
     const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === item.tipo) || TIPOS_ESPECIAIS[4];
     const cor = tipoInfo.cor;
@@ -931,10 +931,15 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
     const up = (patch) => onUpdate({ ...item, ...patch });
 
     return (
-        <div className="rounded-lg border overflow-hidden mb-2" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: `3px solid ${cor}` }}>
+        <div className="rounded-lg border overflow-hidden mb-2"
+            draggable={isDraggable}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: `3px solid ${cor}`, cursor: isDraggable ? 'grab' : 'default' }}>
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExp(!exp)}>
                 <div className="flex items-center gap-2">
+                    {isDraggable && <GripVertical size={12} style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }} />}
                     {exp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <Ic size={13} style={{ color: cor }} />
                     <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{item.nome || tipoInfo.nome}</span>
@@ -1692,8 +1697,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     });
 
     // ── Drag & Drop handlers para grupos ──
-    const handleDragStart = (e, ambId, itemId) => {
-        e.dataTransfer.setData('text/plain', JSON.stringify({ ambId, itemId }));
+    const handleDragStart = (e, ambId, itemId, isEspecial = false) => {
+        e.dataTransfer.setData('text/plain', JSON.stringify({ ambId, itemId, isEspecial }));
         e.dataTransfer.effectAllowed = 'move';
         e.currentTarget.style.opacity = '0.5';
     };
@@ -1707,15 +1712,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setDragOverGrupo(grupoId);
     };
     const handleGrupoDragLeave = (e) => {
-        // Só limpa se saiu do container (não entre filhos)
         if (!e.currentTarget.contains(e.relatedTarget)) setDragOverGrupo(null);
     };
+    const moveEspecialToGrupo = (ambId, itemId, grupoId) => upAmb(ambId, a => {
+        const ie = (a.itensEspeciais || []).find(i => i.id === itemId);
+        if (ie) ie.grupo_id = grupoId || '';
+    });
     const handleGrupoDrop = (e, ambId, grupoId) => {
         e.preventDefault();
         setDragOverGrupo(null);
         try {
             const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-            if (data.ambId === ambId && data.itemId) moveToGrupo(ambId, data.itemId, grupoId);
+            if (data.ambId !== ambId) return;
+            if (data.isEspecial) moveEspecialToGrupo(ambId, data.itemId, grupoId);
+            else if (data.itemId) moveToGrupo(ambId, data.itemId, grupoId);
         } catch (_) { }
     };
 
@@ -3311,6 +3321,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                         {ieFilhos.map(ie => (
                                                                             <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
                                                                                 grupos={amb.grupos || []}
+                                                                                draggable={!readOnly}
+                                                                                onDragStart={e => handleDragStart(e, amb.id, ie.id, true)}
+                                                                                onDragEnd={handleDragEnd}
                                                                                 onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
                                                                                 onCopy={() => copyItemEspecial(amb.id, ie.id)}
                                                                                 onRemove={() => removeItemEspecial(amb.id, ie.id)} />
@@ -3321,21 +3334,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                             </div>
                                                                         )}
                                                                     </>)}
-                                                                    {/* Botões para adicionar especiais diretamente no grupo */}
-                                                                    {!readOnly && (
-                                                                        <div className="flex items-center gap-1 flex-wrap mt-1.5 pt-1.5" style={{ borderTop: '1px solid rgba(245,158,11,0.1)' }}>
-                                                                            <span className="text-[9px] font-medium mr-0.5" style={{ color: 'var(--text-muted)' }}>+ Especial:</span>
-                                                                            {TIPOS_ESPECIAIS.map(t => (
-                                                                                <button key={t.id}
-                                                                                    onClick={() => addItemEspecial(amb.id, t.id, grupo.id)}
-                                                                                    className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer font-medium"
-                                                                                    style={{ background: `${t.cor}18`, color: t.cor, border: `1px solid ${t.cor}35` }}
-                                                                                    title={`Adicionar ${t.nome} neste grupo`}>
-                                                                                    {t.nome}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
                                                                 </div>
                                                             </div>
                                                         );
@@ -3400,15 +3398,19 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                             )}
 
-                                            {/* ── Itens Especiais (sem grupo) ── */}
+                                            {/* ── Itens Especiais (sem grupo) — draggable para grupos ── */}
                                             {(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).length > 0 && (
                                                 <div className="mt-2">
                                                     <div className="text-[10px] uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5" style={{ color: '#a78bfa' }}>
                                                         <Shapes size={10} /> Itens Especiais ({(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).length})
+                                                        {(amb.grupos || []).length > 0 && <span className="font-normal ml-1" style={{ color: 'var(--text-muted)' }}>— arraste para um grupo</span>}
                                                     </div>
                                                     {(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).map(ie => (
                                                         <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
                                                             grupos={amb.grupos || []}
+                                                            draggable={!readOnly && (amb.grupos || []).length > 0}
+                                                            onDragStart={e => handleDragStart(e, amb.id, ie.id, true)}
+                                                            onDragEnd={handleDragEnd}
                                                             onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
                                                             onCopy={() => copyItemEspecial(amb.id, ie.id)}
                                                             onRemove={() => removeItemEspecial(amb.id, ie.id)} />
