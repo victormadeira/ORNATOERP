@@ -282,6 +282,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
 // ── Componente: editor de instância de componente dentro de uma caixa ────────
 function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRemove, chapasDB, acabDB, ferragensDB, globalPadroes }) {
     const [exp, setExp] = useState(true);
+    const [matExp, setMatExp] = useState(false);
 
     const custoComp = useMemo(() => {
         if (!compDef) return 0;
@@ -419,58 +420,66 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                         })}
                     </div>
 
-                    {/* ── Materiais da instância ── */}
-                    <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.18)' }}>
-                        <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#a855f7' }}>Materiais do Componente</span>
-                            {temMatsCustom && (
-                                <button onClick={() => onUpdate({ ...ci, matIntInst: '', matExtInst: '' })}
-                                    className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer hover:bg-red-500/10"
-                                    style={{ color: 'var(--text-muted)' }}>
-                                    Resetar
-                                </button>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div>
-                                <label className={Z.lbl}>Material Interno</label>
-                                <SearchableSelect
-                                    value={ci.matIntInst || ''}
-                                    onChange={val => onUpdate({ ...ci, matIntInst: val })}
-                                    groups={[
-                                        { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                        ...(acabDB.filter(a => a.preco > 0).length > 0
-                                            ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
-                                            : []),
-                                    ]}
-                                    inheritOption={`↩ Herdar: ${autoMatIntNome}`}
-                                    placeholder="Buscar material..."
-                                    className={Z.inp}
-                                    style={ci.matIntInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
-                                />
+                    {/* ── Materiais da instância ── colapsável */}
+                    {temMatsCustom || matExp ? (
+                        <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.18)' }}>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#a855f7' }}>Material deste componente</span>
+                                <div className="flex gap-2">
+                                    {temMatsCustom && (
+                                        <button onClick={() => { onUpdate({ ...ci, matIntInst: '', matExtInst: '' }); setMatExp(false); }}
+                                            className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer hover:bg-red-500/10"
+                                            style={{ color: 'var(--text-muted)' }}>
+                                            Resetar
+                                        </button>
+                                    )}
+                                    <button onClick={() => setMatExp(false)} className="text-[9px] cursor-pointer" style={{ color: 'var(--text-muted)' }}>✕</button>
+                                </div>
                             </div>
-                            <div>
-                                <label className={Z.lbl}>Material Externo</label>
-                                <SearchableSelect
-                                    value={ci.matExtInst || ''}
-                                    onChange={val => onUpdate({ ...ci, matExtInst: val })}
-                                    groups={[
-                                        { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                        ...(acabDB.filter(a => a.preco > 0).length > 0
-                                            ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
-                                            : []),
-                                    ]}
-                                    inheritOption={`↩ Herdar: ${autoMatExtNome}`}
-                                    placeholder="Buscar material..."
-                                    className={Z.inp}
-                                    style={ci.matExtInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
-                                />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                    <label className={Z.lbl}>Material Interno</label>
+                                    <SearchableSelect
+                                        value={ci.matIntInst || ''}
+                                        onChange={val => onUpdate({ ...ci, matIntInst: val })}
+                                        groups={[
+                                            { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                            ...(acabDB.filter(a => a.preco > 0).length > 0
+                                                ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
+                                                : []),
+                                        ]}
+                                        inheritOption={`↩ Herdar: ${autoMatIntNome}`}
+                                        placeholder="Buscar material..."
+                                        className={Z.inp}
+                                        style={ci.matIntInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={Z.lbl}>Material Externo</label>
+                                    <SearchableSelect
+                                        value={ci.matExtInst || ''}
+                                        onChange={val => onUpdate({ ...ci, matExtInst: val })}
+                                        groups={[
+                                            { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                            ...(acabDB.filter(a => a.preco > 0).length > 0
+                                                ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
+                                                : []),
+                                        ]}
+                                        inheritOption={`↩ Herdar: ${autoMatExtNome}`}
+                                        placeholder="Buscar material..."
+                                        className={Z.inp}
+                                        style={ci.matExtInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
+                                    />
+                                </div>
                             </div>
                         </div>
-                        <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                            Override de material só para este componente. Ex: gaveta com interno azul e exterior preto, enquanto o módulo é vermelho.
-                        </p>
-                    </div>
+                    ) : (
+                        <button onClick={() => setMatExp(true)}
+                            className="text-[10px] text-left cursor-pointer"
+                            style={{ color: 'rgba(168,85,247,0.7)' }}>
+                            + Personalizar material deste componente
+                        </button>
+                    )}
 
                     {/* Frente externa — material exclusivo */}
                     {hasFrenteExt && (
@@ -1137,6 +1146,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [expandedItem, setExpandedItem] = useState(null);
     const [dragOverGrupo, setDragOverGrupo] = useState(null); // grupo_id being hovered during drag
     const [reportItemId, setReportItemId] = useState(null);
+    const [advancedItemId, setAdvancedItemId] = useState(null); // item com painel avançado aberto
     const [addCompModal, setAddCompModal] = useState(null); // { ambId, itemId }
     const [compSearch, setCompSearch] = useState('');
     const [showTipoAmbModal, setShowTipoAmbModal] = useState(false);
@@ -2744,75 +2754,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                                         {isItemExp && (
                                             <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                                                {/* Trocar módulo */}
-                                                <div>
-                                                    <label className={Z.lbl}>Módulo base</label>
-                                                    <CaixaSearch
-                                                        caixas={caixas}
-                                                        onSelect={newId => swapItemCaixa(amb.id, item.id, newId)}
-                                                        onAddPainel={null}
-                                                        placeholder={`Atual: ${item.nome} — clique para trocar...`}
-                                                    />
-                                                </div>
-
                                                 {/* Descrição do módulo */}
                                                 <div>
-                                                    <label className={Z.lbl}>Descrição do Módulo</label>
+                                                    <label className={Z.lbl}>Descrição / Observação</label>
                                                     <input
                                                         type="text"
-                                                        placeholder={`Ex: ${item.nome} — Cozinha inferior, Parede direita...`}
+                                                        placeholder={`Ex: Parede direita, acima do fogão...`}
                                                         value={item.desc || ''}
                                                         onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
                                                         className={Z.inp}
                                                         style={item.desc ? { borderColor: 'rgba(19,121,240,0.4)', background: 'rgba(19,121,240,0.03)' } : {}}
                                                     />
-                                                </div>
-
-                                                {/* Ajuste de Preço */}
-                                                <div>
-                                                    <label className={Z.lbl}>Ajuste de Preço <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(desconto negativo · acréscimo positivo)</span></label>
-                                                    <div className="flex gap-2 items-center">
-                                                        <div className="flex rounded overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 }; it.ajuste.tipo = '%'; })}
-                                                                className="px-2 py-1 text-xs font-bold transition-colors"
-                                                                style={{ background: (item.ajuste?.tipo ?? '%') === '%' ? 'var(--primary)' : 'var(--bg-muted)', color: (item.ajuste?.tipo ?? '%') === '%' ? '#fff' : 'var(--text-muted)' }}>
-                                                                %
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: 'R', valor: 0 }; it.ajuste.tipo = 'R'; })}
-                                                                className="px-2 py-1 text-xs font-bold transition-colors"
-                                                                style={{ background: item.ajuste?.tipo === 'R' ? 'var(--primary)' : 'var(--bg-muted)', color: item.ajuste?.tipo === 'R' ? '#fff' : 'var(--text-muted)' }}>
-                                                                R$
-                                                            </button>
-                                                        </div>
-                                                        <input
-                                                            type="number"
-                                                            step="0.1"
-                                                            placeholder="0"
-                                                            value={item.ajuste?.valor ?? ''}
-                                                            onChange={e => upItem(amb.id, item.id, it => {
-                                                                if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 };
-                                                                it.ajuste.valor = parseFloat(e.target.value) || 0;
-                                                            })}
-                                                            className={Z.inp}
-                                                            style={ajusteR !== 0 ? { borderColor: ajusteR > 0 ? 'rgba(22,163,74,0.5)' : 'rgba(239,68,68,0.5)' } : {}}
-                                                        />
-                                                        {ajusteR !== 0 && (
-                                                            <span className="text-xs whitespace-nowrap font-bold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                                                                {ajusteR > 0 ? '+' : ''}{R$(ajusteR)}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {ajusteR !== 0 && (
-                                                        <div className="text-[10px] mt-1.5 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                                                            <span>Base: {R$(precoItem)}</span>
-                                                            <span>→</span>
-                                                            <span className="font-semibold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>Final: {R$(precoItemFinal)}</span>
-                                                        </div>
-                                                    )}
                                                 </div>
 
                                                 {/* Dimensões e quantidade */}
@@ -2972,6 +2924,64 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         />
                                                     </div>
                                                 )}
+
+                                                {/* ── Avançado: Trocar módulo + Ajuste de Preço ── */}
+                                                {(() => {
+                                                    const isAdv = advancedItemId === item.id || ajusteR !== 0;
+                                                    return (
+                                                        <>
+                                                            <button onClick={() => setAdvancedItemId(isAdv && ajusteR === 0 ? null : item.id)}
+                                                                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-semibold cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+                                                                style={{ color: 'var(--text-muted)', borderTop: '1px dashed var(--border)' }}>
+                                                                {isAdv ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                                                                <Settings size={10} />
+                                                                {isAdv ? 'Ocultar avançado' : 'Avançado (trocar módulo · ajuste de preço)'}
+                                                                {ajusteR !== 0 && <span className="ml-1 font-bold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>{ajusteR > 0 ? '+' : ''}{R$(ajusteR)}</span>}
+                                                            </button>
+                                                            {isAdv && (
+                                                                <div className="flex flex-col gap-3 pt-2">
+                                                                    {/* Trocar módulo */}
+                                                                    <div>
+                                                                        <label className={Z.lbl}>Trocar módulo base <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>— atual: {item.nome}</span></label>
+                                                                        <CaixaSearch
+                                                                            caixas={caixas}
+                                                                            onSelect={newId => swapItemCaixa(amb.id, item.id, newId)}
+                                                                            onAddPainel={null}
+                                                                            placeholder="Buscar módulo para substituir..."
+                                                                        />
+                                                                    </div>
+                                                                    {/* Ajuste de Preço */}
+                                                                    <div>
+                                                                        <label className={Z.lbl}>Ajuste de Preço <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(desconto negativo · acréscimo positivo)</span></label>
+                                                                        <div className="flex gap-2 items-center">
+                                                                            <div className="flex rounded overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+                                                                                <button type="button"
+                                                                                    onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 }; it.ajuste.tipo = '%'; })}
+                                                                                    className="px-2 py-1 text-xs font-bold transition-colors"
+                                                                                    style={{ background: (item.ajuste?.tipo ?? '%') === '%' ? 'var(--primary)' : 'var(--bg-muted)', color: (item.ajuste?.tipo ?? '%') === '%' ? '#fff' : 'var(--text-muted)' }}>%</button>
+                                                                                <button type="button"
+                                                                                    onClick={() => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: 'R', valor: 0 }; it.ajuste.tipo = 'R'; })}
+                                                                                    className="px-2 py-1 text-xs font-bold transition-colors"
+                                                                                    style={{ background: item.ajuste?.tipo === 'R' ? 'var(--primary)' : 'var(--bg-muted)', color: item.ajuste?.tipo === 'R' ? '#fff' : 'var(--text-muted)' }}>R$</button>
+                                                                            </div>
+                                                                            <input type="number" step="0.1" placeholder="0"
+                                                                                value={item.ajuste?.valor ?? ''}
+                                                                                onChange={e => upItem(amb.id, item.id, it => { if (!it.ajuste) it.ajuste = { tipo: '%', valor: 0 }; it.ajuste.valor = parseFloat(e.target.value) || 0; })}
+                                                                                className={Z.inp}
+                                                                                style={ajusteR !== 0 ? { borderColor: ajusteR > 0 ? 'rgba(22,163,74,0.5)' : 'rgba(239,68,68,0.5)' } : {}} />
+                                                                            {ajusteR !== 0 && <span className="text-xs whitespace-nowrap font-bold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>{ajusteR > 0 ? '+' : ''}{R$(ajusteR)}</span>}
+                                                                        </div>
+                                                                        {ajusteR !== 0 && (
+                                                                            <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                                                Base: {R$(precoItem)} → <span className="font-semibold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>Final: {R$(precoItemFinal)}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
 
                                                 {/* Toggle relatório */}
                                                 <button onClick={() => setReportItemId(reportItemId === item.id ? null : item.id)}
