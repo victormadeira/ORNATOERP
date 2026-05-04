@@ -2976,7 +2976,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 <div className="flex flex-col gap-3 pt-2">
                                                                     {/* Trocar módulo */}
                                                                     <div>
-                                                                        <label className={Z.lbl}>Trocar módulo base <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>— atual: {item.nome}</span></label>
+                                                                        <label className={Z.lbl}>Trocar módulo <span className="font-normal" style={{ color: 'var(--text-muted)' }}>— {item.nome}</span></label>
                                                                         <CaixaSearch
                                                                             caixas={caixas}
                                                                             onSelect={newId => swapItemCaixa(amb.id, item.id, newId)}
@@ -2986,7 +2986,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     </div>
                                                                     {/* Ajuste de Preço */}
                                                                     <div>
-                                                                        <label className={Z.lbl}>Ajuste de Preço <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(desconto negativo · acréscimo positivo)</span></label>
+                                                                        <label className={Z.lbl}>Ajuste de Preço</label>
                                                                         <div className="flex gap-2 items-center">
                                                                             <div className="flex rounded overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
                                                                                 <button type="button"
