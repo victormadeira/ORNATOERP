@@ -279,8 +279,7 @@ function ProposalLanding({ token }) {
             </section>
 
             {/* ── SEÇÃO 4b: VÍDEO DO PROCESSO ── */}
-            {videoProcessoId && (
-                <section className="lp-section-pad" style={{ padding: '80px 24px', background: '#0b0e13', position: 'relative', overflow: 'hidden' }}>
+            <section className="lp-section-pad" style={{ padding: '80px 24px', background: '#0b0e13', position: 'relative', overflow: 'hidden' }}>
                     {/* Glow de fundo */}
                     <div style={{
                         position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -301,7 +300,7 @@ function ProposalLanding({ token }) {
                             </p>
                         </div>
 
-                        {/* Player */}
+                        {/* Player ou Placeholder */}
                         <div style={{
                             borderRadius: 20, overflow: 'hidden',
                             border: `1px solid ${ca}25`,
@@ -310,15 +309,55 @@ function ProposalLanding({ token }) {
                         }}>
                             {/* Barra decorativa superior */}
                             <div style={{ height: 3, background: `linear-gradient(90deg, ${cp}, ${ca}, ${cp})` }} />
-                            <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
-                                <iframe
-                                    title="Processo de fabricação"
-                                    src={`https://www.youtube.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white`}
-                                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                />
-                            </div>
+                            {videoProcessoId ? (
+                                <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
+                                    <iframe
+                                        title="Processo de fabricação"
+                                        src={`https://www.youtube.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white`}
+                                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
+                                </div>
+                            ) : (
+                                /* Placeholder — visível apenas enquanto nenhum vídeo está configurado */
+                                <div style={{
+                                    position: 'relative', paddingBottom: '56.25%',
+                                    background: `linear-gradient(135deg, #0d1117 0%, #131a24 60%, #0d1117 100%)`,
+                                }}>
+                                    <div style={{
+                                        position: 'absolute', inset: 0,
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20,
+                                    }}>
+                                        {/* Círculo play com borda animada */}
+                                        <div style={{
+                                            width: 80, height: 80, borderRadius: '50%',
+                                            background: `${ca}20`, border: `2px dashed ${ca}60`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            <svg width="32" height="32" viewBox="0 0 24 24" fill={ca} style={{ marginLeft: 4 }}>
+                                                <polygon points="5,3 19,12 5,21" />
+                                            </svg>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+                                                Vídeo de processo não configurado
+                                            </div>
+                                            <div style={{ fontSize: 12, color: '#475569' }}>
+                                                Adicione o link do YouTube em <strong style={{ color: ca }}>Configurações → Landing da Proposta</strong>
+                                            </div>
+                                        </div>
+                                        {/* Linhas de scan decorativas */}
+                                        {[20, 40, 60, 80].map(t => (
+                                            <div key={t} style={{
+                                                position: 'absolute', left: '8%', right: '8%',
+                                                top: `${t}%`, height: 1,
+                                                background: `linear-gradient(90deg, transparent, ${ca}15, transparent)`,
+                                            }} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Selos abaixo do vídeo */}
@@ -335,8 +374,7 @@ function ProposalLanding({ token }) {
                             ))}
                         </div>
                     </div>
-                </section>
-            )}
+            </section>
 
             {/* ── DEPOIMENTOS (se houver) ── */}
             {depoimentos && depoimentos.length > 0 && (
