@@ -36,7 +36,14 @@ function getYouTubeId(url) {
     if (!url) return null;
     try {
         const u = new URL(url);
+        // youtu.be/ID
         if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+        // youtube.com/shorts/ID
+        const shortsMatch = u.pathname.match(/\/shorts\/([^/?&]+)/);
+        if (shortsMatch) return shortsMatch[1];
+        // youtube.com/watch?v=ID  ou  youtube.com/embed/ID
+        const embedMatch = u.pathname.match(/\/embed\/([^/?&]+)/);
+        if (embedMatch) return embedMatch[1];
         return u.searchParams.get('v') || null;
     } catch { return null; }
 }
