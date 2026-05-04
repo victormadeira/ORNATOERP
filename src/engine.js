@@ -977,10 +977,19 @@ export function calcItemEspecial(item, bib = []) {
 
     if (tipo === 'aluminio') {
         // Alumínio: perfis em metro linear + vidro opcional
+        // Modo simples: se nenhum perfil tem comp+preço configurados, usa L e precoEfetivo
+        const hasDetailedPerfis = (perfis || []).some(p => (p.comp || 0) > 0 && (p.precoML || 0) > 0);
         let custoPerfis = 0;
-        perfis.forEach(p => {
-            custoPerfis += ((p.comp || 0) / 1000) * (p.precoML || 0) * (p.qtd || 1);
-        });
+        if (hasDetailedPerfis) {
+            perfis.forEach(p => {
+                custoPerfis += ((p.comp || 0) / 1000) * (p.precoML || 0) * (p.qtd || 1);
+            });
+            descricao = `${perfis.filter(p => p.comp > 0).length} perfil(s)${vidro ? ' + vidro' : ''}`;
+        } else {
+            // Modo simples: campo "Comprimento" (L) e "Preço/ml" (precoEfetivo)
+            custoPerfis = (L / 1000) * precoEfetivo;
+            descricao = `${N(L / 1000)} ml × ${R$(precoEfetivo)}/ml`;
+        }
         let custoVidro = 0;
         if (vidro && vidro.precoM2 > 0 && L > 0 && A > 0) {
             const areaVidro = (L / 1000) * (A / 1000);
@@ -988,7 +997,6 @@ export function calcItemEspecial(item, bib = []) {
         }
         custo = (custoPerfis + custoVidro) * qtd + custoInstalacao;
         area = L > 0 && A > 0 ? (L / 1000) * (A / 1000) * qtd : 0;
-        descricao = `${perfis.length} perfil(s)${vidro ? ' + vidro' : ''}`;
     } else if (unidade === 'un' || tipo === 'outro') {
         // Preço unitário
         custo = precoEfetivo * qtd + custoInstalacao;

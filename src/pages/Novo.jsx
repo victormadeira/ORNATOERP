@@ -952,9 +952,14 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
                     </div>
 
                     {/* Dimensões + qtd */}
-                    <div className="grid grid-cols-3 gap-2">
-                        <div><label className={Z.lbl}>Largura (mm)</label><input type="number" className={Z.inp} min={0} value={item.L || 0} onChange={e => up({ L: +e.target.value })} /></div>
-                        <div><label className={Z.lbl}>Altura (mm)</label><input type="number" className={Z.inp} min={0} value={item.A || 0} onChange={e => up({ A: +e.target.value })} /></div>
+                    <div className={`grid gap-2 ${item.tipo === 'aluminio' ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                        <div>
+                            <label className={Z.lbl}>{item.tipo === 'aluminio' ? 'Comprimento (mm)' : 'Largura (mm)'}</label>
+                            <input type="number" className={Z.inp} min={0} value={item.L || 0} onChange={e => up({ L: +e.target.value })} />
+                        </div>
+                        {item.tipo !== 'aluminio' && (
+                            <div><label className={Z.lbl}>Altura (mm)</label><input type="number" className={Z.inp} min={0} value={item.A || 0} onChange={e => up({ A: +e.target.value })} /></div>
+                        )}
                         <div><label className={Z.lbl}>Qtd</label><input type="number" className={Z.inp} min={1} value={item.qtd || 1} onChange={e => up({ qtd: Math.max(1, +e.target.value) })} /></div>
                     </div>
 
@@ -987,10 +992,13 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
                         </div>
                     </div>
 
-                    {/* Perfis de alumínio (só para tipo aluminio) */}
+                    {/* Perfis de alumínio (modo avançado — múltiplos perfis com comprimentos diferentes) */}
                     {item.tipo === 'aluminio' && (
                         <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: `${cor}30`, borderLeft: `3px solid ${cor}` }}>
-                            <span className="text-[10px] uppercase tracking-widest font-bold block mb-2" style={{ color: cor }}>Perfis de Alumínio</span>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: cor }}>Múltiplos Perfis</span>
+                                <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>Para perfis com comprimentos diferentes — opcional</span>
+                            </div>
                             {(item.perfis || []).map((p, pi) => (
                                 <div key={pi} className="grid grid-cols-4 gap-2 mb-2">
                                     <div><input className={Z.inp} value={p.nome || ''} placeholder="Nome do perfil" onChange={e => { const perfis = [...(item.perfis || [])]; perfis[pi] = { ...p, nome: e.target.value }; up({ perfis }); }} /></div>

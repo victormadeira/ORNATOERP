@@ -48,15 +48,18 @@ const EMPTY_COMP = {
 };
 
 const MAT_OPTIONS = [
-    { value: 'int',      label: 'Material Interno (matInt)' },
-    { value: 'ext',      label: 'Material Externo (matExt)' },
-    { value: 'fundo',    label: 'Material Fundo (matFundo)' },
-    { value: 'ext_comp', label: 'Material Exclusivo do Componente' },
+    { value: 'int',      label: 'Material Interno' },
+    { value: 'ext',      label: 'Material Externo' },
+    // legacy: só aparece no dropdown se a peça já usa esse valor
+    { value: 'fundo',    label: 'Material Fundo (legado)',    legacy: true },
+    { value: 'ext_comp', label: 'Material Exclusivo (legado)', legacy: true },
     { value: 'mdf15',    label: 'MDF 15mm (fixo)' },
     { value: 'mdf18',    label: 'MDF 18mm (fixo)' },
     { value: 'mdf25',    label: 'MDF 25mm (fixo)' },
     { value: 'comp3',    label: 'Compensado 3mm (fixo)' },
 ];
+/** Filtra MAT_OPTIONS: esconde legacy, exceto se a peça já usa aquele valor */
+const matOpts = (cur) => MAT_OPTIONS.filter(m => !m.legacy || m.value === cur);
 
 const FITA_OPCOES = [
     { value: 'f', label: 'Frente' },
@@ -512,7 +515,7 @@ function CaixaEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS }) {
                             <div><label className={Z.lbl}>Nome</label><input value={p.nome} onChange={e => updPeca(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
                             <div><label className={Z.lbl} title="Área da peça em mm². Ex: A*P = altura × profundidade">Fórmula (mm²)</label><FormulaInput value={p.calc} onChange={v => updPeca(i, 'calc', v)} vars={caixaVars} testVars={caixaTestVars} placeholder="A*P" suggestions={FORMULAS_CAIXA} /></div>
                             <div><label className={Z.lbl}>Qtd</label><input type="number" min="1" max="10" value={p.qtd} onChange={e => updPeca(i, 'qtd', parseInt(e.target.value) || 1)} className={`${Z.inp} text-xs text-center`} /></div>
-                            <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+                            <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{matOpts(p.mat).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                             <div><label className={Z.lbl}>Fita de Borda</label><FitaToggle value={p.fita} onChange={v => updPeca(i, 'fita', v)} /></div>
                             <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
@@ -533,7 +536,7 @@ function CaixaEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS }) {
                             <div><label className={Z.lbl}>Nome</label><input value={t.nome || ''} onChange={e => updTamp(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
                             <div><label className={Z.lbl}>Face</label><select value={t.face} onChange={e => updTamp(i, 'face', e.target.value)} className={`${Z.inp} text-xs`}>{FACE_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select></div>
                             <div><label className={Z.lbl} title="Área do tamponamento em mm²">Fórmula (mm²)</label><FormulaInput value={t.calc} onChange={v => updTamp(i, 'calc', v)} vars={caixaVars} testVars={caixaTestVars} placeholder="A*P" suggestions={FORMULAS_CAIXA} /></div>
-                            <div><label className={Z.lbl}>Material</label><select value={t.mat} onChange={e => updTamp(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+                            <div><label className={Z.lbl}>Material</label><select value={t.mat} onChange={e => updTamp(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{matOpts(t.mat).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                             <div><label className={Z.lbl}>Fita</label><FitaToggle value={t.fita} onChange={v => updTamp(i, 'fita', v)} /></div>
                             <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delTamp(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
@@ -727,7 +730,7 @@ function ComponenteEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS 
                             <div><label className={Z.lbl}>Nome</label><input value={p.nome} onChange={e => updPeca(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
                             <div><label className={Z.lbl} title="Área da peça em mm². Use as variáveis coloridas abaixo">Fórmula (mm²)</label><FormulaInput value={p.calc} onChange={v => updPeca(i, 'calc', v)} vars={compVars} testVars={compTestVars} placeholder="Lg*ag" suggestions={FORMULAS_COMP} /></div>
                             <div><label className={Z.lbl}>Qtd</label><input type="number" min="1" max="10" value={p.qtd} onChange={e => updPeca(i, 'qtd', parseInt(e.target.value) || 1)} className={`${Z.inp} text-xs text-center`} /></div>
-                            <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+                            <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{matOpts(p.mat).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
                             <div><label className={Z.lbl}>Fita</label><FitaToggle value={p.fita} onChange={v => updPeca(i, 'fita', v)} /></div>
                             <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
                         </div>
@@ -749,7 +752,7 @@ function ComponenteEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div><label className={Z.lbl}>Nome</label><input value={form.frente_externa.nome || ''} onChange={e => setF('frente_externa', { ...form.frente_externa, nome: e.target.value })} className={`${Z.inp} text-xs`} /></div>
                         <div><label className={Z.lbl} title="Área da frente externa em mm²">Fórmula (mm²)</label><FormulaInput value={form.frente_externa.calc || ''} onChange={v => setF('frente_externa', { ...form.frente_externa, calc: v })} vars={compVars} testVars={compTestVars} placeholder="Lg*ag" suggestions={FORMULAS_COMP} /></div>
-                        <div><label className={Z.lbl}>Material</label><select value={form.frente_externa.mat || 'ext_comp'} onChange={e => setF('frente_externa', { ...form.frente_externa, mat: e.target.value })} className={`${Z.inp} text-xs`}>{MAT_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+                        <div><label className={Z.lbl}>Material</label><select value={form.frente_externa.mat || 'ext_comp'} onChange={e => setF('frente_externa', { ...form.frente_externa, mat: e.target.value })} className={`${Z.inp} text-xs`}>{matOpts(form.frente_externa.mat || 'ext_comp').map(m => <option key={m.value} value={m.value}>{m.value === 'ext_comp' ? 'Material Exclusivo da Frente' : m.label}</option>)}</select></div>
                         <div><label className={Z.lbl}>Fita</label><FitaToggle value={form.frente_externa.fita || []} onChange={v => setF('frente_externa', { ...form.frente_externa, fita: v })} /></div>
                     </div>
                 )}
