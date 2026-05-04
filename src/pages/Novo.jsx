@@ -908,7 +908,7 @@ const getEspecialIcon = (tipo) => ESPECIAL_ICON[tipo] || Shapes;
 const getEspecialCor = (tipo) => (TIPOS_ESPECIAIS.find(t => t.id === tipo)?.cor) || '#a78bfa';
 
 // ── Componente: card de item especial ────────────────────────────────────────
-function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly }) {
+function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly, grupos }) {
     const [exp, setExp] = useState(false);
     const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === item.tipo) || TIPOS_ESPECIAIS[4];
     const cor = tipoInfo.cor;
@@ -945,10 +945,21 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
             {/* Expanded */}
             {exp && (
                 <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                    {/* Nome */}
-                    <div>
-                        <label className={Z.lbl}>Nome</label>
-                        <input className={Z.inp} value={item.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder={`Ex: ${tipoInfo.nome} Bisotê, Painel Estofado...`} />
+                    {/* Nome + Grupo */}
+                    <div className={grupos?.length > 0 ? 'grid grid-cols-2 gap-2' : ''}>
+                        <div>
+                            <label className={Z.lbl}>Nome</label>
+                            <input className={Z.inp} value={item.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder={`Ex: ${tipoInfo.nome} Bisotê, Painel Estofado...`} />
+                        </div>
+                        {grupos?.length > 0 && (
+                            <div>
+                                <label className={Z.lbl}>Grupo</label>
+                                <select className={Z.inp} value={item.grupo_id || ''} onChange={e => up({ grupo_id: e.target.value })}>
+                                    <option value="">— Sem grupo —</option>
+                                    {grupos.map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     {/* Dimensões + qtd */}
@@ -1785,8 +1796,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         a.itensEspeciais.push({
             id: uid(), tipo, nome: '', L: 0, A: 0, qtd: 1,
             precoUnit: 0, unidade: tipoInfo.unidade, materialId: '',
-            perfis: tipo === 'aluminio' ? [{ nome: '', comp: 0, precoML: 0, qtd: 1 }] : [],
-            vidro: null, custoInstalacao: 0, obs: '',
+            perfis: tipo === 'aluminio' ? [] : [],
+            vidro: null, custoInstalacao: 0, obs: '', grupo_id: '',
         });
     });
     const removeItemEspecial = (ambId, itemId) => upAmb(ambId, a => {
@@ -3248,11 +3259,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     if (el.type === 'grupo') {
                                                         const grupo = el.data;
                                                         const filhos = amb.itens.filter(it => it.grupo_id === grupo.id);
+                                                        const ieFilhos = (amb.itensEspeciais || []).filter(ie => ie.grupo_id === grupo.id);
                                                         const totalGrupo = filhos.reduce((s, it) => {
                                                             if (it.tipo === 'avulso') return s + (it.valor || 0) * (it.qtd || 1);
                                                             const cpd = (tot.itemCostList || []).find(x => x.itemId === it.id);
                                                             return s + (cpd?.itemCP || 0);
-                                                        }, 0);
+                                                        }, 0) + ieFilhos.reduce((s, ie) => s + calcItemEspecial(ie, bibItems || []).custo, 0);
                                                         const pvGrupo = tot.totalItemCP > 0 ? (totalGrupo / tot.totalItemCP) * tot.pv : totalGrupo;
                                                         return (
                                                             <div key={grupo.id} className="rounded-lg border overflow-hidden mb-3 transition-all duration-150"
@@ -3272,7 +3284,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                         className="bg-transparent font-semibold text-sm outline-none flex-1 min-w-0"
                                                                         style={{ color: 'var(--warning)' }} readOnly={readOnly} />
                                                                     <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>
-                                                                        {filhos.length} {filhos.length === 1 ? 'item' : 'itens'}
+                                                                        {filhos.length + ieFilhos.length} {filhos.length + ieFilhos.length === 1 ? 'item' : 'itens'}
                                                                     </span>
                                                                     <span className="font-bold text-xs" style={{ color: 'var(--warning)' }}>{R$(pvGrupo)}</span>
                                                                     {!readOnly && <>
@@ -3291,13 +3303,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     </>}
                                                                 </div>
                                                                 <div className="pl-3 pr-1 pb-2 pt-1" style={{ borderTop: '1px solid rgba(245,158,11,0.12)' }}>
-                                                                    {filhos.length === 0 ? (
+                                                                    {filhos.length === 0 && ieFilhos.length === 0 ? (
                                                                         <div className="text-center py-4" style={{ color: dragOverGrupo === grupo.id ? 'var(--warning)' : 'var(--text-muted)' }}>
                                                                             <Package size={20} className="mx-auto mb-1 opacity-40" />
                                                                             <span className="text-[10px]">{dragOverGrupo === grupo.id ? 'Solte aqui para adicionar ao grupo' : 'Arraste itens para dentro deste grupo'}</span>
                                                                         </div>
                                                                     ) : (<>
                                                                         {filhos.map(fi => renderItemCard(fi, { inGroup: true }))}
+                                                                        {ieFilhos.map(ie => (
+                                                                            <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
+                                                                                grupos={amb.grupos || []}
+                                                                                onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
+                                                                                onCopy={() => copyItemEspecial(amb.id, ie.id)}
+                                                                                onRemove={() => removeItemEspecial(amb.id, ie.id)} />
+                                                                        ))}
                                                                         {dragOverGrupo === grupo.id && (
                                                                             <div className="text-center py-2 text-[10px] font-medium" style={{ color: 'var(--warning)' }}>
                                                                                 ↓ Solte aqui para adicionar ao grupo
@@ -3368,14 +3387,15 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                             )}
 
-                                            {/* ── Itens Especiais ── */}
-                                            {(amb.itensEspeciais || []).length > 0 && (
+                                            {/* ── Itens Especiais (sem grupo) ── */}
+                                            {(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).length > 0 && (
                                                 <div className="mt-2">
                                                     <div className="text-[10px] uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5" style={{ color: '#a78bfa' }}>
-                                                        <Shapes size={10} /> Itens Especiais ({amb.itensEspeciais.length})
+                                                        <Shapes size={10} /> Itens Especiais ({(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).length})
                                                     </div>
-                                                    {amb.itensEspeciais.map(ie => (
+                                                    {(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).map(ie => (
                                                         <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
+                                                            grupos={amb.grupos || []}
                                                             onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
                                                             onCopy={() => copyItemEspecial(amb.id, ie.id)}
                                                             onRemove={() => removeItemEspecial(amb.id, ie.id)} />
