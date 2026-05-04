@@ -784,7 +784,7 @@ export default function LandingPageV2() {
                         <div className="lp-hero-image-side lp-animate-blur-in lp-delay-2">
                             {pillYtId ? (
                                 /* ── Vídeo institucional na pill ── */
-                                <div className="lp-hero-image-wrapper lp-animate-float lp-pill-video" style={{ overflow: 'hidden', position: 'relative', cursor: pillPlaying ? 'default' : 'pointer' }}
+                                <div className="lp-hero-image-wrapper lp-pill-video" style={{ overflow: 'hidden', position: 'relative', cursor: pillPlaying ? 'default' : 'pointer' }}
                                     onClick={() => !pillPlaying && setPillPlaying(true)}>
                                     {pillPlaying ? (
                                         <iframe
@@ -1430,7 +1430,7 @@ function buildCSS(acc) {
 .lp-hero-image-side { position:relative; display:flex; justify-content:flex-end; }
 .lp-hero-image-wrapper { position:relative; width:100%; max-width:420px; aspect-ratio:0.85; border-radius:3rem; overflow:hidden; border:1px solid ${acc}30; background:#F3ECE2; box-shadow:0 0 40px -10px ${acc}35, 0 40px 80px -20px rgba(26,22,20,0.12); transition:border-color 0.4s; }
 .lp-hero-image-wrapper:hover { border-color:${acc}; }
-.lp-pill-video { aspect-ratio:9/16 !important; max-width:300px !important; background:#000 !important; }
+.lp-pill-video { aspect-ratio:9/16 !important; max-width:420px !important; background:#000 !important; }
 .lp-hero-img { width:100%; height:100%; object-fit:cover; object-position:top; filter:contrast(1.03); mask-image:linear-gradient(to bottom, black 85%, transparent 100%); -webkit-mask-image:linear-gradient(to bottom, black 85%, transparent 100%); }
 .lp-image-glow { position:absolute; top:50%; left:50%; transform:translate(-30%,-30%); width:120%; height:120%; filter:blur(60px); z-index:-1; opacity:0.35; }
 .lp-cta-group { display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap; }
@@ -1967,7 +1967,7 @@ function buildCSS(acc) {
   .lp-hero-text { align-items: center; }
   .lp-hero-image-side { justify-content: center; order: -1; }
   .lp-hero-image-wrapper { max-width: 280px; }
-  .lp-pill-video { max-width: 200px !important; }
+  .lp-pill-video { max-width: 260px !important; }
   .lp-subheadline { max-width: 560px; }
 
   .lp-cta-group { flex-direction: column; gap: 0.875rem; width: 100%; align-items: stretch; max-width: 360px; }
