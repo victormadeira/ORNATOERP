@@ -325,9 +325,9 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
     // Quais dimensões fazem sentido para este componente (default: todas as 3)
     const dimsAplicaveis = compDef.dimsAplicaveis || ['L', 'A', 'P'];
     const ALL_DIM_FIELDS = [
-        { id: 'dimL', key: 'L', label: 'Comprimento', auto: autoL },
-        { id: 'dimA', key: 'A', label: 'Altura',       auto: autoA },
-        { id: 'dimP', key: 'P', label: 'Profundidade', auto: autoP },
+        { id: 'dimL', key: 'L', label: 'L', auto: autoL },
+        { id: 'dimA', key: 'A', label: 'A', auto: autoA },
+        { id: 'dimP', key: 'P', label: 'P', auto: autoP },
     ];
     const dimFields = ALL_DIM_FIELDS.filter(f => dimsAplicaveis.includes(f.key));
 
@@ -365,11 +365,11 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                 </div>
             </div>
             {exp && (
-                <div className="px-3 pb-3 pt-2 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                <div className="px-3 pb-2.5 pt-2 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
                     {/* Quantidade, variáveis e dimensões — tudo inline */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <div>
-                            <label className={Z.lbl}>Quantidade</label>
+                            <label className={Z.lbl}>Qtd</label>
                             <input type="number" min="1" max="50" value={ci.qtd || 1}
                                 onChange={e => onUpdate({ ...ci, qtd: Math.max(1, +e.target.value || 1) })}
                                 className={Z.inp} />
@@ -475,9 +475,9 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                         </div>
                     ) : (
                         <button onClick={() => setMatExp(true)}
-                            className="text-[10px] text-left cursor-pointer"
-                            style={{ color: 'rgba(168,85,247,0.7)' }}>
-                            + Personalizar material deste componente
+                            className="text-[10px] text-left cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+                            style={{ color: '#a855f7' }}>
+                            + material específico deste componente
                         </button>
                     )}
 
