@@ -7,7 +7,7 @@ import { buildRelatorioHtml } from './RelatorioMateriais';
 import { buildPropostaHtml } from './PropostaHtml';
 import { buildContratoHtml } from './ContratoHtml';
 import {
-    FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronRight, Trash2, Copy,
+    FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronUp, ChevronRight, Trash2, Copy,
     FolderOpen, Package, Settings, Layers, X, RefreshCw, Wrench, AlertTriangle, Box, Search,
     ToggleLeft, ToggleRight, Info, CreditCard, Eye, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
     Lock, Unlock, Shield, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
@@ -1558,26 +1558,40 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setExpandedAmb(base.id);
     };
 
+    // ── Helper: próxima ordem livre (unifica grupos soltos + itens soltos) ───
+    const nextOrdem = (a) => {
+        const all = [
+            ...(a.grupos || []).map(g => g.ordem ?? 0),
+            ...a.itens.filter(i => !i.grupo_id).map(i => i.ordem ?? 0),
+        ];
+        return all.length > 0 ? Math.max(...all) + 1 : 0;
+    };
+
     const addItemToAmb = (ambId, caixaId) => {
         const caixaDef = caixas.find(c => c.db_id === caixaId);
         if (!caixaDef) return;
-        const item = {
-            id: uid(),
-            caixaId: caixaDef.db_id,
-            caixaDef: JSON.parse(JSON.stringify(caixaDef)),
-            nome: caixaDef.nome,
-            dims: {
-                l: 600,
-                a: (caixaDef.dimsAplicaveis || ['L','A','P']).includes('A') ? (caixaDef.cat === 'especial' ? 2400 : 2200) : 0,
-                p: (caixaDef.dimsAplicaveis || ['L','A','P']).includes('P') ? 550 : 0,
-            },
-            qtd: 1,
-            mats: { matInt: 'mdf18', matExt: '' },
-            componentes: [],
-            grupo_id: '',
-        };
-        upAmb(ambId, a => { if (!a.grupos) a.grupos = []; a.itens.push(item); });
-        setExpandedItem(item.id);
+        let newId;
+        upAmb(ambId, a => {
+            if (!a.grupos) a.grupos = [];
+            newId = uid();
+            a.itens.push({
+                id: newId,
+                caixaId: caixaDef.db_id,
+                caixaDef: JSON.parse(JSON.stringify(caixaDef)),
+                nome: caixaDef.nome,
+                dims: {
+                    l: 600,
+                    a: (caixaDef.dimsAplicaveis || ['L','A','P']).includes('A') ? (caixaDef.cat === 'especial' ? 2400 : 2200) : 0,
+                    p: (caixaDef.dimsAplicaveis || ['L','A','P']).includes('P') ? 550 : 0,
+                },
+                qtd: 1,
+                mats: { matInt: 'mdf18', matExt: '' },
+                componentes: [],
+                grupo_id: '',
+                ordem: nextOrdem(a),
+            });
+        });
+        if (newId) setExpandedItem(newId);
     };
 
     const swapItemCaixa = (ambId, itemId, newCaixaId) => {
@@ -1603,13 +1617,35 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
     const addItemAvulso = (ambId) => upAmb(ambId, a => {
         if (!a.grupos) a.grupos = [];
-        a.itens.push({ id: uid(), tipo: 'avulso', nome: '', valor: 0, qtd: 1, desc: '', grupo_id: '' });
+        a.itens.push({ id: uid(), tipo: 'avulso', nome: '', valor: 0, qtd: 1, desc: '', grupo_id: '', ordem: nextOrdem(a) });
     });
 
     // ── Grupos (Pai/Filhos) ──
     const addGrupo = (ambId) => upAmb(ambId, a => {
         if (!a.grupos) a.grupos = [];
-        a.grupos.push({ id: uid(), nome: '' });
+        a.grupos.push({ id: uid(), nome: '', ordem: nextOrdem(a) });
+    });
+
+    // ── Reordenação unificada (grupos + itens soltos na mesma lista) ──────────
+    const reorderElement = (ambId, elType, elId, dir) => upAmb(ambId, a => {
+        const list = [
+            ...(a.grupos || []).map((g, i) => ({ type: 'grupo', id: g.id, ordem: g.ordem ?? i })),
+            ...a.itens.filter(i => !i.grupo_id).map((i, idx) => ({ type: 'item', id: i.id, ordem: i.ordem ?? (1000 + idx) })),
+        ].sort((x, y) => x.ordem - y.ordem);
+
+        const idx = list.findIndex(e => e.type === elType && e.id === elId);
+        if (idx === -1) return;
+        const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= list.length) return;
+
+        const aOrd = list[idx].ordem;
+        const bOrd = list[swapIdx].ordem;
+        const apply = (type, id, ord) => {
+            if (type === 'grupo') { const g = (a.grupos||[]).find(g=>g.id===id); if(g) g.ordem=ord; }
+            else { const it = a.itens.find(i=>i.id===id); if(it) it.ordem=ord; }
+        };
+        apply(list[idx].type, list[idx].id, bOrd === aOrd ? bOrd - (dir==='up'?1:-1) : bOrd);
+        apply(list[swapIdx].type, list[swapIdx].id, aOrd === bOrd ? aOrd + (dir==='up'?1:-1) : aOrd);
     });
     const removeGrupo = (ambId, grupoId) => upAmb(ambId, a => {
         a.grupos = (a.grupos || []).filter(g => g.id !== grupoId);
@@ -3184,68 +3220,110 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                             )}
 
-                                            {/* ── Grupos (Pai/Filhos) ── */}
-                                            {(amb.grupos || []).map(grupo => {
-                                                const filhos = amb.itens.filter(it => it.grupo_id === grupo.id);
-                                                const totalGrupo = filhos.reduce((s, it) => {
-                                                    if (it.tipo === 'avulso') return s + (it.valor || 0) * (it.qtd || 1);
-                                                    const cpd = (tot.itemCostList || []).find(x => x.itemId === it.id);
-                                                    return s + (cpd?.itemCP || 0);
-                                                }, 0);
-                                                // Proporção para mostrar preço de venda
-                                                const pvGrupo = tot.totalItemCP > 0 ? (totalGrupo / tot.totalItemCP) * tot.pv : totalGrupo;
-                                                return (
-                                                    <div key={grupo.id} className="rounded-lg border overflow-hidden mb-3 transition-all duration-150"
-                                                        onDragOver={e => handleGrupoDragOver(e, grupo.id)}
-                                                        onDragLeave={handleGrupoDragLeave}
-                                                        onDrop={e => handleGrupoDrop(e, amb.id, grupo.id)}
-                                                        style={{
-                                                            borderColor: dragOverGrupo === grupo.id ? 'var(--warning)' : 'rgba(245,158,11,0.3)',
-                                                            background: dragOverGrupo === grupo.id ? 'rgba(245,158,11,0.08)' : 'var(--bg-card)',
-                                                            borderLeft: '3px solid var(--warning)',
-                                                            boxShadow: dragOverGrupo === grupo.id ? '0 0 12px rgba(245,158,11,0.2)' : 'none',
-                                                            transform: dragOverGrupo === grupo.id ? 'scale(1.01)' : 'none',
-                                                        }}>
-                                                        {/* Header do grupo */}
-                                                        <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'rgba(245,158,11,0.04)' }}>
-                                                            <Package size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-                                                            <input type="text" placeholder="Nome do grupo (ex: Armário Cozinha 1500mm)"
-                                                                value={grupo.nome} onChange={e => renameGrupo(amb.id, grupo.id, e.target.value)}
-                                                                className="bg-transparent font-semibold text-sm outline-none flex-1 min-w-0"
-                                                                style={{ color: 'var(--warning)' }} readOnly={readOnly} />
-                                                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>
-                                                                {filhos.length} {filhos.length === 1 ? 'item' : 'itens'}
-                                                            </span>
-                                                            <span className="font-bold text-xs" style={{ color: 'var(--warning)' }}>{R$(pvGrupo)}</span>
-                                                            {!readOnly && <button onClick={() => duplicateGrupo(amb.id, grupo.id)}
-                                                                className="p-1 rounded hover:bg-[var(--bg-hover)]"
-                                                                style={{ color: 'var(--text-muted)' }}
-                                                                title="Duplicar grupo com todos os itens"><Copy size={12} /></button>}
-                                                            {!readOnly && <button onClick={() => removeGrupo(amb.id, grupo.id)}
-                                                                className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"
-                                                                title="Excluir grupo (itens voltam a ficar soltos)"><Trash2 size={12} /></button>}
-                                                        </div>
-                                                        {/* Filhos do grupo — cards completos expandíveis */}
-                                                        <div className="pl-3 pr-1 pb-2 pt-1" style={{ borderTop: '1px solid rgba(245,158,11,0.12)' }}>
-                                                            {filhos.length === 0 ? (
-                                                                <div className="text-center py-4" style={{ color: dragOverGrupo === grupo.id ? 'var(--warning)' : 'var(--text-muted)' }}>
-                                                                    <Package size={20} className="mx-auto mb-1 opacity-40" />
-                                                                    <span className="text-[10px]">{dragOverGrupo === grupo.id ? 'Solte aqui para adicionar ao grupo' : 'Arraste itens para dentro deste grupo'}</span>
-                                                                </div>
-                                                            ) : (<>
-                                                                {filhos.map(fi => renderItemCard(fi, { inGroup: true }))}
-                                                                {dragOverGrupo === grupo.id && (
-                                                                    <div className="text-center py-2 text-[10px] font-medium" style={{ color: 'var(--warning)' }}>
-                                                                        ↓ Solte aqui para adicionar ao grupo
-                                                                    </div>
-                                                                )}
-                                                            </>)}
-                                                        </div>
+                                            {/* ── Lista unificada: grupos + itens soltos ordenados ── */}
+                                            {(() => {
+                                                const grupos = (amb.grupos || []);
+                                                const itensSoltos = amb.itens.filter(it => !it.grupo_id || !grupos.find(g => g.id === it.grupo_id));
+                                                const unified = [
+                                                    ...grupos.map((g, i) => ({ type: 'grupo', data: g, ordem: g.ordem ?? i })),
+                                                    ...itensSoltos.map((it, i) => ({ type: 'item', data: it, ordem: it.ordem ?? (1000 + i) })),
+                                                ].sort((a, b) => a.ordem - b.ordem);
+
+                                                if (unified.length === 0) return (
+                                                    <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
+                                                        <Box size={24} className="mx-auto mb-2 opacity-40" />
+                                                        <span className="text-xs">Selecione uma caixa acima</span>
                                                     </div>
                                                 );
-                                            })}
 
-                                            {/* Drop zone para desagrupar (aparece entre grupos e itens soltos) */}
+                                                return unified.map((el, elIdx) => {
+                                                    if (el.type === 'grupo') {
+                                                        const grupo = el.data;
+                                                        const filhos = amb.itens.filter(it => it.grupo_id === grupo.id);
+                                                        const totalGrupo = filhos.reduce((s, it) => {
+                                                            if (it.tipo === 'avulso') return s + (it.valor || 0) * (it.qtd || 1);
+                                                            const cpd = (tot.itemCostList || []).find(x => x.itemId === it.id);
+                                                            return s + (cpd?.itemCP || 0);
+                                                        }, 0);
+                                                        const pvGrupo = tot.totalItemCP > 0 ? (totalGrupo / tot.totalItemCP) * tot.pv : totalGrupo;
+                                                        return (
+                                                            <div key={grupo.id} className="rounded-lg border overflow-hidden mb-3 transition-all duration-150"
+                                                                onDragOver={e => handleGrupoDragOver(e, grupo.id)}
+                                                                onDragLeave={handleGrupoDragLeave}
+                                                                onDrop={e => handleGrupoDrop(e, amb.id, grupo.id)}
+                                                                style={{
+                                                                    borderColor: dragOverGrupo === grupo.id ? 'var(--warning)' : 'rgba(245,158,11,0.3)',
+                                                                    background: dragOverGrupo === grupo.id ? 'rgba(245,158,11,0.08)' : 'var(--bg-card)',
+                                                                    borderLeft: '3px solid var(--warning)',
+                                                                    boxShadow: dragOverGrupo === grupo.id ? '0 0 12px rgba(245,158,11,0.2)' : 'none',
+                                                                }}>
+                                                                <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'rgba(245,158,11,0.04)' }}>
+                                                                    <Package size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                                                                    <input type="text" placeholder="Nome do grupo (ex: Armário Cozinha 1500mm)"
+                                                                        value={grupo.nome} onChange={e => renameGrupo(amb.id, grupo.id, e.target.value)}
+                                                                        className="bg-transparent font-semibold text-sm outline-none flex-1 min-w-0"
+                                                                        style={{ color: 'var(--warning)' }} readOnly={readOnly} />
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>
+                                                                        {filhos.length} {filhos.length === 1 ? 'item' : 'itens'}
+                                                                    </span>
+                                                                    <span className="font-bold text-xs" style={{ color: 'var(--warning)' }}>{R$(pvGrupo)}</span>
+                                                                    {!readOnly && <>
+                                                                        <button onClick={() => reorderElement(amb.id, 'grupo', grupo.id, 'up')} disabled={elIdx === 0}
+                                                                            className="p-1 rounded hover:bg-[var(--bg-hover)] disabled:opacity-20" title="Mover para cima" style={{ color: 'var(--text-muted)' }}>
+                                                                            <ChevronUp size={12} />
+                                                                        </button>
+                                                                        <button onClick={() => reorderElement(amb.id, 'grupo', grupo.id, 'down')} disabled={elIdx === unified.length - 1}
+                                                                            className="p-1 rounded hover:bg-[var(--bg-hover)] disabled:opacity-20" title="Mover para baixo" style={{ color: 'var(--text-muted)' }}>
+                                                                            <ChevronDown size={12} />
+                                                                        </button>
+                                                                        <button onClick={() => duplicateGrupo(amb.id, grupo.id)}
+                                                                            className="p-1 rounded hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Duplicar grupo"><Copy size={12} /></button>
+                                                                        <button onClick={() => removeGrupo(amb.id, grupo.id)}
+                                                                            className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir grupo"><Trash2 size={12} /></button>
+                                                                    </>}
+                                                                </div>
+                                                                <div className="pl-3 pr-1 pb-2 pt-1" style={{ borderTop: '1px solid rgba(245,158,11,0.12)' }}>
+                                                                    {filhos.length === 0 ? (
+                                                                        <div className="text-center py-4" style={{ color: dragOverGrupo === grupo.id ? 'var(--warning)' : 'var(--text-muted)' }}>
+                                                                            <Package size={20} className="mx-auto mb-1 opacity-40" />
+                                                                            <span className="text-[10px]">{dragOverGrupo === grupo.id ? 'Solte aqui para adicionar ao grupo' : 'Arraste itens para dentro deste grupo'}</span>
+                                                                        </div>
+                                                                    ) : (<>
+                                                                        {filhos.map(fi => renderItemCard(fi, { inGroup: true }))}
+                                                                        {dragOverGrupo === grupo.id && (
+                                                                            <div className="text-center py-2 text-[10px] font-medium" style={{ color: 'var(--warning)' }}>
+                                                                                ↓ Solte aqui para adicionar ao grupo
+                                                                            </div>
+                                                                        )}
+                                                                    </>)}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    } else {
+                                                        // item solto — injeta botões ↑↓ via wrapper
+                                                        const item = el.data;
+                                                        return (
+                                                            <div key={item.id} className="relative group/reorder">
+                                                                {!readOnly && (
+                                                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full flex flex-col gap-0.5 opacity-0 group-hover/reorder:opacity-100 transition-opacity pr-1 z-10">
+                                                                        <button onClick={() => reorderElement(amb.id, 'item', item.id, 'up')} disabled={elIdx === 0}
+                                                                            className="p-0.5 rounded hover:bg-[var(--bg-hover)] disabled:opacity-20" style={{ color: 'var(--text-muted)' }} title="Mover para cima">
+                                                                            <ChevronUp size={13} />
+                                                                        </button>
+                                                                        <button onClick={() => reorderElement(amb.id, 'item', item.id, 'down')} disabled={elIdx === unified.length - 1}
+                                                                            className="p-0.5 rounded hover:bg-[var(--bg-hover)] disabled:opacity-20" style={{ color: 'var(--text-muted)' }} title="Mover para baixo">
+                                                                            <ChevronDown size={13} />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                                {renderItemCard(item)}
+                                                            </div>
+                                                        );
+                                                    }
+                                                });
+                                            })()}
+
+                                            {/* Drop zone para desagrupar */}
                                             {!readOnly && (amb.grupos || []).length > 0 && (
                                                 <div className="rounded-lg border-2 border-dashed mb-2 transition-all duration-150"
                                                     onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverGrupo('__soltos__'); }}
@@ -3263,18 +3341,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     )}
                                                 </div>
                                             )}
-
-                                            {/* Lista de itens (caixas) */}
-                                            {amb.itens.length === 0 ? (
-                                                !(amb.grupos || []).length && <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
-                                                    <Box size={24} className="mx-auto mb-2 opacity-40" />
-                                                    <span className="text-xs">Selecione uma caixa acima</span>
-                                                </div>
-                                            ) : amb.itens.map(item => {
-                                                // Skipar itens que pertencem a um grupo (renderizados dentro do grupo)
-                                                if (item.grupo_id && (amb.grupos || []).find(g => g.id === item.grupo_id)) return null;
-                                                return renderItemCard(item);
-                                            })}
 
                                             {/* ── Painéis Ripados ── */}
                                             {(amb.paineis || []).length > 0 && (
