@@ -549,6 +549,8 @@ export default function PropostaApresentacao({ token }) {
     const reveal = useScrollReveal();
     const timelineRef = useRef(null);
     const itemRefs = useRef([]);
+    const videoIframeRef = useRef(null);
+    const videoSectionRef = useRef(null);
     const reduceMotion = usePrefersReducedMotion();
 
     // ── Fetch data ───────────────────────────────────────────────────────────
@@ -582,6 +584,20 @@ export default function PropostaApresentacao({ token }) {
             if (e.isIntersecting) { setStatsVisible(true); obs.disconnect(); }
         }, { threshold: 0.3 });
         obs.observe(statsRef.current);
+        return () => obs.disconnect();
+    }, [data]);
+
+    // ── Autoplay vídeo processo ao entrar na viewport ────────────────────────
+    useEffect(() => {
+        const el = videoSectionRef.current;
+        if (!el) return;
+        const obs = new IntersectionObserver(([e]) => {
+            const win = videoIframeRef.current?.contentWindow;
+            if (!win) return;
+            const func = e.isIntersecting ? 'playVideo' : 'pauseVideo';
+            win.postMessage(`{"event":"command","func":"${func}","args":""}`, '*');
+        }, { threshold: 0.5 });
+        obs.observe(el);
         return () => obs.disconnect();
     }, [data]);
 
@@ -777,7 +793,7 @@ export default function PropostaApresentacao({ token }) {
                             </p>
                         </div>
                         {/* Player vertical 9:16 — centralizado, max 380px */}
-                        <div ref={reveal} className="ap-reveal" style={{
+                        <div ref={(el) => { reveal(el); videoSectionRef.current = el; }} className="ap-reveal" style={{
                             borderRadius: 20, overflow: 'hidden',
                             border: `1px solid ${c2}20`,
                             maxWidth: 380, margin: '0 auto',
@@ -786,8 +802,9 @@ export default function PropostaApresentacao({ token }) {
                             {videoProcessoId ? (
                                 <div style={{ position: 'relative', paddingBottom: '177.78%', background: '#000' }}>
                                     <iframe
+                                        ref={videoIframeRef}
                                         title="Processo de fabricação"
-                                        src={`https://www.youtube.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white`}
+                                        src={`https://www.youtube-nocookie.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white&playsinline=1&mute=1&enablejsapi=1&iv_load_policy=3&cc_load_policy=0`}
                                         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                         allowFullScreen

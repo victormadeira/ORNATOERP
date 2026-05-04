@@ -31,29 +31,39 @@ function stripHtml(value, maxLen = 500) {
 // GET /api/leads/config — dados públicos da empresa (sem auth)
 // ═══════════════════════════════════════════════════════
 router.get('/config', (req, res) => {
-    const emp = db.prepare(`
-        SELECT nome, telefone, email, endereco, cidade,
-               proposta_cor_primaria, proposta_cor_accent,
-               logo_sistema, logo_header_path, proposta_sobre,
-               landing_ativo,
-               landing_titulo, landing_subtitulo, landing_descricao,
-               landing_cta_primaria, landing_cta_secundaria,
-               landing_form_titulo, landing_form_descricao,
-               landing_cta_titulo, landing_cta_descricao, landing_texto_rodape,
-               landing_prova_titulo, landing_provas_json,
-               landing_logo,
-               landing_hero_imagem,
-               landing_hero_video_url, landing_hero_video_poster,
-               landing_grafismo_imagem,
-               landing_cor_fundo, landing_cor_destaque, landing_cor_neutra, landing_cor_clara,
-               landing_servicos_json, landing_diferenciais_json, landing_etapas_json,
-               clarity_project_id,
-               instagram, facebook,
-               fb_pixel_id, google_ads_id
-        FROM empresa_config WHERE id = 1
-    `).get();
+    // SELECT * para não quebrar quando novos campos são adicionados sem migração explícita
+    const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
 
-    res.json(emp || { nome: 'Marcenaria' });
+    // Expõe apenas campos públicos — nunca retorna chaves de API, tokens, etc.
+    const PUBLIC_FIELDS = [
+        'nome','telefone','email','endereco','cidade','estado','uf',
+        'proposta_cor_primaria','proposta_cor_accent',
+        'logo_sistema','logo_header_path','proposta_sobre',
+        'landing_ativo',
+        'landing_titulo','landing_subtitulo','landing_descricao',
+        'landing_cta_primaria','landing_cta_secundaria',
+        'landing_form_titulo','landing_form_descricao',
+        'landing_cta_titulo','landing_cta_descricao','landing_texto_rodape',
+        'landing_prova_titulo','landing_provas_json',
+        'landing_logo','landing_hero_imagem',
+        'landing_hero_video_url','landing_hero_video_poster','landing_video_institucional',
+        'landing_grafismo_imagem',
+        'landing_cor_fundo','landing_cor_destaque','landing_cor_neutra','landing_cor_clara',
+        'landing_servicos_json','landing_diferenciais_json','landing_etapas_json',
+        'clarity_project_id',
+        'instagram','facebook',
+        'fb_pixel_id','google_ads_id',
+        'anos_experiencia','projetos_entregues','maquinas_industriais',
+        'texto_institucional','desc_maquinas',
+        'portfolio_ativo','portfolio_logo','portfolio_tag',
+        'portfolio_titulo','portfolio_subtitulo',
+        'portfolio_cor_fundo','portfolio_cor_destaque',
+        'portfolio_wa_mensagem','portfolio_footer_texto','portfolio_cta_texto',
+    ];
+    const safe = {};
+    if (emp) PUBLIC_FIELDS.forEach(f => { if (f in emp) safe[f] = emp[f]; });
+
+    res.json(Object.keys(safe).length ? safe : { nome: 'Marcenaria' });
 });
 
 // ═══════════════════════════════════════════════════════
