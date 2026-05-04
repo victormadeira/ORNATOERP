@@ -611,6 +611,7 @@ export default function PropostaApresentacao({ token }) {
     if (!data) return null;
 
     const { cliente_nome, empresa, portfolio, depoimentos, proposta_token, validade, criado_em } = data;
+    const videoProcessoId = getYouTubeId(empresa.video_processo);
 
     return (
         <>
@@ -757,67 +758,50 @@ export default function PropostaApresentacao({ token }) {
                 </section>
 
                 {/* ═══ A1b: VÍDEO DO PROCESSO ═══ */}
-                {(() => {
-                    const videoProcessoId = getYouTubeId(empresa.video_processo);
-                    return (
-                        <section style={{ padding: '64px 0', background: '#0b0e13', position: 'relative', overflow: 'hidden' }}>
-                            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `radial-gradient(ellipse 70% 60% at 50% 100%, ${c1}55 0%, transparent 70%)` }} />
-                            <div className="ap-container" style={{ position: 'relative' }}>
-                                <div ref={reveal} className="ap-reveal" style={{ textAlign: 'center', marginBottom: 36 }}>
-                                    <p className="ap-section-tag" style={{ color: c2 }}>TOUR PELA FÁBRICA</p>
-                                    <h2 className="ap-section-title" style={{ color: cream }}>
-                                        Veja como seu móvel <span style={{ color: c2 }}>é fabricado</span>
-                                    </h2>
-                                    <p style={{ fontSize: 15, color: `${cream}80`, marginTop: 10, lineHeight: 1.6 }}>
-                                        Da matéria-prima ao acabamento — precisão industrial em cada etapa.
-                                    </p>
+                <section className="ap-section" style={{ background: darkBg, color: cream }}>
+                    <div className="ap-container">
+                        <div ref={reveal} className="ap-reveal" style={{ textAlign: 'center', marginBottom: 40 }}>
+                            <p className="ap-section-tag" style={{ color: c2 }}>TOUR PELA FÁBRICA</p>
+                            <h2 className="ap-section-title" style={{ color: cream }}>
+                                Veja como seu móvel é <span style={{ color: c2 }}>fabricado</span>
+                            </h2>
+                            <p style={{ fontSize: 15, color: `${cream}80`, lineHeight: 1.7 }}>
+                                Da matéria-prima ao acabamento — precisão industrial em cada etapa.
+                            </p>
+                        </div>
+                        <div ref={reveal} className="ap-reveal" style={{
+                            borderRadius: 16, overflow: 'hidden',
+                            border: `1px solid ${c2}20`,
+                            maxWidth: 860, margin: '0 auto',
+                        }}>
+                            {videoProcessoId ? (
+                                <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
+                                    <iframe
+                                        title="Processo de fabricação"
+                                        src={`https://www.youtube.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white`}
+                                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
                                 </div>
-                                <div ref={reveal} className="ap-reveal" style={{
-                                    borderRadius: 20, overflow: 'hidden',
-                                    border: `1px solid ${c2}25`,
-                                    boxShadow: `0 0 0 1px ${c1}40, 0 32px 80px rgba(0,0,0,0.6), 0 0 60px ${c1}30`,
-                                    maxWidth: 860, margin: '0 auto',
-                                }}>
-                                    <div style={{ height: 3, background: `linear-gradient(90deg, ${c1}, ${c2}, ${c1})` }} />
-                                    {videoProcessoId ? (
-                                        <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#000' }}>
-                                            <iframe
-                                                title="Processo de fabricação"
-                                                src={`https://www.youtube.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white`}
-                                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                            />
+                            ) : (
+                                <div style={{ position: 'relative', paddingBottom: '56.25%', background: `rgba(255,255,255,0.04)`, border: `1px dashed ${c2}30`, borderRadius: 16 }}>
+                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                                        <div style={{ width: 64, height: 64, borderRadius: '50%', border: `1px solid ${c2}40`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill={c2} style={{ marginLeft: 3 }}><polygon points="5,3 19,12 5,21" /></svg>
                                         </div>
-                                    ) : (
-                                        <div style={{ position: 'relative', paddingBottom: '56.25%', background: 'linear-gradient(135deg, #0d1117 0%, #131a24 60%, #0d1117 100%)' }}>
-                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
-                                                <div style={{ width: 80, height: 80, borderRadius: '50%', background: `${c2}20`, border: `2px dashed ${c2}60`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <svg width="32" height="32" viewBox="0 0 24 24" fill={c2} style={{ marginLeft: 4 }}><polygon points="5,3 19,12 5,21" /></svg>
-                                                </div>
-                                                <div style={{ textAlign: 'center' }}>
-                                                    <div style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>Vídeo de processo não configurado</div>
-                                                    <div style={{ fontSize: 12, color: '#475569' }}>Adicione o link do YouTube em <strong style={{ color: c2 }}>Configurações → Landing da Proposta</strong></div>
-                                                </div>
-                                                {[20, 40, 60, 80].map(t => (
-                                                    <div key={t} style={{ position: 'absolute', left: '8%', right: '8%', top: `${t}%`, height: 1, background: `linear-gradient(90deg, transparent, ${c2}15, transparent)` }} />
-                                                ))}
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: 14, fontWeight: 400, color: `${cream}60`, marginBottom: 4 }}>Vídeo de processo não configurado</div>
+                                            <div style={{ fontSize: 11, color: `${cream}35`, letterSpacing: '0.05em' }}>
+                                                Configure em <strong style={{ color: c2, fontWeight: 600 }}>Configurações → Landing da Proposta</strong>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'center', gap: 32, marginTop: 32, flexWrap: 'wrap' }}>
-                                    {[{ icon: '🏭', label: 'Fábrica própria' }, { icon: '⚙️', label: 'CNC de precisão' }, { icon: '✅', label: 'Controle de qualidade' }].map((s, i) => (
-                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: `${cream}80` }}>
-                                            <span style={{ fontSize: 18 }}>{s.icon}</span>
-                                            <span>{s.label}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </section>
-                    );
-                })()}
+                            )}
+                        </div>
+                    </div>
+                </section>
 
                 {/* ═══ A2: DEPOIMENTOS ═══ */}
                 {depoimentos && depoimentos.length > 0 && (
