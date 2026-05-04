@@ -665,7 +665,7 @@ function PainelCard({ painel, bibItems, onUpdate, onRemove, precoVenda }) {
 
             {/* Expanded content */}
             {exp && (
-                <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
+                <div className="px-4 pb-3 pt-2 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
                     {/* Nome + tipo */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
@@ -958,21 +958,19 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
 
             {/* Expanded */}
             {exp && (
-                <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
+                <div className="px-4 pb-3 pt-2 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
                     {/* Nome */}
-                    <div>
-                        <label className={Z.lbl}>Nome</label>
-                        <input className={Z.inp} value={item.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder={`Ex: ${tipoInfo.nome} Bisotê, Painel Estofado...`} />
-                    </div>
+                    <input className={Z.inp} value={item.nome || ''} onChange={e => up({ nome: e.target.value })} placeholder={`Ex: ${tipoInfo.nome} Bisotê, Painel Estofado...`}
+                        style={item.nome ? { borderColor: 'rgba(19,121,240,0.4)', background: 'rgba(19,121,240,0.03)' } : { opacity: 0.45 }} />
 
                     {/* Dimensões + qtd */}
                     <div className={`grid gap-2 ${item.tipo === 'aluminio' ? 'grid-cols-2' : 'grid-cols-3'}`}>
                         <div>
-                            <label className={Z.lbl}>{item.tipo === 'aluminio' ? 'Comprimento (mm)' : 'Largura (mm)'}</label>
+                            <label className={Z.lbl}>{item.tipo === 'aluminio' ? 'Comp. (mm)' : 'L (mm)'}</label>
                             <input type="number" className={Z.inp} min={0} value={item.L || 0} onChange={e => up({ L: +e.target.value })} />
                         </div>
                         {item.tipo !== 'aluminio' && (
-                            <div><label className={Z.lbl}>Altura (mm)</label><input type="number" className={Z.inp} min={0} value={item.A || 0} onChange={e => up({ A: +e.target.value })} /></div>
+                            <div><label className={Z.lbl}>A (mm)</label><input type="number" className={Z.inp} min={0} value={item.A || 0} onChange={e => up({ A: +e.target.value })} /></div>
                         )}
                         <div><label className={Z.lbl}>Qtd</label><input type="number" className={Z.inp} min={1} value={item.qtd || 1} onChange={e => up({ qtd: Math.max(1, +e.target.value) })} /></div>
                     </div>
@@ -997,11 +995,11 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
                     {/* Preço unitário (manual ou override) */}
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className={Z.lbl}>Preço por {tipoInfo.unidade === 'ml' ? 'metro linear' : tipoInfo.unidade === 'm²' ? 'm²' : 'unidade'} (R$)</label>
+                            <label className={Z.lbl}>R$ / {tipoInfo.unidade === 'ml' ? 'ml' : tipoInfo.unidade === 'm²' ? 'm²' : 'un'}</label>
                             <input type="number" step="0.01" className={Z.inp} value={item.precoUnit || 0} onChange={e => up({ precoUnit: +e.target.value, materialId: '' })} />
                         </div>
                         <div>
-                            <label className={Z.lbl}>Custo Instalação (R$)</label>
+                            <label className={Z.lbl}>Instalação (R$)</label>
                             <input type="number" step="0.01" className={Z.inp} value={item.custoInstalacao || 0} onChange={e => up({ custoInstalacao: +e.target.value })} />
                         </div>
                     </div>
@@ -2783,7 +2781,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 {/* Dimensões e quantidade */}
                                                 {(() => {
                                                     const allowedDims = item.caixaDef?.dimsAplicaveis || ['L','A','P'];
-                                                    const dimFields = [['Larg. (mm)', 'l', 'L'], ['Alt. (mm)', 'a', 'A'], ['Prof. (mm)', 'p', 'P']]
+                                                    const dimFields = [['L (mm)', 'l', 'L'], ['A (mm)', 'a', 'A'], ['P (mm)', 'p', 'P']]
                                                         .filter(([, , key]) => allowedDims.includes(key));
                                                     return (
                                                 <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${dimFields.length + 1}, minmax(0, 1fr))` }}>
@@ -2971,7 +2969,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 style={{ color: 'var(--text-muted)', borderTop: '1px dashed var(--border)' }}>
                                                                 {isAdv ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                                                                 <Settings size={10} />
-                                                                {isAdv ? 'Ocultar avançado' : 'Avançado (trocar módulo · ajuste de preço)'}
+                                                                {isAdv ? 'Ocultar' : 'Avançado'}
                                                                 {ajusteR !== 0 && <span className="ml-1 font-bold" style={{ color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>{ajusteR > 0 ? '+' : ''}{R$(ajusteR)}</span>}
                                                             </button>
                                                             {isAdv && (
