@@ -788,38 +788,41 @@ export default function LandingPageV2() {
                                     onClick={() => !pillPlaying && setPillPlaying(true)}>
                                     {pillPlaying ? (
                                         <iframe
-                                            src={`https://www.youtube.com/embed/${pillYtId}?autoplay=1&rel=0&modestbranding=1&color=white`}
+                                            src={`https://www.youtube-nocookie.com/embed/${pillYtId}?autoplay=1&rel=0&controls=0&modestbranding=1&color=white&playsinline=1&iv_load_policy=3`}
                                             title="Vídeo institucional"
                                             allow="autoplay; encrypted-media; picture-in-picture"
                                             allowFullScreen
-                                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: '-16%', left: 0,
+                                                width: '100%', height: '132%',
+                                                border: 'none',
+                                            }}
                                         />
                                     ) : (
                                         <>
-                                            {/* Thumbnail do YouTube */}
+                                            {/* Thumbnail do YouTube — crop central para esconder barras */}
                                             <img
                                                 src={`https://img.youtube.com/vi/${pillYtId}/maxresdefault.jpg`}
                                                 alt="Vídeo institucional"
-                                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                                                style={{ position: 'absolute', inset: '-16% 0', width: '100%', height: '132%', objectFit: 'cover', objectPosition: 'center' }}
                                                 onError={e => { e.target.src = `https://img.youtube.com/vi/${pillYtId}/hqdefault.jpg`; }}
                                             />
-                                            {/* Overlay escuro + botão play */}
-                                            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                                            {/* Vignette suave nas bordas */}
+                                            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 35%, rgba(0,0,0,0.05) 65%, rgba(0,0,0,0.35) 100%)', pointerEvents: 'none' }} />
+                                            {/* Botão play centralizado */}
+                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                                                 <div style={{
-                                                    width: 64, height: 64, borderRadius: '50%',
+                                                    width: 56, height: 56, borderRadius: '50%',
                                                     background: acc, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    boxShadow: `0 0 0 12px ${acc}30, 0 8px 32px ${acc}60`,
+                                                    boxShadow: `0 0 0 10px ${acc}25, 0 6px 24px ${acc}50`,
                                                     transition: 'transform .2s',
                                                 }}>
-                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#111" style={{ marginLeft: 3 }}>
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#111" style={{ marginLeft: 3 }}>
                                                         <path d="M8 5v14l11-7z"/>
                                                     </svg>
                                                 </div>
-                                                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', letterSpacing: '0.08em', fontWeight: 500, textTransform: 'uppercase' }}>Assistir vídeo</span>
-                                            </div>
-                                            {/* Badge "Institucional" no canto */}
-                                            <div style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', borderRadius: 20, padding: '4px 12px', fontSize: 10, color: acc, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', border: `1px solid ${acc}40` }}>
-                                                ▶ Institucional
+                                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.08em', fontWeight: 500, textTransform: 'uppercase', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>Assistir</span>
                                             </div>
                                         </>
                                     )}
@@ -1427,6 +1430,7 @@ function buildCSS(acc) {
 .lp-hero-image-side { position:relative; display:flex; justify-content:flex-end; }
 .lp-hero-image-wrapper { position:relative; width:100%; max-width:420px; aspect-ratio:0.85; border-radius:3rem; overflow:hidden; border:1px solid ${acc}30; background:#F3ECE2; box-shadow:0 0 40px -10px ${acc}35, 0 40px 80px -20px rgba(26,22,20,0.12); transition:border-color 0.4s; }
 .lp-hero-image-wrapper:hover { border-color:${acc}; }
+.lp-pill-video { aspect-ratio:9/16 !important; max-width:300px !important; background:#000 !important; }
 .lp-hero-img { width:100%; height:100%; object-fit:cover; object-position:top; filter:contrast(1.03); mask-image:linear-gradient(to bottom, black 85%, transparent 100%); -webkit-mask-image:linear-gradient(to bottom, black 85%, transparent 100%); }
 .lp-image-glow { position:absolute; top:50%; left:50%; transform:translate(-30%,-30%); width:120%; height:120%; filter:blur(60px); z-index:-1; opacity:0.35; }
 .lp-cta-group { display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap; }
@@ -1963,6 +1967,7 @@ function buildCSS(acc) {
   .lp-hero-text { align-items: center; }
   .lp-hero-image-side { justify-content: center; order: -1; }
   .lp-hero-image-wrapper { max-width: 280px; }
+  .lp-pill-video { max-width: 200px !important; }
   .lp-subheadline { max-width: 560px; }
 
   .lp-cta-group { flex-direction: column; gap: 0.875rem; width: 100%; align-items: stretch; max-width: 360px; }

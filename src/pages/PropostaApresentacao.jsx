@@ -800,12 +800,17 @@ export default function PropostaApresentacao({ token }) {
                             boxShadow: `0 8px 40px rgba(0,0,0,0.35)`,
                         }}>
                             {videoProcessoId ? (
-                                <div style={{ position: 'relative', paddingBottom: '177.78%', background: '#000' }}>
+                                <div style={{ position: 'relative', paddingBottom: '177.78%', background: '#000', overflow: 'hidden' }}>
                                     <iframe
                                         ref={videoIframeRef}
                                         title="Processo de fabricação"
-                                        src={`https://www.youtube-nocookie.com/embed/${videoProcessoId}?rel=0&modestbranding=1&color=white&playsinline=1&mute=1&enablejsapi=1&iv_load_policy=3&cc_load_policy=0`}
-                                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                                        src={`https://www.youtube-nocookie.com/embed/${videoProcessoId}?rel=0&controls=0&modestbranding=1&color=white&playsinline=1&mute=1&enablejsapi=1&iv_load_policy=3&cc_load_policy=0`}
+                                        style={{
+                                            position: 'absolute',
+                                            top: '-16%', left: 0,
+                                            width: '100%', height: '132%',
+                                            border: 'none',
+                                        }}
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                         allowFullScreen
                                     />
