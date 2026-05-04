@@ -2769,19 +2769,16 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         </div>
 
                                         {isItemExp && (
-                                            <div className="px-4 pb-4 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
+                                            <div className="px-4 pb-3 pt-2.5 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
                                                 {/* Descrição do módulo */}
-                                                <div>
-                                                    <label className={Z.lbl}>Descrição / Observação</label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder={`Ex: Parede direita, acima do fogão...`}
-                                                        value={item.desc || ''}
-                                                        onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
-                                                        className={Z.inp}
-                                                        style={item.desc ? { borderColor: 'rgba(19,121,240,0.4)', background: 'rgba(19,121,240,0.03)' } : {}}
-                                                    />
-                                                </div>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Obs / descrição do módulo..."
+                                                    value={item.desc || ''}
+                                                    onChange={e => upItem(amb.id, item.id, it => it.desc = e.target.value)}
+                                                    className={Z.inp}
+                                                    style={item.desc ? { borderColor: 'rgba(19,121,240,0.4)', background: 'rgba(19,121,240,0.03)' } : { opacity: 0.45 }}
+                                                />
 
                                                 {/* Dimensões e quantidade */}
                                                 {(() => {
@@ -2815,47 +2812,66 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     const effectiveMats = resolveItemMats(item, amb);
                                                     const allMatsDB = [...chapasDB, ...acabDB.filter(a => a.preco > 0)];
                                                     const matIntNome = allMatsDB.find(m => m.id === effectiveMats.matInt)?.nome || effectiveMats.matInt || '—';
-                                                    const matExtNome = effectiveMats.matExt ? (allMatsDB.find(m => m.id === effectiveMats.matExt)?.nome || effectiveMats.matExt) : 'Sem tamponamento';
+                                                    const matExtNome = effectiveMats.matExt ? (allMatsDB.find(m => m.id === effectiveMats.matExt)?.nome || effectiveMats.matExt) : '';
+                                                    const hasItemMat = !!(item.mats?.matInt);
 
-                                                    // Se o ambiente tem material definido e este item NÃO foi customizado, mostrar resumo compacto
+                                                    // Ambiente tem material e item não customizou → herdando
                                                     if (hasAmbMat && !isCustom) {
                                                         return (
-                                                            <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(19,121,240,0.04)', border: '1px dashed rgba(19,121,240,0.2)' }}>
-                                                                <div className="flex items-center justify-between">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Layers size={11} style={{ color: 'var(--primary)', opacity: 0.6 }} />
-                                                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                                                            Herdando do ambiente: <strong style={{ color: 'var(--text-secondary)' }}>{matIntNome}</strong>
-                                                                            {effectiveMats.matExt ? <> + <strong style={{ color: 'var(--text-secondary)' }}>{matExtNome}</strong></> : ''}
-                                                                        </span>
-                                                                    </div>
-                                                                    <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = true; it.mats = { ...effectiveMats }; })}
-                                                                        className="text-[9px] px-2 py-0.5 rounded cursor-pointer"
-                                                                        style={{ color: 'var(--primary)', background: 'rgba(19,121,240,0.08)', border: '1px solid rgba(19,121,240,0.2)' }}>
-                                                                        Customizar
-                                                                    </button>
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Layers size={10} style={{ color: 'var(--primary)', opacity: 0.5 }} />
+                                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                                        <strong style={{ color: 'var(--text-secondary)' }}>{matIntNome}</strong>
+                                                                        {matExtNome ? <> · <strong style={{ color: 'var(--text-secondary)' }}>{matExtNome}</strong></> : ''}
+                                                                    </span>
                                                                 </div>
+                                                                <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = true; it.mats = { ...effectiveMats }; })}
+                                                                    className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+                                                                    style={{ color: 'var(--primary)' }}>
+                                                                    customizar
+                                                                </button>
                                                             </div>
                                                         );
                                                     }
 
-                                                    // Modo completo: seletores de material (padrão ou customizado)
+                                                    // Sem material no ambiente e item ainda não definiu → prompt compacto
+                                                    if (!hasAmbMat && !hasItemMat && !isCustom) {
+                                                        return (
+                                                            <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = true; })}
+                                                                className="text-[10px] flex items-center gap-1 cursor-pointer py-0.5 transition-opacity hover:opacity-100 opacity-50"
+                                                                style={{ color: 'var(--warning)' }}>
+                                                                <Layers size={10} /> Definir material deste item...
+                                                            </button>
+                                                        );
+                                                    }
+
+                                                    // Modo completo: seletores de material
                                                     return (
                                                         <>
-                                                            {hasAmbMat && isCustom && (
+                                                            {(hasAmbMat && isCustom) && (
                                                                 <div className="flex items-center justify-between mb-1">
                                                                     <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>Material customizado</span>
                                                                     <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = false; })}
-                                                                        className="text-[9px] px-2 py-0.5 rounded cursor-pointer"
-                                                                        style={{ color: 'var(--text-muted)', background: 'var(--bg-muted)', border: '1px solid var(--border)' }}
+                                                                        className="text-[9px] px-2 py-0.5 rounded cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
+                                                                        style={{ color: 'var(--text-muted)' }}
                                                                         title="Voltar a herdar material do ambiente">
-                                                                        Herdar do ambiente
+                                                                        ← herdar do ambiente
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                            {(!hasAmbMat && (hasItemMat || isCustom)) && (
+                                                                <div className="flex justify-end mb-1">
+                                                                    <button onClick={() => upItem(amb.id, item.id, it => { it._matCustom = false; it.mats = {}; })}
+                                                                        className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+                                                                        style={{ color: 'var(--text-muted)' }}>
+                                                                        limpar material
                                                                     </button>
                                                                 </div>
                                                             )}
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                                 <div>
-                                                                    <label className={Z.lbl}>Material Interno (chapas)</label>
+                                                                    <label className={Z.lbl}>Material Interno</label>
                                                                     <SearchableSelect
                                                                         value={item.mats.matInt}
                                                                         onChange={val => upItem(amb.id, item.id, it => it.mats.matInt = val)}
@@ -2868,7 +2884,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     />
                                                                 </div>
                                                                 <div>
-                                                                    <label className={Z.lbl}>Material Externo (tamponamento)</label>
+                                                                    <label className={Z.lbl}>Material Externo</label>
                                                                     <SearchableSelect
                                                                         value={item.mats.matExt}
                                                                         onChange={val => upItem(amb.id, item.id, it => it.mats.matExt = val)}
