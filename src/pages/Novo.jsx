@@ -281,7 +281,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
 
 // ── Componente: editor de instância de componente dentro de uma caixa ────────
 function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRemove, chapasDB, acabDB, ferragensDB, globalPadroes }) {
-    const [exp, setExp] = useState(true);
+    const [exp, setExp] = useState(false);
     const [matExp, setMatExp] = useState(false);
 
     const custoComp = useMemo(() => {
@@ -2757,6 +2757,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         className="p-0.5 rounded hover:bg-[var(--bg-hover)]" title="Remover do grupo"
                                                         style={{ color: 'var(--text-muted)' }}><X size={11} /></button>
                                                 )}
+                                                <button onClick={e => { e.stopPropagation(); setReportItemId(reportItemId === item.id ? null : item.id); }}
+                                                    className="p-1 rounded hover:bg-[var(--bg-hover)] transition-colors"
+                                                    title="Ver detalhes do cálculo"
+                                                    style={{ color: reportItemId === item.id ? 'var(--primary)' : 'var(--text-muted)', opacity: reportItemId === item.id ? 1 : 0.5 }}>
+                                                    <BarChart3 size={12} />
+                                                </button>
                                                 {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)]" title="Duplicar item"><Copy size={12} /></button>}
                                                 {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Remover item"><Trash2 size={12} /></button>}
                                             </div>
@@ -2882,18 +2888,22 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 })()}
 
                                                 {/* Componentes */}
-                                                <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--success)' }}>Componentes ({item.componentes.length})</span>
-                                                        <button onClick={() => setAddCompModal({ ambId: amb.id, itemId: item.id })}
-                                                            className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer flex items-center gap-1"
-                                                            style={{ background: 'var(--success)', color: '#fff' }}>
-                                                            <Plus size={10} /> Adicionar
-                                                        </button>
-                                                    </div>
-                                                    {item.componentes.length === 0
-                                                        ? <div className="text-center py-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>Adicione gavetas, prateleiras, portas...</div>
-                                                        : <div className="flex flex-col gap-1.5">
+                                                {item.componentes.length === 0
+                                                    ? <button onClick={() => setAddCompModal({ ambId: amb.id, itemId: item.id })}
+                                                        className="text-[10px] flex items-center gap-1 cursor-pointer py-0.5 transition-opacity hover:opacity-100 opacity-50"
+                                                        style={{ color: 'var(--success)' }}>
+                                                        <Plus size={10} /> Adicionar componente (gaveta, prateleira, porta...)
+                                                    </button>
+                                                    : <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--success)' }}>Componentes ({item.componentes.length})</span>
+                                                            <button onClick={() => setAddCompModal({ ambId: amb.id, itemId: item.id })}
+                                                                className="text-[10px] flex items-center gap-0.5 cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
+                                                                style={{ color: 'var(--success)' }}>
+                                                                <Plus size={10} /> add
+                                                            </button>
+                                                        </div>
+                                                        <div className="flex flex-col gap-1">
                                                             {item.componentes.map(ci => (
                                                                 <ComponenteInstancia
                                                                     key={ci.id}
@@ -2910,8 +2920,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 />
                                                             ))}
                                                         </div>
-                                                    }
-                                                </div>
+                                                    </div>
+                                                }
 
                                                 {/* Ripado no módulo */}
                                                 {item.ripado && (
@@ -2993,24 +3003,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     );
                                                 })()}
 
-                                                {/* Toggle relatório */}
-                                                <button onClick={() => setReportItemId(reportItemId === item.id ? null : item.id)}
-                                                    className="w-full flex items-center justify-center gap-1.5 py-2 mt-1 rounded-md text-[10px] font-semibold cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                                    style={{ color: 'var(--text-muted)', borderTop: '1px dashed var(--border)' }}>
-                                                    {reportItemId === item.id ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                                                    <BarChart3 size={11} />
-                                                    {reportItemId === item.id ? 'Ocultar detalhes' : 'Ver detalhes do cálculo'}
-                                                </button>
-
-                                                {reportItemId === item.id && res && (
-                                                    <RelatorioItem
-                                                        res={res}
-                                                        chapasDB={chapasDB}
-                                                        fitasDB={fitasDB}
-                                                        coef={coef}
-                                                        qtd={item.qtd || 1}
-                                                    />
-                                                )}
+                                            </div>
+                                        )}
+                                        {reportItemId === item.id && res && (
+                                            <div style={{ borderTop: '1px solid var(--border)' }}>
+                                                <RelatorioItem
+                                                    res={res}
+                                                    chapasDB={chapasDB}
+                                                    fitasDB={fitasDB}
+                                                    coef={coef}
+                                                    qtd={item.qtd || 1}
+                                                />
                                             </div>
                                         )}
                                     </div>
