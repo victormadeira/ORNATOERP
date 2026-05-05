@@ -1160,6 +1160,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [templateCategoria, setTemplateCategoria] = useState('');
     const [mkExpanded, setMkExpanded] = useState(false);
     const [compExpanded, setCompExpanded] = useState(true);
+    const [diagExp, setDiagExp] = useState(false);       // Diagnóstico de Preço (sidebar)
+    const [custoHExp, setCustoHExp] = useState(false);   // Custo-hora breakdown (sidebar)
+    const [consumExp, setConsumExp] = useState(false);   // Consumíveis breakdown (sidebar)
     const [showImportModal, setShowImportModal] = useState(false);
     const [importJson, setImportJson] = useState('');
     const [importLoading, setImportLoading] = useState(false);
@@ -2591,27 +2594,33 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     {/* Dados do projeto */}
                     {(() => {
                         const clienteNome = clis.find(c => c.id === parseInt(cid))?.nome || '';
-                        const summaryParts = [clienteNome, projeto, numero ? `#${numero}` : ''].filter(Boolean);
                         const dataVencFmt = dataVenc ? new Date(dataVenc + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
                         return (
-                            <div className={Z.card + ' !pb-3'}>
-                                {/* Header clicável */}
-                                <div className="flex items-center justify-between cursor-pointer select-none -mx-1 px-1 py-0.5 rounded hover:bg-[var(--bg-hover)]"
+                            <div className={`glass-card transition-all ${dadosExp ? 'p-3 sm:p-5' : 'py-2.5 px-3 sm:px-4'}`}>
+                                {/* Barra clicável */}
+                                <div className="flex items-center justify-between gap-3 cursor-pointer select-none"
                                     onClick={() => setDadosExp(p => !p)}>
-                                    <div className="flex items-center gap-2">
-                                        {dadosExp ? <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={13} style={{ color: 'var(--text-muted)' }} />}
-                                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Dados do Projeto</span>
-                                        {!dadosExp && summaryParts.length > 0 && (
-                                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                                                — {summaryParts.join(' · ')}
-                                                {dataVencFmt && <span className="ml-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>válido até {dataVencFmt}</span>}
-                                            </span>
-                                        )}
-                                        {!dadosExp && !cid && (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)' }}>sem cliente</span>
-                                        )}
+                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                        {dadosExp
+                                            ? <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
+                                            : <ChevronRight size={13} style={{ color: 'var(--text-muted)' }} />}
+                                        <span className="text-sm font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>Dados do Projeto</span>
+                                        {/* chips resumo — só quando colapsado */}
+                                        {!dadosExp && (<>
+                                            {clienteNome
+                                                ? <span className="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>{clienteNome}</span>
+                                                : <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold shrink-0" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)' }}>sem cliente</span>
+                                            }
+                                            {projeto && <span className="text-[11px] px-2 py-0.5 rounded-full truncate" style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)', maxWidth: 160 }}>{projeto}</span>}
+                                            {numero && <span className="text-[11px] px-2 py-0.5 rounded-full font-mono shrink-0" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>#{numero}</span>}
+                                        </>)}
                                     </div>
-                                    <span className="text-[10px] cursor-pointer opacity-40 hover:opacity-100" style={{ color: 'var(--text-muted)' }}>{dadosExp ? 'fechar' : 'editar'}</span>
+                                    <div className="flex items-center gap-3 shrink-0">
+                                        {!dadosExp && dataVencFmt && (
+                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>até {dataVencFmt}</span>
+                                        )}
+                                        <span className="text-[10px] opacity-40 hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}>{dadosExp ? 'fechar' : 'editar'}</span>
+                                    </div>
                                 </div>
 
                                 {/* Conteúdo expandido */}
@@ -3606,10 +3615,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 {/* ── Resumo Financeiro ── */}
                 <div className="lg:col-span-1">
                     <div className="glass-card overflow-hidden flex flex-col" style={{ borderTop: '2px solid var(--primary)', minHeight: 560, maxHeight: 'calc(100vh - 24px)' }}>
-                        <div className="p-4 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin' }}>
-                            <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-primary)' }}>Resumo Financeiro</h3>
+                        <div className="p-3 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin' }}>
+                            <h3 className="font-semibold text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Resumo Financeiro</h3>
+
+                            {/* ── Ambientes ── */}
                             {ambientes.length > 0 && (
-                                <div className="flex flex-col gap-1 mb-3 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <div className="flex flex-col gap-0.5 mb-3 pb-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <div className="text-[9px] font-semibold mb-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>POR AMBIENTE</div>
                                     {ambientes.map(a => {
                                         const d = tot.ambTotals.find(x => x.id === a.id);
                                         const ambAjVal = d ? (tot.itemCostList || []).filter(x => x.ambId === a.id).reduce((s, { itemCP, ajuste }) => {
@@ -3621,9 +3633,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         const ambCustoVal = d?.custo || 0;
                                         const ambMargemPct = ambPvVal > 0 && ambCustoVal > 0 ? ((ambPvVal - ambCustoVal) / ambPvVal * 100) : 0;
                                         return (
-                                            <div key={a.id} className="flex justify-between text-xs items-center">
-                                                <span className="truncate" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
-                                                <div className="flex items-center gap-1.5">
+                                            <div key={a.id} className="flex justify-between text-[11px] items-center">
+                                                <span className="truncate pr-2" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
+                                                <div className="flex items-center gap-1.5 shrink-0">
                                                     {ambMargemPct > 0 && <span className="text-[8px]" title={`Margem ${N(ambMargemPct, 1)}%`} style={{ color: ambMargemPct > 50 ? '#8b5cf6' : ambMargemPct > 35 ? 'var(--success)' : ambMargemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>{N(ambMargemPct, 0)}%</span>}
                                                     <span style={{ color: 'var(--text-secondary)' }}>{R$(ambPvVal)}</span>
                                                 </div>
@@ -3632,24 +3644,25 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     })}
                                 </div>
                             )}
-                            <div className="flex flex-col gap-1.5 text-xs">
+
+                            {/* ── Custo breakdown ── */}
+                            <div className="flex flex-col gap-1 text-[11px] mb-2">
                                 {(() => {
                                     const bd = tot.breakdown || {};
-                                    const matPuro = tot.cm || 0; // custo material puro (sem coef)
+                                    const matPuro = tot.cm || 0;
                                     const matComCoef = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0);
-                                    const complexidade = matComCoef - matPuro; // valor do coef de dificuldade
+                                    const complexidade = matComCoef - matPuro;
                                     const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
                                     const custOp = matMk - matComCoef;
                                     const mdoVal = bd.mdo || tot.custoMdo || 0;
                                     const consumVal = tot.totConsumiveis || 0;
-                                    const linhas = [
-                                        ['Custo Material', matPuro],
+                                    return [
+                                        ['Material', matPuro],
                                         ['Complexidade', complexidade],
                                         ...(consumVal > 0 ? [['Consumíveis', consumVal]] : []),
                                         ['Mão de Obra', mdoVal],
-                                        ['Custos Operacionais', custOp],
-                                    ];
-                                    return linhas.filter(([, v]) => v > 0).map(([l, v], i) => (
+                                        ['Op. / Markup', custOp],
+                                    ].filter(([, v]) => v > 0).map(([l, v], i) => (
                                         <div key={i} className="flex justify-between">
                                             <span style={{ color: 'var(--text-muted)' }}>{l}</span>
                                             <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
@@ -3657,20 +3670,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     ));
                                 })()}
                             </div>
-                            <div className="mt-2 pt-2 flex justify-between text-xs" style={{ borderTop: '1px solid var(--border)' }}>
+                            <div className="mb-2 pb-2 flex justify-between text-xs" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>Custo Produção</span>
                                 <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{R$(tot.cb)}</span>
                             </div>
                             {tot.manualTotal > 0 && (
-                                <div className="mt-1 flex justify-between text-xs">
-                                    <span style={{ color: 'var(--warning)' }}>Amb. Manuais (direto)</span>
+                                <div className="mb-2 flex justify-between text-xs">
+                                    <span style={{ color: 'var(--warning)' }}>Amb. Manuais</span>
                                     <span className="font-bold" style={{ color: 'var(--warning)' }}>{R$(tot.manualTotal)}</span>
                                 </div>
                             )}
 
                             {/* ── Formação de Preço (modo simples + avançado) ── */}
-                            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', ...(readOnly ? { opacity: 0.6, pointerEvents: 'none' } : {}) }}>
-                                <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>FORMAÇÃO DE PREÇO</div>
+                            <div className={readOnly ? 'opacity-60 pointer-events-none' : ''}>
+                                <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>PRECIFICAÇÃO</div>
                                 {(() => {
                                     const bd = tot.breakdown || {};
                                     const mdoVal = bd.mdo || 0;
@@ -3888,7 +3901,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                             {/* Padrões de Ferragens — substituição global */}
                             <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Padrões de Ferragens</div>
+                                <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>PADRÕES DE FERRAGENS</div>
                                 {[
                                     ['Corrediças',    'corredica',   FERR_GROUPS.corredica],
                                     ['Dobradiças',    'dobradica',   FERR_GROUPS.dobradica],
@@ -3916,54 +3929,63 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             {/* ── Custo-Hora (Fase 1) ── */}
                             {tot.custoHoraResult && tot.custoHoraResult.custoMdo > 0 && (
                                 <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                    <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
-                                        MÃO DE OBRA (custo-hora)
-                                    </div>
-                                    <div className="flex flex-col gap-0.5 text-[10px]">
-                                        {[
-                                            ['Corte CNC', tot.custoHoraResult.breakdown.hCorte, `${tot.totNPecas} pçs · ${Object.values(tot.ca).reduce((s, c) => s + (c.n || 0), 0)} chapas`],
-                                            ['Fita de borda', tot.custoHoraResult.breakdown.hFita, `${tot.custoHoraResult.breakdown.totalBordas || 0} bordas · ${N(tot.ft, 0)}m`],
-                                            ['Furação', tot.custoHoraResult.breakdown.hFuracao, `${tot.totNFerragens} pts`],
-                                            ['Montagem', tot.custoHoraResult.breakdown.hMontagem, `${tot.totNCaixas}cx ${tot.totNPortas || 0}pt ${tot.totNGavetas || 0}gv ${tot.totNPrateleiras || 0}pr`],
-                                            ['Acabamento', tot.custoHoraResult.breakdown.hAcabamento, `${N(tot.at * 0.6, 1)}m²`],
-                                            ['Embalagem', tot.custoHoraResult.breakdown.hEmbalagem, `${tot.totNModulos} mod`],
-                                            ['Instalação', tot.custoHoraResult.breakdown.hInstalacao, `${tot.totNModulos} mod`],
-                                        ].filter(([, h]) => h > 0).map(([l, h, info]) => (
-                                            <div key={l} className="flex justify-between">
-                                                <span style={{ color: 'var(--text-muted)' }}>{l} <span className="opacity-50">({info})</span></span>
-                                                <span style={{ color: 'var(--text-secondary)' }}>{N(h, 1)}h</span>
-                                            </div>
-                                        ))}
-                                        <div className="flex justify-between font-semibold pt-1 mt-1" style={{ borderTop: '1px dashed var(--border)' }}>
-                                            <span style={{ color: 'var(--text-secondary)' }}>Total: {N(tot.custoHoraResult.horasTotal, 1)}h × {R$(tot.custoHoraResult.custoHora)}/h</span>
-                                            <span style={{ color: 'var(--primary)' }}>{R$(tot.custoHoraResult.custoMdo)}</span>
+                                    <button className="flex items-center justify-between w-full mb-1 cursor-pointer" onClick={() => setCustoHExp(p => !p)}>
+                                        <span className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>MÃO DE OBRA (custo-hora)</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>{R$(tot.custoHoraResult.custoMdo)}</span>
+                                            <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{custoHExp ? '▴' : '▾'}</span>
                                         </div>
-                                    </div>
+                                    </button>
+                                    {custoHExp && (
+                                        <div className="flex flex-col gap-0.5 text-[10px] mt-1.5">
+                                            {[
+                                                ['Corte CNC', tot.custoHoraResult.breakdown.hCorte, `${tot.totNPecas} pçs`],
+                                                ['Fita de borda', tot.custoHoraResult.breakdown.hFita, `${N(tot.ft, 0)}m`],
+                                                ['Furação', tot.custoHoraResult.breakdown.hFuracao, `${tot.totNFerragens} pts`],
+                                                ['Montagem', tot.custoHoraResult.breakdown.hMontagem, `${tot.totNCaixas}cx`],
+                                                ['Acabamento', tot.custoHoraResult.breakdown.hAcabamento, `${N(tot.at * 0.6, 1)}m²`],
+                                                ['Embalagem', tot.custoHoraResult.breakdown.hEmbalagem, `${tot.totNModulos} mod`],
+                                                ['Instalação', tot.custoHoraResult.breakdown.hInstalacao, `${tot.totNModulos} mod`],
+                                            ].filter(([, h]) => h > 0).map(([l, h, info]) => (
+                                                <div key={l} className="flex justify-between">
+                                                    <span style={{ color: 'var(--text-muted)' }}>{l} <span className="opacity-40">({info})</span></span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{N(h, 1)}h</span>
+                                                </div>
+                                            ))}
+                                            <div className="text-[9px] mt-1 pt-1 text-right" style={{ borderTop: '1px dashed var(--border)', color: 'var(--text-muted)', opacity: 0.7 }}>
+                                                {N(tot.custoHoraResult.horasTotal, 1)}h × {R$(tot.custoHoraResult.custoHora)}/h
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             {/* ── Consumíveis (Fase 2) ── */}
                             {tot.consumiveisResult && tot.totConsumiveis > 0 && (
                                 <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                    <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>CONSUMÍVEIS</div>
-                                    <div className="flex flex-col gap-0.5 text-[10px]">
-                                        {[
-                                            ['Cola', tot.consumiveisResult.breakdown.cola],
-                                            ['Minifix/Cavilha', tot.consumiveisResult.breakdown.minifix],
-                                            ['Parafusos', tot.consumiveisResult.breakdown.parafusos],
-                                            ['Lixa/Abrasivo', tot.consumiveisResult.breakdown.lixa],
-                                            ['Embalagem', tot.consumiveisResult.breakdown.embalagem],
-                                        ].filter(([, v]) => v > 0).map(([l, v]) => (
-                                            <div key={l} className="flex justify-between">
-                                                <span style={{ color: 'var(--text-muted)' }}>{l}</span>
-                                                <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
-                                            </div>
-                                        ))}
-                                        <div className="flex justify-between font-semibold pt-1 mt-1" style={{ borderTop: '1px dashed var(--border)' }}>
-                                            <span style={{ color: 'var(--text-secondary)' }}>Total consumíveis</span>
-                                            <span style={{ color: 'var(--primary)' }}>{R$(tot.totConsumiveis)}</span>
+                                    <button className="flex items-center justify-between w-full mb-1 cursor-pointer" onClick={() => setConsumExp(p => !p)}>
+                                        <span className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>CONSUMÍVEIS</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>{R$(tot.totConsumiveis)}</span>
+                                            <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{consumExp ? '▴' : '▾'}</span>
                                         </div>
-                                    </div>
+                                    </button>
+                                    {consumExp && (
+                                        <div className="flex flex-col gap-0.5 text-[10px] mt-1.5">
+                                            {[
+                                                ['Cola', tot.consumiveisResult.breakdown.cola],
+                                                ['Minifix/Cavilha', tot.consumiveisResult.breakdown.minifix],
+                                                ['Parafusos', tot.consumiveisResult.breakdown.parafusos],
+                                                ['Lixa/Abrasivo', tot.consumiveisResult.breakdown.lixa],
+                                                ['Embalagem', tot.consumiveisResult.breakdown.embalagem],
+                                            ].filter(([, v]) => v > 0).map(([l, v]) => (
+                                                <div key={l} className="flex justify-between">
+                                                    <span style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(v)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -4048,90 +4070,70 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                                     return (
                                         <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                            <div className="text-[9px] font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>DIAGNÓSTICO DE PREÇO</div>
+                                            {/* Header colapsável */}
+                                            <button className="flex items-center justify-between w-full mb-2 cursor-pointer" onClick={() => setDiagExp(p => !p)}>
+                                                <span className="text-[9px] font-semibold" style={{ color: 'var(--text-muted)' }}>DIAGNÓSTICO DE PREÇO</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${faixaCor}15`, color: faixaCor }}>{N(mult, 2)}× {faixaLabel}</span>
+                                                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{diagExp ? '▴' : '▾'}</span>
+                                                </div>
+                                            </button>
 
-                                            {/* Multiplicador total */}
-                                            <div className="rounded-lg px-3 py-2.5 mb-2" style={{ background: 'var(--bg-muted)', border: `1px solid ${faixaCor}30` }}>
-                                                <div className="flex justify-between items-center mb-1.5">
-                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Multiplicador</span>
-                                                    <span className="font-bold text-sm" style={{ color: faixaCor }}>{N(mult, 2)}×</span>
-                                                </div>
-                                                {/* Barra visual */}
-                                                <div className="relative h-2 rounded-full mb-1" style={{ background: 'var(--bg-card)' }}>
-                                                    {/* Faixa saudável: 2.5× a 3.5× → 37.5% a 62.5% */}
-                                                    <div className="absolute h-full rounded-full" style={{ left: '37.5%', width: '25%', background: 'var(--success-bg)' }} />
-                                                    <div className="absolute h-3 w-1.5 rounded-full" style={{ left: `${barPos}%`, top: '-2px', background: faixaCor, transform: 'translateX(-50%)' }} />
-                                                </div>
-                                                <div className="flex justify-between text-[8px]" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
-                                                    <span>1×</span>
-                                                    <span>2.5×</span>
-                                                    <span>3.5×</span>
-                                                    <span>5×</span>
-                                                </div>
-                                                <div className="text-center mt-1">
-                                                    <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: `${faixaCor}15`, color: faixaCor }}>{faixaLabel}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Resumo financeiro rápido */}
-                                            <div className="flex flex-col gap-1 text-[10px]">
-                                                <div className="flex justify-between">
-                                                    <span style={{ color: 'var(--text-muted)' }}>Custo material</span>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(custoMat)}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span style={{ color: 'var(--text-muted)' }}>Custo produção</span>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(cp)}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span style={{ color: 'var(--text-muted)' }}>Taxas sobre PV ({N(totalTaxasPerc, 1)}%)</span>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>{R$(taxasR)}</span>
-                                                </div>
-                                                <div className="flex justify-between pt-1 mt-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
-                                                    <span style={{ color: 'var(--text-muted)' }}>Margem bruta</span>
-                                                    <span className="font-semibold" style={{ color: margemBrutaPct > 40 ? 'var(--success)' : margemBrutaPct > 25 ? 'var(--warning)' : 'var(--danger)' }}>
-                                                        {R$(margemBrutaR)} ({N(margemBrutaPct, 1)}%)
-                                                    </span>
-                                                </div>
-                                                {lucroR > 0 && (
-                                                    <div className="flex justify-between">
-                                                        <span style={{ color: 'var(--text-muted)' }}>Lucro líquido ({lucroPerc}%)</span>
-                                                        <span className="font-semibold" style={{ color: 'var(--success)' }}>{R$(lucroR)}</span>
+                                            {diagExp && (<>
+                                                {/* Multiplicador — barra visual */}
+                                                <div className="rounded-lg px-3 py-2.5 mb-2" style={{ background: 'var(--bg-muted)', border: `1px solid ${faixaCor}30` }}>
+                                                    <div className="relative h-2 rounded-full mb-1" style={{ background: 'var(--bg-card)' }}>
+                                                        <div className="absolute h-full rounded-full" style={{ left: '37.5%', width: '25%', background: 'var(--success-bg)' }} />
+                                                        <div className="absolute h-3 w-1.5 rounded-full" style={{ left: `${barPos}%`, top: '-2px', background: faixaCor, transform: 'translateX(-50%)' }} />
                                                     </div>
-                                                )}
-                                                {/* Métricas de referência */}
-                                                <div className="mt-1 pt-1 flex flex-col gap-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
-                                                    {pvM2 && (
-                                                        <div className="flex justify-between">
-                                                            <span style={{ color: 'var(--text-muted)' }}>PV por m² chapa</span>
-                                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(pvM2)}/m²</span>
-                                                        </div>
-                                                    )}
-                                                    {tot.ft > 0 && (
-                                                        <div className="flex justify-between">
-                                                            <span style={{ color: 'var(--text-muted)' }}>PV por metro linear</span>
-                                                            <span style={{ color: 'var(--text-secondary)' }}>{R$(pvCalc / tot.ft)}/ml</span>
-                                                        </div>
-                                                    )}
-                                                    {Object.values(tot.ca || {}).length > 0 && (
-                                                        <div className="flex justify-between">
-                                                            <span style={{ color: 'var(--text-muted)' }}>Chapas no projeto</span>
-                                                            <span style={{ color: 'var(--text-secondary)' }}>{Object.values(tot.ca).reduce((s, c) => s + (c.n || 0), 0)} un</span>
-                                                        </div>
-                                                    )}
+                                                    <div className="flex justify-between text-[8px]" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
+                                                        <span>1×</span><span>2.5×</span><span>3.5×</span><span>5×</span>
+                                                    </div>
                                                 </div>
-                                                {/* Dica contextual */}
-                                                <div className="mt-2 rounded px-2 py-1.5 text-[9px] leading-relaxed" style={{ background: `${faixaCor}08`, border: `1px solid ${faixaCor}15`, color: 'var(--text-muted)' }}>
-                                                    {faixa === 'baixo' && 'Preço abaixo da média do mercado de móveis sob medida. Verifique se as margens cobrem seus custos fixos (aluguel, folha, etc).'}
-                                                    {faixa === 'saudavel' && 'Preço dentro da faixa praticada pelo mercado de móveis sob medida (2.5× a 3.5× sobre material).'}
-                                                    {faixa === 'alto' && 'Preço acima da média. Justificável para projetos alto padrão, materiais premium ou alta complexidade.'}
-                                                    {(tot.manualTotal || 0) > 0 && (
-                                                        <div className="mt-1 pt-1" style={{ borderTop: '1px dashed var(--border)', opacity: 0.7 }}>
-                                                            Itens avulsos/manuais ({R$(tot.manualTotal)}) excluídos desta análise.
+
+                                                {/* Resumo financeiro rápido */}
+                                                <div className="flex flex-col gap-1 text-[10px]">
+                                                    <div className="flex justify-between">
+                                                        <span style={{ color: 'var(--text-muted)' }}>Custo material</span>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>{R$(custoMat)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span style={{ color: 'var(--text-muted)' }}>Custo produção</span>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>{R$(cp)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span style={{ color: 'var(--text-muted)' }}>Taxas sobre PV ({N(totalTaxasPerc, 1)}%)</span>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>{R$(taxasR)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between pt-1 mt-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
+                                                        <span style={{ color: 'var(--text-muted)' }}>Margem bruta</span>
+                                                        <span className="font-semibold" style={{ color: margemBrutaPct > 40 ? 'var(--success)' : margemBrutaPct > 25 ? 'var(--warning)' : 'var(--danger)' }}>
+                                                            {R$(margemBrutaR)} ({N(margemBrutaPct, 1)}%)
+                                                        </span>
+                                                    </div>
+                                                    {lucroR > 0 && (
+                                                        <div className="flex justify-between">
+                                                            <span style={{ color: 'var(--text-muted)' }}>Lucro líquido ({lucroPerc}%)</span>
+                                                            <span className="font-semibold" style={{ color: 'var(--success)' }}>{R$(lucroR)}</span>
                                                         </div>
                                                     )}
+                                                    {/* Métricas de referência */}
+                                                    {(pvM2 || tot.ft > 0 || Object.values(tot.ca || {}).length > 0) && (
+                                                        <div className="mt-1 pt-1 flex flex-col gap-0.5" style={{ borderTop: '1px dashed var(--border)' }}>
+                                                            {pvM2 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>PV/m² chapa</span><span style={{ color: 'var(--text-secondary)' }}>{R$(pvM2)}/m²</span></div>}
+                                                            {tot.ft > 0 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>PV/metro linear</span><span style={{ color: 'var(--text-secondary)' }}>{R$(pvCalc / tot.ft)}/ml</span></div>}
+                                                            {Object.values(tot.ca || {}).length > 0 && <div className="flex justify-between"><span style={{ color: 'var(--text-muted)' }}>Chapas</span><span style={{ color: 'var(--text-secondary)' }}>{Object.values(tot.ca).reduce((s, c) => s + (c.n || 0), 0)} un</span></div>}
+                                                        </div>
+                                                    )}
+                                                    {/* Dica contextual */}
+                                                    <div className="mt-1.5 rounded px-2 py-1.5 text-[9px] leading-relaxed" style={{ background: `${faixaCor}08`, border: `1px solid ${faixaCor}15`, color: 'var(--text-muted)' }}>
+                                                        {faixa === 'baixo' && 'Preço abaixo da média. Verifique se as margens cobrem custos fixos.'}
+                                                        {faixa === 'saudavel' && 'Faixa saudável de mercado (2.5× a 3.5× sobre material).'}
+                                                        {faixa === 'alto' && 'Acima da média — justificável para alto padrão ou alta complexidade.'}
+                                                        {(tot.manualTotal || 0) > 0 && <span className="block mt-0.5 opacity-70">Itens manuais ({R$(tot.manualTotal)}) excluídos.</span>}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            </>)}
                                         </div>
                                     );
                                 })()}
