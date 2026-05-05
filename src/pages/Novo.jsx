@@ -14,6 +14,7 @@ import {
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
     GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown, GripVertical, MapPin,
+    MoreHorizontal,
 } from 'lucide-react';
 
 // ── Ícone por categoria de caixa ─────────────────────────────────────────────
@@ -1164,6 +1165,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [importLoading, setImportLoading] = useState(false);
     const [importResult, setImportResult] = useState(null);
     const [novoConfirm, setNovoConfirm] = useState(null); // { msg, title?, onOk }
+    // A: Dados do Projeto colapsável
+    const [dadosExp, setDadosExp] = useState(!editOrc);
+    // C: Dropdown "···" para ações secundárias de ambientes
+    const [moreActionsOpen, setMoreActionsOpen] = useState(false);
+    const moreActionsRef = useRef(null);
 
     // Catálogo e biblioteca do banco
     const [caixas, setCaixas] = useState([]);
@@ -2263,6 +2269,28 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         return () => window.removeEventListener('beforeunload', handler);
     }, [saveStatus]);
 
+    // D: Cmd+S / Ctrl+S para salvar
+    const salvarRef = useRef(null);
+    useEffect(() => { salvarRef.current = { salvar, readOnly }; });
+    useEffect(() => {
+        const handler = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                e.preventDefault();
+                if (!salvarRef.current?.readOnly) salvarRef.current?.salvar();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    // C: Fechar dropdown "···" ao clicar fora
+    useEffect(() => {
+        if (!moreActionsOpen) return;
+        const handler = (e) => { if (moreActionsRef.current && !moreActionsRef.current.contains(e.target)) setMoreActionsOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [moreActionsOpen]);
+
     const salvar = async () => {
         if (!cid) { notify('Selecione um cliente'); return; }
         if (ambientes.every(a => {
@@ -2561,46 +2589,115 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 {/* ── Coluna principal ── */}
                 <div className="lg:col-span-2 flex flex-col gap-4">
                     {/* Dados do projeto */}
-                    <div className={Z.card}>
-                        <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}><Settings size={14} className="inline mr-1" />Dados do Projeto</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                            <div>
-                                <label className={Z.lbl}>Cliente *</label>
-                                <div className="flex gap-1">
-                                    <select value={cid} onChange={e => sc(e.target.value)} className={`${Z.inp} flex-1`} disabled={readOnly}>
-                                        <option value="">Selecione...</option>
-                                        {clis.map(c => <option key={c.id} value={c.id}>{c.nome}{c.arq ? ` (${c.arq})` : ''}</option>)}
-                                    </select>
-                                    {!readOnly && (
-                                        <button onClick={() => setShowQuickClient(true)}
-                                            className="shrink-0 px-2.5 rounded-lg cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
-                                            style={{ border: '1px solid var(--border)', color: 'var(--primary)' }}
-                                            title="Cadastrar novo cliente">
-                                            <Plus size={16} />
-                                        </button>
-                                    )}
+                    {(() => {
+                        const clienteNome = clis.find(c => c.id === parseInt(cid))?.nome || '';
+                        const summaryParts = [clienteNome, projeto, numero ? `#${numero}` : ''].filter(Boolean);
+                        const dataVencFmt = dataVenc ? new Date(dataVenc + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+                        return (
+                            <div className={Z.card + ' !pb-3'}>
+                                {/* Header clicável */}
+                                <div className="flex items-center justify-between cursor-pointer select-none -mx-1 px-1 py-0.5 rounded hover:bg-[var(--bg-hover)]"
+                                    onClick={() => setDadosExp(p => !p)}>
+                                    <div className="flex items-center gap-2">
+                                        {dadosExp ? <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={13} style={{ color: 'var(--text-muted)' }} />}
+                                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Dados do Projeto</span>
+                                        {!dadosExp && summaryParts.length > 0 && (
+                                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                                — {summaryParts.join(' · ')}
+                                                {dataVencFmt && <span className="ml-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>válido até {dataVencFmt}</span>}
+                                            </span>
+                                        )}
+                                        {!dadosExp && !cid && (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)' }}>sem cliente</span>
+                                        )}
+                                    </div>
+                                    <span className="text-[10px] cursor-pointer opacity-40 hover:opacity-100" style={{ color: 'var(--text-muted)' }}>{dadosExp ? 'fechar' : 'editar'}</span>
                                 </div>
+
+                                {/* Conteúdo expandido */}
+                                {dadosExp && (
+                                    <div className="mt-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                            <div>
+                                                <label className={Z.lbl}>Cliente *</label>
+                                                <div className="flex gap-1">
+                                                    <select value={cid} onChange={e => sc(e.target.value)} className={`${Z.inp} flex-1`} disabled={readOnly}>
+                                                        <option value="">Selecione...</option>
+                                                        {clis.map(c => <option key={c.id} value={c.id}>{c.nome}{c.arq ? ` (${c.arq})` : ''}</option>)}
+                                                    </select>
+                                                    {!readOnly && (
+                                                        <button onClick={e => { e.stopPropagation(); setShowQuickClient(true); }}
+                                                            className="shrink-0 px-2.5 rounded-lg cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
+                                                            style={{ border: '1px solid var(--border)', color: 'var(--primary)' }}
+                                                            title="Cadastrar novo cliente">
+                                                            <Plus size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div><label className={Z.lbl}>Nome do Projeto</label><input value={projeto} onChange={e => setProjeto(e.target.value)} placeholder="Ex: Cozinha Planejada" className={Z.inp} disabled={readOnly} /></div>
+                                            <div><label className={Z.lbl}>Nº da Proposta</label><input value={numero} onChange={e => setNumero(e.target.value)} placeholder="Auto" className={Z.inp} disabled={readOnly} /></div>
+                                            <div>
+                                                <label className={Z.lbl}>Validade (dias)</label>
+                                                <input type="number" value={validadeDias} onChange={e => setValidadeDias(Number(e.target.value) || 15)} min="1" className={Z.inp} disabled={readOnly} />
+                                                <span className="text-[10px] mt-0.5 block" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>Até {new Date(dataVenc + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                            </div>
+                                        </div>
+                                        {/* B: campos secundários — dimmed quando vazios */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                                            <input value={prazoEntrega} onChange={e => setPrazoEntrega(e.target.value)}
+                                                placeholder="+ prazo de entrega"
+                                                className={Z.inp} disabled={readOnly}
+                                                style={prazoEntrega ? {} : { opacity: 0.4 }} />
+                                            <input value={enderecoObra} onChange={e => setEnderecoObra(e.target.value)}
+                                                placeholder="+ endereço da obra"
+                                                className={Z.inp} disabled={readOnly}
+                                                style={enderecoObra ? {} : { opacity: 0.4 }} />
+                                            <input value={obs} onChange={e => so(e.target.value)}
+                                                placeholder="+ observações gerais"
+                                                className={Z.inp} disabled={readOnly}
+                                                style={obs ? {} : { opacity: 0.4 }} />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div><label className={Z.lbl}>Nome do Projeto</label><input value={projeto} onChange={e => setProjeto(e.target.value)} placeholder="Ex: Cozinha Planejada" className={Z.inp} disabled={readOnly} /></div>
-                            <div><label className={Z.lbl}>Nº da Proposta</label><input value={numero} onChange={e => setNumero(e.target.value)} placeholder="Auto" className={Z.inp} disabled={readOnly} /></div>
-                            <div><label className={Z.lbl}>Validade (dias)</label><input type="number" value={validadeDias} onChange={e => setValidadeDias(Number(e.target.value) || 15)} min="1" className={Z.inp} disabled={readOnly} /><span className="text-xs mt-0.5 block" style={{color:'var(--text-secondary)'}}>Até {new Date(dataVenc).toLocaleDateString('pt-BR')}</span></div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                            <div><label className={Z.lbl}>Prazo de Entrega</label><input value={prazoEntrega} onChange={e => setPrazoEntrega(e.target.value)} placeholder="45 dias úteis" className={Z.inp} disabled={readOnly} /></div>
-                            <div><label className={Z.lbl}>Endereço da Obra</label><input value={enderecoObra} onChange={e => setEnderecoObra(e.target.value)} placeholder="Rua, nº - Bairro" className={Z.inp} disabled={readOnly} /></div>
-                        </div>
-                        <div className="mt-3"><label className={Z.lbl}>Observações</label><input value={obs} onChange={e => so(e.target.value)} placeholder="Notas gerais..." className={Z.inp} disabled={readOnly} /></div>
-                    </div>
+                        );
+                    })()}
 
                     {/* Ambientes */}
                     <div className={Z.card}>
                         <div className="flex items-center justify-between mb-3">
                             <h2 className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}><Layers size={14} /> Ambientes ({ambientes.length})</h2>
-                            {!readOnly && <div className="flex gap-2">
-                                {ambTemplates.length > 0 && <button onClick={() => setShowTipoAmbModal(true)} className={`${Z.btn2} text-xs py-1.5 px-3`}><FilePlus2 size={13} /> Templates</button>}
-                                <button onClick={addAmbiente} className={`${Z.btn} text-xs py-1.5 px-3`}><Plus size={13} /> Ambiente</button>
-                                <button onClick={() => { setShowImportModal(true); setImportResult(null); }} className={`${Z.btn2} text-xs py-1.5 px-3`} style={{ borderColor: '#8b5cf640', color: '#8b5cf6' }}><Sparkles size={13} /> Importar JSON IA</button>
-                            </div>}
+                            {!readOnly && (
+                                <div className="flex items-center gap-2">
+                                    <button onClick={addAmbiente} className={`${Z.btn} text-xs py-1.5 px-3`}><Plus size={13} /> Ambiente</button>
+                                    {/* C: Dropdown ··· para ações secundárias */}
+                                    <div className="relative" ref={moreActionsRef}>
+                                        <button onClick={() => setMoreActionsOpen(p => !p)}
+                                            className={`${Z.btn2} text-xs py-1.5 px-2.5`}
+                                            title="Mais opções">
+                                            <MoreHorizontal size={14} />
+                                        </button>
+                                        {moreActionsOpen && (
+                                            <div className="absolute right-0 top-full mt-1 rounded-lg shadow-xl py-1 min-w-[180px] z-50"
+                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                {ambTemplates.length > 0 && (
+                                                    <button onClick={() => { setShowTipoAmbModal(true); setMoreActionsOpen(false); }}
+                                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] cursor-pointer"
+                                                        style={{ color: 'var(--text-secondary)' }}>
+                                                        <FilePlus2 size={13} /> Templates de ambiente
+                                                    </button>
+                                                )}
+                                                <button onClick={() => { setShowImportModal(true); setImportResult(null); setMoreActionsOpen(false); }}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] cursor-pointer"
+                                                    style={{ color: '#8b5cf6' }}>
+                                                    <Sparkles size={13} /> Importar JSON IA
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {ambientes.length === 0 ? (
@@ -2700,7 +2797,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 const precoItemFinal = precoItem + ajusteR;
 
                                 return (
-                                    <div key={item.id} className="rounded-lg border overflow-hidden mb-2"
+                                    <div key={item.id} className="group/item rounded-lg border overflow-hidden mb-2"
                                         draggable={canDrag}
                                         onDragStart={e => handleDragStart(e, amb.id, item.id)}
                                         onDragEnd={handleDragEnd}
@@ -2745,24 +2842,27 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 {!readOnly && !inGroup && hasGrupos && (
                                                     <select value="" onChange={e => { e.stopPropagation(); if (e.target.value) moveToGrupo(amb.id, item.id, e.target.value); }}
                                                         onClick={e => e.stopPropagation()}
-                                                        className="text-[9px] bg-transparent outline-none cursor-pointer" style={{ color: 'var(--warning)', width: 20 }} title="Mover para grupo">
-                                                        <option value="">+</option>
+                                                        className="text-[9px] bg-transparent outline-none cursor-pointer opacity-0 group-hover/item:opacity-60 hover:!opacity-100 transition-opacity" style={{ color: 'var(--warning)', width: 20 }} title="Mover para grupo">
+                                                        <option value="">↗</option>
                                                         {(amb.grupos || []).map(g => <option key={g.id} value={g.id}>{g.nome || 'Grupo sem nome'}</option>)}
                                                     </select>
                                                 )}
                                                 {!readOnly && inGroup && (
                                                     <button onClick={e => { e.stopPropagation(); moveToGrupo(amb.id, item.id, ''); }}
-                                                        className="p-0.5 rounded hover:bg-[var(--bg-hover)]" title="Remover do grupo"
+                                                        className="p-0.5 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-50 hover:!opacity-100 transition-opacity" title="Remover do grupo"
                                                         style={{ color: 'var(--text-muted)' }}><X size={11} /></button>
                                                 )}
+                                                {/* F: ações reveladas no hover do card */}
                                                 <button onClick={e => { e.stopPropagation(); setReportItemId(reportItemId === item.id ? null : item.id); }}
-                                                    className="p-1 rounded hover:bg-[var(--bg-hover)] transition-colors"
+                                                    className="p-1 rounded hover:bg-[var(--bg-hover)] transition-all"
                                                     title="Ver detalhes do cálculo"
-                                                    style={{ color: reportItemId === item.id ? 'var(--primary)' : 'var(--text-muted)', opacity: reportItemId === item.id ? 1 : 0.5 }}>
+                                                    style={{ color: reportItemId === item.id ? 'var(--primary)' : 'var(--text-muted)', opacity: reportItemId === item.id ? 1 : 0 }}
+                                                    onMouseEnter={e => { if (reportItemId !== item.id) e.currentTarget.style.opacity = '0.7'; }}
+                                                    onMouseLeave={e => { if (reportItemId !== item.id) e.currentTarget.style.opacity = '0'; }}>
                                                     <BarChart3 size={12} />
                                                 </button>
-                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)]" title="Duplicar item"><Copy size={12} /></button>}
-                                                {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Remover item"><Trash2 size={12} /></button>}
+                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-60 hover:!opacity-100 transition-opacity" title="Duplicar item" style={{ color: 'var(--text-muted)' }}><Copy size={12} /></button>}
+                                                {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 opacity-0 group-hover/item:opacity-50 hover:!opacity-100 transition-opacity text-red-400 hover:text-red-400" title="Remover item"><Trash2 size={12} /></button>}
                                             </div>
                                         </div>
 
@@ -3469,6 +3569,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 </div>
                             );
                         })}
+                        {/* E: Botão para adicionar ambiente no fim da lista */}
+                        {!readOnly && ambientes.length > 0 && (
+                            <button onClick={addAmbiente}
+                                className="w-full mt-2 py-2 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-opacity opacity-40 hover:opacity-90 rounded-lg"
+                                style={{ borderTop: '1px dashed var(--border)', color: 'var(--primary)' }}>
+                                <Plus size={12} /> Adicionar ambiente
+                            </button>
+                        )}
                     </div>
 
                     {/* Lista de Ferragens */}
