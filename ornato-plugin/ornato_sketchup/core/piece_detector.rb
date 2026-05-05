@@ -33,6 +33,11 @@ module Ornato
       # Detecta todos os paineis dentro de um conjunto de entidades SketchUp.
       # Retorna array de hashes com informacoes de cada peca.
       #
+      # Prioridade de detecção:
+      #   1. PieceStamper (atributo 'Ornato.tipo == peca') — explícito e confiável
+      #   2. PieceStamper: tipo não-peca → ignorar completamente
+      #   3. Geométrico (ratio espessura/bb) — retrocompatibilidade
+      #
       # @param entities [Sketchup::Entities] entidades a analisar
       # @param parent_module [Hash, nil] modulo pai (se houver)
       # @return [Array<Hash>] lista de pecas detectadas
@@ -42,9 +47,18 @@ module Ornato
         entities.each do |entity|
           next unless group_or_component?(entity)
 
-          # Pular entidades que contem sub-grupos (sao modulos, nao pecas)
-          next if contains_sub_groups?(entity)
+          # ── 1. PieceStamper: identificação explícita ──────────
+          if stamped_as_piece?(entity)
+            piece = piece_from_stamp(entity, parent_module)
+            pieces << piece if piece
+            next
+          end
 
+          # ── 2. Entidade marcada como não-peça → ignorar ────────
+          next if stamped_as_non_piece?(entity)
+
+          # ── 3. Fallback geométrico (sem stamp) ────────────────
+          next if contains_sub_groups?(entity)
           piece = analyze_entity(entity, parent_module)
           pieces << piece if piece
         end
@@ -52,7 +66,67 @@ module Ornato
         pieces
       end
 
+      # Retorna hash de peça a partir dos atributos do PieceStamper.
+      # Usado quando a entidade já tem tipo='peca' declarado.
+      #
+      # @param entity [Sketchup::Group | Sketchup::ComponentInstance]
+      # @param parent_module [Hash, nil]
+      # @return [Hash, nil]
+      def piece_from_stamp(entity, parent_module = nil)
+        begin
+          attrs = Library::PieceStamper.read(entity)
+          dims  = Library::PieceStamper.dimensions(entity)
+          return nil if dims.empty? || dims[:comprimento].to_f <= 0 || dims[:largura].to_f <= 0
+
+          {
+            group:          entity,
+            name:           entity.name.to_s,
+            persistent_id:  entity.entityID.to_s,
+            module_name:    parent_module ? parent_module[:name] : 'Avulso',
+            module_group:   parent_module ? parent_module[:group] : nil,
+            comprimento:    dims[:comprimento],
+            largura:        dims[:largura],
+            espessura:      dims[:espessura],
+            orientation:    detect_orientation(entity.bounds, dims[:espessura]),
+            material:       entity.material,
+            material_code:  attrs[:material],
+            material_name:  attrs[:material],
+            role:           attrs[:role],
+            grain:          detect_grain(entity.material),
+            bordas:         attrs[:bordas],
+            fitas:          attrs[:fitas],
+            bounds:         entity.bounds,
+            transformation: entity.transformation,
+            world_origin:   calculate_world_position(entity),
+            is_rectangular: true,
+            is_panel:       true,
+            stamped:        true,
+          }
+        rescue => e
+          puts "Ornato PieceDetector: erro ao ler stamp de '#{entity.name}' — #{e.message}"
+          nil
+        end
+      end
+
+      # @return [Boolean] true se tipo == 'peca'
+      def stamped_as_piece?(entity)
+        Library::PieceStamper.piece?(entity)
+      rescue
+        false
+      end
+
+      # @return [Boolean] true se tem stamp Ornato mas NÃO é peça
+      # (ferragem, modulo, decoracao, ambiente)
+      def stamped_as_non_piece?(entity)
+        return false unless entity.respond_to?(:get_attribute)
+        tipo = entity.get_attribute('Ornato', 'tipo')
+        !tipo.nil? && tipo != 'peca'
+      rescue
+        false
+      end
+
       # Analisa uma unica entidade e retorna info de peca se for painel.
+      # Usado como FALLBACK para entidades sem stamp do PieceStamper.
       #
       # @param entity [Sketchup::Group, Sketchup::ComponentInstance]
       # @param parent_module [Hash, nil]

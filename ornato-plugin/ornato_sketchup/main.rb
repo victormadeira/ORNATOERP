@@ -7,6 +7,7 @@ require 'base64'
 require_relative 'config'
 
 # ─── Core modules ─────────────────────────────────────
+require_relative 'core/role_normalizer'
 require_relative 'core/model_analyzer'
 require_relative 'core/piece_detector'
 require_relative 'core/joint_detector'
@@ -15,7 +16,16 @@ require_relative 'core/edge_banding'
 require_relative 'core/hierarchy_builder'
 
 # ─── Hardware rules engine ────────────────────────────
+require_relative 'hardware/shop_config'
+require_relative 'hardware/hinge_rule'
+require_relative 'hardware/minifix_rule'
 require_relative 'hardware/confirmat_rule'
+require_relative 'hardware/dowel_rule'
+require_relative 'hardware/handle_rule'
+require_relative 'hardware/drawer_slide_rule'
+require_relative 'hardware/back_panel_rule'
+require_relative 'hardware/shelf_rule'
+require_relative 'hardware/system32_rule'
 require_relative 'hardware/led_channel_rule'
 require_relative 'hardware/gas_piston_rule'
 require_relative 'hardware/sliding_door_rule'
@@ -25,6 +35,7 @@ require_relative 'hardware/rules_engine'
 
 # ─── Machining ────────────────────────────────────────
 require_relative 'machining/machining_json'
+require_relative 'machining/machining_interpreter'
 
 # ─── Export ───────────────────────────────────────────
 require_relative 'export/json_exporter'

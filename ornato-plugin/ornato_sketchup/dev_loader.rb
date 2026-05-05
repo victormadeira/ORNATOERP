@@ -22,6 +22,7 @@ module Ornato
       'config.rb',
 
       # Core
+      'core/role_normalizer.rb',
       'core/model_analyzer.rb',
       'core/piece_detector.rb',
       'core/joint_detector.rb',
@@ -30,10 +31,26 @@ module Ornato
       'core/hierarchy_builder.rb',
 
       # Hardware
+      'hardware/shop_config.rb',
+      'hardware/hinge_rule.rb',
+      'hardware/minifix_rule.rb',
+      'hardware/confirmat_rule.rb',
+      'hardware/dowel_rule.rb',
+      'hardware/handle_rule.rb',
+      'hardware/drawer_slide_rule.rb',
+      'hardware/back_panel_rule.rb',
+      'hardware/shelf_rule.rb',
+      'hardware/system32_rule.rb',
+      'hardware/led_channel_rule.rb',
+      'hardware/gas_piston_rule.rb',
+      'hardware/sliding_door_rule.rb',
+      'hardware/miter_rule.rb',
+      'hardware/passthrough_rule.rb',
       'hardware/rules_engine.rb',
 
       # Machining
       'machining/machining_json.rb',
+      'machining/machining_interpreter.rb',
 
       # Export
       'export/json_exporter.rb',

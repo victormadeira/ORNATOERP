@@ -172,12 +172,19 @@ module Ornato
       end
 
       def read_role(ent)
-        role = ent.get_attribute('ornato', 'role', nil)
-        role ? role.to_sym : guess_role(ent)
+        # Usa RoleNormalizer se disponível (cobre todos os alias de role)
+        if defined?(Ornato::Core::RoleNormalizer)
+          return Ornato::Core::RoleNormalizer.from_entity(ent)
+        end
+        # Fallback direto (sem normalizer carregado)
+        raw = ent.get_attribute('Ornato', 'role', nil) ||
+              ent.get_attribute('ornato', 'role', nil)
+        raw ? raw.to_sym : guess_role(ent)
       end
 
       def read_persistent_id(ent)
-        ent.get_attribute('ornato', 'persistent_id', nil) ||
+        ent.get_attribute('Ornato', 'persistent_id', nil) ||
+          ent.get_attribute('ornato', 'persistent_id', nil) ||
           ent.get_attribute('ornato', 'upm_persistent_id', nil) ||
           "piece_#{ent.entityID}"
       end

@@ -1,20 +1,24 @@
 # frozen_string_literal: true
 # ═══════════════════════════════════════════════════════════════
-# MaterialCatalog — Catalogo de materiais (chapas e bordas)
+# MaterialCatalog — Catálogo de chapas e fitas de borda
 #
-# Gerencia o catalogo de chapas e fitas de borda disponiveis,
-# com precos por m2 (chapas) e por metro linear (bordas).
+# Espessuras válidas de MDF/MDP no mercado BR:
+#   6, 12, 15, 18, 25, 30mm  (sem 3mm, sem 9mm)
 #
-# Os dados podem ser:
-#   1. Locais (hardcoded defaults)
-#   2. Carregados de JSON na pasta biblioteca/
-#   3. Sincronizados com o ERP via API
+# Cada material carrega sua espessura — ao selecionar um material,
+# {espessura} é preenchido automaticamente no módulo.
+#
+# Convenção de código:
+#   TIPO_ESPESSURA_ACABAMENTO
+#   Ex: MDF18_BrancoTX, MDP18_Branco, MDF6_Branco, MDF25_Natural
 #
 # Uso:
-#   catalog = Catalog::MaterialCatalog.new
-#   catalog.sheet_price("MDF_18_BRANCO_TX") => 85.00 (R$/m2)
-#   catalog.edge_price("BOR_2x22_BRANCO_TX") => 3.50 (R$/m)
-#   catalog.calculate_cost(analysis) => { sheets: X, edges: Y, total: Z }
+#   cat = MaterialCatalog.instance
+#   cat.thickness('MDF18_BrancoTX')    → 18
+#   cat.tipo('MDF18_BrancoTX')         → 'MDF'
+#   cat.sheet_price('MDF18_BrancoTX')  → 85.00
+#   cat.for_ui                         → Array de hashes para select
+#   cat.calculate_cost(pieces)         → { ... }
 # ═══════════════════════════════════════════════════════════════
 
 require 'json'
@@ -22,220 +26,321 @@ require 'json'
 module Ornato
   module Catalog
     class MaterialCatalog
-      # Default sheet prices (R$ per m2)
-      DEFAULT_SHEETS = {
-        'MDF_3'  => { description: 'MDF 3mm',  thickness: 3,  price_m2: 18.0 },
-        'MDF_6'  => { description: 'MDF 6mm',  thickness: 6,  price_m2: 32.0 },
-        'MDF_9'  => { description: 'MDF 9mm',  thickness: 9,  price_m2: 42.0 },
-        'MDF_12' => { description: 'MDF 12mm', thickness: 12, price_m2: 55.0 },
-        'MDF_15' => { description: 'MDF 15mm', thickness: 15, price_m2: 65.0 },
-        'MDF_18' => { description: 'MDF 18mm', thickness: 18, price_m2: 78.0 },
-        'MDF_25' => { description: 'MDF 25mm', thickness: 25, price_m2: 110.0 },
-        'MDP_15' => { description: 'MDP 15mm', thickness: 15, price_m2: 45.0 },
-        'MDP_18' => { description: 'MDP 18mm', thickness: 18, price_m2: 52.0 },
-        'MDP_25' => { description: 'MDP 25mm', thickness: 25, price_m2: 85.0 },
-      }.freeze
 
-      # Default edge prices (R$ per meter)
-      DEFAULT_EDGES = {
-        'BOR_04x22' => { description: 'Fita 0.4mm x 22mm', thickness: 0.4, height: 22, price_m: 1.20 },
-        'BOR_1x22'  => { description: 'Fita 1mm x 22mm',   thickness: 1.0, height: 22, price_m: 2.50 },
-        'BOR_2x22'  => { description: 'Fita 2mm x 22mm',   thickness: 2.0, height: 22, price_m: 4.80 },
-        'BOR_2x28'  => { description: 'Fita 2mm x 28mm',   thickness: 2.0, height: 28, price_m: 5.50 },
-        'BOR_2x45'  => { description: 'Fita 2mm x 45mm',   thickness: 2.0, height: 45, price_m: 7.20 },
-        'BOR_3x22'  => { description: 'Fita 3mm x 22mm',   thickness: 3.0, height: 22, price_m: 8.50 },
-        'BOR_3x33'  => { description: 'Fita 3mm x 33mm',   thickness: 3.0, height: 33, price_m: 10.0 },
-      }.freeze
+      # ─── Catálogo de chapas ────────────────────────────────
+      # Cada entrada:
+      #   code:        código único do material
+      #   nome:        nome legível
+      #   tipo:        'MDF' | 'MDP'
+      #   espessura:   mm (Integer)
+      #   acabamento:  string livre
+      #   fita_padrao: código de fita padrão para esse material
+      #   price_m2:    R$ por m² (editável via ERP/JSON externo)
+      #   cor_hex:     cor visual no painel (opcional)
 
-      # Standard sheet sizes (mm)
-      SHEET_SIZES = [
-        { width: 2750, height: 1830, name: '2750x1830 (padrao)' },
-        { width: 2750, height: 1850, name: '2750x1850' },
-        { width: 2440, height: 1830, name: '2440x1830' },
-        { width: 2440, height: 1220, name: '2440x1220' },
-        { width: 1830, height: 1220, name: '1830x1220 (meia chapa)' },
+      DEFAULT_SHEETS = [
+        # ── MDF 6mm ────────────────────────────────────────────
+        { code: 'MDF6_Branco',      nome: 'MDF Branco 6mm',        tipo: 'MDF', espessura: 6,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 38.0 },
+
+        # ── MDF 12mm ───────────────────────────────────────────
+        { code: 'MDF12_Branco',     nome: 'MDF Branco 12mm',       tipo: 'MDF', espessura: 12,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 58.0 },
+        { code: 'MDF12_Natural',    nome: 'MDF Natural 12mm',       tipo: 'MDF', espessura: 12,
+          acabamento: 'Natural',    fita_padrao: 'BOR_04x22_Natural',price_m2: 55.0 },
+
+        # ── MDF 15mm ───────────────────────────────────────────
+        { code: 'MDF15_Branco',     nome: 'MDF Branco 15mm',       tipo: 'MDF', espessura: 15,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 68.0 },
+        { code: 'MDF15_BrancoTX',   nome: 'MDF Branco TX 15mm',    tipo: 'MDF', espessura: 15,
+          acabamento: 'BrancoTX',   fita_padrao: 'BOR_04x22_Branco', price_m2: 72.0 },
+
+        # ── MDF 18mm ───────────────────────────────────────────
+        { code: 'MDF18_Branco',     nome: 'MDF Branco 18mm',       tipo: 'MDF', espessura: 18,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 78.0 },
+        { code: 'MDF18_BrancoTX',   nome: 'MDF Branco TX 18mm',    tipo: 'MDF', espessura: 18,
+          acabamento: 'BrancoTX',   fita_padrao: 'BOR_04x22_Branco', price_m2: 85.0 },
+        { code: 'MDF18_Preto',      nome: 'MDF Preto 18mm',        tipo: 'MDF', espessura: 18,
+          acabamento: 'Preto',      fita_padrao: 'BOR_04x22_Preto',  price_m2: 90.0 },
+        { code: 'MDF18_Natural',    nome: 'MDF Natural 18mm',       tipo: 'MDF', espessura: 18,
+          acabamento: 'Natural',    fita_padrao: 'BOR_04x22_Natural',price_m2: 80.0 },
+        { code: 'MDF18_Lacado',     nome: 'MDF Lacado Branco 18mm', tipo: 'MDF', espessura: 18,
+          acabamento: 'Lacado',     fita_padrao: 'BOR_1x22_Branco',  price_m2: 145.0 },
+        { code: 'MDF18_Cinza',      nome: 'MDF Cinza 18mm',         tipo: 'MDF', espessura: 18,
+          acabamento: 'Cinza',      fita_padrao: 'BOR_04x22_Cinza',  price_m2: 88.0 },
+
+        # ── MDF 25mm ───────────────────────────────────────────
+        { code: 'MDF25_Branco',     nome: 'MDF Branco 25mm',       tipo: 'MDF', espessura: 25,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 118.0 },
+        { code: 'MDF25_BrancoTX',   nome: 'MDF Branco TX 25mm',    tipo: 'MDF', espessura: 25,
+          acabamento: 'BrancoTX',   fita_padrao: 'BOR_04x22_Branco', price_m2: 125.0 },
+        { code: 'MDF25_Natural',    nome: 'MDF Natural 25mm',       tipo: 'MDF', espessura: 25,
+          acabamento: 'Natural',    fita_padrao: 'BOR_04x22_Natural',price_m2: 115.0 },
+
+        # ── MDF 30mm ───────────────────────────────────────────
+        { code: 'MDF30_Branco',     nome: 'MDF Branco 30mm',       tipo: 'MDF', espessura: 30,
+          acabamento: 'Branco',     fita_padrao: 'BOR_2x22_Branco',  price_m2: 148.0 },
+        { code: 'MDF30_Natural',    nome: 'MDF Natural 30mm',       tipo: 'MDF', espessura: 30,
+          acabamento: 'Natural',    fita_padrao: 'BOR_2x22_Natural', price_m2: 140.0 },
+
+        # ── MDP 15mm ───────────────────────────────────────────
+        { code: 'MDP15_Branco',     nome: 'MDP Branco 15mm',       tipo: 'MDP', espessura: 15,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 42.0 },
+
+        # ── MDP 18mm ───────────────────────────────────────────
+        { code: 'MDP18_Branco',     nome: 'MDP Branco 18mm',       tipo: 'MDP', espessura: 18,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 52.0 },
+        { code: 'MDP18_Preto',      nome: 'MDP Preto 18mm',         tipo: 'MDP', espessura: 18,
+          acabamento: 'Preto',      fita_padrao: 'BOR_04x22_Preto',  price_m2: 58.0 },
+        { code: 'MDP18_Natural',    nome: 'MDP Natural 18mm',        tipo: 'MDP', espessura: 18,
+          acabamento: 'Natural',    fita_padrao: 'BOR_04x22_Natural',price_m2: 50.0 },
+
+        # ── MDP 25mm ───────────────────────────────────────────
+        { code: 'MDP25_Branco',     nome: 'MDP Branco 25mm',       tipo: 'MDP', espessura: 25,
+          acabamento: 'Branco',     fita_padrao: 'BOR_04x22_Branco', price_m2: 88.0 },
+
+        # ── MDP 30mm ───────────────────────────────────────────
+        { code: 'MDP30_Branco',     nome: 'MDP Branco 30mm',       tipo: 'MDP', espessura: 30,
+          acabamento: 'Branco',     fita_padrao: 'BOR_2x22_Branco',  price_m2: 115.0 },
+
       ].freeze
 
-      attr_reader :sheets, :edges
+      # ─── Catálogo de fitas de borda ────────────────────────
+      DEFAULT_EDGES = [
+        # PVC 0.4mm (padrão)
+        { code: 'BOR_04x22_Branco',  nome: 'Fita PVC 0.4x22 Branco',  espessura: 0.4, altura: 22, price_m: 1.20 },
+        { code: 'BOR_04x22_Preto',   nome: 'Fita PVC 0.4x22 Preto',   espessura: 0.4, altura: 22, price_m: 1.40 },
+        { code: 'BOR_04x22_Natural', nome: 'Fita PVC 0.4x22 Natural',  espessura: 0.4, altura: 22, price_m: 1.30 },
+        { code: 'BOR_04x22_Cinza',   nome: 'Fita PVC 0.4x22 Cinza',   espessura: 0.4, altura: 22, price_m: 1.35 },
 
-      def initialize(config = {})
-        @sheets = load_sheets(config)
-        @edges  = load_edges(config)
+        # PVC 1mm
+        { code: 'BOR_1x22_Branco',   nome: 'Fita PVC 1x22 Branco',    espessura: 1.0, altura: 22, price_m: 2.50 },
+        { code: 'BOR_1x22_Preto',    nome: 'Fita PVC 1x22 Preto',     espessura: 1.0, altura: 22, price_m: 2.80 },
+
+        # ABS 2mm
+        { code: 'BOR_2x22_Branco',   nome: 'Fita ABS 2x22 Branco',    espessura: 2.0, altura: 22, price_m: 4.80 },
+        { code: 'BOR_2x22_Preto',    nome: 'Fita ABS 2x22 Preto',     espessura: 2.0, altura: 22, price_m: 5.20 },
+        { code: 'BOR_2x22_Natural',  nome: 'Fita ABS 2x22 Natural',   espessura: 2.0, altura: 22, price_m: 4.90 },
+        { code: 'BOR_2x28_Branco',   nome: 'Fita ABS 2x28 Branco',    espessura: 2.0, altura: 28, price_m: 5.50 },
+        { code: 'BOR_2x45_Branco',   nome: 'Fita ABS 2x45 Branco',    espessura: 2.0, altura: 45, price_m: 7.20 },
+
+        # ABS 3mm
+        { code: 'BOR_3x22_Branco',   nome: 'Fita ABS 3x22 Branco',    espessura: 3.0, altura: 22, price_m: 8.50 },
+        { code: 'BOR_3x33_Branco',   nome: 'Fita ABS 3x33 Branco',    espessura: 3.0, altura: 33, price_m: 10.0 },
+      ].freeze
+
+      # Tamanhos padrão de chapa (mm)
+      SHEET_SIZES = [
+        { width: 2750, height: 1830, nome: '2750×1830 (padrão)' },
+        { width: 2750, height: 1850, nome: '2750×1850' },
+        { width: 2440, height: 1830, nome: '2440×1830' },
+        { width: 2440, height: 1220, nome: '2440×1220' },
+        { width: 1830, height: 1220, nome: '1830×1220 (meia chapa)' },
+      ].freeze
+
+      # ─── Singleton ────────────────────────────────────────
+      @instance = nil
+      def self.instance
+        @instance ||= new
       end
 
-      # Get sheet price per m2 for a material code
-      def sheet_price(material_code)
-        # Try exact match first
-        return @sheets[material_code][:price_m2] if @sheets[material_code]
-
-        # Try base match (strip color/texture)
-        base = material_code.to_s.split('_')[0..1].join('_')
-        return @sheets[base][:price_m2] if @sheets[base]
-
-        # Fallback: guess by thickness
-        thickness = extract_thickness(material_code)
-        match = @sheets.values.find { |s| s[:thickness] == thickness }
-        match ? match[:price_m2] : 78.0  # default MDF 18mm price
+      def initialize
+        @sheets = load_sheets
+        @edges  = load_edges
       end
 
-      # Get edge price per meter for an edge code
-      def edge_price(edge_code)
-        return @edges[edge_code][:price_m] if @edges[edge_code]
+      # ─── API de consulta ──────────────────────────────────
 
-        # Try base match (strip color/texture)
-        base = edge_code.to_s.split('_')[0..1].join('_')
-        return @edges[base][:price_m] if @edges[base]
-
-        4.80  # default 2mm edge price
+      # @param code [String]
+      # @return [Integer, nil] espessura em mm
+      def thickness(code)
+        sheet = find_sheet(code)
+        sheet ? sheet[:espessura] : extract_thickness_from_code(code)
       end
 
-      # Calculate total material cost from analysis data
-      #
-      # @param analysis [Hash] from ModelAnalyzer
-      # @return [Hash] { sheets: {mat => {area, cost}}, edges: {type => {length, cost}}, total: X }
-      def calculate_cost(analysis)
-        sheet_costs = {}
-        edge_costs  = {}
-        total = 0
+      # @param code [String]
+      # @return [String, nil] 'MDF' | 'MDP'
+      def tipo(code)
+        find_sheet(code)&.dig(:tipo)
+      end
 
-        (analysis[:pieces] || []).each do |piece_info|
-          piece = piece_info[:piece] || piece_info
+      # @param code [String]
+      # @return [String, nil] código da fita padrão para este material
+      def default_edge(code)
+        find_sheet(code)&.dig(:fita_padrao)
+      end
 
-          mat = extract_material(piece)
-          length = piece_dim(piece, :width)  || 0
-          width  = piece_dim(piece, :height) || 0
-          area_m2 = (length * width) / 1_000_000.0
+      # @param code [String]
+      # @return [Float] preço em R$/m²
+      def sheet_price(code)
+        sheet = find_sheet(code) || best_match_sheet(code)
+        sheet ? sheet[:price_m2].to_f : 78.0
+      end
 
-          sheet_costs[mat] ||= { area_m2: 0, price_m2: sheet_price(mat), cost: 0, pieces: 0 }
-          sheet_costs[mat][:area_m2] += area_m2
-          sheet_costs[mat][:pieces] += 1
-          piece_cost = area_m2 * sheet_costs[mat][:price_m2]
-          sheet_costs[mat][:cost] += piece_cost
-          total += piece_cost
+      # @param code [String]
+      # @return [Float] preço em R$/ml
+      def edge_price(code)
+        edge = @edges.find { |e| e[:code] == code }
+        edge ? edge[:price_m].to_f : 4.80
+      end
 
-          # Edge costs
-          edges = extract_edges(piece)
-          edges.each do |side, edge_code|
-            next if edge_code.nil? || edge_code == 'none'
+      # Lista todos os materiais para UI (select/dropdown)
+      # @param filtro_tipo [String, nil] 'MDF' | 'MDP' | nil (todos)
+      # @return [Array<Hash>]
+      def for_ui(filtro_tipo: nil)
+        list = @sheets
+        list = list.select { |s| s[:tipo] == filtro_tipo } if filtro_tipo
+        list.map do |s|
+          {
+            code:      s[:code],
+            nome:      s[:nome],
+            tipo:      s[:tipo],
+            espessura: s[:espessura],
+            acabamento:s[:acabamento],
+          }
+        end
+      end
 
-            edge_length_m = case side
-                            when :top, :bottom then length / 1000.0
-                            when :left, :right then width / 1000.0
-                            else 0
-                            end
+      # Lista fitas de borda para UI
+      def edges_for_ui
+        @edges.map { |e| { code: e[:code], nome: e[:nome], espessura: e[:espessura] } }
+      end
 
-            edge_costs[edge_code] ||= { length_m: 0, price_m: edge_price(edge_code), cost: 0 }
-            edge_costs[edge_code][:length_m] += edge_length_m
-            edge_cost = edge_length_m * edge_costs[edge_code][:price_m]
-            edge_costs[edge_code][:cost] += edge_cost
-            total += edge_cost
+      # Retorna hash completo de um material pelo código
+      # @param code [String]
+      # @return [Hash, nil]
+      def sheet_info(code)
+        find_sheet(code)
+      end
+
+      # Calcula custo de materiais a partir de peças analisadas
+      # @param pieces [Array<Hash>] cada hash com :material, :comprimento, :largura, :bordas
+      # @return [Hash] { chapas:, bordas:, total_chapas:, total_bordas:, total: }
+      def calculate_cost(pieces)
+        chapa_costs = {}
+        borda_costs = {}
+
+        (pieces || []).each do |p|
+          mat  = p[:material].to_s
+          comp = p[:comprimento].to_f   # mm
+          larg = p[:largura].to_f       # mm
+          qtd  = (p[:quantidade] || 1).to_i
+          area = (comp * larg) / 1_000_000.0 * qtd
+
+          chapa_costs[mat] ||= { area_m2: 0.0, price_m2: sheet_price(mat), custo: 0.0, qtd_pecas: 0 }
+          chapa_costs[mat][:area_m2]   += area
+          chapa_costs[mat][:custo]     += area * chapa_costs[mat][:price_m2]
+          chapa_costs[mat][:qtd_pecas] += qtd
+
+          # Bordas
+          (p[:bordas] || {}).each do |lado, cod_borda|
+            next if cod_borda.nil? || cod_borda.to_s.empty?
+            dim_mm = [:frente, :tras].include?(lado.to_sym) ? comp : larg
+            metros = (dim_mm / 1000.0) * qtd
+            borda_costs[cod_borda] ||= { metros: 0.0, price_m: edge_price(cod_borda), custo: 0.0 }
+            borda_costs[cod_borda][:metros] += metros
+            borda_costs[cod_borda][:custo]  += metros * borda_costs[cod_borda][:price_m]
           end
         end
 
-        # Round all costs
-        sheet_costs.each { |_, v| v[:area_m2] = v[:area_m2].round(3); v[:cost] = v[:cost].round(2) }
-        edge_costs.each  { |_, v| v[:length_m] = v[:length_m].round(2); v[:cost] = v[:cost].round(2) }
+        total_chapas = chapa_costs.values.sum { |v| v[:custo] }.round(2)
+        total_bordas = borda_costs.values.sum { |v| v[:custo] }.round(2)
 
         {
-          sheets: sheet_costs,
-          edges: edge_costs,
-          total_sheets: sheet_costs.values.sum { |v| v[:cost] }.round(2),
-          total_edges: edge_costs.values.sum { |v| v[:cost] }.round(2),
-          total: total.round(2),
+          chapas:        chapa_costs,
+          bordas:        borda_costs,
+          total_chapas:  total_chapas,
+          total_bordas:  total_bordas,
+          total:         (total_chapas + total_bordas).round(2),
         }
       end
 
-      # List all available sheet materials
-      def list_sheets
-        @sheets.map { |code, data| { code: code }.merge(data) }
+      # Retorna JSON para a UI (catálogo completo)
+      def to_ui_json
+        JSON.generate({
+          materiais:   for_ui,
+          bordas:      edges_for_ui,
+          tamanhos_chapa: SHEET_SIZES,
+        })
       end
 
-      # List all available edge types
-      def list_edges
-        @edges.map { |code, data| { code: code }.merge(data) }
-      end
+      # ─── Compatibilidade com código legado ────────────────
+      # Suporte a códigos antigos estilo 'MDF_18', 'MDP_18'
 
-      # List standard sheet sizes
-      def list_sheet_sizes
-        SHEET_SIZES
-      end
-
-      # Calculate number of sheets needed (rough estimate)
-      def sheets_needed(material_code, total_area_m2, waste_factor: 1.15)
-        size = SHEET_SIZES.first
-        sheet_area_m2 = (size[:width] * size[:height]) / 1_000_000.0
-        ((total_area_m2 * waste_factor) / sheet_area_m2).ceil
+      def self.thickness_from_legacy_code(code)
+        parts = code.to_s.split('_')
+        parts[1].to_i if parts.length >= 2 && parts[1].to_i > 0
       end
 
       private
 
-      def load_sheets(config)
-        sheets = DEFAULT_SHEETS.dup
-
-        # Try loading from biblioteca/materiais/
-        json_path = File.join(PLUGIN_DIR, 'biblioteca', 'materiais', 'chapas.json')
+      def load_sheets
+        sheets = DEFAULT_SHEETS.map(&:dup)
+        json_path = custom_json_path('chapas.json')
         if File.exist?(json_path)
           begin
-            data = JSON.parse(File.read(json_path), symbolize_names: true)
-            data.each { |item| sheets[item[:code]] = item }
+            extra = JSON.parse(File.read(json_path), symbolize_names: true)
+            extra.each do |item|
+              existing = sheets.find { |s| s[:code] == item[:code] }
+              if existing
+                existing.merge!(item)
+              else
+                sheets << item
+              end
+            end
           rescue => e
-            puts "Ornato MaterialCatalog: Erro ao carregar chapas.json: #{e.message}"
+            puts "Ornato MaterialCatalog: erro ao carregar chapas.json: #{e.message}"
           end
         end
-
-        # Merge with config overrides
-        (config[:sheet_prices] || {}).each { |code, price| sheets[code.to_s] = sheets.fetch(code.to_s, {}).merge(price_m2: price) }
-
         sheets
       end
 
-      def load_edges(config)
-        edges = DEFAULT_EDGES.dup
-
-        json_path = File.join(PLUGIN_DIR, 'biblioteca', 'bordas', 'bordas.json')
+      def load_edges
+        edges = DEFAULT_EDGES.map(&:dup)
+        json_path = custom_json_path('bordas.json')
         if File.exist?(json_path)
           begin
-            data = JSON.parse(File.read(json_path), symbolize_names: true)
-            data.each { |item| edges[item[:code]] = item }
+            extra = JSON.parse(File.read(json_path), symbolize_names: true)
+            extra.each do |item|
+              existing = edges.find { |e| e[:code] == item[:code] }
+              if existing
+                existing.merge!(item)
+              else
+                edges << item
+              end
+            end
           rescue => e
-            puts "Ornato MaterialCatalog: Erro ao carregar bordas.json: #{e.message}"
+            puts "Ornato MaterialCatalog: erro ao carregar bordas.json: #{e.message}"
           end
         end
-
-        (config[:edge_prices] || {}).each { |code, price| edges[code.to_s] = edges.fetch(code.to_s, {}).merge(price_m: price) }
-
         edges
       end
 
-      def extract_material(piece)
-        if piece.respond_to?(:entity) && piece.entity.respond_to?(:get_attribute)
-          piece.entity.get_attribute('ornato', 'material', nil)
-        elsif piece.is_a?(Hash)
-          piece[:material]
-        end || "MDF_#{piece_dim(piece, :thickness)&.to_i || 18}"
+      def find_sheet(code)
+        @sheets.find { |s| s[:code] == code.to_s }
       end
 
-      def extract_thickness(code)
-        parts = code.to_s.split('_')
-        parts[1].to_i if parts.length >= 2
+      def best_match_sheet(code)
+        esp = extract_thickness_from_code(code)
+        return nil unless esp
+        @sheets.find { |s| s[:espessura] == esp }
       end
 
-      def extract_edges(piece)
-        edges = { top: 'none', bottom: 'none', left: 'none', right: 'none' }
-        return edges unless piece.respond_to?(:entity) && piece.entity.respond_to?(:get_attribute)
-
-        %w[top bottom left right].each do |side|
-          val = piece.entity.get_attribute('ornato', "edge_#{side}", nil)
-          edges[side.to_sym] = val || 'none'
-        end
-        edges
-      end
-
-      def piece_dim(piece, dim)
-        return piece.send(dim) if piece.respond_to?(dim)
-        return piece[dim] if piece.is_a?(Hash)
+      def extract_thickness_from_code(code)
+        # Tenta MDF18_xxx → 18, MDF_18 → 18, 18mm → 18
+        m = code.to_s.match(/(\d+)/)
+        t = m ? m[1].to_i : nil
+        Hardware::ShopConfig::FACTORY_DEFAULTS['espessuras_validas'].include?(t) ? t : nil
+      rescue
         nil
       end
+
+      def custom_json_path(filename)
+        File.join(Ornato::PLUGIN_DIR, 'biblioteca', 'materiais', filename)
+      rescue
+        ''
+      end
+
     end
   end
 end

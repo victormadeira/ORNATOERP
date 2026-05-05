@@ -2,1376 +2,2117 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ornato Design</title>
 <style>
-/* ════════════════════════════════════════════
+/* ══════════════════════════════════════════════
    TOKENS
-════════════════════════════════════════════ */
+══════════════════════════════════════════════ */
 :root {
-  --bg:          #0f1117;
-  --bg-2:        #161b24;
-  --bg-3:        #1d2330;
-  --bg-4:        #242b3a;
-  --border:      rgba(255,255,255,0.07);
-  --border-2:    rgba(255,255,255,0.13);
-  --text:        #eef0f5;
-  --text-2:      #8b94a8;
-  --text-3:      #525d72;
-  --accent:      #1379F0;
-  --accent-2:    #2589ff;
-  --accent-bg:   rgba(19,121,240,0.10);
-  --accent-ring: rgba(19,121,240,0.35);
-  --copper:      #C9A96E;
-  --copper-bg:   rgba(201,169,110,0.10);
-  --green:       #22c55e;
-  --green-bg:    rgba(34,197,94,0.10);
-  --red:         #ef4444;
-  --red-bg:      rgba(239,68,68,0.10);
-  --yellow:      #f59e0b;
-  --r-xs: 4px; --r-sm: 7px; --r-md: 10px; --r-lg: 14px;
-  --ease: cubic-bezier(.4,0,.2,1);
-  --font: 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --mono: 'JetBrains Mono','SF Mono','Fira Code',monospace;
+  --bg:       #0c1117;
+  --bg-2:     #111827;
+  --bg-3:     #172032;
+  --bg-4:     #1d2a40;
+  --bg-5:     #243350;
+  --border:   #1e2d45;
+  --border-2: #2a3f5f;
+  --text:     #e2e8f0;
+  --text-2:   #8892a4;
+  --text-3:   #4a5568;
+  --accent:   #1379F0;
+  --accent-h: #1a8fff;
+  --copper:   #C9A96E;
+  --green:    #22c55e;
+  --red:      #ef4444;
+  --amber:    #f59e0b;
+  --r:        8px;
+  --r-sm:     5px;
+  --r-lg:     12px;
+  --sidebar:  40px;
 }
 
-/* ════════════════════════════════════════════
-   RESET + BASE
-════════════════════════════════════════════ */
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-html, body { height:100%; overflow:hidden; }
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; overflow:hidden; user-select:none; }
 body {
-  font-family: var(--font);
+  font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
   background: var(--bg);
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
   display: flex;
   flex-direction: column;
-  user-select: none;
 }
-input, button, select, textarea { font-family: inherit; }
-button { cursor: pointer; border: none; background: none; color: inherit; }
-input, select {
-  background: var(--bg-3);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--r-sm);
-  padding: 6px 10px;
-  font-size: 12px;
-  outline: none;
-  transition: border-color .15s var(--ease);
-  width: 100%;
-}
-input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
-select option { background: var(--bg-3); }
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 2px; }
+button { cursor:pointer; border:none; background:none; color:inherit; font:inherit; }
+input,select,textarea { font:inherit; }
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border-2); border-radius:2px; }
 
-/* ════════════════════════════════════════════
-   TOPBAR
-════════════════════════════════════════════ */
+/* ══ TOPBAR ══════════════════════════════════ */
 .topbar {
   flex-shrink: 0;
-  height: 46px;
+  height: 42px;
   background: var(--bg-2);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  gap: 10px;
+  padding: 0 8px 0 10px;
+  gap: 6px;
 }
-.brand {
-  display: flex; align-items: center; gap: 8px;
-  text-decoration: none; flex-shrink: 0;
+.topbar-brand {
+  display: flex; align-items:center; gap:7px; flex:1;
 }
-.brand-mark {
-  width: 26px; height: 26px;
-  background: linear-gradient(135deg, var(--accent), #0ea5e9);
-  border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
+.brand-diamond {
+  width: 18px; height: 18px;
+  background: var(--accent);
+  border-radius: 3px;
+  transform: rotate(45deg) scale(.8);
+  flex-shrink: 0;
 }
-.brand-mark svg { width:14px; height:14px; fill:#fff; }
-.brand-name {
-  font-size: 13px; font-weight: 800; letter-spacing: 0.8px;
-  color: var(--text);
-}
-.brand-name em {
-  font-style: normal; font-weight: 400;
-  color: var(--copper); margin-left: 1px; letter-spacing: 0;
-}
-.topbar-fill { flex: 1; }
-.badge {
-  font-size: 9px; font-weight: 700; font-family: var(--mono);
-  color: var(--text-3); background: var(--bg-4);
+.brand-name { font-size:13px; font-weight:700; letter-spacing:.5px; }
+.brand-ver {
+  font-size: 10px; color: var(--text-3);
+  padding: 1px 5px;
+  background: var(--bg-4);
+  border-radius: 3px;
   border: 1px solid var(--border);
-  padding: 2px 7px; border-radius: 99px;
-  letter-spacing: .3px;
 }
-.status-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 6px rgba(34,197,94,.5);
-  flex-shrink: 0;
-  transition: all .3s;
+.topbar-actions { display:flex; gap:2px; }
+.icon-btn {
+  width:28px; height:28px; border-radius:var(--r-sm);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-2); transition:background .15s,color .15s;
 }
-.status-dot.off { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,.4); }
+.icon-btn:hover { background:var(--bg-4); color:var(--text); }
+.icon-btn svg { width:14px; height:14px; }
 
-/* ════════════════════════════════════════════
-   TAB NAV
-════════════════════════════════════════════ */
-.tab-nav {
-  flex-shrink: 0;
+/* ══ MAIN LAYOUT ══════════════════════════════ */
+.layout {
+  flex: 1;
   display: flex;
-  background: var(--bg-2);
-  border-bottom: 1px solid var(--border);
-  padding: 0 8px;
+  overflow: hidden;
 }
-.tab {
-  padding: 8px 12px;
-  font-size: 11px; font-weight: 600;
-  color: var(--text-3);
-  border-bottom: 2px solid transparent;
-  transition: all .15s var(--ease);
-  display: flex; align-items: center; gap: 5px;
-  letter-spacing: .3px;
-  cursor: pointer;
-}
-.tab svg { width:13px; height:13px; flex-shrink:0; }
-.tab:hover { color: var(--text-2); }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* ════════════════════════════════════════════
-   SCROLL BODY
-════════════════════════════════════════════ */
-.body { flex: 1; overflow: hidden; position: relative; }
+/* ══ SIDEBAR ══════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar);
+  flex-shrink: 0;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  gap: 2px;
+  overflow: hidden;
+}
+.sidebar-btn {
+  position: relative;
+  width: 36px; height: 36px;
+  border-radius: var(--r-sm);
+  display: flex; align-items:center; justify-content:center;
+  color: var(--text-3);
+  transition: color .15s, background .15s;
+}
+.sidebar-btn:hover { color:var(--text-2); background:var(--bg-3); }
+.sidebar-btn.active {
+  color: var(--accent);
+  background: rgba(19,121,240,.12);
+}
+.sidebar-btn svg { width:17px; height:17px; }
+/* active left indicator */
+.sidebar-btn.active::before {
+  content:'';
+  position: absolute;
+  left: -1px; top: 6px; bottom: 6px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+/* tooltip */
+.sidebar-btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%; transform: translateY(-50%);
+  background: var(--bg-5);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-2);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s;
+  z-index: 100;
+}
+.sidebar-btn:hover::after { opacity: 1; }
+.sidebar-spacer { flex:1; }
+/* notification dot */
+.sidebar-dot {
+  position: absolute;
+  top: 5px; right: 5px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid var(--bg-2);
+  display: none;
+}
+.sidebar-dot.visible { display:block; }
+
+/* ══ CONTENT AREA ══════════════════════════════ */
+.content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ══ PANELS ══════════════════════════════════ */
 .panel {
   position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  opacity: 0; pointer-events: none;
+  transform: translateX(12px);
+  transition: opacity .18s, transform .18s;
+}
+.panel.active {
+  opacity: 1; pointer-events: auto;
+  transform: translateX(0);
+}
+.panel-scroll {
+  flex: 1;
   overflow-y: auto; overflow-x: hidden;
-  display: none;
-  flex-direction: column;
 }
-.panel.active { display: flex; }
 
-/* ════════════════════════════════════════════
-   ── PAINEL: BIBLIOTECA ──
-════════════════════════════════════════════ */
-.search-wrap {
-  padding: 10px 12px 8px;
-  position: sticky; top: 0; z-index: 10;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+/* ══ SECTION HEADER ══════════════════════════ */
+.sec-head {
+  display: flex; align-items:center; justify-content:space-between;
+  padding: 10px 12px 6px;
 }
-.search-input-wrap { position: relative; }
-.search-input-wrap svg {
-  position: absolute; left: 9px; top: 50%;
-  transform: translateY(-50%);
-  width: 13px; height: 13px;
-  color: var(--text-3); pointer-events: none;
+.sec-title {
+  font-size: 10px; font-weight:700;
+  text-transform: uppercase; letter-spacing:.6px;
+  color: var(--text-2);
+  display: flex; align-items:center; gap:6px;
 }
-.search-input-wrap input { padding-left: 30px; }
+.sec-title::before {
+  content:''; display:block;
+  width:3px; height:12px;
+  background:var(--accent); border-radius:2px;
+}
+.sec-action {
+  font-size:11px; color:var(--accent);
+  padding:3px 8px; border-radius:var(--r-sm);
+  border:1px solid transparent; transition:all .15s;
+}
+.sec-action:hover { border-color:var(--accent); }
 
-.cat-filter {
-  display: flex; gap: 4px; flex-wrap: wrap;
-  margin-top: 8px;
+/* ══ FORM ELEMENTS ══════════════════════════ */
+.field {
+  padding: 0 12px 8px;
 }
-.cat-btn {
-  font-size: 10px; font-weight: 600;
-  padding: 3px 9px; border-radius: 99px;
+.field-label {
+  font-size: 10px; font-weight:600;
+  color: var(--text-2); text-transform:uppercase;
+  letter-spacing:.4px; margin-bottom:4px;
+}
+.field-input {
+  width: 100%; height: 32px;
+  padding: 0 10px;
+  background: var(--bg-3);
   border: 1px solid var(--border);
-  color: var(--text-3); background: var(--bg-3);
-  transition: all .12s var(--ease); cursor: pointer;
-  letter-spacing: .3px;
+  border-radius: var(--r-sm);
+  color: var(--text); font-size:12px;
+  outline: none; transition:border-color .15s;
 }
-.cat-btn:hover { border-color: var(--border-2); color: var(--text-2); }
-.cat-btn.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.field-input:focus { border-color:var(--accent); }
+.field-select {
+  width: 100%; height: 32px;
+  padding: 0 28px 0 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text); font-size:12px;
+  outline: none; appearance:none; -webkit-appearance:none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238892a4' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 9px center;
+  transition:border-color .15s;
+}
+.field-select:focus { border-color:var(--accent); }
+.field-row {
+  display:flex; gap:8px; padding:0 12px 8px;
+}
+.field-row .field { padding:0; flex:1; }
 
-.lib-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  padding: 10px 12px;
+/* ══ BUTTONS ══════════════════════════════════ */
+.btn {
+  display:flex; align-items:center; justify-content:center;
+  gap:6px; border-radius:var(--r);
+  font-size:12px; font-weight:600;
+  transition:all .15s; cursor:pointer;
+}
+.btn svg { width:14px; height:14px; flex-shrink:0; }
+.btn-full { width:100%; height:36px; }
+.btn-accent { background:var(--accent); color:#fff; border:none; }
+.btn-accent:hover { background:var(--accent-h); }
+.btn-outline {
+  background:var(--bg-4); color:var(--text-2);
+  border:1px solid var(--border);
+}
+.btn-outline:hover { border-color:var(--border-2); color:var(--text); }
+.btn-copper {
+  background:rgba(201,169,110,.12); color:var(--copper);
+  border:1px solid rgba(201,169,110,.25);
+}
+.btn-copper:hover { background:rgba(201,169,110,.22); }
+.btn-sm { height:28px; padding:0 11px; font-size:11px; border-radius:var(--r-sm); }
+.btn-xs { height:24px; padding:0 8px; font-size:10px; border-radius:var(--r-sm); }
+
+.divider { height:1px; background:var(--border); margin:4px 0; }
+
+/* ══ PROJETO PANEL ══════════════════════════ */
+.proj-header {
+  padding:14px 12px 10px;
+  border-bottom:1px solid var(--border);
+}
+.proj-header-title { font-size:14px; font-weight:700; margin-bottom:2px; }
+.proj-header-sub { font-size:11px; color:var(--text-2); }
+.proj-actions {
+  padding:10px 12px 14px;
+  display:flex; gap:8px;
+}
+
+/* ══ BIBLIOTECA PANEL ═══════════════════════ */
+.search-wrap { padding:10px 12px 0; }
+.search-bar {
+  display:flex; align-items:center; gap:8px;
+  background:var(--bg-3); border:1px solid var(--border);
+  border-radius:var(--r); padding:0 10px; height:32px;
+  transition:border-color .15s;
+}
+.search-bar:focus-within { border-color:var(--accent); }
+.search-bar svg { width:13px; height:13px; color:var(--text-2); flex-shrink:0; }
+.search-bar input {
+  flex:1; background:none; border:none; outline:none;
+  color:var(--text); font-size:12px;
+}
+.search-bar input::placeholder { color:var(--text-3); }
+
+.cat-scroll {
+  padding:8px 12px;
+  display:flex; gap:5px;
+  overflow-x:auto; flex-shrink:0;
+}
+.cat-scroll::-webkit-scrollbar { height:0; }
+.cat-pill {
+  height:24px; padding:0 10px;
+  border-radius:12px; font-size:10px; font-weight:600;
+  white-space:nowrap; border:1px solid var(--border);
+  color:var(--text-2); background:var(--bg-3);
+  transition:all .15s; flex-shrink:0;
+}
+.cat-pill:hover { border-color:var(--border-2); color:var(--text); }
+.cat-pill.active { color:#fff; border-color:transparent; }
+
+.mod-grid {
+  display:grid; grid-template-columns:repeat(2,1fr);
+  gap:7px; padding:0 12px 12px;
 }
 .mod-card {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 12px 8px 10px;
-  display: flex; flex-direction: column;
-  align-items: center; gap: 7px;
-  cursor: pointer;
-  transition: all .15s var(--ease);
-  position: relative; overflow: hidden;
+  background:var(--bg-3); border:1px solid var(--border);
+  border-radius:var(--r); overflow:hidden; cursor:pointer;
+  transition:border-color .15s, box-shadow .15s, transform .1s;
 }
-.mod-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0;
-  height: 2px; background: var(--accent); opacity: 0;
-  transition: opacity .15s;
+.mod-card:hover {
+  border-color:var(--accent);
+  box-shadow:0 4px 16px rgba(19,121,240,.15);
+  transform:translateY(-1px);
 }
-.mod-card:hover { border-color: var(--border-2); background: var(--bg-3); }
-.mod-card:hover::before { opacity: 1; }
-.mod-card:active { transform: scale(.97); }
-.mod-card.selected { border-color: var(--accent); background: var(--accent-bg); }
-.mod-card.selected::before { opacity: 1; }
-.mod-icon {
-  width: 44px; height: 44px;
-  background: var(--bg-3);
-  border-radius: var(--r-sm);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--text-2);
-  transition: all .15s;
+.mod-card-icon {
+  height:66px;
+  display:flex; align-items:center; justify-content:center;
 }
-.mod-card:hover .mod-icon, .mod-card.selected .mod-icon {
-  background: var(--accent-bg); color: var(--accent);
+.mod-card-icon svg { width:34px; height:34px; color:rgba(255,255,255,.85); }
+.mod-card-body {
+  padding:7px 9px 8px;
+  border-top:1px solid rgba(255,255,255,.06);
 }
-.mod-icon svg { width: 22px; height: 22px; }
-.mod-name {
-  font-size: 10px; font-weight: 600;
-  color: var(--text-2); text-align: center;
-  line-height: 1.2;
-  transition: color .15s;
+.mod-card-name {
+  font-size:11px; font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  margin-bottom:1px;
 }
-.mod-card:hover .mod-name, .mod-card.selected .mod-name { color: var(--text); }
+.mod-card-meta { font-size:10px; color:var(--text-2); }
 
-/* ════════════════════════════════════════════
-   ── CONFIGURADOR (slide-up quando selecionado) ──
-════════════════════════════════════════════ */
-.configurator {
-  flex-shrink: 0;
-  background: var(--bg-2);
-  border-top: 1px solid var(--border);
-  padding: 0;
-  max-height: 0; overflow: hidden;
-  transition: max-height .25s var(--ease);
+.empty-state {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:8px; padding:32px 20px;
+  color:var(--text-3); text-align:center;
 }
-.configurator.open { max-height: 420px; }
-.cfg-header {
-  padding: 10px 14px 8px;
-  display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-}
-.cfg-title {
-  font-size: 11px; font-weight: 700;
-  color: var(--text); letter-spacing: .3px;
-  display: flex; align-items: center; gap: 6px;
-}
-.cfg-title-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent);
-}
-.cfg-close {
-  width: 22px; height: 22px; border-radius: var(--r-xs);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--text-3);
-  transition: all .12s;
-}
-.cfg-close:hover { background: var(--bg-4); color: var(--text); }
-.cfg-close svg { width: 12px; height: 12px; }
+.empty-state svg { width:36px; height:36px; opacity:.4; }
+.empty-state p { font-size:11px; }
 
-.cfg-body { padding: 12px 14px; overflow-y: auto; max-height: 280px; }
-.cfg-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
+/* ── DETAIL SUBPANEL ──────────────────────── */
+.detail-header {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-bottom:1px solid var(--border); flex-shrink:0;
 }
-.cfg-row.full { grid-template-columns: 1fr; }
-.cfg-row.half { grid-template-columns: 1fr 1fr; }
-.field { display: flex; flex-direction: column; gap: 3px; }
-.field-label {
-  font-size: 10px; font-weight: 600;
-  color: var(--text-3);
-  letter-spacing: .4px; text-transform: uppercase;
+.btn-back {
+  width:28px; height:28px; border-radius:var(--r-sm);
+  background:var(--bg-4); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-2); transition:all .15s; flex-shrink:0;
 }
-.dim-input-wrap { position: relative; }
-.dim-input-wrap input { padding-right: 28px; font-family: var(--mono); font-size: 12px; }
-.dim-unit {
-  position: absolute; right: 9px; top: 50%;
-  transform: translateY(-50%);
-  font-size: 9px; font-weight: 700;
-  color: var(--text-3); pointer-events: none;
-  font-family: var(--mono);
+.btn-back:hover { color:var(--text); border-color:var(--border-2); }
+.btn-back svg { width:12px; height:12px; }
+.detail-title { font-size:13px; font-weight:700; flex:1; }
+.cat-badge {
+  font-size:10px; font-weight:600;
+  padding:2px 8px; border-radius:10px; color:#fff;
 }
 
-.cfg-footer {
-  padding: 10px 14px 12px;
-  border-top: 1px solid var(--border);
+.detail-preview {
+  height:90px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; position:relative; overflow:hidden;
+}
+.detail-preview svg { width:54px; height:54px; color:rgba(255,255,255,.9); }
+.detail-preview::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(to bottom, transparent 50%, var(--bg-2) 100%);
+  pointer-events:none;
+}
+.detail-desc {
+  padding:0 12px 8px;
+  font-size:11px; color:var(--text-2); line-height:1.6; flex-shrink:0;
+}
+
+.param-form { padding:0 12px; flex:1; overflow-y:auto; }
+.param-group { margin-bottom:6px; }
+.param-label {
+  font-size:10px; font-weight:600; color:var(--text-2);
+  text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px;
+}
+.param-row {
+  display:flex; align-items:center; gap:8px;
+  padding:5px 0; border-bottom:1px solid var(--border);
+}
+.param-row:last-child { border-bottom:none; }
+.param-name { flex:1; font-size:11px; color:var(--text-2); }
+.param-input {
+  width:72px; height:26px; padding:0 7px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:11px;
+  text-align:right; outline:none; transition:border-color .15s;
+  -moz-appearance:textfield;
+}
+.param-input::-webkit-inner-spin-button { -webkit-appearance:none; }
+.param-input:focus { border-color:var(--accent); }
+.param-select {
+  height:26px; padding:0 22px 0 7px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:11px;
+  outline:none; appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238892a4' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 6px center;
+  transition:border-color .15s; max-width:130px;
+}
+.param-select:focus { border-color:var(--accent); }
+.param-unit { font-size:10px; color:var(--text-3); min-width:16px; }
+.param-toggle { position:relative; width:32px; height:17px; flex-shrink:0; }
+.param-toggle input { opacity:0; width:0; height:0; position:absolute; }
+.toggle-track {
+  position:absolute; inset:0;
+  background:var(--bg-5); border:1px solid var(--border-2);
+  border-radius:9px; cursor:pointer; transition:background .2s;
+}
+.param-toggle input:checked ~ .toggle-track { background:var(--accent); border-color:var(--accent); }
+.toggle-track::after {
+  content:''; position:absolute;
+  width:11px; height:11px; border-radius:50%;
+  background:#fff; top:2px; left:2px; transition:transform .2s;
+}
+.param-toggle input:checked ~ .toggle-track::after { transform:translateX(15px); }
+
+.detail-actions {
+  padding:10px 12px; border-top:1px solid var(--border); flex-shrink:0;
 }
 .btn-insert {
-  width: 100%;
-  padding: 9px;
-  background: var(--accent);
-  color: #fff;
-  border-radius: var(--r-sm);
-  font-size: 12px; font-weight: 700;
-  letter-spacing: .3px;
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  transition: all .15s var(--ease);
-  border: 1px solid transparent;
+  width:100%; height:36px; background:var(--accent); color:#fff;
+  border-radius:var(--r); font-size:13px; font-weight:600;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  transition:background .15s;
 }
-.btn-insert:hover { background: var(--accent-2); }
-.btn-insert:active { transform: scale(.98); }
-.btn-insert svg { width: 14px; height: 14px; }
+.btn-insert:hover { background:var(--accent-h); }
+.btn-insert svg { width:14px; height:14px; }
 
-/* ════════════════════════════════════════════
-   ── PAINEL: MODELO ──
-════════════════════════════════════════════ */
-.model-panel { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+/* ══ AGREGADOS PANEL ══════════════════════ */
+.agg-no-sel {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:10px; padding:32px 20px; text-align:center;
+  color:var(--text-3);
+}
+.agg-no-sel svg { width:40px; height:40px; opacity:.3; }
+.agg-no-sel strong { font-size:13px; color:var(--text-2); font-weight:600; }
+.agg-no-sel p { font-size:11px; line-height:1.6; }
 
-.stats-row {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+.agg-mod-bar {
+  padding:10px 12px 8px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
 }
-.stat-box {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 10px 8px;
-  text-align: center;
-  transition: border-color .15s;
+.agg-mod-name { font-size:12px; font-weight:700; color:var(--text); }
+.agg-mod-dims { font-size:10px; color:var(--text-2); margin-top:1px; }
+
+.agg-types-grid {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  gap:6px; padding:10px 12px;
+  flex-shrink:0;
 }
-.stat-box:hover { border-color: var(--border-2); }
-.stat-box-val {
-  font-size: 22px; font-weight: 800;
-  font-family: var(--mono); letter-spacing: -1px;
-  color: var(--text);
+.agg-type-btn {
+  background:var(--bg-3); border:1px solid var(--border);
+  border-radius:var(--r); padding:8px 4px;
+  display:flex; flex-direction:column;
+  align-items:center; gap:5px; cursor:pointer;
+  transition:all .15s; text-align:center;
 }
-.stat-box-val.accent { color: var(--accent); }
-.stat-box-lbl {
-  font-size: 9px; font-weight: 600;
-  color: var(--text-3); text-transform: uppercase; letter-spacing: .6px;
-  margin-top: 2px;
+.agg-type-btn:hover { border-color:var(--border-2); background:var(--bg-4); }
+.agg-type-btn.active {
+  border-color:var(--accent);
+  background:rgba(19,121,240,.08);
+}
+.agg-type-btn svg { width:20px; height:20px; color:var(--text-2); }
+.agg-type-btn.active svg { color:var(--accent); }
+.agg-type-btn span { font-size:9px; font-weight:600; color:var(--text-2); line-height:1.2; }
+.agg-type-btn.active span { color:var(--accent); }
+
+.agg-configurator {
+  margin:0 12px 10px;
+  background:var(--bg-3); border:1px solid var(--accent);
+  border-radius:var(--r); padding:10px;
+  flex-shrink:0;
+}
+.agg-cfg-title {
+  font-size:11px; font-weight:700; color:var(--accent);
+  margin-bottom:8px;
+}
+.agg-cfg-fields { display:flex; flex-direction:column; gap:6px; }
+.agg-cfg-row {
+  display:flex; align-items:center; gap:8px;
+}
+.agg-cfg-label { font-size:10px; color:var(--text-2); flex:1; }
+.agg-cfg-input {
+  width:70px; height:26px; padding:0 7px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:11px;
+  text-align:right; outline:none; transition:border-color .15s;
+}
+.agg-cfg-input:focus { border-color:var(--accent); }
+.agg-cfg-select {
+  height:26px; padding:0 22px 0 7px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:11px;
+  outline:none; appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238892a4' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 6px center;
+}
+.agg-cfg-actions { display:flex; justify-content:flex-end; margin-top:8px; gap:6px; }
+
+.agg-list-head {
+  padding:6px 12px 4px;
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.5px; color:var(--text-2);
+  display:flex; align-items:center; gap:6px;
+}
+.agg-list-head::before {
+  content:''; display:block; width:3px; height:10px;
+  background:var(--copper); border-radius:2px;
+}
+.agg-list { padding:0 12px; flex:1; overflow-y:auto; }
+.agg-item {
+  background:var(--bg-3); border:1px solid var(--border);
+  border-radius:var(--r-sm); padding:7px 10px;
+  margin-bottom:5px; display:flex; align-items:center; gap:8px;
+}
+.agg-item-info { flex:1; min-width:0; }
+.agg-item-type { font-size:11px; font-weight:600; color:var(--text); }
+.agg-item-meta { font-size:10px; color:var(--text-2); }
+.agg-item-rm {
+  width:22px; height:22px; border-radius:var(--r-sm);
+  background:var(--bg-5); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-3); transition:all .15s;
+}
+.agg-item-rm:hover { background:var(--red); border-color:var(--red); color:#fff; }
+.agg-item-rm svg { width:10px; height:10px; }
+
+.agg-footer {
+  padding:8px 12px 10px;
+  border-top:1px solid var(--border); flex-shrink:0;
+  display:flex; gap:6px;
 }
 
-.section-label {
-  font-size: 10px; font-weight: 700;
-  color: var(--text-3); letter-spacing: .7px; text-transform: uppercase;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
+/* ══ MATERIAIS PANEL ══════════════════════════ */
+.mat-no-sel {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:10px; padding:32px 20px; text-align:center;
+  color:var(--text-3);
+}
+.mat-no-sel svg { width:40px; height:40px; opacity:.3; }
+.mat-no-sel strong { font-size:13px; color:var(--text-2); font-weight:600; }
+.mat-no-sel p { font-size:11px; line-height:1.6; }
+
+.mat-section {
+  border-bottom:1px solid var(--border);
+  padding:10px 12px 12px;
+}
+.mat-section-title {
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.6px; color:var(--text-2); margin-bottom:8px;
+  display:flex; align-items:center; gap:6px;
+}
+.mat-section-title::before {
+  content:''; display:block; width:3px; height:10px;
+  background:var(--accent); border-radius:2px;
+}
+.mat-row {
+  display:flex; align-items:center; gap:8px; margin-bottom:6px;
+}
+.mat-row:last-child { margin-bottom:0; }
+.mat-label { font-size:11px; color:var(--text-2); min-width:80px; }
+.mat-input {
+  flex:1; height:28px; padding:0 8px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:11px;
+  outline:none; transition:border-color .15s;
+}
+.mat-input:focus { border-color:var(--accent); }
+.mat-select {
+  flex:1; height:28px; padding:0 24px 0 8px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:11px;
+  outline:none; appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238892a4' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 7px center;
+  transition:border-color .15s;
+}
+.mat-select:focus { border-color:var(--accent); }
+.mat-num {
+  width:56px; height:28px; padding:0 7px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:11px;
+  text-align:right; outline:none; transition:border-color .15s;
+}
+.mat-num:focus { border-color:var(--accent); }
+.mat-unit { font-size:10px; color:var(--text-3); min-width:18px; }
+.mat-footer {
+  padding:10px 12px 12px;
+  border-top:1px solid var(--border);
+  display:flex; gap:6px;
 }
 
-.module-list { display: flex; flex-direction: column; gap: 4px; }
-.module-row {
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-  display: flex; align-items: center; gap: 8px;
-  transition: all .12s;
-  cursor: pointer;
+.border-color-row {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:6px; margin-top:4px;
 }
-.module-row:hover { border-color: var(--border-2); background: var(--bg-3); }
-.module-row-icon {
-  width: 28px; height: 28px; border-radius: var(--r-xs);
-  background: var(--accent-bg); display: flex; align-items: center; justify-content: center;
-  color: var(--accent); flex-shrink: 0;
-}
-.module-row-icon svg { width: 14px; height: 14px; }
-.module-row-info { flex: 1; min-width: 0; }
-.module-row-name {
-  font-size: 11px; font-weight: 600; color: var(--text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.module-row-dims { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
-.module-row-actions { display: flex; gap: 3px; opacity: 0; transition: opacity .12s; }
-.module-row:hover .module-row-actions { opacity: 1; }
-.icon-btn {
-  width: 22px; height: 22px; border-radius: var(--r-xs);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--text-3); transition: all .12s;
-}
-.icon-btn:hover { background: var(--bg-4); color: var(--text); }
-.icon-btn svg { width: 12px; height: 12px; }
-.icon-btn.danger:hover { background: var(--red-bg); color: var(--red); }
+.borda-field { display:flex; flex-direction:column; gap:3px; }
+.borda-label { font-size:9px; color:var(--text-3); text-transform:uppercase; letter-spacing:.3px; }
+.borda-check-row { display:flex; align-items:center; gap:6px; }
+.borda-check-label { font-size:10px; color:var(--text-2); }
 
-/* Ambiente chips */
-.amb-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.amb-chip {
-  padding: 3px 10px; border-radius: 99px;
-  border: 1px solid var(--border);
-  font-size: 10px; font-weight: 600; color: var(--text-2);
-  background: var(--bg-3); cursor: pointer;
-  transition: all .12s;
+/* ══ EXPORTAR PANEL ══════════════════════════ */
+.exp-section {
+  padding:10px 12px 14px;
+  border-bottom:1px solid var(--border);
 }
-.amb-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
-.amb-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.exp-title {
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.6px; color:var(--text-2); margin-bottom:8px;
+  display:flex; align-items:center; gap:6px;
+}
+.exp-title::before {
+  content:''; display:block; width:3px; height:10px;
+  background:var(--accent); border-radius:2px;
+}
+.erp-row { display:flex; gap:6px; margin-bottom:6px; }
+.erp-input {
+  flex:1; height:30px; padding:0 9px;
+  background:var(--bg-4); border:1px solid var(--border);
+  border-radius:var(--r-sm); color:var(--text); font-size:12px;
+  outline:none; transition:border-color .15s;
+}
+.erp-input:focus { border-color:var(--accent); }
 
-/* ════════════════════════════════════════════
-   ── PAINEL: EXPORTAR ──
-════════════════════════════════════════════ */
-.export-panel { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.erp-project-card {
+  background:rgba(19,121,240,.08);
+  border:1px solid rgba(19,121,240,.25);
+  border-radius:var(--r); padding:8px 10px;
+  margin-bottom:8px; display:none;
+}
+.erp-project-card.visible { display:block; }
+.erp-project-name { font-size:12px; font-weight:600; color:var(--text); }
+.erp-project-meta { font-size:10px; color:var(--text-2); margin-top:2px; }
 
-.export-card {
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: var(--r-md); overflow: hidden;
+.erp-bom-card {
+  background:rgba(34,197,94,.07);
+  border:1px solid rgba(34,197,94,.2);
+  border-radius:var(--r); padding:8px 10px;
+  margin-bottom:8px; display:none;
 }
-.export-card-head {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 11px; font-weight: 700; color: var(--text);
-  display: flex; align-items: center; gap: 7px;
-}
-.export-card-head svg { width: 14px; height: 14px; color: var(--copper); }
-.export-card-body { padding: 12px 14px; }
+.erp-bom-card.visible { display:block; }
+.erp-bom-info { font-size:11px; color:var(--green); font-weight:600; }
+.erp-bom-meta { font-size:10px; color:var(--text-2); margin-top:2px; }
 
-.erp-url-row {
-  display: flex; gap: 6px; align-items: center;
+.exp-btn-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:6px;
 }
-.erp-url-row input { flex: 1; }
-.btn-sm {
-  padding: 6px 12px;
-  background: var(--bg-3); border: 1px solid var(--border);
-  border-radius: var(--r-sm); font-size: 11px; font-weight: 600;
-  color: var(--text-2); white-space: nowrap;
-  transition: all .12s;
-}
-.btn-sm:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
 
-.export-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
-.btn-export {
-  width: 100%; padding: 10px;
-  border-radius: var(--r-sm);
-  font-size: 12px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  transition: all .15s var(--ease); letter-spacing: .2px;
-  border: 1px solid transparent;
+/* ══ SELECTION STRIP ══════════════════════ */
+.sel-strip {
+  flex-shrink:0; height:0; overflow:hidden;
+  background:var(--bg-2); border-top:0px solid var(--border);
+  transition:height .2s, border-width .2s;
 }
-.btn-export svg { width: 15px; height: 15px; }
-.btn-export.primary { background: var(--accent); color: #fff; }
-.btn-export.primary:hover { background: var(--accent-2); }
-.btn-export.secondary {
-  background: var(--bg-3); border-color: var(--border); color: var(--text-2);
+.sel-strip.visible { height:44px; border-top-width:1px; }
+.sel-inner {
+  height:44px; display:flex; align-items:center;
+  gap:8px; padding:0 12px;
 }
-.btn-export.secondary:hover { border-color: var(--border-2); color: var(--text); background: var(--bg-4); }
-.btn-export:active { transform: scale(.98); }
+.sel-pip { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.sel-info { flex:1; min-width:0; }
+.sel-name {
+  font-size:11px; font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sel-dims { font-size:10px; color:var(--text-2); }
+.sel-acts { display:flex; gap:3px; }
+.sel-btn {
+  height:22px; padding:0 7px; border-radius:var(--r-sm);
+  font-size:10px; font-weight:600;
+  background:var(--bg-4); border:1px solid var(--border);
+  color:var(--text-2); display:flex; align-items:center; gap:3px;
+  transition:all .15s;
+}
+.sel-btn:hover { color:var(--text); border-color:var(--border-2); }
+.sel-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.sel-btn svg { width:9px; height:9px; }
 
-.checklist { display: flex; flex-direction: column; gap: 6px; }
-.check-item {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; color: var(--text-2);
+/* ══ LOG BAR ══════════════════════════════ */
+.log-bar {
+  flex-shrink:0; height:26px;
+  background:var(--bg-2); border-top:1px solid var(--border);
+  display:flex; align-items:center;
+  padding:0 10px; gap:6px; cursor:pointer;
+  transition:background .15s;
 }
-.check-item svg { width: 13px; height: 13px; flex-shrink: 0; }
-.check-item.ok svg { color: var(--green); }
-.check-item.warn svg { color: var(--yellow); }
-.check-item.err svg { color: var(--red); }
-
-/* ════════════════════════════════════════════
-   ── ACTIVITY LOG ──
-════════════════════════════════════════════ */
+.log-bar:hover { background:var(--bg-3); }
+.log-dot {
+  width:5px; height:5px; border-radius:50%;
+  background:var(--text-3); flex-shrink:0; transition:background .3s;
+}
+.log-dot.pulse { background:var(--green); }
+.log-msg {
+  flex:1; font-size:10px; color:var(--text-2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.log-chevron { width:11px; height:11px; color:var(--text-3); transition:transform .2s; }
+.log-bar.open .log-chevron { transform:rotate(180deg); }
 .log-wrap {
-  padding: 10px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-2);
-  flex-shrink: 0;
-  max-height: 120px; overflow-y: auto;
+  flex-shrink:0; max-height:0; overflow:hidden;
+  transition:max-height .22s;
+  background:var(--bg); border-top:0px solid var(--border);
 }
-.log-item {
-  display: flex; align-items: center; gap: 7px;
-  padding: 3px 0; font-size: 10px;
-  border-bottom: 1px solid var(--border);
+.log-wrap.expanded { max-height:110px; border-top-width:1px; }
+.log-entries {
+  height:110px; overflow-y:auto; padding:6px 10px;
+  font-size:10px; font-family:monospace; color:var(--text-2);
+  line-height:1.7;
 }
-.log-item:last-child { border-bottom: none; }
-.log-time { color: var(--text-3); font-family: var(--mono); white-space: nowrap; }
-.log-msg { color: var(--text-2); flex: 1; }
-.log-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-.log-empty { font-size: 11px; color: var(--text-3); text-align: center; padding: 8px 0; }
 
-/* ════════════════════════════════════════════
-   TOAST
-════════════════════════════════════════════ */
-.toast {
-  position: fixed; bottom: 14px; left: 50%;
-  transform: translateX(-50%) translateY(60px);
-  padding: 8px 16px; border-radius: var(--r-sm);
-  font-size: 11px; font-weight: 600;
-  z-index: 999; pointer-events: none;
-  white-space: nowrap;
-  transition: transform .25s var(--ease);
-  display: flex; align-items: center; gap: 7px;
+/* ══ TOAST ════════════════════════════════ */
+#toast {
+  position:fixed; bottom:34px; left:50%; transform:translateX(-50%) translateY(12px);
+  background:var(--bg-5); border:1px solid var(--border-2);
+  border-radius:var(--r); padding:7px 14px;
+  font-size:12px; font-weight:500;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+  opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s;
+  white-space:nowrap; z-index:999;
 }
-.toast.show { transform: translateX(-50%) translateY(0); }
-.toast.success { background: var(--green-bg); border: 1px solid rgba(34,197,94,.2); color: var(--green); }
-.toast.error   { background: var(--red-bg);   border: 1px solid rgba(239,68,68,.2);  color: var(--red); }
-.toast.info    { background: var(--accent-bg); border: 1px solid rgba(19,121,240,.2); color: var(--accent); }
+#toast.visible {
+  opacity:1; transform:translateX(-50%) translateY(0);
+}
+#toast.success { border-color:rgba(34,197,94,.4); color:var(--green); }
+#toast.error   { border-color:rgba(239,68,68,.4);  color:var(--red); }
+#toast.info    { border-color:rgba(19,121,240,.4);  color:var(--accent); }
+
+/* ══ MODEL MODULES LIST (inside Exportar) ═══ */
+.module-item {
+  background:var(--bg-3); border:1px solid var(--border);
+  border-radius:var(--r); padding:8px 10px;
+  margin-bottom:5px; display:flex; align-items:center; gap:8px;
+  cursor:pointer; transition:border-color .15s;
+}
+.module-item:hover { border-color:var(--border-2); }
+.module-item.active { border-color:var(--accent); background:rgba(19,121,240,.06); }
+.module-item-icon {
+  width:28px; height:28px; border-radius:var(--r-sm);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.module-item-icon svg { width:15px; height:15px; color:rgba(255,255,255,.8); }
+.module-item-info { flex:1; min-width:0; }
+.module-item-name {
+  font-size:11px; font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.module-item-meta { font-size:10px; color:var(--text-2); }
+.module-item-acts { display:flex; gap:3px; opacity:0; transition:opacity .15s; }
+.module-item:hover .module-item-acts { opacity:1; }
+.mod-act {
+  width:22px; height:22px; border-radius:var(--r-sm);
+  background:var(--bg-5); display:flex; align-items:center; justify-content:center;
+  color:var(--text-2); transition:all .15s;
+}
+.mod-act:hover { background:var(--accent); color:#fff; }
+.mod-act.danger:hover { background:var(--red); color:#fff; }
+.mod-act svg { width:10px; height:10px; }
+
+/* ══ HELPER CLASSES ══════════════════════ */
+.hidden { display:none !important; }
+.mt4 { margin-top:4px; }
+.mt8 { margin-top:8px; }
+.px12 { padding:0 12px; }
+.pb10 { padding-bottom:10px; }
 </style>
 </head>
 <body>
 
-<!-- ══ TOPBAR ══════════════════════════════════════════ -->
+<!-- ═══ TOPBAR ══════════════════════════════════════════ -->
 <div class="topbar">
-  <div class="brand">
-    <div class="brand-mark">
-      <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l7.12 3.56L12 11.3 4.88 7.74 12 4.18zM4 8.82l7 3.5v7.86l-7-3.5V8.82zm9 11.36v-7.86l7-3.5v7.86l-7 3.5z"/></svg>
-    </div>
-    <div class="brand-name">ORNATO<em>design</em></div>
+  <div class="topbar-brand">
+    <div class="brand-diamond"></div>
+    <span class="brand-name">ORNATO</span>
+    <span class="brand-ver" id="ver">v0.1.0</span>
   </div>
-  <div class="topbar-fill"></div>
-  <span class="badge" id="versionBadge">v1.0</span>
-  <div class="status-dot" id="statusDot" title="Conectado"></div>
-</div>
-
-<!-- ══ TABS ════════════════════════════════════════════ -->
-<div class="tab-nav">
-  <div class="tab active" id="tab-lib" onclick="switchTab('lib')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-    </svg>
-    Biblioteca
-  </div>
-  <div class="tab" id="tab-model" onclick="switchTab('model')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-    </svg>
-    Modelo
-    <span class="badge" id="modBadge" style="margin-left:2px;display:none">0</span>
-  </div>
-  <div class="tab" id="tab-export" onclick="switchTab('export')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-    </svg>
-    Exportar
+  <div class="topbar-actions">
+    <button class="icon-btn" onclick="sketchup.analyze()" title="Analisar modelo">
+      <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 12l3-4 3 2 3-5 3 3"/>
+      </svg>
+    </button>
+    <button class="icon-btn" onclick="sketchup.open_shop_config()" title="Configurações da marcenaria">
+      <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5">
+        <circle cx="8" cy="8" r="2.5"/>
+        <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
+      </svg>
+    </button>
   </div>
 </div>
 
-<!-- ══ BODY ════════════════════════════════════════════ -->
-<div class="body">
+<!-- ═══ MAIN LAYOUT ══════════════════════════════════════ -->
+<div class="layout">
 
-  <!-- ── BIBLIOTECA ──────────────────────────────────── -->
-  <div class="panel active" id="panel-lib" style="flex-direction:column; overflow:hidden;">
+  <!-- LEFT SIDEBAR -->
+  <nav class="sidebar">
+    <button class="sidebar-btn active" data-panel="projeto" data-tip="Projeto" onclick="switchPanel('projeto')">
+      <svg fill="none" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 5a1 1 0 011-1h4l2 2h4a1 1 0 011 1v8a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/>
+      </svg>
+    </button>
+    <button class="sidebar-btn" data-panel="biblioteca" data-tip="Biblioteca" onclick="switchPanel('biblioteca')">
+      <svg fill="none" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.6">
+        <rect x="2" y="3" width="7" height="7" rx="1"/>
+        <rect x="11" y="3" width="7" height="7" rx="1"/>
+        <rect x="2" y="11" width="7" height="7" rx="1"/>
+        <rect x="11" y="11" width="7" height="7" rx="1"/>
+      </svg>
+    </button>
+    <button class="sidebar-btn" data-panel="agregados" data-tip="Agregados" onclick="switchPanel('agregados')">
+      <div class="sidebar-dot" id="agg-dot"></div>
+      <svg fill="none" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.6">
+        <path d="M3 6h14M3 10h14M3 14h7"/>
+        <circle cx="15" cy="14" r="3"/>
+        <path d="M15 12.5v1.5l1 1"/>
+      </svg>
+    </button>
+    <button class="sidebar-btn" data-panel="materiais" data-tip="Materiais" onclick="switchPanel('materiais')">
+      <svg fill="none" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.6">
+        <circle cx="10" cy="10" r="7"/>
+        <path d="M10 3a7 7 0 010 14" fill="currentColor" opacity=".2"/>
+        <path d="M10 6a4 4 0 00-4 4h4V6z" fill="currentColor" opacity=".4"/>
+      </svg>
+    </button>
+    <button class="sidebar-btn" data-panel="exportar" data-tip="Exportar" onclick="switchPanel('exportar')">
+      <svg fill="none" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.6">
+        <path d="M10 3v10M6 9l4-6 4 6"/>
+        <path d="M4 14v2a1 1 0 001 1h10a1 1 0 001-1v-2"/>
+      </svg>
+    </button>
+    <div class="sidebar-spacer"></div>
+  </nav>
 
-    <!-- Busca + filtros -->
-    <div class="search-wrap">
-      <div class="search-input-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="Buscar módulo..." oninput="filterModules()">
-      </div>
-      <div class="cat-filter" id="catFilter">
-        <button class="cat-btn active" data-cat="all" onclick="setCat('all',this)">Todos</button>
-        <button class="cat-btn" data-cat="base" onclick="setCat('base',this)">Balcão</button>
-        <button class="cat-btn" data-cat="aereo" onclick="setCat('aereo',this)">Aéreo</button>
-        <button class="cat-btn" data-cat="torre" onclick="setCat('torre',this)">Torre</button>
-        <button class="cat-btn" data-cat="interno" onclick="setCat('interno',this)">Internos</button>
-        <button class="cat-btn" data-cat="acabamento" onclick="setCat('acabamento',this)">Acabamentos</button>
-      </div>
-    </div>
+  <!-- CONTENT AREA -->
+  <div class="content">
 
-    <!-- Grid de módulos (scrollável) -->
-    <div style="flex:1; overflow-y:auto; overflow-x:hidden;">
-      <div class="lib-grid" id="libGrid"></div>
-    </div>
-
-    <!-- Configurador (slide-up) -->
-    <div class="configurator" id="configurator">
-      <div class="cfg-header">
-        <div class="cfg-title">
-          <div class="cfg-title-dot"></div>
-          <span id="cfgTitle">Configurar Módulo</span>
+    <!-- ══ PANEL 1: PROJETO ══════════════════════════════ -->
+    <div class="panel active" id="panel-projeto">
+      <div class="panel-scroll">
+        <div class="proj-header">
+          <div class="proj-header-title">Dados do Projeto</div>
+          <div class="proj-header-sub">Informações e configurações padrão</div>
         </div>
-        <button class="cfg-close" onclick="closeCfg()" title="Fechar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="cfg-body" id="cfgBody">
-        <!-- Fields injetados por JS -->
-      </div>
-      <div class="cfg-footer">
-        <button class="btn-insert" onclick="insertModule()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-          Inserir no Modelo
-        </button>
-      </div>
-    </div>
 
-  </div><!-- /panel-lib -->
-
-  <!-- ── MODELO ──────────────────────────────────────── -->
-  <div class="panel" id="panel-model">
-    <div class="model-panel">
-
-      <!-- Stats -->
-      <div class="stats-row">
-        <div class="stat-box">
-          <div class="stat-box-val accent" id="statModulos">0</div>
-          <div class="stat-box-lbl">Módulos</div>
+        <div class="sec-head mt8">
+          <div class="sec-title">Cliente</div>
         </div>
-        <div class="stat-box">
-          <div class="stat-box-val" id="statPecas">0</div>
-          <div class="stat-box-lbl">Peças</div>
+        <div class="field">
+          <div class="field-label">Nome do Cliente</div>
+          <input class="field-input" id="proj-cliente" type="text" placeholder="Ex: João Silva" oninput="projChanged()">
         </div>
-        <div class="stat-box">
-          <div class="stat-box-val" id="statJuncoes">0</div>
-          <div class="stat-box-lbl">Junções</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-box-val" id="statMateriais">0</div>
-          <div class="stat-box-lbl">Materiais</div>
-        </div>
-      </div>
-
-      <!-- Ambientes -->
-      <div>
-        <div class="section-label">
-          Ambientes
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
-          <div class="field" style="flex:1;">
-            <div class="field-label">Altura paredes</div>
-            <div class="dim-input-wrap">
-              <input type="number" id="wallHeightInput" value="2700" min="1000" max="5000" step="50">
-              <span class="dim-unit">mm</span>
-            </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Telefone</div>
+            <input class="field-input" id="proj-tel" type="text" placeholder="(11) 99999-9999" oninput="projChanged()">
           </div>
-          <button class="btn-sm" onclick="addAmbiente()" style="margin-top:14px;white-space:nowrap;" title="Desenhar sala">
-            ✏ Desenhar Sala
-          </button>
-        </div>
-        <div class="amb-chips" id="ambChips" style="margin-top:8px;">
-          <div class="amb-chip active">Todos</div>
-        </div>
-      </div>
-
-      <!-- Lista de módulos no modelo -->
-      <div>
-        <div class="section-label">
-          Módulos no modelo
-          <button class="icon-btn" onclick="analyzeModel()" title="Reescanear">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9H3M3 12l4-4M3 12l4 4"/></svg>
-          </button>
-        </div>
-        <div class="module-list" id="moduleList" style="margin-top:8px;">
-          <div style="text-align:center;padding:24px 0;color:var(--text-3);font-size:11px;">
-            Nenhum módulo detectado.<br>
-            <span style="font-size:10px;">Clique em ↺ para escanear o modelo</span>
+          <div class="field">
+            <div class="field-label">E-mail</div>
+            <input class="field-input" id="proj-email" type="text" placeholder="email@..." oninput="projChanged()">
           </div>
         </div>
+
+        <div class="sec-head">
+          <div class="sec-title">Projeto</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Nome do Projeto</div>
+          <input class="field-input" id="proj-nome" type="text" placeholder="Ex: Cozinha Principal" oninput="projChanged()">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Ambiente</div>
+            <select class="field-select" id="proj-ambiente" onchange="projChanged()">
+              <option value="">Selecione...</option>
+              <option value="cozinha">Cozinha</option>
+              <option value="dormitorio">Dormitório</option>
+              <option value="closet">Closet</option>
+              <option value="sala">Sala</option>
+              <option value="banheiro">Banheiro</option>
+              <option value="escritorio">Escritório</option>
+              <option value="lavanderia">Lavanderia</option>
+              <option value="outro">Outro</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">Designer</div>
+            <input class="field-input" id="proj-designer" type="text" placeholder="Responsável" oninput="projChanged()">
+          </div>
+        </div>
+
+        <div class="sec-head">
+          <div class="sec-title">Material Padrão</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Chapa Carcaça</div>
+          <input class="field-input" id="proj-mat-carcaca" type="text" placeholder="Ex: MDF18_BrancoTX" oninput="projChanged()">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Espessura (mm)</div>
+            <input class="field-input" id="proj-esp" type="number" value="18" min="6" max="40" step="1" oninput="projChanged()">
+          </div>
+          <div class="field">
+            <div class="field-label">Fita de Borda</div>
+            <input class="field-input" id="proj-fita" type="text" placeholder="Ex: Fita_Branco" oninput="projChanged()">
+          </div>
+        </div>
+
+        <div class="sec-head">
+          <div class="sec-title">Ambiente 3D</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Altura Paredes (mm)</div>
+            <input class="field-input" id="proj-wall-h" type="number" value="2700" min="1800" max="4000" step="50">
+          </div>
+        </div>
+
+        <div class="proj-actions">
+          <button class="btn btn-accent btn-full" onclick="saveProject()">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="2">
+              <path d="M13 2H3a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1V4l-2-2z"/>
+              <path d="M10 2v4H5V2M8 9v4M6 11h4"/>
+            </svg>
+            Salvar Projeto
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="drawRoom()">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="2" width="12" height="12" rx="1"/>
+              <path d="M5 2v12M11 2v12M2 5h12M2 11h12"/>
+            </svg>
+            Desenhar Sala
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PANEL 2: BIBLIOTECA ══════════════════════════ -->
+    <div class="panel" id="panel-biblioteca">
+      <!-- LIST VIEW -->
+      <div id="bib-list" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+        <div class="search-wrap">
+          <div class="search-bar">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="2">
+              <circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3 3"/>
+            </svg>
+            <input type="text" placeholder="Buscar módulo..." id="bib-search" oninput="filterModules()">
+          </div>
+        </div>
+        <div class="cat-scroll" id="cat-pills"></div>
+        <div class="panel-scroll">
+          <div class="mod-grid" id="mod-grid"></div>
+          <div class="empty-state hidden" id="bib-empty">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            <p id="bib-empty-msg">Nenhum módulo encontrado.<br>Verifique a pasta biblioteca/moveis.</p>
+          </div>
+        </div>
       </div>
 
-      <!-- Ações de módulo -->
-      <div>
-        <div class="section-label">Ações no Módulo Selecionado</div>
-        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-          <!-- Copiar/Array -->
-          <div style="display:flex;gap:6px;align-items:flex-end;">
-            <div class="field" style="width:60px;">
-              <div class="field-label">N cópias</div>
-              <input type="number" id="copyCount" value="1" min="1" max="20" style="text-align:center;">
+      <!-- DETAIL VIEW -->
+      <div id="bib-detail" class="hidden" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+        <div class="detail-header">
+          <button class="btn-back" onclick="showBibList()">
+            <svg fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2">
+              <path d="M8 2L4 6l4 4"/>
+            </svg>
+          </button>
+          <span class="detail-title" id="det-title">Módulo</span>
+          <span class="cat-badge" id="det-cat-badge"></span>
+        </div>
+        <div class="detail-preview" id="det-preview-wrap">
+          <svg id="det-preview-svg" fill="none" viewBox="0 0 64 64" stroke="currentColor" stroke-width="1.5"></svg>
+        </div>
+        <div class="detail-desc" id="det-desc"></div>
+        <div class="param-form" id="det-params"></div>
+        <div class="detail-actions">
+          <button class="btn-insert" id="btn-insert">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="2">
+              <path d="M8 2v12M2 8h12"/>
+            </svg>
+            Inserir no Modelo
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PANEL 3: AGREGADOS ════════════════════════════ -->
+    <div class="panel" id="panel-agregados">
+      <!-- No selection state -->
+      <div class="agg-no-sel" id="agg-no-sel">
+        <svg fill="none" viewBox="0 0 48 48" stroke="currentColor" stroke-width="1.2">
+          <rect x="8" y="8" width="32" height="32" rx="3"/>
+          <path d="M16 24h16M24 16v16"/>
+        </svg>
+        <strong>Nenhum módulo selecionado</strong>
+        <p>Selecione um módulo Ornato no SketchUp para gerenciar seus agregados.</p>
+      </div>
+
+      <!-- Selected state -->
+      <div id="agg-sel" class="hidden" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+        <div class="agg-mod-bar">
+          <div class="agg-mod-name" id="agg-mod-name">Módulo</div>
+          <div class="agg-mod-dims" id="agg-mod-dims"></div>
+        </div>
+
+        <div class="panel-scroll" style="overflow-y:auto;flex:1;">
+          <!-- Aggregate type grid -->
+          <div class="sec-head" style="padding-top:10px;">
+            <div class="sec-title">Tipo de Agregado</div>
+          </div>
+          <div class="agg-types-grid" id="agg-types-grid">
+            <!-- populated by JS -->
+          </div>
+
+          <!-- Configurator (hidden until type selected) -->
+          <div class="agg-configurator hidden" id="agg-configurator">
+            <div class="agg-cfg-title" id="agg-cfg-title">Configurar</div>
+            <div class="agg-cfg-fields" id="agg-cfg-fields"></div>
+            <div class="agg-cfg-actions">
+              <button class="btn btn-outline btn-xs" onclick="cancelAgg()">Cancelar</button>
+              <button class="btn btn-accent btn-xs" onclick="addAgg()">
+                <svg fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2">
+                  <path d="M6 2v8M2 6h8"/>
+                </svg>
+                Adicionar
+              </button>
             </div>
-            <div class="field" style="width:60px;">
-              <div class="field-label">Gap mm</div>
-              <input type="number" id="copyGap" value="0" min="0" max="500">
+          </div>
+
+          <!-- Already configured list -->
+          <div class="agg-list-head hidden" id="agg-list-head">Já Configurados</div>
+          <div class="agg-list" id="agg-list"></div>
+        </div>
+
+        <div class="agg-footer">
+          <button class="btn btn-accent" style="flex:1;height:34px;" onclick="applyAgregados()">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="2">
+              <path d="M2 8l4 4 8-8"/>
+            </svg>
+            Aplicar ao Módulo
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PANEL 4: MATERIAIS ════════════════════════════ -->
+    <div class="panel" id="panel-materiais">
+      <!-- No selection state -->
+      <div class="mat-no-sel" id="mat-no-sel">
+        <svg fill="none" viewBox="0 0 48 48" stroke="currentColor" stroke-width="1.2">
+          <circle cx="24" cy="24" r="16"/>
+          <path d="M24 10a14 14 0 010 28" fill="currentColor" opacity=".15"/>
+          <path d="M24 16a8 8 0 00-8 8h8v-8z" fill="currentColor" opacity=".3"/>
+        </svg>
+        <strong>Nenhum módulo selecionado</strong>
+        <p>Selecione um módulo Ornato no SketchUp para configurar seus materiais.</p>
+      </div>
+
+      <!-- Selected state -->
+      <div id="mat-sel" class="hidden" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+        <div class="agg-mod-bar" style="flex-shrink:0;">
+          <div class="agg-mod-name" id="mat-mod-name">Módulo</div>
+          <div class="agg-mod-dims" id="mat-mod-dims"></div>
+        </div>
+        <div class="panel-scroll">
+          <!-- Carcaça -->
+          <div class="mat-section">
+            <div class="mat-section-title">Carcaça</div>
+            <div class="mat-row">
+              <span class="mat-label">Chapa</span>
+              <input class="mat-input" id="mat-carc-chapa" type="text" placeholder="Ex: MDF18_BrancoTX">
             </div>
-            <div class="field" style="flex:1;">
-              <div class="field-label">Eixo</div>
-              <select id="copyDir">
-                <option value="x">X (→)</option>
-                <option value="y">Y (↑)</option>
+            <div class="mat-row">
+              <span class="mat-label">Espessura</span>
+              <input class="mat-num" id="mat-carc-esp" type="number" value="18" min="6" max="40">
+              <span class="mat-unit">mm</span>
+            </div>
+          </div>
+
+          <!-- Frentes -->
+          <div class="mat-section">
+            <div class="mat-section-title">Frentes</div>
+            <div class="mat-row">
+              <span class="mat-label">Chapa</span>
+              <input class="mat-input" id="mat-frente-chapa" type="text" placeholder="Ex: MDF18_Cinza">
+            </div>
+            <div class="mat-row">
+              <span class="mat-label">Espessura</span>
+              <input class="mat-num" id="mat-frente-esp" type="number" value="18" min="6" max="40">
+              <span class="mat-unit">mm</span>
+            </div>
+          </div>
+
+          <!-- Fundo -->
+          <div class="mat-section">
+            <div class="mat-section-title">Fundo</div>
+            <div class="mat-row">
+              <span class="mat-label">Chapa</span>
+              <input class="mat-input" id="mat-fundo-chapa" type="text" placeholder="Ex: HDF6_Branco">
+            </div>
+            <div class="mat-row">
+              <span class="mat-label">Espessura</span>
+              <input class="mat-num" id="mat-fundo-esp" type="number" value="6" min="3" max="18">
+              <span class="mat-unit">mm</span>
+            </div>
+          </div>
+
+          <!-- Fita de borda -->
+          <div class="mat-section">
+            <div class="mat-section-title">Fita de Borda</div>
+            <div class="border-color-row">
+              <div class="borda-field">
+                <div class="borda-label">Frente</div>
+                <select class="mat-select" id="mat-borda-frente">
+                  <option value="">Sem fita</option>
+                  <option value="0.4">Fita 0.4mm</option>
+                  <option value="1.0">Fita 1.0mm</option>
+                  <option value="2.0">Fita 2.0mm</option>
+                </select>
+              </div>
+              <div class="borda-field">
+                <div class="borda-label">Trás</div>
+                <select class="mat-select" id="mat-borda-tras">
+                  <option value="">Sem fita</option>
+                  <option value="0.4">Fita 0.4mm</option>
+                  <option value="1.0">Fita 1.0mm</option>
+                  <option value="2.0">Fita 2.0mm</option>
+                </select>
+              </div>
+              <div class="borda-field">
+                <div class="borda-label">Topo</div>
+                <select class="mat-select" id="mat-borda-topo">
+                  <option value="">Sem fita</option>
+                  <option value="0.4">Fita 0.4mm</option>
+                  <option value="1.0">Fita 1.0mm</option>
+                  <option value="2.0">Fita 2.0mm</option>
+                </select>
+              </div>
+              <div class="borda-field">
+                <div class="borda-label">Base</div>
+                <select class="mat-select" id="mat-borda-base">
+                  <option value="">Sem fita</option>
+                  <option value="0.4">Fita 0.4mm</option>
+                  <option value="1.0">Fita 1.0mm</option>
+                  <option value="2.0">Fita 2.0mm</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ferragens -->
+          <div class="mat-section">
+            <div class="mat-section-title">Ferragens</div>
+            <div class="mat-row">
+              <span class="mat-label">Dobradiça</span>
+              <select class="mat-select" id="mat-dobradica">
+                <option value="clip_top_blumotion">Blum Clip Top Blumotion</option>
+                <option value="clip_top">Blum Clip Top</option>
+                <option value="standard">Standard 35mm</option>
+                <option value="soft_close">Soft Close 35mm</option>
               </select>
             </div>
-            <button class="btn-sm" onclick="copyModule(false)" style="margin-bottom:1px;">⟹ Copiar</button>
-          </div>
-          <button class="btn-sm" onclick="copyModule(true)" style="width:100%;">⟺ Espelhar módulo</button>
-          <!-- Tampo -->
-          <div style="display:flex;gap:6px;align-items:flex-end;margin-top:4px;">
-            <div class="field" style="width:70px;">
-              <div class="field-label">Esp. tampo</div>
-              <div class="dim-input-wrap">
-                <input type="number" id="tampoThickness" value="30" min="6" max="60">
-                <span class="dim-unit">mm</span>
-              </div>
+            <div class="mat-row">
+              <span class="mat-label">Corrediça</span>
+              <select class="mat-select" id="mat-corredica">
+                <option value="tandem_box">Blum Tandem Box</option>
+                <option value="movento">Blum Movento</option>
+                <option value="telescopica">Telescópica</option>
+                <option value="comum">Comum</option>
+              </select>
             </div>
-            <button class="btn-sm" onclick="genTampo('selection')" style="flex:1;">▣ Tampo (seleção)</button>
-            <button class="btn-sm" onclick="genTampo('all')" style="flex:1;">▣ Tampo (tudo)</button>
+            <div class="mat-row">
+              <span class="mat-label">Puxador</span>
+              <select class="mat-select" id="mat-puxador">
+                <option value="128mm">128mm</option>
+                <option value="160mm">160mm</option>
+                <option value="192mm">192mm</option>
+                <option value="256mm">256mm</option>
+                <option value="embutido">Embutido</option>
+              </select>
+            </div>
+            <div class="mat-row">
+              <span class="mat-label">Junção</span>
+              <select class="mat-select" id="mat-juncao">
+                <option value="minifix">Minifix</option>
+                <option value="confirmat">Confirmat</option>
+                <option value="dowel">Tarugos</option>
+              </select>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Ações rápidas -->
-      <div style="display:flex; gap:6px;">
-        <button class="btn-sm" style="flex:1" onclick="doProcess()">
-          ⚙ Processar ferragens
-        </button>
-        <button class="btn-sm" style="flex:1" onclick="switchTab('export')">
-          ↑ Exportar
-        </button>
+        <div class="mat-footer">
+          <button class="btn btn-outline btn-sm" style="flex:0 0 auto;" onclick="resetMaterials()">Resetar</button>
+          <button class="btn btn-accent" style="flex:1;height:34px;" onclick="applyMaterials()">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="2">
+              <path d="M2 8l4 4 8-8"/>
+            </svg>
+            Aplicar Materiais
+          </button>
+        </div>
       </div>
-
     </div>
-  </div><!-- /panel-model -->
 
-  <!-- ── EXPORTAR ─────────────────────────────────────── -->
-  <div class="panel" id="panel-export">
-    <div class="export-panel">
+    <!-- ══ PANEL 5: EXPORTAR ═════════════════════════════ -->
+    <div class="panel" id="panel-exportar">
+      <div class="panel-scroll">
 
-      <!-- Validação -->
-      <div class="export-card">
-        <div class="export-card-head">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          Checklist
-        </div>
-        <div class="export-card-body">
-          <div class="checklist" id="checklist">
-            <div class="check-item ok">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
-              Módulos detectados
+        <!-- Model Summary -->
+        <div class="exp-section">
+          <div class="exp-title">Resumo do Modelo</div>
+          <div style="display:flex;gap:0;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+            <div style="flex:1;padding:10px;text-align:center;border-right:1px solid var(--border);">
+              <div style="font-size:18px;font-weight:700;" id="exp-stat-mod">0</div>
+              <div style="font-size:10px;color:var(--text-2);margin-top:2px;">Módulos</div>
             </div>
-            <div class="check-item warn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              Ferragens não processadas
+            <div style="flex:1;padding:10px;text-align:center;border-right:1px solid var(--border);">
+              <div style="font-size:18px;font-weight:700;" id="exp-stat-pcs">0</div>
+              <div style="font-size:10px;color:var(--text-2);margin-top:2px;">Peças</div>
+            </div>
+            <div style="flex:1;padding:10px;text-align:center;">
+              <div style="font-size:18px;font-weight:700;color:var(--copper);" id="exp-stat-m2">0</div>
+              <div style="font-size:10px;color:var(--text-2);margin-top:2px;">m² chapa</div>
             </div>
           </div>
+          <div class="module-list mt4" id="exp-mod-list"></div>
         </div>
+
+        <!-- ERP: Vincular Projeto -->
+        <div class="exp-section">
+          <div class="exp-title">Vincular Projeto ERP</div>
+          <div class="erp-project-card" id="erp-proj-card">
+            <div class="erp-project-name" id="erp-proj-name">—</div>
+            <div class="erp-project-meta" id="erp-proj-meta">—</div>
+          </div>
+          <div class="erp-row">
+            <input class="erp-input" id="erp-proj-input" placeholder="Número ou ID do projeto" type="text">
+            <button class="btn btn-accent btn-sm" onclick="erpInitProject()">
+              <svg fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2">
+                <path d="M10 6H2M7 3l3 3-3 3"/>
+              </svg>
+              Vincular
+            </button>
+          </div>
+        </div>
+
+        <!-- ERP: BOM -->
+        <div class="exp-section">
+          <div class="exp-title">Lista de Materiais</div>
+          <div class="erp-bom-card" id="erp-bom-card">
+            <div class="erp-bom-info" id="erp-bom-info">—</div>
+            <div class="erp-bom-meta" id="erp-bom-meta">—</div>
+          </div>
+          <button class="btn btn-accent btn-full" onclick="erpPushBom()">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8">
+              <path d="M8 2v8M5 7l3 3 3-3M3 13h10"/>
+            </svg>
+            Enviar BOM ao ERP
+          </button>
+        </div>
+
+        <!-- ERP: Proposta -->
+        <div class="exp-section">
+          <div class="exp-title">Proposta Comercial</div>
+          <div class="erp-row">
+            <input class="erp-input" id="erp-amb-input" placeholder="Nome do ambiente (opcional)" type="text">
+          </div>
+          <button class="btn btn-copper btn-full" onclick="erpCreateProposal()">
+            <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8">
+              <path d="M3 3h10v10H3zM6 6h4M6 9h4M6 12h2"/>
+            </svg>
+            Gerar Proposta
+          </button>
+        </div>
+
+        <!-- Export Local -->
+        <div class="exp-section">
+          <div class="exp-title">Exportar Local</div>
+          <div class="exp-btn-grid">
+            <button class="btn btn-outline" style="height:34px;" onclick="sketchup.export_json()">
+              <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 3h7l3 3v7H3zM10 3v3h3M6 8h4M6 11h4"/>
+              </svg>
+              Exportar JSON
+            </button>
+            <button class="btn btn-outline" style="height:34px;" onclick="sketchup.export_csv()">
+              <svg fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 3h10v10H3zM3 7h10M3 11h10M7 3v10"/>
+              </svg>
+              Exportar CSV
+            </button>
+          </div>
+        </div>
+
       </div>
-
-      <!-- Vincular projeto ERP -->
-      <div class="export-card">
-        <div class="export-card-head">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-          Vincular Projeto ERP
-        </div>
-        <div class="export-card-body">
-          <!-- Project info (shown after linking) -->
-          <div id="erpProjectCard" style="display:none;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-              <span style="font-size:11px;font-weight:700;color:var(--accent);" id="erpProjNumero">#0001</span>
-              <span style="font-size:10px;color:var(--green);">● vinculado</span>
-            </div>
-            <div style="font-size:12px;font-weight:600;color:var(--text);" id="erpProjCliente">—</div>
-            <div style="font-size:10px;color:var(--text-3);" id="erpProjAmbiente">—</div>
-            <div style="margin-top:8px;display:flex;gap:5px;">
-              <div style="background:var(--bg-4);border-radius:var(--r-xs);padding:4px 8px;flex:1;text-align:center;">
-                <div style="font-size:16px;font-weight:700;color:var(--text);font-family:var(--mono);" id="erpCustoEst">R$—</div>
-                <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;">Custo mat. est.</div>
-              </div>
-              <div style="background:var(--bg-4);border-radius:var(--r-xs);padding:4px 8px;flex:1;text-align:center;">
-                <div style="font-size:16px;font-weight:700;color:var(--text);font-family:var(--mono);" id="erpTotalPecas">—</div>
-                <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;">Peças</div>
-              </div>
-            </div>
-          </div>
-          <!-- Link form -->
-          <div id="erpLinkForm">
-            <div class="field" style="margin-bottom:8px;">
-              <div class="field-label">Nº do orçamento ou ID</div>
-              <div class="erp-url-row">
-                <input type="text" id="erpProjectNum" placeholder="Ex: 2025-001 ou 42" />
-                <button class="btn-sm" onclick="erpInitProject()">Vincular</button>
-              </div>
-            </div>
-          </div>
-          <div class="field" style="margin-bottom:8px;margin-top:4px;">
-            <div class="field-label">URL do ERP Ornato</div>
-            <div class="erp-url-row">
-              <input type="text" id="erpUrl" placeholder="https://gestaoornato.com" />
-              <button class="btn-sm" onclick="testErp()">Testar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Botões de exportação -->
-      <div class="export-actions">
-        <button class="btn-export primary" id="btnErpBom" onclick="erpPushBom()" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          Atualizar BOM no ERP
-        </button>
-        <button class="btn-export primary" id="btnErpProposta" onclick="erpCreateProposal()" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          Gerar Proposta no ERP
-        </button>
-        <button class="btn-export secondary" onclick="exportJson()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Salvar JSON local
-        </button>
-        <button class="btn-export secondary" onclick="exportCsv()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-          Exportar planilha (CSV)
-        </button>
-      </div>
-
     </div>
-  </div><!-- /panel-export -->
 
-</div><!-- /body -->
+  </div><!-- /content -->
+</div><!-- /layout -->
 
-<!-- ══ LOG ═════════════════════════════════════════════ -->
-<div class="log-wrap" id="logWrap">
-  <div class="log-empty" id="logEmpty">Nenhuma atividade</div>
-</div>
-
-<!-- Toast -->
-<div class="toast" id="toast"></div>
-
-<!-- Edit Overlay (shown when EditTool is active) -->
-<div id="editOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;
-     flex-direction:column;align-items:stretch;justify-content:flex-end;">
-  <div style="background:var(--bg-2);border-top:1px solid var(--border);padding:14px;display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow-y:auto;">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:12px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;">
-        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px rgba(19,121,240,.5);"></div>
-        <span id="editOverlayTitle">Editando módulo</span>
-      </div>
-      <button class="icon-btn" onclick="cancelEdit()" title="Cancelar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+<!-- ═══ SELECTION STRIP ════════════════════════════════ -->
+<div class="sel-strip" id="sel-strip">
+  <div class="sel-inner">
+    <div class="sel-pip" id="sel-pip" style="background:var(--accent)"></div>
+    <div class="sel-info">
+      <div class="sel-name" id="sel-name">—</div>
+      <div class="sel-dims" id="sel-dims">—</div>
+    </div>
+    <div class="sel-acts">
+      <button class="sel-btn" onclick="editSelected()" title="Editar">
+        <svg fill="none" viewBox="0 0 10 10" stroke="currentColor" stroke-width="2">
+          <path d="M1 8l1.5-1.5 4-4L8 4l-4 4L2.5 9.5zM6.5 2.5l1 1"/>
+        </svg>
+        Editar
       </button>
-    </div>
-    <div id="editOverlayFields" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
-    <div style="display:flex;gap:7px;">
-      <button class="btn-export secondary" style="flex:1;" onclick="cancelEdit()">Cancelar (ESC)</button>
-      <button class="btn-export primary"   style="flex:1;" onclick="confirmEdit()">✓ Confirmar</button>
+      <button class="sel-btn primary" onclick="switchPanel('agregados')" title="Agregados">
+        <svg fill="none" viewBox="0 0 10 10" stroke="currentColor" stroke-width="2">
+          <path d="M1 3h8M1 5h8M1 7h4"/>
+          <circle cx="7.5" cy="7" r="1.5"/>
+        </svg>
+        Agreg.
+      </button>
     </div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════════
-     JAVASCRIPT
-════════════════════════════════════════════════════ -->
+<!-- ═══ LOG BAR ═══════════════════════════════════════ -->
+<div class="log-bar" id="log-bar" onclick="toggleLog()">
+  <div class="log-dot" id="log-dot"></div>
+  <div class="log-msg" id="log-msg">Pronto</div>
+  <svg class="log-chevron" id="log-chv" fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2">
+    <path d="M2 4l4 4 4-4"/>
+  </svg>
+</div>
+<div class="log-wrap" id="log-wrap">
+  <div class="log-entries" id="log-entries"></div>
+</div>
+
+<!-- ═══ TOAST ══════════════════════════════════════════ -->
+<div id="toast"></div>
+
 <script>
-'use strict';
-
-/* ── Catálogo de módulos ──────────────────────────── */
-const MODULES = [
-  // Balcão
-  { type:'armario_base',  label:'Balcão',      cat:'base',    icon:'cabinet',
-    fields:['largura','altura','profundidade','material','espessura','puxador_esp'],
-    defaults:{ largura:600, altura:720, profundidade:550, material:'MDF18_BrancoTX', espessura:18, puxador_esp:128 }},
-  { type:'gaveteiro',     label:'Gaveteiro',   cat:'base',    icon:'drawers',
-    fields:['largura','altura','profundidade','material','espessura','num_gavetas'],
-    defaults:{ largura:600, altura:720, profundidade:550, material:'MDF18_BrancoTX', espessura:18, num_gavetas:3 }},
-  // Aéreo
-  { type:'armario_aereo', label:'Aéreo',       cat:'aereo',   icon:'wall-cabinet',
-    fields:['largura','altura','profundidade','material','espessura'],
-    defaults:{ largura:600, altura:700, profundidade:350, material:'MDF18_BrancoTX', espessura:18 }},
-  // Torre
-  { type:'armario_torre', label:'Torre',       cat:'torre',   icon:'tower',
-    fields:['largura','altura','profundidade','material','espessura'],
-    defaults:{ largura:600, altura:2200, profundidade:600, material:'MDF18_BrancoTX', espessura:18 }},
-  // Internos
-  { type:'nicho',         label:'Nicho',       cat:'interno', icon:'nicho',
-    fields:['largura','altura','profundidade','material','espessura','num_prateleiras'],
-    defaults:{ largura:400, altura:400, profundidade:300, material:'MDF18_BrancoTX', espessura:18, num_prateleiras:2 }},
-  { type:'prateleira',    label:'Prateleira',  cat:'interno', icon:'shelf',
-    fields:['largura','espessura','profundidade','material'],
-    defaults:{ largura:600, espessura:18, profundidade:300, material:'MDF18_BrancoTX' }},
-  { type:'divisoria',     label:'Divisória',   cat:'interno', icon:'divider',
-    fields:['altura','espessura','profundidade','material'],
-    defaults:{ altura:600, espessura:18, profundidade:300, material:'MDF18_BrancoTX' }},
-  { type:'sapateira',     label:'Sapateira',   cat:'interno', icon:'shelf',
-    fields:['largura','altura','profundidade','material','espessura'],
-    defaults:{ largura:600, altura:200, profundidade:300, material:'MDF18_BrancoTX', espessura:18 }},
-  { type:'cabideiro',     label:'Cabideiro',   cat:'interno', icon:'rail',
-    fields:['largura','altura_varao','material'],
-    defaults:{ largura:600, altura_varao:1200, material:'MDF18_BrancoTX' }},
-  // Acabamentos
-  { type:'tamponamento',  label:'Tampo lateral',cat:'acabamento',icon:'panel',
-    fields:['largura','altura','espessura','material'],
-    defaults:{ largura:60, altura:720, espessura:18, material:'MDF18_BrancoTX' }},
-  { type:'rodape',        label:'Rodapé',      cat:'acabamento',icon:'kickboard',
-    fields:['largura','altura','espessura','material'],
-    defaults:{ largura:600, altura:100, espessura:18, material:'MDF18_BrancoTX' }},
-  { type:'coluna_canto',  label:'Col. Canto',  cat:'acabamento',icon:'corner',
-    fields:['largura','altura','profundidade','material','espessura'],
-    defaults:{ largura:100, altura:720, profundidade:100, material:'MDF18_BrancoTX', espessura:18 }},
-];
-
-const FIELD_META = {
-  largura:         { label:'Largura',       unit:'mm', type:'number', min:100,  max:3000 },
-  altura:          { label:'Altura',        unit:'mm', type:'number', min:100,  max:3000 },
-  profundidade:    { label:'Prof.',         unit:'mm', type:'number', min:100,  max:1200 },
-  espessura:       { label:'Espessura',     unit:'mm', type:'number', min:6,    max:40   },
-  num_gavetas:     { label:'Gavetas',       unit:'un', type:'number', min:1,    max:8    },
-  num_prateleiras: { label:'Prateleiras',   unit:'un', type:'number', min:0,    max:12   },
-  puxador_esp:     { label:'Espaç. puxador',unit:'mm', type:'number', min:64,   max:320  },
-  altura_varao:    { label:'Alt. varão',    unit:'mm', type:'number', min:200,  max:3000 },
-  material:        { label:'Material',      unit:'',   type:'select',
-    options:[ 'MDF18_BrancoTX','MDF18_Grafite','MDF18_Carvalho','MDF15_BrancoTX',
-              'MDP15_BrancoTX','MDP18_BrancoTX','OSB18','Compensado15','Compensado18' ] },
-};
+/* ═══════════════════════════════════════════════════════
+   ORNATO MAIN PANEL — 5-panel sidebar architecture
+   Panels: projeto | biblioteca | agregados | materiais | exportar
+═══════════════════════════════════════════════════════ */
 
 /* ── State ─────────────────────────────────────────── */
-let currentCat  = 'all';
-let selectedMod = null;
-let logItems    = [];
+let currentPanel   = 'projeto';
+let modules        = [];           // library modules from Ruby
+let filteredMods   = [];
+let selectedCat    = 'todos';
+let detailModule   = null;         // module being detailed
+let selectedEntity = null;         // SketchUp selection data
+let erpProject     = null;
+let aggItems       = [];           // aggregates for current module
+let selectedAggType = null;        // currently configuring agg type
 
-/* ── Icons SVG (inline) ────────────────────────────── */
-function modIcon(iconKey) {
-  const icons = {
-    cabinet:     '<rect x="3" y="6" width="18" height="15" rx="1.5"/><path d="M3 11h18M12 6v15"/>',
-    drawers:     '<rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/><line x1="12" y1="5.5" x2="12" y2="5.5"/><line x1="12" y1="12.5" x2="12" y2="12.5"/>',
-    'wall-cabinet':'<rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M3 10h18M12 4v13"/>',
-    tower:       '<rect x="6" y="2" width="12" height="20" rx="1.5"/><path d="M6 8h12M6 14h12"/>',
-    nicho:       '<rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M3 12h18M12 3v18"/>',
-    shelf:       '<rect x="2" y="10" width="20" height="3" rx="1"/><line x1="5" y1="10" x2="5" y2="21"/><line x1="19" y1="10" x2="19" y2="21"/>',
-    divider:     '<rect x="10" y="3" width="4" height="18" rx="1"/><line x1="3" y1="21" x2="21" y2="21"/><line x1="3" y1="3" x2="21" y2="3"/>',
-    rail:        '<line x1="3" y1="12" x2="21" y2="12" stroke-width="2.5"/><circle cx="12" cy="12" r="2"/>',
-    panel:       '<rect x="10" y="3" width="4" height="18" rx="1"/>',
-    kickboard:   '<rect x="3" y="16" width="18" height="5" rx="1"/>',
-    corner:      '<path d="M3 21V10l7-7h11v18H3z"/>',
-  };
-  const d = icons[iconKey] || icons.cabinet;
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">${d}</svg>`;
+/* ── Panel switching ───────────────────────────────── */
+function switchPanel(id) {
+  if (currentPanel === id) return;
+  currentPanel = id;
+
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+
+  const panel = document.getElementById('panel-' + id);
+  if (panel) panel.classList.add('active');
+
+  const btn = document.querySelector('[data-panel="' + id + '"]');
+  if (btn) btn.classList.add('active');
+
+  // Side-effects per panel
+  if (id === 'biblioteca' && modules.length === 0) sketchup.load_library();
+  if (id === 'exportar') refreshExpModList();
 }
 
-/* ── Render biblioteca ─────────────────────────────── */
-function renderLib() {
-  const q   = (document.getElementById('searchInput').value || '').toLowerCase();
-  const grid = document.getElementById('libGrid');
-  const mods = MODULES.filter(m => {
-    const matchCat  = currentCat === 'all' || m.cat === currentCat;
-    const matchSearch = !q || m.label.toLowerCase().includes(q) || m.type.includes(q);
-    return matchCat && matchSearch;
+/* ── Version ───────────────────────────────────────── */
+window.setVersion = function(v) {
+  document.getElementById('ver').textContent = 'v' + v;
+};
+
+/* ── Load saved project data into Projeto panel ─────── */
+window.loadProjectData = function(data) {
+  const map = {
+    cliente:  'proj-cliente',
+    tel:      'proj-tel',
+    email:    'proj-email',
+    nome:     'proj-nome',
+    ambiente: 'proj-ambiente',
+    designer: 'proj-designer',
+    material: 'proj-mat-carcaca',
+    espessura:'proj-esp',
+    fita:     'proj-fita',
+  };
+  Object.entries(map).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (el && data[key] !== undefined) el.value = data[key];
   });
-  if (!mods.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px 0;color:var(--text-3);font-size:11px;">Nenhum módulo encontrado</div>';
+};
+
+/* ══════════════════════════════════════════════════════
+   PROJETO PANEL
+══════════════════════════════════════════════════════ */
+let projDirty = false;
+
+function projChanged() { projDirty = true; }
+
+function saveProject() {
+  const data = {
+    cliente:   document.getElementById('proj-cliente').value,
+    tel:       document.getElementById('proj-tel').value,
+    email:     document.getElementById('proj-email').value,
+    nome:      document.getElementById('proj-nome').value,
+    ambiente:  document.getElementById('proj-ambiente').value,
+    designer:  document.getElementById('proj-designer').value,
+    material:  document.getElementById('proj-mat-carcaca').value,
+    espessura: document.getElementById('proj-esp').value,
+    fita:      document.getElementById('proj-fita').value,
+  };
+  if (typeof sketchup !== 'undefined') {
+    sketchup.save_project_data(JSON.stringify(data));
+  }
+  projDirty = false;
+  showToast('Projeto salvo', 'success');
+}
+
+function drawRoom() {
+  const h = parseFloat(document.getElementById('proj-wall-h').value) || 2700;
+  sketchup.create_ambiente(JSON.stringify({ wall_height: h }));
+}
+
+/* ══════════════════════════════════════════════════════
+   BIBLIOTECA PANEL
+══════════════════════════════════════════════════════ */
+window.setLibraryModules = function(data) {
+  modules = data.modules || [];
+  const cats = data.categories || [];
+  renderCatPills(cats);
+  filteredMods = modules;
+  renderModGrid(filteredMods);
+};
+
+/* ── Category pills ──────────────────────────────── */
+const CAT_COLORS = {
+  cozinha:    '#F97316',
+  dormitorio: '#1379F0',
+  closet:     '#a78bfa',
+  sala:       '#22c55e',
+  banheiro:   '#06b6d4',
+  escritorio: '#f59e0b',
+  lavanderia: '#ec4899',
+  geral:      '#6b7280',
+};
+
+function renderCatPills(cats) {
+  const el = document.getElementById('cat-pills');
+  const all = ['todos', ...cats];
+  el.innerHTML = all.map(c => {
+    const color = c === 'todos' ? 'var(--accent)' : (CAT_COLORS[c] || '#6b7280');
+    const active = c === selectedCat ? ' active' : '';
+    const style = active ? `background:${color};` : '';
+    return `<button class="cat-pill${active}" style="${style}" onclick="selectCat('${c}')">${capitalize(c)}</button>`;
+  }).join('');
+}
+
+function selectCat(cat) {
+  selectedCat = cat;
+  const color = cat === 'todos' ? 'var(--accent)' : (CAT_COLORS[cat] || '#6b7280');
+  document.querySelectorAll('.cat-pill').forEach(p => {
+    p.classList.remove('active');
+    p.style.background = '';
+  });
+  const active = [...document.querySelectorAll('.cat-pill')]
+    .find(p => p.textContent.toLowerCase() === cat.toLowerCase() ||
+               (cat === 'todos' && p.textContent === 'Todos'));
+  if (active) { active.classList.add('active'); active.style.background = color; }
+  filterModules();
+}
+
+function filterModules() {
+  const q = document.getElementById('bib-search').value.toLowerCase();
+  filteredMods = modules.filter(m => {
+    const catMatch = selectedCat === 'todos' || m.categoria === selectedCat;
+    const qMatch = !q || m.nome.toLowerCase().includes(q) ||
+                   (m.descricao || '').toLowerCase().includes(q);
+    return catMatch && qMatch;
+  });
+  renderModGrid(filteredMods);
+}
+
+/* ── Module grid ─────────────────────────────────── */
+const SVGS = {
+  base:   '<rect x="8" y="24" width="48" height="32" rx="2"/><rect x="11" y="20" width="42" height="6"/><path d="M20 56v4M44 56v4"/>',
+  alto:   '<rect x="14" y="8" width="36" height="48" rx="2"/><rect x="17" y="11" width="30" height="14"/><rect x="17" y="28" width="30" height="14"/><rect x="17" y="45" width="30" height="8"/>',
+  aer:    '<rect x="8" y="8" width="48" height="30" rx="2"/><rect x="11" y="11" width="42" height="10"/><rect x="11" y="24" width="42" height="10"/>',
+  gaveta: '<rect x="8" y="18" width="48" height="28" rx="2"/><rect x="10" y="22" width="44" height="8" rx="1"/><rect x="10" y="32" width="44" height="10" rx="1"/><circle cx="32" cy="26" r="2"/>',
+  prat:   '<rect x="6" y="20" width="52" height="4" rx="1"/><rect x="6" y="32" width="52" height="4" rx="1"/><rect x="6" y="44" width="52" height="4" rx="1"/><rect x="6" y="14" width="4" height="38"/><rect x="54" y="14" width="4" height="38"/>',
+  pia:    '<path d="M8 32h48v16H8z"/><path d="M20 32V20h24v12"/><circle cx="32" cy="38" r="3"/>',
+  def:    '<rect x="10" y="10" width="44" height="44" rx="3"/><path d="M22 22h20M22 32h20M22 42h12"/>',
+};
+
+function modSvg(m) {
+  const id = (m.id || '').toLowerCase();
+  const nome = (m.nome || '').toLowerCase();
+  if (id.includes('balcao') || id.includes('base') || nome.includes('balcão') || nome.includes('base')) return SVGS.base;
+  if (id.includes('aer') || id.includes('aereo') || nome.includes('aéreo') || nome.includes('aereo')) return SVGS.aer;
+  if (id.includes('alto') || id.includes('torre') || nome.includes('alto') || nome.includes('torre')) return SVGS.alto;
+  if (id.includes('gav') || nome.includes('gaveta')) return SVGS.gaveta;
+  if (id.includes('prat') || nome.includes('prateleira') || nome.includes('nicho')) return SVGS.prat;
+  if (id.includes('pia') || id.includes('tanque') || nome.includes('pia')) return SVGS.pia;
+  return SVGS.def;
+}
+
+function renderModGrid(list) {
+  const grid = document.getElementById('mod-grid');
+  const empty = document.getElementById('bib-empty');
+
+  if (list.length === 0) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    const msg = document.getElementById('bib-empty-msg');
+    if (modules.length === 0) {
+      msg.innerHTML = 'Nenhum módulo encontrado.<br>Verifique a pasta biblioteca/moveis.';
+    } else {
+      msg.textContent = 'Nenhum resultado para a busca.';
+    }
     return;
   }
-  grid.innerHTML = mods.map(m => `
-    <div class="mod-card${selectedMod === m.type ? ' selected' : ''}" onclick="selectMod('${m.type}')">
-      <div class="mod-icon">${modIcon(m.icon)}</div>
-      <div class="mod-name">${m.label}</div>
-    </div>`).join('');
+
+  empty.classList.add('hidden');
+  const cat = selectedCat;
+  const color = cat === 'todos' ? '#4a5568' : (CAT_COLORS[cat] || '#4a5568');
+
+  grid.innerHTML = list.map((m, i) =>
+    `<div class="mod-card" onclick="showDetail(${i})" style="--card-color:${CAT_COLORS[m.categoria]||'#4a5568'}">
+      <div class="mod-card-icon" style="background:linear-gradient(160deg,${CAT_COLORS[m.categoria]||'#1d2a40'}22,${CAT_COLORS[m.categoria]||'#243350'}55)">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4">${modSvg(m)}</svg>
+      </div>
+      <div class="mod-card-body">
+        <div class="mod-card-name">${m.nome}</div>
+        <div class="mod-card-meta">${capitalize(m.categoria||'geral')}</div>
+      </div>
+    </div>`
+  ).join('');
 }
 
-function filterModules() { renderLib(); }
-function setCat(cat, btn) {
-  currentCat = cat;
-  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderLib();
+/* ── Detail view ─────────────────────────────────── */
+function showDetail(idx) {
+  detailModule = filteredMods[idx];
+  document.getElementById('bib-list').style.display = 'none';
+  document.getElementById('bib-detail').style.display = 'flex';
+
+  const color = CAT_COLORS[detailModule.categoria] || '#6b7280';
+  document.getElementById('det-title').textContent = detailModule.nome;
+  document.getElementById('det-cat-badge').textContent = capitalize(detailModule.categoria || 'geral');
+  document.getElementById('det-cat-badge').style.background = color;
+  document.getElementById('det-preview-wrap').style.background =
+    `linear-gradient(160deg, ${color}15, ${color}35)`;
+  document.getElementById('det-preview-svg').innerHTML = modSvg(detailModule);
+  document.getElementById('det-desc').textContent = detailModule.descricao || '';
+
+  renderParamForm(detailModule.parametros || {});
+  document.getElementById('btn-insert').onclick = insertModule;
 }
 
-/* ── Seleção e configurador ────────────────────────── */
-function selectMod(type) {
-  selectedMod = type;
-  renderLib();
-  openCfg(type);
+function showBibList() {
+  document.getElementById('bib-detail').style.display = 'none';
+  document.getElementById('bib-list').style.display = 'flex';
+  detailModule = null;
 }
 
-function openCfg(type) {
-  const mod = MODULES.find(m => m.type === type);
-  if (!mod) return;
-  document.getElementById('cfgTitle').textContent = mod.label;
-  document.getElementById('cfgBody').innerHTML = buildCfgFields(mod);
-  document.getElementById('configurator').classList.add('open');
-}
-
-function closeCfg() {
-  document.getElementById('configurator').classList.remove('open');
-  selectedMod = null;
-  renderLib();
-}
-
-function buildCfgFields(mod) {
-  // Agrupar campos: largura/altura/prof na mesma linha; material separado
-  const dimFields = mod.fields.filter(f => FIELD_META[f]?.type === 'number');
-  const selFields = mod.fields.filter(f => FIELD_META[f]?.type === 'select');
-
-  let html = '';
-
-  // Linha de dimensões (3 por linha)
-  for (let i = 0; i < dimFields.length; i += 3) {
-    const chunk = dimFields.slice(i, i + 3);
-    const cols = chunk.length === 1 ? 'half' : '';
-    html += `<div class="cfg-row ${cols}">`;
-    chunk.forEach(f => {
-      const meta = FIELD_META[f];
-      const val  = mod.defaults[f] ?? '';
-      html += `
-        <div class="field">
-          <div class="field-label">${meta.label}</div>
-          <div class="dim-input-wrap">
-            <input type="number" id="cfg_${f}" value="${val}" min="${meta.min}" max="${meta.max}">
-            <span class="dim-unit">${meta.unit}</span>
-          </div>
-        </div>`;
-    });
-    html += '</div>';
+/* ── Parameter form ──────────────────────────────── */
+function renderParamForm(params) {
+  const el = document.getElementById('det-params');
+  const keys = Object.keys(params);
+  if (keys.length === 0) {
+    el.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--text-3);">Sem parâmetros configuráveis.</div>';
+    return;
   }
 
-  // Selects (material etc)
-  selFields.forEach(f => {
-    const meta = FIELD_META[f];
-    const val  = mod.defaults[f] ?? '';
-    const opts = meta.options.map(o => `<option value="${o}"${o===val?' selected':''}>${o.replace(/_/g,' ')}</option>`).join('');
-    html += `
-      <div class="cfg-row full">
-        <div class="field">
-          <div class="field-label">${meta.label}</div>
-          <select id="cfg_${f}">${opts}</select>
+  el.innerHTML = keys.map(k => {
+    const p = params[k];
+    const label = p.label || k;
+    const type  = p.type  || 'number';
+    const val   = p.default !== undefined ? p.default : '';
+    const unit  = p.unit  || (type === 'number' ? 'mm' : '');
+
+    if (type === 'boolean') {
+      return `<div class="param-row">
+        <span class="param-name">${label}</span>
+        <label class="param-toggle"><input type="checkbox" id="p_${k}" ${val ? 'checked' : ''}><span class="toggle-track"></span></label>
+      </div>`;
+    } else if (type === 'select' && p.options) {
+      const opts = p.options.map(o =>
+        `<option value="${o}" ${o == val ? 'selected' : ''}>${o}</option>`
+      ).join('');
+      return `<div class="param-row">
+        <span class="param-name">${label}</span>
+        <select class="param-select" id="p_${k}">${opts}</select>
+      </div>`;
+    } else {
+      return `<div class="param-row">
+        <span class="param-name">${label}</span>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input class="param-input" type="number" id="p_${k}" value="${val}" min="${p.min||0}" max="${p.max||9999}" step="${p.step||1}">
+          <span class="param-unit">${unit}</span>
         </div>
       </div>`;
-  });
+    }
+  }).join('');
+}
 
-  return html;
+function collectParams() {
+  if (!detailModule) return {};
+  const params = detailModule.parametros || {};
+  const result = {};
+  Object.keys(params).forEach(k => {
+    const el = document.getElementById('p_' + k);
+    if (!el) return;
+    if (el.type === 'checkbox') result[k] = el.checked;
+    else if (el.type === 'number') result[k] = parseFloat(el.value) || 0;
+    else result[k] = el.value;
+  });
+  // also include default material from project if not specified
+  const defMat = document.getElementById('proj-mat-carcaca').value;
+  if (defMat && !result.material) result.material = defMat;
+  return result;
 }
 
 function insertModule() {
-  if (!selectedMod) return;
-  const mod = MODULES.find(m => m.type === selectedMod);
-  if (!mod) return;
-  const params = {};
-  mod.fields.forEach(f => {
-    const el = document.getElementById('cfg_' + f);
-    if (!el) return;
-    params[f] = el.type === 'number' ? parseFloat(el.value) : el.value;
-  });
-  try {
-    // Call Ruby via direct action callback: create_module(type, params_json)
-    // Registered in dialog_controller.rb → register_main_panel_callbacks
-    sketchup.create_module(selectedMod, JSON.stringify(params));
-    const dims = [params.largura, params.altura, params.profundidade].filter(Boolean).join('×');
-    addLog('Posicionando: ' + mod.label + (dims ? ' ' + dims + 'mm' : ''));
-    showToast('Clique no modelo para posicionar', 'success');
-  } catch(e) {
-    addLog('Erro ao inserir: ' + (e.message||e));
-    showToast('Erro ao inserir módulo', 'error');
-  }
+  if (!detailModule) return;
+  const params = collectParams();
+  sketchup.create_module(detailModule.tipo_ruby || detailModule.id, JSON.stringify(params));
+  showToast('Posicione no modelo', 'info');
 }
 
-/* ── Aba Modelo ────────────────────────────────────── */
-function analyzeModel() {
-  try { sketchup.analyze(); addLog('Escaneando modelo...'); }
-  catch(e) { addLog('analyze indisponível'); }
-}
-function doProcess() {
-  try { sketchup.process(); addLog('Processando ferragens...'); }
-  catch(e) { addLog('process indisponível'); }
-}
+/* ══════════════════════════════════════════════════════
+   AGGREGATE TYPES CONFIGURATION
+══════════════════════════════════════════════════════ */
+const AGG_TYPES = [
+  { id:'prateleira',   label:'Prateleira',    icon:'M4 8h12M4 12h12M4 16h8', fields:[
+    { key:'quantidade', label:'Quantidade',  type:'number', default:1, unit:'un' },
+    { key:'tipo',       label:'Tipo',        type:'select', options:['Regulável','Fixa','Sistema 32'] },
+    { key:'espessura',  label:'Espessura',   type:'number', default:18, unit:'mm' },
+  ]},
+  { id:'porta_abrir',  label:'Porta Abrir',   icon:'M6 4v12h6V4H6zM12 10h4', fields:[
+    { key:'lado',       label:'Lado',        type:'select', options:['Esquerda','Direita'] },
+    { key:'dobradicas', label:'Dobradiças',  type:'number', default:2, unit:'un' },
+    { key:'puxador',    label:'Puxador',     type:'select', options:['128mm','160mm','256mm','Embutido'] },
+  ]},
+  { id:'porta_correr', label:'Porta Correr',  icon:'M4 4h5v12H4zM8 4h5v12H8', fields:[
+    { key:'folhas',     label:'Folhas',      type:'number', default:2, unit:'un' },
+  ]},
+  { id:'basculante',   label:'Basculante',    icon:'M4 12h12M4 12l4-6h4l4 6', fields:[
+    { key:'tipo',       label:'Tipo',        type:'select', options:['Com pistão','Sem pistão'] },
+  ]},
+  { id:'gaveta',       label:'Gaveta',        icon:'M3 8h14v6H3zM3 8v-2h14v2M9 11h2', fields:[
+    { key:'quantidade', label:'Quantidade',  type:'number', default:1, unit:'un' },
+    { key:'corredica',  label:'Corrediça',   type:'select', options:['450mm','500mm','550mm'] },
+    { key:'frontal',    label:'Com frontal', type:'boolean', default:true },
+  ]},
+  { id:'frente_falsa', label:'Frente Falsa',  icon:'M4 6h12v12H4z', fields:[
+    { key:'tipo',       label:'Tipo',        type:'select', options:['MDF','MDF Fresado','Alumínio'] },
+  ]},
+  { id:'varao',        label:'Varão',         icon:'M4 12h12M8 8v8M12 8v8', fields:[
+    { key:'comprimento',label:'Comprimento', type:'number', default:800, unit:'mm' },
+  ]},
+  { id:'divisoria',    label:'Divisória',     icon:'M10 4v12M4 4h12v12H4z', fields:[
+    { key:'quantidade', label:'Quantidade',  type:'number', default:1, unit:'un' },
+  ]},
+  { id:'led',          label:'LED',           icon:'M4 12h2m8 0h2M8 8l1 1M11 11l1 1M8 16l1-1M11 9l1-1', fields:[
+    { key:'posicao',    label:'Posição',     type:'select', options:['Topo','Base','Fundo','Frontal'] },
+    { key:'cor',        label:'Cor',         type:'select', options:['Quente','Frio','RGB'] },
+  ]},
+  { id:'cabideiro',    label:'Cabideiro',     icon:'M8 4c0 2-2 4-2 4h8s-2-2-2-4M6 8h8', fields:[
+    { key:'comprimento',label:'Comprimento', type:'number', default:600, unit:'mm' },
+  ]},
+  { id:'sapateira',    label:'Sapateira',     icon:'M3 14l5-8 5 4 4-4M3 14h14', fields:[
+    { key:'prateleiras',label:'Prateleiras', type:'number', default:3, unit:'un' },
+    { key:'angulo',     label:'Ângulo',      type:'select', options:['15°','20°','Horizontal'] },
+  ]},
+  { id:'espelho',      label:'Espelho',       icon:'M6 4h8v12H6zM4 8h2M14 8h2M4 12h2M14 12h2', fields:[
+    { key:'tipo',       label:'Tipo',        type:'select', options:['Cola','Parafuso'] },
+  ]},
+];
 
-window.updateSummary = function(data) {
-  const d = typeof data === 'string' ? JSON.parse(data) : data;
-  document.getElementById('statModulos').textContent   = d.modules   || 0;
-  document.getElementById('statPecas').textContent     = d.pieces    || 0;
-  document.getElementById('statJuncoes').textContent   = d.joints    || 0;
-  document.getElementById('statMateriais').textContent = (d.materials ? (Array.isArray(d.materials) ? d.materials.length : d.materials) : 0);
-  const b = document.getElementById('modBadge');
-  b.textContent = d.modules || 0;
-  b.style.display = (d.modules > 0) ? '' : 'none';
-  if (d.module_list) renderModuleList(d.module_list);
-  addLog('Modelo escaneado: ' + (d.pieces||0) + ' peças, ' + (d.modules||0) + ' módulos');
-};
-
-function renderModuleList(list) {
-  const el = document.getElementById('moduleList');
-  if (!list || !list.length) {
-    el.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-3);font-size:11px;">Nenhum módulo detectado</div>';
-    return;
-  }
-  el.innerHTML = list.map(m => `
-    <div class="module-row">
-      <div class="module-row-icon">${modIcon(m.icon||'cabinet')}</div>
-      <div class="module-row-info">
-        <div class="module-row-name">${esc(m.label||m.type)}</div>
-        <div class="module-row-dims">${m.largura||'?'}×${m.altura||'?'}×${m.profundidade||'?'}mm · ${esc(m.material||'')}</div>
-      </div>
-      <div class="module-row-actions">
-        <button class="icon-btn" onclick="editModule('${m.id}')" title="Editar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button class="icon-btn danger" onclick="deleteModule('${m.id}')" title="Remover">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        </button>
-      </div>
-    </div>`).join('');
-}
-
-function editModule(id) {
-  try {
-    sketchup.select_module(id);
-    // Give SketchUp a moment to select, then activate edit tool
-    setTimeout(() => {
-      try { sketchup.edit_module(id); addLog('Editando módulo...'); } catch(e) {}
-    }, 200);
-  }
-  catch(e) {}
-}
-function deleteModule(id) {
-  try { sketchup.delete_module(id); addLog('Módulo removido'); }
-  catch(e) {}
-}
-function addAmbiente() {
-  const h = parseFloat(document.getElementById('wallHeightInput').value) || 2700;
-  try {
-    sketchup.create_ambiente(JSON.stringify({ wall_height: h }));
-    addLog('Desenho de sala ativo — clique para definir cantos');
-    showToast('Clique no modelo para definir os cantos da sala', 'info');
-  }
-  catch(e) { addLog('create_ambiente indisponível: ' + (e.message||e)); }
-}
-
-window.updateAmbientes = function(list) {
-  const c = document.getElementById('ambChips');
-  const chips = ['<div class="amb-chip active" onclick="filterAmb(\'all\',this)">Todos</div>'];
-  (list||[]).forEach(a => {
-    chips.push(`<div class="amb-chip" onclick="filterAmb('${esc(a)}',this)">${esc(a)}</div>`);
-  });
-  c.innerHTML = chips.join('');
-};
-
-function filterAmb(amb, el) {
-  document.querySelectorAll('.amb-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  try { sketchup.filter_ambiente(amb); } catch(e) {}
-}
-
-/* ── Exportar ──────────────────────────────────────── */
-function testErp() {
-  const url = document.getElementById('erpUrl').value.trim();
-  if (!url) { showToast('Informe a URL do ERP', 'error'); return; }
-  try { sketchup.test_erp_connection(url); }
-  catch(e) { showToast('Callback não disponível', 'error'); }
-}
-function exportToErp() {
-  const url  = document.getElementById('erpUrl').value.trim();
-  const proj = document.getElementById('projectName').value.trim();
-  if (!url) { showToast('Informe a URL do ERP', 'error'); return; }
-  try { sketchup.export_to_erp(url, proj); addLog('Enviando para o ERP...'); }
-  catch(e) { showToast('Erro ao exportar', 'error'); }
-}
-function exportJson() {
-  try { sketchup.export_json(); addLog('JSON salvo'); }
-  catch(e) { showToast('export_json indisponível', 'error'); }
-}
-function exportCsv() {
-  try { sketchup.export_csv(); addLog('CSV exportado'); }
-  catch(e) { showToast('export_csv indisponível', 'error'); }
-}
-
-window.updateChecklist = function(items) {
-  const el = document.getElementById('checklist');
-  const iconOk   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>';
-  const iconWarn = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-  const iconErr  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
-  el.innerHTML = items.map(i => {
-    const cls = i.status === 'ok' ? 'ok' : i.status === 'warn' ? 'warn' : 'err';
-    const ico = i.status === 'ok' ? iconOk : i.status === 'warn' ? iconWarn : iconErr;
-    return `<div class="check-item ${cls}">${ico}${esc(i.label)}</div>`;
+function renderAggTypes() {
+  const grid = document.getElementById('agg-types-grid');
+  grid.innerHTML = AGG_TYPES.map(t => {
+    const iconPaths = t.icon.split('M').filter(Boolean).map(p => `<path d="M${p}"/>`).join('');
+    return `<button class="agg-type-btn" id="agg-btn-${t.id}" onclick="selectAggType('${t.id}')">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">${iconPaths}</svg>
+      <span>${t.label}</span>
+    </button>`;
   }).join('');
-};
-
-/* ── Tabs ──────────────────────────────────────────── */
-function switchTab(t) {
-  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-' + t).classList.add('active');
-  document.getElementById('panel-' + t).classList.add('active');
 }
 
-/* ── Log ───────────────────────────────────────────── */
-function addLog(msg) {
-  const time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  logItems.unshift({ time, msg });
-  if (logItems.length > 6) logItems.length = 6;
-  renderLog();
+function selectAggType(id) {
+  selectedAggType = AGG_TYPES.find(t => t.id === id);
+  if (!selectedAggType) return;
+
+  // Update button states
+  document.querySelectorAll('.agg-type-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('agg-btn-' + id).classList.add('active');
+
+  // Build configurator
+  const cfg = document.getElementById('agg-configurator');
+  cfg.classList.remove('hidden');
+  document.getElementById('agg-cfg-title').textContent = 'Configurar: ' + selectedAggType.label;
+
+  const fields = document.getElementById('agg-cfg-fields');
+  fields.innerHTML = selectedAggType.fields.map(f => {
+    if (f.type === 'boolean') {
+      return `<div class="agg-cfg-row">
+        <span class="agg-cfg-label">${f.label}</span>
+        <label class="param-toggle" style="margin-left:auto;">
+          <input type="checkbox" id="agg-f-${f.key}" ${f.default ? 'checked' : ''}>
+          <span class="toggle-track"></span>
+        </label>
+      </div>`;
+    } else if (f.type === 'select') {
+      return `<div class="agg-cfg-row">
+        <span class="agg-cfg-label">${f.label}</span>
+        <select class="agg-cfg-select" id="agg-f-${f.key}">
+          ${f.options.map(o => `<option value="${o}">${o}</option>`).join('')}
+        </select>
+      </div>`;
+    } else {
+      return `<div class="agg-cfg-row">
+        <span class="agg-cfg-label">${f.label}</span>
+        <input class="agg-cfg-input" type="number" id="agg-f-${f.key}" value="${f.default||1}">
+        <span style="font-size:10px;color:var(--text-3);min-width:16px;">${f.unit||''}</span>
+      </div>`;
+    }
+  }).join('');
 }
-function renderLog() {
-  const el = document.getElementById('logWrap');
-  if (!logItems.length) {
-    el.innerHTML = '<div class="log-empty">Nenhuma atividade</div>';
+
+function cancelAgg() {
+  selectedAggType = null;
+  document.getElementById('agg-configurator').classList.add('hidden');
+  document.querySelectorAll('.agg-type-btn').forEach(b => b.classList.remove('active'));
+}
+
+function addAgg() {
+  if (!selectedAggType) return;
+  const values = {};
+  selectedAggType.fields.forEach(f => {
+    const el = document.getElementById('agg-f-' + f.key);
+    if (!el) return;
+    if (f.type === 'boolean') values[f.key] = el.checked;
+    else if (f.type === 'number') values[f.key] = parseFloat(el.value) || f.default;
+    else values[f.key] = el.value;
+  });
+
+  aggItems.push({ type: selectedAggType.id, label: selectedAggType.label, values });
+  cancelAgg();
+  renderAggList();
+}
+
+function renderAggList() {
+  const list = document.getElementById('agg-list');
+  const head = document.getElementById('agg-list-head');
+
+  if (aggItems.length === 0) {
+    list.innerHTML = '';
+    head.classList.add('hidden');
     return;
   }
-  el.innerHTML = logItems.map(i =>
-    `<div class="log-item">
-      <div class="log-dot"></div>
-      <span class="log-time">${i.time}</span>
-      <span class="log-msg">${esc(i.msg)}</span>
-    </div>`).join('');
-}
-window.addLog = addLog;
-
-/* ── Toast ─────────────────────────────────────────── */
-let _toastTimer;
-function showToast(msg, type) {
-  const t = document.getElementById('toast');
-  t.className = 'toast ' + (type||'info');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
-}
-window.showToast = showToast;
-
-/* ── Ruby callbacks ────────────────────────────────── */
-window.setStatus = function(connected) {
-  document.getElementById('statusDot').classList.toggle('off', !connected);
-};
-window.setVersion = function(v) {
-  document.getElementById('versionBadge').textContent = v;
-};
-
-/* ── Utils ─────────────────────────────────────────── */
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  head.classList.remove('hidden');
+  list.innerHTML = aggItems.map((a, i) => {
+    const meta = Object.entries(a.values).map(([k,v]) => `${k}: ${v}`).join(' · ');
+    return `<div class="agg-item">
+      <div class="agg-item-info">
+        <div class="agg-item-type">${a.label}</div>
+        <div class="agg-item-meta">${meta}</div>
+      </div>
+      <button class="agg-item-rm" onclick="removeAgg(${i})">
+        <svg fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2">
+          <path d="M2 2l8 8M10 2L2 10"/>
+        </svg>
+      </button>
+    </div>`;
+  }).join('');
 }
 
-/* ── Ruby bridge aliases ───────────────────────────── */
-// Allow dialog_controller.rb to push messages via ornatoStatus()
-window.ornatoStatus = function(text) {
-  if (typeof addLog === 'function') addLog(text);
-  if (typeof showToast === 'function') showToast(text, 'info');
-};
-// No-op for command bus (not used by main_panel.html)
-window.commandCallback = function() {};
-// updateSummary is already defined above — re-export for safety
-window.updateSummary = window.updateSummary || function() {};
+function removeAgg(i) {
+  aggItems.splice(i, 1);
+  renderAggList();
+}
 
-/* ── Copy/Array/Countertop ─────────────────────────── */
-function copyModule(mirror) {
-  const count = parseInt(document.getElementById('copyCount').value) || 1;
-  const gap   = parseFloat(document.getElementById('copyGap').value) || 0;
-  const dir   = document.getElementById('copyDir').value || 'x';
-  const opts  = { direction: dir, count, gap_mm: gap, mirror: !!mirror };
-  try {
-    sketchup.copy_module(JSON.stringify(opts));
-    addLog((mirror ? 'Espelhando módulo' : 'Copiando módulo') + ' (' + (mirror ? '' : count + 'x ' + dir) + ')');
-    showToast(mirror ? 'Clique/Enter para confirmar espelho' : 'Clique/Enter para confirmar cópias', 'info');
-  } catch(e) {
-    addLog('copy_module indisponível: ' + (e.message||e));
+function applyAgregados() {
+  if (!selectedEntity) return showToast('Nenhum módulo selecionado', 'error');
+  const data = {
+    entity_id: selectedEntity.entity_id,
+    agregados: aggItems
+  };
+  sketchup.apply_agregados(JSON.stringify(data));
+  showToast('Agregados aplicados!', 'success');
+}
+
+/* ══════════════════════════════════════════════════════
+   MATERIAIS PANEL
+══════════════════════════════════════════════════════ */
+function applyMaterials() {
+  if (!selectedEntity) return showToast('Nenhum módulo selecionado', 'error');
+  const data = {
+    entity_id: selectedEntity.entity_id,
+    carcaca: {
+      chapa:     document.getElementById('mat-carc-chapa').value,
+      espessura: parseFloat(document.getElementById('mat-carc-esp').value) || 18,
+    },
+    frente: {
+      chapa:     document.getElementById('mat-frente-chapa').value,
+      espessura: parseFloat(document.getElementById('mat-frente-esp').value) || 18,
+    },
+    fundo: {
+      chapa:     document.getElementById('mat-fundo-chapa').value,
+      espessura: parseFloat(document.getElementById('mat-fundo-esp').value) || 6,
+    },
+    bordas: {
+      frente: document.getElementById('mat-borda-frente').value,
+      tras:   document.getElementById('mat-borda-tras').value,
+      topo:   document.getElementById('mat-borda-topo').value,
+      base:   document.getElementById('mat-borda-base').value,
+    },
+    ferragens: {
+      dobradica: document.getElementById('mat-dobradica').value,
+      corredica: document.getElementById('mat-corredica').value,
+      puxador:   document.getElementById('mat-puxador').value,
+      juncao:    document.getElementById('mat-juncao').value,
+    },
+  };
+  sketchup.apply_materials(JSON.stringify(data));
+  showToast('Materiais aplicados!', 'success');
+}
+
+function resetMaterials() {
+  document.getElementById('mat-carc-chapa').value = document.getElementById('proj-mat-carcaca').value;
+  document.getElementById('mat-carc-esp').value = '18';
+  document.getElementById('mat-frente-chapa').value = '';
+  document.getElementById('mat-frente-esp').value = '18';
+  document.getElementById('mat-fundo-chapa').value = '';
+  document.getElementById('mat-fundo-esp').value = '6';
+  ['mat-borda-frente','mat-borda-tras','mat-borda-topo','mat-borda-base'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  showToast('Materiais resetados para padrão', 'info');
+}
+
+/* ══════════════════════════════════════════════════════
+   SELECTION STRIP + ENTITY SELECTION
+══════════════════════════════════════════════════════ */
+window.onEntitySelected = function(data) {
+  selectedEntity = data;
+  const strip = document.getElementById('sel-strip');
+  strip.classList.add('visible');
+
+  document.getElementById('sel-name').textContent = data.name || 'Módulo';
+  const dims = data.dimensions;
+  if (dims) {
+    document.getElementById('sel-dims').textContent =
+      `${(dims.largura||0).toFixed(0)} × ${(dims.profundidade||0).toFixed(0)} × ${(dims.altura||0).toFixed(0)} mm`;
   }
-}
 
-function genTampo(mode) {
-  const thickness = parseFloat(document.getElementById('tampoThickness').value) || 30;
-  const opts = { mode, thickness_mm: thickness };
-  try {
-    sketchup.generate_countertop(JSON.stringify(opts));
-    addLog('Gerando tampo (' + mode + ')...');
-  } catch(e) {
-    addLog('generate_countertop indisponível: ' + (e.message||e));
+  // Show dot on Agregados sidebar button
+  document.getElementById('agg-dot').classList.add('visible');
+
+  // Update Agregados panel
+  const noSel = document.getElementById('agg-no-sel');
+  const sel   = document.getElementById('agg-sel');
+  noSel.classList.add('hidden');
+  sel.classList.remove('hidden');
+  document.getElementById('agg-mod-name').textContent = data.name || 'Módulo';
+  if (dims) {
+    document.getElementById('agg-mod-dims').textContent =
+      `${(dims.largura||0).toFixed(0)} × ${(dims.profundidade||0).toFixed(0)} × ${(dims.altura||0).toFixed(0)} mm`;
   }
+  // Load existing aggregates if available
+  if (data.agregados) {
+    try {
+      aggItems = JSON.parse(data.agregados);
+      renderAggList();
+    } catch(e) { aggItems = []; }
+  } else {
+    aggItems = [];
+    renderAggList();
+  }
+
+  // Update Materiais panel
+  const matNoSel = document.getElementById('mat-no-sel');
+  const matSel   = document.getElementById('mat-sel');
+  matNoSel.classList.add('hidden');
+  matSel.classList.remove('hidden');
+  document.getElementById('mat-mod-name').textContent = data.name || 'Módulo';
+  if (dims) {
+    document.getElementById('mat-mod-dims').textContent =
+      `${(dims.largura||0).toFixed(0)} × ${(dims.profundidade||0).toFixed(0)} × ${(dims.altura||0).toFixed(0)} mm`;
+  }
+  // Populate material fields if stored on the entity
+  if (data.materials) {
+    try {
+      const m = typeof data.materials === 'string' ? JSON.parse(data.materials) : data.materials;
+      if (m.carcaca) {
+        document.getElementById('mat-carc-chapa').value = m.carcaca.chapa || '';
+        document.getElementById('mat-carc-esp').value   = m.carcaca.espessura || 18;
+      }
+      if (m.frente) {
+        document.getElementById('mat-frente-chapa').value = m.frente.chapa || '';
+        document.getElementById('mat-frente-esp').value   = m.frente.espessura || 18;
+      }
+    } catch(e) {}
+  }
+
+  // Auto-switch to Agregados when module selected (unless user is in Biblioteca choosing a module)
+  if (currentPanel !== 'biblioteca') {
+    switchPanel('agregados');
+  }
+};
+
+window.onSelectionCleared = function() {
+  selectedEntity = null;
+  const strip = document.getElementById('sel-strip');
+  strip.classList.remove('visible');
+
+  document.getElementById('agg-dot').classList.remove('visible');
+
+  // Restore "no selection" states
+  document.getElementById('agg-no-sel').classList.remove('hidden');
+  document.getElementById('agg-sel').classList.add('hidden');
+  document.getElementById('mat-no-sel').classList.remove('hidden');
+  document.getElementById('mat-sel').classList.add('hidden');
+};
+
+function editSelected() {
+  if (!selectedEntity) return;
+  sketchup.edit_module(selectedEntity.entity_id || '');
 }
 
-/* ── ERP Integration ───────────────────────────────── */
-let _erpProject = null;
+/* ══════════════════════════════════════════════════════
+   EXPORTAR PANEL
+══════════════════════════════════════════════════════ */
+window.updateSummary = function(data) {
+  document.getElementById('exp-stat-mod').textContent = data.modules || 0;
+  document.getElementById('exp-stat-pcs').textContent = data.pieces  || 0;
+  document.getElementById('exp-stat-m2').textContent  =
+    ((data.sheet_area_mm2 || 0) / 1e6).toFixed(2);
 
+  // Render module list
+  const list = document.getElementById('exp-mod-list');
+  if (data.module_list && data.module_list.length > 0) {
+    list.innerHTML = data.module_list.slice(0, 12).map(m =>
+      `<div class="module-item" onclick="sketchup.select_module('${m.entity_id}')">
+        <div class="module-item-icon" style="background:${CAT_COLORS[m.categoria||'']||'var(--bg-5)'}22">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="7" width="14" height="10" rx="1"/><path d="M7 7V5a2 2 0 014 0v2"/>
+          </svg>
+        </div>
+        <div class="module-item-info">
+          <div class="module-item-name">${m.name || m.module_type}</div>
+          <div class="module-item-meta">${m.pieces || 0} peças</div>
+        </div>
+        <div class="module-item-acts">
+          <button class="mod-act" onclick="event.stopPropagation();sketchup.edit_module('${m.entity_id}')" title="Editar">
+            <svg fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2">
+              <path d="M1 9.5l1.5-1.5 4-4L8 5.5l-4 4L2.5 11z"/><path d="M6.5 2l1 1"/>
+            </svg>
+          </button>
+          <button class="mod-act danger" onclick="event.stopPropagation();sketchup.delete_module('${m.entity_id}')" title="Remover">
+            <svg fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2">
+              <path d="M2 3h8M4 3V2h4v1M5 5v4M7 5v4M3 3l.5 7h5L9 3"/>
+            </svg>
+          </button>
+        </div>
+      </div>`
+    ).join('');
+  } else {
+    list.innerHTML = '';
+  }
+};
+
+function refreshExpModList() {
+  if (typeof sketchup !== 'undefined') sketchup.analyze();
+}
+
+/* ── ERP ─────────────────────────────────────────── */
 function erpInitProject() {
-  const num = document.getElementById('erpProjectNum').value.trim();
-  if (!num) { showToast('Informe o número ou ID do orçamento', 'error'); return; }
-  try {
-    sketchup.erp_init_project(num);
-    addLog('Vinculando projeto ERP: ' + num + '...');
-  } catch(e) {
-    addLog('erp_init_project indisponível: ' + (e.message||e));
-  }
+  const num = document.getElementById('erp-proj-input').value.trim();
+  if (!num) return showToast('Informe o número do projeto', 'error');
+  sketchup.erp_init_project(num);
 }
+
+window.setErpProject = function(proj) {
+  erp_project = proj;
+  const card = document.getElementById('erp-proj-card');
+  card.classList.add('visible');
+  document.getElementById('erp-proj-name').textContent =
+    (proj.numero ? '#' + proj.numero + ' — ' : '') + (proj.cliente || 'Projeto vinculado');
+  document.getElementById('erp-proj-meta').textContent =
+    [proj.ambiente, proj.designer].filter(Boolean).join(' · ') || 'ERP';
+};
 
 function erpPushBom() {
-  try {
-    sketchup.erp_push_bom();
-    addLog('Enviando BOM para o ERP...');
-  } catch(e) { addLog('erp_push_bom indisponível'); }
+  sketchup.erp_push_bom();
 }
+
+window.setErpBom = function(result) {
+  const card = document.getElementById('erp-bom-card');
+  card.classList.add('visible');
+  document.getElementById('erp-bom-info').textContent =
+    `${result.total_pecas || 0} peças enviadas`;
+  document.getElementById('erp-bom-meta').textContent =
+    result.custo_estimado ? `Custo material estimado: R$ ${result.custo_estimado}` : 'BOM enviado com sucesso';
+};
 
 function erpCreateProposal() {
-  try {
-    sketchup.erp_create_proposal('');
-    addLog('Gerando proposta no ERP...');
-  } catch(e) { addLog('erp_create_proposal indisponível'); }
+  const amb = document.getElementById('erp-amb-input').value;
+  sketchup.erp_create_proposal(amb);
 }
 
-// Called by Ruby when project is successfully linked
-window.setErpProject = function(proj) {
-  _erpProject = typeof proj === 'string' ? JSON.parse(proj) : proj;
-  // Update UI
-  document.getElementById('erpProjectCard').style.display = '';
-  document.getElementById('erpProjNumero').textContent  = '#' + (_erpProject.numero || _erpProject.id);
-  document.getElementById('erpProjCliente').textContent = _erpProject.cliente  || '—';
-  document.getElementById('erpProjAmbiente').textContent = _erpProject.ambiente || '—';
-  // Show ERP action buttons
-  document.getElementById('btnErpBom').style.display     = '';
-  document.getElementById('btnErpProposta').style.display = '';
-  showToast('Projeto vinculado: ' + (_erpProject.cliente || _erpProject.numero), 'success');
+window.setErpProposal = function(result) {
+  showToast('Proposta gerada!', 'success');
 };
 
-// Called by Ruby after push_bom
-window.setErpBom = function(data) {
-  data = typeof data === 'string' ? JSON.parse(data) : data;
-  document.getElementById('erpCustoEst').textContent  = 'R$ ' + (parseFloat(data.custo_estimado||0).toFixed(2));
-  document.getElementById('erpTotalPecas').textContent = data.total_pecas || '—';
-  showToast('BOM enviado com sucesso', 'success');
+/* ══════════════════════════════════════════════════════
+   LOG BAR
+══════════════════════════════════════════════════════ */
+let toastTimer = null;
+let logOpen = false;
+
+function toggleLog() {
+  logOpen = !logOpen;
+  document.getElementById('log-bar').classList.toggle('open', logOpen);
+  document.getElementById('log-wrap').classList.toggle('expanded', logOpen);
+}
+
+window.addLog = function(msg) {
+  const el = document.getElementById('log-entries');
+  const ts = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  el.innerHTML += `<div style="color:var(--text-2)"><span style="color:var(--text-3)">${ts}</span> ${escHtml(msg)}</div>`;
+  el.scrollTop = el.scrollHeight;
+
+  const dot = document.getElementById('log-dot');
+  document.getElementById('log-msg').textContent = msg;
+  dot.classList.add('pulse');
+  setTimeout(() => dot.classList.remove('pulse'), 2000);
 };
 
-// Called by Ruby after create_proposal
-window.setErpProposal = function(data) {
-  data = typeof data === 'string' ? JSON.parse(data) : data;
-  addLog('Proposta gerada: ' + (data.numero||'') + ' — ' + (data.modulos_inseridos||0) + ' módulos');
-  showToast('Proposta criada no ERP!', 'success');
+window.showToast = function(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'visible ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
 };
 
-/* ── Edit Mode ─────────────────────────────────────── */
-// Called by EditTool.push_edit_state_to_panel via Ruby
-window._editModuleData = null;
+/* ══════════════════════════════════════════════════════
+   MACHINING & EXTRAS (preserved API)
+══════════════════════════════════════════════════════ */
+window.setModuleMachining = function(data) { /* handled by external dialog if open */ };
+window.onMachOpAdded = function(pid, ops) {};
+window.onMachOpRemoved = function(pid, ops) {};
 
-window.enterEditMode = function(data) {
-  const d = typeof data === 'string' ? JSON.parse(data) : data;
-  window._editModuleData = d;
-  // Switch to biblioteca tab so user can see fields
-  switchTab('model');
-  // Show edit overlay
-  const overlay = document.getElementById('editOverlay');
-  if (!overlay) return;
-  const params = d.params || {};
-  let fields = '';
-  Object.entries(params).forEach(([k, v]) => {
-    if (typeof v === 'number') {
-      fields += `
-        <div class="field">
-          <div class="field-label">${k}</div>
-          <div class="dim-input-wrap">
-            <input type="number" id="edit_${k}" value="${v}">
-            <span class="dim-unit">mm</span>
-          </div>
-        </div>`;
-    } else if (typeof v === 'string') {
-      fields += `
-        <div class="field">
-          <div class="field-label">${k}</div>
-          <input type="text" id="edit_${k}" value="${esc(v)}">
-        </div>`;
-    }
-  });
-  document.getElementById('editOverlayFields').innerHTML = fields ||
-    '<div style="color:var(--text-3);font-size:11px;">Nenhum parâmetro editável</div>';
-  document.getElementById('editOverlayTitle').textContent = 'Editando: ' + (d.type || 'módulo');
-  overlay.style.display = 'flex';
-  addLog('Modo edição ativo: ' + (d.type || 'módulo'));
-};
+/* ══════════════════════════════════════════════════════
+   UTILS
+══════════════════════════════════════════════════════ */
+function capitalize(s) {
+  if (!s) return '';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
-function confirmEdit() {
-  const d = window._editModuleData;
-  if (!d) return;
-  const params = d.params || {};
-  const newParams = {};
-  Object.keys(params).forEach(k => {
-    const el = document.getElementById('edit_' + k);
-    if (!el) return;
-    newParams[k] = el.type === 'number' ? parseFloat(el.value) : el.value;
-  });
-  try {
-    sketchup.apply_edit(JSON.stringify(newParams));
-    addLog('Edição confirmada');
-    showToast('Módulo atualizado', 'success');
-  } catch(e) {
-    addLog('Erro ao confirmar edição: ' + (e.message||e));
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ══════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════ */
+(function init() {
+  renderAggTypes();
+  // Request library on first open
+  if (typeof sketchup !== 'undefined') {
+    // Ruby will push version, summary, and library after load
   }
-  closeEditOverlay();
-}
-
-function cancelEdit() {
-  closeEditOverlay();
-  addLog('Edição cancelada');
-}
-
-function closeEditOverlay() {
-  const overlay = document.getElementById('editOverlay');
-  if (overlay) overlay.style.display = 'none';
-  window._editModuleData = null;
-}
-
-/* ── Init ──────────────────────────────────────────── */
-renderLib();
-addLog('Ornato Design carregado');
+})();
 </script>
 </body>
 </html>

@@ -8,21 +8,27 @@ require 'json'
 require 'base64'
 require 'net/http'
 require 'uri'
+require 'set'
 
 module Ornato
   module UI
     class DialogController
-      DIALOG_WIDTH       = 720
-      DIALOG_HEIGHT      = 600
-      MAIN_PANEL_WIDTH   = 420
-      MAIN_PANEL_HEIGHT  = 720
+      DIALOG_WIDTH          = 720
+      DIALOG_HEIGHT         = 600
+      MAIN_PANEL_WIDTH      = 420
+      MAIN_PANEL_HEIGHT     = 720
+      SHOP_CONFIG_WIDTH     = 520
+      SHOP_CONFIG_HEIGHT    = 640
 
       attr_reader :dialog
 
       def initialize
-        @dialog      = nil
-        @main_panel  = nil
-        @commands    = {}
+        @dialog        = nil
+        @main_panel    = nil
+        @shop_config   = nil
+        @mp_sel_timer  = nil
+        @mp_last_sel_id = nil
+        @commands      = {}
         register_commands
       end
 
@@ -117,17 +123,94 @@ module Ornato
 
         @main_panel.show
 
-        # Push version + initial model summary after load
+        # Push version + model summary + library after load
         ::UI.start_timer(0.5, false) do
           next unless @main_panel && @main_panel.visible?
           version = defined?(PLUGIN_VERSION) ? PLUGIN_VERSION : '0.1.0'
           @main_panel.execute_script("typeof setVersion==='function'&&setVersion('#{version}')")
           push_model_summary_to_panel
+          push_library_to_panel
+          push_project_data_to_panel
         end
+
+        # Start selection polling for the main panel
+        setup_main_panel_selection_observer
       end
 
       def close_main_panel
+        cancel_main_panel_selection_timer
         @main_panel.close if @main_panel && @main_panel.visible?
+      end
+
+      # ── ShopConfig Panel ───────────────────────────────
+      # Floating utility window for global hardware settings.
+
+      def show_shop_config_panel
+        if @shop_config && @shop_config.visible?
+          @shop_config.bring_to_front
+          return
+        end
+
+        @shop_config = ::UI::HtmlDialog.new(
+          dialog_title:    'Configurações da Marcenaria',
+          preferences_key: 'ornato_shop_config',
+          width:           SHOP_CONFIG_WIDTH,
+          height:          SHOP_CONFIG_HEIGHT,
+          min_width:       420,
+          min_height:      500,
+          style:           ::UI::HtmlDialog::STYLE_UTILITY
+        )
+
+        html_path = File.join(PLUGIN_DIR, 'ornato_sketchup', 'ui', 'shop_config_panel.html')
+        @shop_config.set_file(html_path)
+
+        # ── Callbacks para o painel de config ──────────
+        @shop_config.add_action_callback('get_shop_config') do |_ctx|
+          begin
+            json = Hardware::ShopConfig.to_ui_json
+            @shop_config.execute_script("window.setShopConfig(#{json})")
+          rescue => e
+            puts "Ornato ShopConfig get ERRO: #{e.message}"
+          end
+        end
+
+        @shop_config.add_action_callback('save_shop_config') do |_ctx, config_json|
+          begin
+            config = JSON.parse(config_json.to_s)
+            Hardware::ShopConfig.save(config)
+            panel_status('Configurações da marcenaria salvas')
+          rescue => e
+            puts "Ornato ShopConfig save ERRO: #{e.message}"
+          end
+        end
+
+        @shop_config.add_action_callback('reset_shop_config') do |_ctx|
+          begin
+            Hardware::ShopConfig.reset!
+            json = Hardware::ShopConfig.to_ui_json
+            @shop_config.execute_script("window.setShopConfig(#{json})")
+            panel_status('Configurações resetadas para padrão')
+          rescue => e
+            puts "Ornato ShopConfig reset ERRO: #{e.message}"
+          end
+        end
+
+        @shop_config.show
+
+        # Push current config after the panel loads
+        ::UI.start_timer(0.4, false) do
+          next unless @shop_config && @shop_config.visible?
+          begin
+            json = Hardware::ShopConfig.to_ui_json
+            @shop_config.execute_script("window.setShopConfig(#{json})")
+          rescue => e
+            puts "Ornato ShopConfig init ERRO: #{e.message}"
+          end
+        end
+      end
+
+      def close_shop_config_panel
+        @shop_config.close if @shop_config && @shop_config.visible?
       end
 
       # ── Panel helpers (used by PlacementTool) ─────────
@@ -440,6 +523,402 @@ module Ornato
           @current_edit_tool = nil
           Sketchup.active_model.select_tool(nil)
         end
+
+        # ── Library: carregar módulos da biblioteca ───────────
+        @main_panel.add_action_callback('load_library') do |_ctx|
+          push_library_to_panel
+        end
+
+        # ── Projeto: salvar dados do projeto no modelo ─────────
+        @main_panel.add_action_callback('save_project_data') do |_ctx, data_json|
+          begin
+            data = JSON.parse(data_json.to_s)
+            model = Sketchup.active_model
+            if model
+              data.each { |k, v| model.set_attribute('Ornato_Project', k.to_s, v.to_s) }
+              panel_status('Projeto salvo')
+            end
+          rescue => e
+            puts "Ornato save_project_data ERRO: #{e.message}"
+          end
+        end
+
+        # ── Agregados: aplicar ao módulo selecionado ───────────
+        @main_panel.add_action_callback('apply_agregados') do |_ctx, data_json|
+          begin
+            data      = JSON.parse(data_json.to_s)
+            entity_id = data['entity_id'].to_i
+            agregados = data['agregados'] || []
+            group     = find_group_by_id(entity_id)
+            if group
+              group.set_attribute('Ornato', 'agregados', JSON.generate(agregados))
+              panel_status("#{agregados.length} agregado(s) salvos no módulo")
+            else
+              panel_status('Módulo não encontrado')
+            end
+          rescue => e
+            puts "Ornato apply_agregados ERRO: #{e.message}"
+          end
+        end
+
+        # ── Materiais: aplicar overrides ao módulo selecionado ─
+        @main_panel.add_action_callback('apply_materials') do |_ctx, data_json|
+          begin
+            data      = JSON.parse(data_json.to_s)
+            entity_id = data['entity_id'].to_i
+            group     = find_group_by_id(entity_id)
+            unless group
+              panel_status('Módulo não encontrado'); next
+            end
+
+            # Store full material override as JSON attribute
+            group.set_attribute('Ornato', 'materials_override', JSON.generate(data))
+
+            # Also update per-piece material where applicable
+            mat_carcaca = data.dig('carcaca', 'chapa').to_s
+            mat_frente  = data.dig('frente',  'chapa').to_s
+            mat_fundo   = data.dig('fundo',   'chapa').to_s
+
+            model = Sketchup.active_model
+            mats  = model.materials
+
+            apply_mat = ->(ent, mat_name) {
+              next if mat_name.empty?
+              m = mats[mat_name] || mats.add(mat_name)
+              ent.material = m if ent.respond_to?(:material=)
+            }
+
+            group.entities.each do |ent|
+              next unless ent.is_a?(Sketchup::Group) || ent.is_a?(Sketchup::ComponentInstance)
+              role = (ent.get_attribute('Ornato', 'role') || 'generic').to_s
+              case role
+              when /porta|door|frente|front/
+                apply_mat.call(ent, mat_frente)
+              when /fundo|back/
+                apply_mat.call(ent, mat_fundo)
+              else
+                apply_mat.call(ent, mat_carcaca)
+              end
+            end
+
+            panel_status('Materiais aplicados ao módulo')
+          rescue => e
+            puts "Ornato apply_materials ERRO: #{e.message}"
+          end
+        end
+
+        # ── Shop Config: abrir painel dedicado ───────────────
+        @main_panel.add_action_callback('open_shop_config') do |_ctx|
+          show_shop_config_panel
+        end
+
+        # ── Shop Config: load / save (inline — legado) ────────
+        @main_panel.add_action_callback('get_shop_config') do |_ctx|
+          begin
+            json = Hardware::ShopConfig.to_ui_json
+            @main_panel.execute_script("window.setShopConfig(#{json})")
+          rescue => e
+            puts "Ornato get_shop_config ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('save_shop_config') do |_ctx, config_json|
+          begin
+            config = JSON.parse(config_json.to_s)
+            Hardware::ShopConfig.save(config)
+            panel_status('Configuração da marcenaria salva')
+            showToast = "window.showToast('Configuração salva', 'success')"
+            @main_panel.execute_script(showToast)
+          rescue => e
+            puts "Ornato save_shop_config ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('reset_shop_config') do |_ctx|
+          Hardware::ShopConfig.reset!
+          json = Hardware::ShopConfig.to_ui_json
+          @main_panel.execute_script("window.setShopConfig(#{json})")
+          panel_status('Config resetada para padrão')
+        end
+
+        # ── Machining: get piece data for drawer ───────────────
+        @main_panel.add_action_callback('get_module_machining') do |_ctx, opts_json|
+          begin
+            opts       = JSON.parse(opts_json.to_s)
+            entity_id  = opts['entity_id'].to_i
+            group      = find_group_by_id(entity_id)
+            unless group
+              @main_panel.execute_script("window.setModuleMachining(#{JSON.generate({ pieces: [] })})")
+              next
+            end
+
+            pieces_data = build_machining_pieces_data(group)
+            @main_panel.execute_script(
+              "window.setModuleMachining(#{JSON.generate({ pieces: pieces_data })})"
+            )
+          rescue => e
+            puts "Ornato get_module_machining ERRO: #{e.message}"
+          end
+        end
+
+        # ── Machining: add extra op to a piece ────────────────
+        @main_panel.add_action_callback('add_machining_op') do |_ctx, opts_json|
+          begin
+            opts      = JSON.parse(opts_json.to_s)
+            entity_id = opts['entity_id'].to_i
+            piece_id  = opts['piece_id'].to_s
+            op        = opts['op'] || {}
+
+            group = find_group_by_id(entity_id)
+            next unless group
+
+            piece_ent = find_piece_by_persistent_id(group, piece_id)
+            next unless piece_ent
+
+            existing = JSON.parse(piece_ent.get_attribute('Ornato', 'usinagens_extra', '[]') || '[]')
+            existing << op
+            piece_ent.set_attribute('Ornato', 'usinagens_extra', JSON.generate(existing))
+
+            @main_panel.execute_script(
+              "window.onMachOpAdded('#{piece_id}', #{JSON.generate(existing)})"
+            )
+            panel_status("Usinagem '#{op['tipo']}' adicionada")
+          rescue => e
+            puts "Ornato add_machining_op ERRO: #{e.message}"
+          end
+        end
+
+        # ── Machining: remove extra op from a piece ───────────
+        @main_panel.add_action_callback('remove_machining_op') do |_ctx, opts_json|
+          begin
+            opts      = JSON.parse(opts_json.to_s)
+            entity_id = opts['entity_id'].to_i
+            piece_id  = opts['piece_id'].to_s
+            op_index  = opts['op_index'].to_i
+
+            group = find_group_by_id(entity_id)
+            next unless group
+
+            piece_ent = find_piece_by_persistent_id(group, piece_id)
+            next unless piece_ent
+
+            existing = JSON.parse(piece_ent.get_attribute('Ornato', 'usinagens_extra', '[]') || '[]')
+            existing.delete_at(op_index)
+            piece_ent.set_attribute('Ornato', 'usinagens_extra', JSON.generate(existing))
+
+            @main_panel.execute_script(
+              "window.onMachOpRemoved('#{piece_id}', #{JSON.generate(existing)})"
+            )
+            panel_status('Usinagem removida')
+          rescue => e
+            puts "Ornato remove_machining_op ERRO: #{e.message}"
+          end
+        end
+      end
+
+      # ── Machining helper: build pieces data array ──────────
+      # Uses MachiningInterpreter (declarative, role-based) when the
+      # module has stored ferragens_auto. Falls back to hardware_tags
+      # for older groups that don't have ferragens_auto.
+      def build_machining_pieces_data(module_group)
+        # ── 1. Collect piece entity data ──────────────────────────
+        raw_pieces = []
+
+        module_group.entities.each do |ent|
+          next unless ent.is_a?(Sketchup::Group) || ent.is_a?(Sketchup::ComponentInstance)
+
+          bb = ent.bounds
+          next if bb.empty?
+
+          role_sym = if defined?(Core::RoleNormalizer)
+            Core::RoleNormalizer.from_entity(ent)
+          else
+            raw = ent.get_attribute('Ornato', 'role', nil) ||
+                  ent.get_attribute('ornato', 'role', nil) || 'generic'
+            raw.to_sym
+          end
+
+          pid = ent.get_attribute('Ornato', 'persistent_id', nil) ||
+                "piece_#{ent.entityID}"
+
+          # Dimensions — prefer stored attribute, fallback to bbox
+          dims_raw = ent.get_attribute('Ornato', 'dimensions', nil)
+          dims = if dims_raw
+            begin JSON.parse(dims_raw) rescue {} end
+          else
+            sorted = [bb.width.to_mm, bb.height.to_mm, bb.depth.to_mm].sort
+            { 'largura' => sorted[2].round(1), 'altura' => sorted[1].round(1), 'espessura' => sorted[0].round(1) }
+          end
+
+          # Origin (bounding box min in mm)
+          origin = [bb.min.x.to_mm, bb.min.y.to_mm, bb.min.z.to_mm]
+
+          # Extra ops stored by user
+          extra_ops = []
+          extra_raw = ent.get_attribute('Ornato', 'usinagens_extra', nil)
+          if extra_raw
+            begin; extra_ops = JSON.parse(extra_raw); rescue; end
+          end
+
+          compatible = if defined?(Core::RoleNormalizer)
+            Core::RoleNormalizer.compatible_extras(role_sym)
+          else
+            []
+          end
+
+          raw_pieces << {
+            entity:            ent,
+            id:                pid,
+            name:              ent.name.empty? ? role_sym.to_s.capitalize : ent.name,
+            role:              role_sym,
+            dims:              dims,        # { 'largura', 'altura', 'espessura' }
+            origin:            origin,
+            extra_ops:         extra_ops,
+            compatible_extras: compatible,
+          }
+        end
+
+        return [] if raw_pieces.empty?
+
+        # ── 2. Run MachiningInterpreter if ferragens_auto is stored ──
+        interpreter_workers = {}
+
+        ferragens_raw = module_group.get_attribute('Ornato', 'ferragens_auto', nil)
+        params_raw    = module_group.get_attribute('Ornato', 'ferragens_auto_params', nil) ||
+                        module_group.get_attribute('Ornato', 'params', nil)
+
+        if ferragens_raw && defined?(Machining::MachiningInterpreter)
+          begin
+            ferragens_auto = JSON.parse(ferragens_raw)
+            params         = params_raw ? JSON.parse(params_raw) : {}
+            shop_config    = if defined?(Hardware::ShopConfig)
+              Hardware::ShopConfig.for_group(module_group)
+            else
+              {}
+            end
+
+            # Build pieces_data format for interpreter ({ id:, role:, dims: {w,h,t}, origin: })
+            pieces_for_interp = raw_pieces.map do |rp|
+              d = rp[:dims]
+              {
+                id:     rp[:id],
+                role:   rp[:role],
+                origin: rp[:origin],
+                dims:   {
+                  w: (d['largura']   || d[:largura]   || 0).to_f,
+                  h: (d['altura']    || d[:altura]    || 0).to_f,
+                  t: (d['espessura'] || d[:espessura] || 18).to_f,
+                },
+              }
+            end
+
+            interpreter = Machining::MachiningInterpreter.new(shop_config, params)
+            interpreter_workers = interpreter.interpret(ferragens_auto, pieces_for_interp)
+          rescue => e
+            puts "Ornato build_machining_pieces_data: interpreter error: #{e.message}"
+            puts e.backtrace.first(3).join("\n")
+          end
+        end
+
+        # ── 3. Assemble final pieces array for UI ─────────────────
+        raw_pieces.map do |rp|
+          pid = rp[:id]
+
+          # Structural ops: from MachiningInterpreter output
+          struct_ops = if interpreter_workers.key?(pid)
+            derive_struct_op_labels(interpreter_workers[pid])
+          else
+            # Fallback: read from hardware_tags attribute (legacy)
+            hardware_tags_to_op_labels(rp[:entity], rp[:role].to_s)
+          end
+
+          {
+            id:                pid,
+            name:              rp[:name],
+            role:              rp[:role].to_s,
+            dims:              rp[:dims],
+            structural_ops:    struct_ops,
+            extra_ops:         rp[:extra_ops],
+            compatible_extras: rp[:compatible_extras],
+          }
+        end
+      end
+
+      # Convert MachiningInterpreter workers hash → distinct display labels
+      def derive_struct_op_labels(workers)
+        labels = Set.new
+
+        workers.each_value do |op|
+          next unless op.is_a?(Hash)
+
+          desc  = (op['description'] || '').downcase
+          tool  = (op['tool_code']   || '').downcase
+          cat   = (op['category']    || '').downcase
+
+          if tool.include?('35mm') || desc.include?('dobradica') || desc.include?('cup boring')
+            labels << 'Dobradiça'
+          elsif desc.include?('sistema 32') || desc.include?('system 32')
+            labels << 'Sistema 32'
+          elsif desc.include?('minifix')
+            labels << 'Minifix'
+          elsif desc.include?('confirmat')
+            labels << 'Confirmat'
+          elsif desc.include?('cavilha') || desc.include?('dowel')
+            labels << 'Cavilha'
+          elsif desc.include?('puxador') || desc.include?('handle')
+            labels << 'Puxador'
+          elsif desc.include?('corredica') || desc.include?('slide')
+            labels << 'Corrediça'
+          elsif desc.include?('fundo') || cat == 'transfer_vertical_saw_cut' || cat == 'transfer_horizontal_saw_cut'
+            labels << 'Rasgo Fundo'
+          elsif desc.include?('led')
+            labels << 'Canal LED'
+          elsif desc.include?('pistao') || desc.include?('gas')
+            labels << 'Pistão'
+          elsif desc.include?('passagem')
+            labels << 'Passagem'
+          end
+        end
+
+        labels.to_a
+      end
+
+      # Legacy fallback: derive display labels from hardware_tags attribute
+      def hardware_tags_to_op_labels(ent, role)
+        return [] unless ent
+        labels = []
+
+        tags_raw = ent.get_attribute('Ornato', 'hardware_tags', nil)
+        return labels unless tags_raw
+
+        begin
+          tags = JSON.parse(tags_raw)
+          labels << 'Sistema 32'  if tags['system32']
+          labels << 'Rasgo Fundo' if tags['back_groove']
+          labels << 'Minifix'     if tags['joints'] == 'minifix'
+          labels << 'Confirmat'   if tags['joints'] == 'confirmat'
+          labels << 'Cavilha'     if tags['joints'] == 'dowel'
+          labels << 'Dobradiça'   if tags['hinges']
+          labels << 'Puxador'     if tags['handle']
+          labels << 'Corrediça'   if tags['drawer_slide']
+        rescue; end
+
+        labels
+      end
+
+      def find_group_by_id(entity_id)
+        Sketchup.active_model.active_entities.find do |e|
+          (e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)) &&
+            e.entityID == entity_id
+        end
+      end
+
+      def find_piece_by_persistent_id(module_group, pid)
+        module_group.entities.find do |e|
+          next false unless e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)
+          pers = e.get_attribute('Ornato', 'persistent_id', nil) || "piece_#{e.entityID}"
+          pers == pid
+        end
       end
 
       # Collect all Ornato module groups
@@ -452,36 +931,114 @@ module Ornato
         end
       end
 
-      # Push model stats + module list to the panel's Modelo tab
+      # Push library modules to the panel
+      def push_library_to_panel
+        return unless @main_panel && @main_panel.visible?
+
+        bib_dir = File.join(PLUGIN_DIR, 'biblioteca', 'moveis')
+        modules = []
+
+        if File.directory?(bib_dir)
+          Dir.glob(File.join(bib_dir, '**', '*.json')).sort.each do |f|
+            begin
+              raw  = JSON.parse(File.read(f, encoding: 'utf-8'))
+              id   = raw['id'] || File.basename(f, '.json')
+              modules << {
+                'id'         => id,
+                'nome'       => raw['nome'] || id,
+                'categoria'  => raw['categoria'] || 'geral',
+                'descricao'  => raw['descricao'] || '',
+                'tipo_ruby'  => raw['tipo_ruby'] || id,
+                'parametros' => raw['parametros'] || {},
+              }
+            rescue => e
+              puts "Ornato push_library: skip #{f}: #{e.message}"
+            end
+          end
+        end
+
+        # Also try to enrich from API (non-blocking, best-effort)
+        begin
+          config  = Config.load
+          api_url = config.dig(:api, :url) || 'http://localhost:3001'
+          uri     = URI("#{api_url}/api/plugin/biblioteca/moveis")
+          http    = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = (uri.scheme == 'https')
+          http.open_timeout = 2
+          http.read_timeout = 3
+          req     = Net::HTTP::Get.new(uri.request_uri)
+          add_auth_header(req)
+          resp    = http.request(req)
+          if resp.code.to_i == 200
+            api_mods = JSON.parse(resp.body)
+            # Merge: API items take priority over local by id
+            local_ids = modules.map { |m| m['id'] }.to_set
+            api_mods.each do |m|
+              next if local_ids.include?(m['id'] || m[:id])
+              modules << {
+                'id'         => (m['id'] || m[:id]).to_s,
+                'nome'       => m['nome'] || m[:nome] || m['id'],
+                'categoria'  => m['categoria'] || m[:categoria] || 'geral',
+                'descricao'  => m['descricao'] || m[:descricao] || '',
+                'tipo_ruby'  => m['tipo_ruby'] || m[:tipo_ruby] || m['id'],
+                'parametros' => m['parametros'] || m[:parametros] || {},
+              }
+            end
+          end
+        rescue
+          # API unavailable — use local only
+        end
+
+        cats = modules.map { |m| m['categoria'] }.uniq.compact.map do |c|
+          { 'id' => c, 'label' => cat_label(c) }
+        end
+
+        json = JSON.generate({ modules: modules, categories: cats })
+        @main_panel.execute_script("typeof setLibraryModules==='function'&&setLibraryModules(#{json})")
+      rescue => e
+        puts "Ornato push_library_to_panel ERRO: #{e.message}"
+      end
+
+      # Push model stats + module list to the panel's Exportar tab
       def push_model_summary_to_panel
         return unless @main_panel && @main_panel.visible?
         groups = collect_ornato_groups_from_model
-        total_pieces = groups.sum do |g|
-          g.entities.count { |e| e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance) }
-        end
+        total_pieces = 0
+        total_area   = 0.0
 
         module_list = groups.map do |g|
           params = begin; JSON.parse(g.get_attribute('Ornato', 'params') || '{}', symbolize_names: true); rescue; {}; end
+          pieces = g.entities.select { |e| e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance) }
+          total_pieces += pieces.length
+
+          # Rough sheet area: sum of largest face on each piece (mm²)
+          pieces.each do |p|
+            bb = p.bounds
+            w = bb.width.to_mm; h = bb.height.to_mm; d = bb.depth.to_mm
+            areas = [w * d, w * h, d * h]
+            total_area += (areas.max || 0)
+          end
+
           {
-            id:           g.entityID.to_s,
-            label:        g.respond_to?(:name) ? g.name : (g.get_attribute('Ornato', 'module_type') || 'Modulo'),
-            type:         g.get_attribute('Ornato', 'module_type') || '',
-            largura:      params[:largura],
-            altura:       params[:altura],
-            profundidade: params[:profundidade],
-            material:     params[:material],
+            entity_id:   g.entityID.to_s,
+            name:        g.respond_to?(:name) ? g.name : (g.get_attribute('Ornato', 'module_type') || 'Modulo'),
+            module_type: g.get_attribute('Ornato', 'module_type') || '',
+            categoria:   params[:categoria] || '',
+            pieces:      pieces.length,
+            largura:     params[:largura],
+            altura:      params[:altura],
+            profundidade:params[:profundidade],
+            material:    params[:material],
           }
         end
 
         data = {
-          modules:     groups.length,
-          pieces:      total_pieces,
-          joints:      0,
-          materials:   module_list.map { |m| m[:material] }.uniq.compact.length,
-          module_list: module_list,
+          modules:        groups.length,
+          pieces:         total_pieces,
+          sheet_area_mm2: total_area.round(0),         # already in mm²
+          module_list:    module_list,
         }
-        json = data.to_json
-        @main_panel.execute_script("typeof updateSummary==='function'&&updateSummary(#{json})")
+        @main_panel.execute_script("typeof updateSummary==='function'&&updateSummary(#{data.to_json})")
       rescue => e
         puts "Ornato: push_model_summary_to_panel error: #{e.message}"
       end
@@ -954,6 +1511,97 @@ module Ornato
           end
         end
         result
+      end
+
+      # ── Main Panel selection observer ─────────────────────
+      # Polls SketchUp selection every second; fires JS onEntitySelected /
+      # onSelectionCleared in the main panel.
+
+      def setup_main_panel_selection_observer
+        cancel_main_panel_selection_timer
+        @mp_last_sel_id = nil
+
+        @mp_sel_timer = ::UI.start_timer(1.0, true) do
+          unless @main_panel && @main_panel.visible?
+            cancel_main_panel_selection_timer
+            next
+          end
+
+          model = Sketchup.active_model
+          next unless model
+
+          sel = model.selection.first
+          if sel && (sel.is_a?(Sketchup::Group) || sel.is_a?(Sketchup::ComponentInstance)) &&
+             (sel.get_attribute('Ornato', 'module_type') || sel.get_attribute('Ornato', 'params'))
+
+            sel_id = sel.entityID
+            if sel_id != @mp_last_sel_id
+              @mp_last_sel_id = sel_id
+              push_entity_selected_to_panel(sel)
+            end
+
+          else
+            if @mp_last_sel_id
+              @mp_last_sel_id = nil
+              @main_panel.execute_script(
+                "typeof onSelectionCleared==='function'&&onSelectionCleared()"
+              )
+            end
+          end
+        end
+      end
+
+      def cancel_main_panel_selection_timer
+        if @mp_sel_timer
+          ::UI.stop_timer(@mp_sel_timer)
+          @mp_sel_timer = nil
+        end
+      end
+
+      def push_entity_selected_to_panel(group)
+        return unless @main_panel && @main_panel.visible?
+
+        params = begin; JSON.parse(group.get_attribute('Ornato', 'params') || '{}', symbolize_names: true); rescue; {}; end
+        bb = group.bounds
+
+        data = {
+          entity_id: group.entityID.to_s,
+          name:      group.respond_to?(:name) ? group.name : 'Módulo',
+          module_type: group.get_attribute('Ornato', 'module_type') || '',
+          dimensions: {
+            largura:      (params[:largura]      || bb.width.to_mm).round(1),
+            altura:       (params[:altura]       || bb.height.to_mm).round(1),
+            profundidade: (params[:profundidade] || bb.depth.to_mm).round(1),
+          },
+          agregados:  group.get_attribute('Ornato', 'agregados', nil),
+          materials:  group.get_attribute('Ornato', 'materials_override', nil),
+        }
+
+        json = JSON.generate(data)
+        @main_panel.execute_script(
+          "typeof onEntitySelected==='function'&&onEntitySelected(#{json})"
+        )
+      rescue => e
+        puts "Ornato push_entity_selected_to_panel ERRO: #{e.message}"
+      end
+
+      # Push saved project metadata back to the panel on open
+      def push_project_data_to_panel
+        return unless @main_panel && @main_panel.visible?
+        model = Sketchup.active_model
+        return unless model
+
+        keys = %w[cliente tel email nome ambiente designer material espessura fita]
+        data = {}
+        keys.each { |k| v = model.get_attribute('Ornato_Project', k); data[k] = v if v }
+        return if data.empty?
+
+        json = JSON.generate(data)
+        @main_panel.execute_script(
+          "typeof window.loadProjectData==='function'&&window.loadProjectData(#{json})"
+        )
+      rescue => e
+        puts "Ornato push_project_data_to_panel ERRO: #{e.message}"
       end
 
       def cancel_selection_timer

@@ -43,17 +43,48 @@ module Ornato
         entities.each do |entity|
           next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
 
-          # Verificar se e um modulo (grupo pai com sub-grupos) ou peca (folha)
-          children = get_children(entity)
-          has_sub_groups = children.any? { |c| c.is_a?(Sketchup::Group) || c.is_a?(Sketchup::ComponentInstance) }
+          # ── PieceStamper: verificação primária de tipo ────────────
+          # Peças e módulos explicitamente carimbados têm prioridade absoluta.
+          # Objetos non-furniture (ferragem 3D, decoração, parede) são ignorados.
+          ornato_tipo = begin; entity.get_attribute('Ornato', 'tipo'); rescue; nil; end
 
-          if has_sub_groups && depth < 2
-            # E um modulo (armario, gaveteiro, etc)
+          case ornato_tipo
+          when 'peca'
+            # Marcada explicitamente como peça de corte → dados do atributo
+            piece = build_piece_info(entity, parent_module)
+            if piece && piece[:is_panel]
+              pieces << piece
+              materials << piece[:material_code] if piece[:material_code]
+            end
+            next
+
+          when 'modulo'
+            # Marcada explicitamente como módulo → recurse
+            children = get_children(entity)
             mod = build_module_info(entity, parent_module)
             modules << mod
-            traverse_entities(children, modules, pieces, materials, parent_module: mod, depth: depth + 1)
+            traverse_entities(children, modules, pieces, materials,
+                              parent_module: mod, depth: depth + 1)
+            next
+
+          when 'ferragem', 'ambiente', 'decoracao'
+            next  # ignorar completamente — não é peça de marcenaria
+
+          # when nil → sem stamp, usar heurística geométrica (retrocompat)
+          end
+
+          # ── Fallback geométrico (modelos sem stamp) ────────────────
+          children = get_children(entity)
+          has_sub_groups = children.any? { |c|
+            c.is_a?(Sketchup::Group) || c.is_a?(Sketchup::ComponentInstance)
+          }
+
+          if has_sub_groups && depth < 2
+            mod = build_module_info(entity, parent_module)
+            modules << mod
+            traverse_entities(children, modules, pieces, materials,
+                              parent_module: mod, depth: depth + 1)
           else
-            # E uma peca (lateral, base, etc)
             piece = build_piece_info(entity, parent_module)
             if piece && piece[:is_panel]
               pieces << piece
@@ -87,43 +118,71 @@ module Ornato
       end
 
       def build_piece_info(entity, parent_module)
+        # ── PieceStamper-first: atributo explícito tem precedência ──
+        begin
+          if Library::PieceStamper.piece?(entity)
+            attrs = Library::PieceStamper.read(entity)
+            dims  = Library::PieceStamper.dimensions(entity)
+            return nil if dims.empty? || dims[:comprimento].to_f <= 0
+
+            return {
+              group:          entity,
+              name:           entity.name.to_s,
+              persistent_id:  entity.entityID.to_s,
+              module_name:    parent_module ? parent_module[:name] : 'Avulso',
+              module_group:   parent_module ? parent_module[:group] : nil,
+              role:           attrs[:role],
+              comprimento:    dims[:comprimento],
+              largura:        dims[:largura],
+              espessura:      dims[:espessura],
+              material_name:  attrs[:material],
+              material_code:  attrs[:material],
+              grain:          detect_grain(entity, entity.material),
+              edges:          attrs[:bordas],
+              fitas:          attrs[:fitas],
+              bounds:         entity.bounds,
+              transformation: entity.transformation,
+              is_panel:       true,
+              stamped:        true,
+            }
+          end
+        rescue => e
+          puts "Ornato ModelAnalyzer: erro ao ler stamp — #{e.message}"
+        end
+
+        # ── Fallback geométrico (retrocompatibilidade) ────────────
         bb = entity.bounds
         dims = [bb.width.to_mm, bb.height.to_mm, bb.depth.to_mm].sort
 
-        # Uma peca de marcenaria: uma dimensao << as outras (espessura)
         espessura = dims[0]
-        return nil if espessura < 2 || espessura > 50 # nao e chapa
+        return nil if espessura < 2 || espessura > 50
 
         largura = dims[1]
         comprimento = dims[2]
 
-        # Detectar material
         material = detect_material(entity)
         material_code = material ? MaterialMapper.map(material.display_name) : nil
-
-        # Detectar bordas expostas
         edges = EdgeBanding.detect(entity, parent_module)
-
-        # Inferir funcao da peca pela posicao e proporcoes
         role = infer_role(entity, parent_module, comprimento, largura, espessura)
 
         {
-          group: entity,
-          name: get_entity_name(entity),
-          persistent_id: generate_persistent_id(entity),
-          module_name: parent_module ? parent_module[:name] : 'Avulso',
-          module_group: parent_module ? parent_module[:group] : nil,
-          role: role,
-          comprimento: comprimento.round(1),
-          largura: largura.round(1),
-          espessura: espessura.round(1),
-          material_name: material&.display_name,
-          material_code: material_code,
-          grain: detect_grain(entity, material),
-          edges: edges,
-          bounds: entity.bounds,
+          group:          entity,
+          name:           get_entity_name(entity),
+          persistent_id:  generate_persistent_id(entity),
+          module_name:    parent_module ? parent_module[:name] : 'Avulso',
+          module_group:   parent_module ? parent_module[:group] : nil,
+          role:           role,
+          comprimento:    comprimento.round(1),
+          largura:        largura.round(1),
+          espessura:      espessura.round(1),
+          material_name:  material&.display_name,
+          material_code:  material_code,
+          grain:          detect_grain(entity, material),
+          edges:          edges,
+          bounds:         entity.bounds,
           transformation: entity.transformation,
-          is_panel: true,
+          is_panel:       true,
+          stamped:        false,
         }
       end
 
