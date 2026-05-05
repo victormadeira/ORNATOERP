@@ -387,6 +387,13 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         const matId = resolveMat(p.mat, mats);
         if (!matId) return;
         addPeca(p.nome, 'caixa', matId, p.calc, p.qtd || 1, p.fita || [], D);
+        // Custo de sangria para peças curvas (MDF sangrado / kerf bending)
+        if (p.curva?.ativa && p.curva.raio > 0 && p.curva.custoSangria > 0) {
+            const { w } = parseDimsFromExpr(p.calc, D); // comprimento do arco (1ª dimensão, mm)
+            const kerfSpacing = (3 * p.curva.raio) / 2; // espaçamento: kerf_width=3mm, remaining=2mm
+            const numKerfs = Math.ceil((w || 0) / kerfSpacing) * (p.qtd || 1);
+            custo += numKerfs * p.curva.custoSangria;
+        }
     });
 
     // ── 2. Tamponamentos (só se matExt definido) ────────────

@@ -511,13 +511,52 @@ function CaixaEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS }) {
                 {form.pecas.length === 0
                     ? <p className="text-xs text-center py-3" style={{ color: 'var(--text-muted)' }}>Nenhuma peça</p>
                     : form.pecas.map((p, i) => (
-                        <div key={p.id} className="grid gap-2 items-start mb-2 p-2 rounded border" style={{ borderColor: 'var(--border)', gridTemplateColumns: '1fr 1fr 3rem 1fr auto auto' }}>
-                            <div><label className={Z.lbl}>Nome</label><input value={p.nome} onChange={e => updPeca(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
-                            <div><label className={Z.lbl} title="Área da peça em mm². Ex: A*P = altura × profundidade">Fórmula (mm²)</label><FormulaInput value={p.calc} onChange={v => updPeca(i, 'calc', v)} vars={caixaVars} testVars={caixaTestVars} placeholder="A*P" suggestions={FORMULAS_CAIXA} /></div>
-                            <div><label className={Z.lbl}>Qtd</label><input type="number" min="1" max="10" value={p.qtd} onChange={e => updPeca(i, 'qtd', parseInt(e.target.value) || 1)} className={`${Z.inp} text-xs text-center`} /></div>
-                            <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{matOpts(p.mat).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
-                            <div><label className={Z.lbl}>Fita de Borda</label><FitaToggle value={p.fita} onChange={v => updPeca(i, 'fita', v)} /></div>
-                            <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
+                        <div key={p.id} className="mb-2 rounded border" style={{ borderColor: p.curva?.ativa ? 'var(--primary)' : 'var(--border)' }}>
+                            <div className="grid gap-2 items-start p-2" style={{ gridTemplateColumns: '1fr 1fr 3rem 1fr auto auto auto' }}>
+                                <div><label className={Z.lbl}>Nome</label><input value={p.nome} onChange={e => updPeca(i, 'nome', e.target.value)} className={`${Z.inp} text-xs`} /></div>
+                                <div><label className={Z.lbl} title="Área da peça em mm². Ex: A*P = altura × profundidade">Fórmula (mm²)</label><FormulaInput value={p.calc} onChange={v => updPeca(i, 'calc', v)} vars={caixaVars} testVars={caixaTestVars} placeholder="A*P" suggestions={FORMULAS_CAIXA} /></div>
+                                <div><label className={Z.lbl}>Qtd</label><input type="number" min="1" max="10" value={p.qtd} onChange={e => updPeca(i, 'qtd', parseInt(e.target.value) || 1)} className={`${Z.inp} text-xs text-center`} /></div>
+                                <div><label className={Z.lbl}>Material</label><select value={p.mat} onChange={e => updPeca(i, 'mat', e.target.value)} className={`${Z.inp} text-xs`}>{matOpts(p.mat).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+                                <div><label className={Z.lbl}>Fita de Borda</label><FitaToggle value={p.fita} onChange={v => updPeca(i, 'fita', v)} /></div>
+                                <div>
+                                    <label className={Z.lbl}>&nbsp;</label>
+                                    <button
+                                        onClick={() => updPeca(i, 'curva', { raio: 100, custoSangria: 2, ...p.curva, ativa: !p.curva?.ativa })}
+                                        title="Peça curva (MDF sangrado)"
+                                        className={`px-1.5 py-1 rounded text-sm transition-all ${p.curva?.ativa ? 'bg-amber-500/15' : 'opacity-25 hover:opacity-70'}`}
+                                        style={{ color: p.curva?.ativa ? '#f59e0b' : 'var(--text-muted)' }}
+                                    >⌒</button>
+                                </div>
+                                <div><label className={Z.lbl}>&nbsp;</label><button onClick={() => delPeca(i)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Excluir"><Trash2 size={14} /></button></div>
+                            </div>
+                            {p.curva?.ativa && (
+                                <div className="px-2 pb-2 pt-1.5 grid grid-cols-3 gap-2" style={{ borderTop: '1px dashed var(--border)' }}>
+                                    <div>
+                                        <label className={Z.lbl}>Raio da curva (mm)</label>
+                                        <input type="number" min="10" step="10" value={p.curva.raio ?? 100}
+                                            onChange={e => updPeca(i, 'curva', { ...p.curva, raio: parseFloat(e.target.value) || 100 })}
+                                            className={`${Z.inp} text-xs`} />
+                                    </div>
+                                    <div>
+                                        <label className={Z.lbl}>Custo/sangria (R$)</label>
+                                        <input type="number" min="0" step="0.5" value={p.curva.custoSangria ?? 2}
+                                            onChange={e => updPeca(i, 'curva', { ...p.curva, custoSangria: parseFloat(e.target.value) || 0 })}
+                                            className={`${Z.inp} text-xs`} />
+                                    </div>
+                                    <div>
+                                        <label className={Z.lbl}>Sangrias estimadas</label>
+                                        <div className="text-xs px-2 py-[7px] rounded font-mono" style={{ background: 'var(--bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                            {(() => {
+                                                const raio = p.curva.raio || 100;
+                                                const kerfSpacing = (3 * raio) / 2;
+                                                const arcLen = Math.max(caixaTestVars.L || 0, caixaTestVars.A || 0, caixaTestVars.P || 0);
+                                                const numK = arcLen > 0 && kerfSpacing > 0 ? Math.ceil(arcLen / kerfSpacing) : '—';
+                                                return `~${numK} (espaç. ${kerfSpacing.toFixed(0)}mm)`;
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
             </div>
