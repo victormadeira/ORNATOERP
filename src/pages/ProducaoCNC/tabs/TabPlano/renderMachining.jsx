@@ -308,8 +308,8 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
                             stroke={ghostColor} strokeWidth={1} strokeDasharray={ghostDash} />;
                     targetArr.push(wrapHover(circEl, tipData, px + p1.sx, py + p1.sy, r));
                 } else {
-                    const fillColor = face === 'bottom' ? '#7c3aed' : '#e11d48';
-                    const strokeColor = face === 'bottom' ? '#6d28d9' : '#be123c';
+                    const fillColor = face === 'bottom' ? '#0891b2' : '#e11d48';
+                    const strokeColor = face === 'bottom' ? '#0e7490' : '#be123c';
                     const circEl = <circle key={`h${k}`} cx={px + p1.sx} cy={py + p1.sy} r={r}
                             fill={fillColor} opacity={0.55}
                             stroke={strokeColor} strokeWidth={0.5} />;
@@ -879,31 +879,197 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
         if (onSelectPiece) onSelectPiece(pecaIdx, e.ctrlKey || e.metaKey);
     };
 
+    // ─── Recalcular Sobras handler (extracted for reuse in viz toolbar) ───
+    const handleRecalcSobras = () => {
+        const ref = chapa.refilo || 0;
+        const uW = chapa.comprimento - 2 * ref;
+        const uH = chapa.largura - 2 * ref;
+        const pecas = chapa.pecas || [];
+        if (pecas.length === 0) return;
+        const clipRect = (a, b) => {
+            if (a.x >= b.x + b.w || b.x >= a.x + a.w || a.y >= b.y + b.h || b.y >= a.y + a.h) return [a];
+            const result = [];
+            if (a.y < b.y) result.push({ x: a.x, y: a.y, w: a.w, h: b.y - a.y });
+            if (a.y + a.h > b.y + b.h) result.push({ x: a.x, y: b.y + b.h, w: a.w, h: (a.y + a.h) - (b.y + b.h) });
+            const oy1 = Math.max(a.y, b.y), oy2 = Math.min(a.y + a.h, b.y + b.h);
+            if (oy2 > oy1) {
+                if (a.x < b.x) result.push({ x: a.x, y: oy1, w: b.x - a.x, h: oy2 - oy1 });
+                if (a.x + a.w > b.x + b.w) result.push({ x: b.x + b.w, y: oy1, w: (a.x + a.w) - (b.x + b.w), h: oy2 - oy1 });
+            }
+            return result.filter(r => r.w > 1 && r.h > 1);
+        };
+        const xsSet = new Set([0, uW]);
+        const ysSet = new Set([0, uH]);
+        for (const p of pecas) {
+            xsSet.add(Math.max(0, Math.min(uW, p.x)));
+            xsSet.add(Math.max(0, Math.min(uW, p.x + p.w)));
+            ysSet.add(Math.max(0, Math.min(uH, p.y)));
+            ysSet.add(Math.max(0, Math.min(uH, p.y + p.h)));
+        }
+        const xs = [...xsSet].sort((a, b) => a - b);
+        const ys = [...ysSet].sort((a, b) => a - b);
+        const nx = xs.length - 1, ny = ys.length - 1;
+        if (nx <= 0 || ny <= 0) return;
+        const occ = Array.from({ length: nx }, () => Array(ny).fill(false));
+        for (const p of pecas) {
+            for (let ci = 0; ci < nx; ci++) {
+                if (xs[ci + 1] <= p.x + 0.5 || xs[ci] >= p.x + p.w - 0.5) continue;
+                for (let cj = 0; cj < ny; cj++) {
+                    if (ys[cj + 1] <= p.y + 0.5 || ys[cj] >= p.y + p.h - 0.5) continue;
+                    occ[ci][cj] = true;
+                }
+            }
+        }
+        const height = Array.from({ length: nx }, () => Array(ny).fill(0));
+        for (let ci = 0; ci < nx; ci++) {
+            for (let cj = 0; cj < ny; cj++) {
+                height[ci][cj] = occ[ci][cj] ? 0 : (cj > 0 ? height[ci][cj - 1] + 1 : 1);
+            }
+        }
+        const allRects = [];
+        for (let cj = 0; cj < ny; cj++) {
+            const stack = [];
+            for (let ci = 0; ci <= nx; ci++) {
+                const h = ci < nx ? height[ci][cj] : 0;
+                let start = ci;
+                while (stack.length && stack[stack.length - 1][1] > h) {
+                    const [sci, sh] = stack.pop();
+                    const rx = xs[sci], rw = (ci < xs.length ? xs[ci] : xs[xs.length - 1]) - rx;
+                    const ry = ys[cj - sh + 1], rh = ys[cj + 1] - ry;
+                    if (rw > 5 && rh > 5) allRects.push({ x: rx, y: ry, w: rw, h: rh, area: rw * rh });
+                    start = sci;
+                }
+                stack.push([start, h]);
+            }
+        }
+        const seen = new Set();
+        const uniqueRects = allRects.filter(r => {
+            const key = `${r.x.toFixed(1)}_${r.y.toFixed(1)}_${r.w.toFixed(1)}_${r.h.toFixed(1)}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        uniqueRects.sort((a, b) => b.area - a.area);
+        const minW = sobraMinW, minH = sobraMinH;
+        const isValid = (r) => { const s = Math.min(r.w, r.h), l = Math.max(r.w, r.h); return s >= minW && l >= minH; };
+        const selected = [];
+        let candidates = uniqueRects.filter(r => isValid(r));
+        for (let iter = 0; iter < 20 && candidates.length > 0; iter++) {
+            candidates.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+            const best = candidates.shift();
+            selected.push(best);
+            const nextCandidates = [];
+            for (const c of candidates) {
+                const clipped = clipRect(c, best);
+                for (const piece of clipped) {
+                    piece.area = piece.w * piece.h;
+                    if (isValid(piece)) nextCandidates.push(piece);
+                }
+            }
+            candidates = nextCandidates;
+        }
+        let rects = selected;
+        let merged = true;
+        while (merged) {
+            merged = false;
+            const next = [];
+            const skip = new Set();
+            for (let i = 0; i < rects.length; i++) {
+                if (skip.has(i)) continue;
+                let { x: rx, y: ry, w: rw, h: rh } = rects[i];
+                for (let j = i + 1; j < rects.length; j++) {
+                    if (skip.has(j)) continue;
+                    const o = rects[j];
+                    const T = 1;
+                    if (Math.abs(ry - o.y) < T && Math.abs(rh - o.h) < T && Math.abs(rx + rw - o.x) < T) { rw += o.w; skip.add(j); merged = true; }
+                    else if (Math.abs(ry - o.y) < T && Math.abs(rh - o.h) < T && Math.abs(o.x + o.w - rx) < T) { rx = o.x; rw += o.w; skip.add(j); merged = true; }
+                    else if (Math.abs(rx - o.x) < T && Math.abs(rw - o.w) < T && Math.abs(ry + rh - o.y) < T) { rh += o.h; skip.add(j); merged = true; }
+                    else if (Math.abs(rx - o.x) < T && Math.abs(rw - o.w) < T && Math.abs(o.y + o.h - ry) < T) { ry = o.y; rh += o.h; skip.add(j); merged = true; }
+                }
+                next.push({ x: rx, y: ry, w: rw, h: rh });
+            }
+            rects = next;
+        }
+        const remnants = rects
+            .filter(r => isValid(r))
+            .map(r => ({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) }));
+        if (onAdjust) {
+            onAdjust({ action: 'recalc_sobras', chapaIdx: idx, retalhos: remnants });
+        }
+    };
+
     return (
         <div className="glass-card p-4" ref={containerRef} style={{ position: 'relative' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-                <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Box size={15} />
-                    Chapa {idx + 1}: {chapa.material}
-                    <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>
-                        ({chapa.comprimento} x {chapa.largura} mm)
+            {/* ── Header 3-zone ── */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr auto 1fr',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 10,
+                paddingBottom: 10,
+                borderBottom: '1px solid var(--border)',
+            }}>
+                {/* LEFT — identity */}
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Box size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                            Chapa {idx + 1}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--border)', margin: '0 2px' }}>·</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {chapa.material}
+                        </span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, paddingLeft: 18 }}>
+                        {chapa.comprimento} × {chapa.largura} mm
+                        {chapa.is_retalho && (
+                            <span style={{
+                                marginLeft: 6, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                                padding: '1px 5px', borderRadius: 3,
+                                background: 'rgba(14,116,144,0.12)', color: '#0e7490',
+                                border: '1px solid rgba(14,116,144,0.3)',
+                            }}>RETALHO</span>
+                        )}
+                    </div>
+                </div>
+
+                {/* CENTER — stats */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+                    {/* Aproveitamento */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{
+                            fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
+                            color: chapa.aproveitamento >= 80 ? 'var(--primary)' : chapa.aproveitamento >= 60 ? 'var(--warning)' : 'var(--danger)',
+                        }}>
+                            {chapa.aproveitamento.toFixed(1)}%
+                        </span>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.2 }}>
+                            aprove-<br />itamento
+                        </span>
+                    </div>
+                    <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{chapa.pecas.length}</span> peças
                     </span>
-                </h4>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span className={tagClass} style={tagStyle(chapa.aproveitamento >= 80 ? '#2563eb' : chapa.aproveitamento >= 60 ? '#d97706' : '#dc2626')}>
-                        {chapa.aproveitamento.toFixed(1)}%
-                    </span>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{chapa.pecas.length} pç</span>
-                    {chapa.is_retalho && <span className={tagClass} style={tagStyle('#0e7490')}>RETALHO</span>}
                     {hasVeio && (
-                        <span className={tagClass} style={tagStyle('#7c3aed')}>
-                            ━ Com Veio
+                        <span style={{
+                            fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+                            background: 'rgba(14,116,144,0.10)', color: 'var(--info)',
+                            border: '1px solid rgba(14,116,144,0.25)',
+                        }}>
+                            com veio
                         </span>
                     )}
                     {/* Timer de corte */}
                     {timerInfo && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: timerInfo.running ? 'rgba(34,197,94,0.08)' : 'var(--bg-muted)', border: `1px solid ${timerInfo.running ? 'rgba(34,197,94,0.3)' : 'var(--border)'}` }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            padding: '3px 8px', borderRadius: 6,
+                            background: timerInfo.running ? 'rgba(34,197,94,0.08)' : 'var(--bg-muted)',
+                            border: `1px solid ${timerInfo.running ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+                        }}>
                             <Clock size={11} style={{ color: timerInfo.running ? '#22c55e' : 'var(--text-muted)' }} />
                             <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: timerInfo.running ? '#22c55e' : 'var(--text-primary)' }}>
                                 {timerInfo.formatTimer(timerInfo.elapsed)}
@@ -924,12 +1090,17 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                             )}
                         </div>
                     )}
+                </div>
+
+                {/* RIGHT — CTAs */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+                    {/* Secondary: Etiquetas + Folha */}
                     {onPrintLabel && (
                         <button onClick={() => onPrintLabel(idx)}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-                                background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                padding: '4px 10px', borderRadius: 5, fontSize: 10, fontWeight: 600,
+                                background: 'transparent', color: 'var(--text-secondary)',
                                 border: '1px solid var(--border)', cursor: 'pointer',
                             }}
                             title="Etiquetas desta chapa">
@@ -940,224 +1111,102 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                         <button onClick={() => onPrintFolha(idx)}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-                                background: 'var(--bg-muted)', color: 'var(--text-primary)',
+                                padding: '4px 10px', borderRadius: 5, fontSize: 10, fontWeight: 600,
+                                background: 'transparent', color: 'var(--text-secondary)',
                                 border: '1px solid var(--border)', cursor: 'pointer',
                             }}
                             title="Folha de Produção desta chapa">
                             <FileText size={11} /> Folha
                         </button>
                     )}
-                    {/* Recalcular Sobras — detecta espaço livre SEM sobreposição */}
-                    <button onClick={() => {
-                        const ref = chapa.refilo || 0;
-                        const uW = chapa.comprimento - 2 * ref;
-                        const uH = chapa.largura - 2 * ref;
-                        const pecas = chapa.pecas || [];
-                        if (pecas.length === 0) return;
-
-                        // ── Helper: recortar retângulo A removendo área de B ──
-                        const clipRect = (a, b) => {
-                            // Se não se tocam, A fica inteiro
-                            if (a.x >= b.x + b.w || b.x >= a.x + a.w || a.y >= b.y + b.h || b.y >= a.y + a.h) return [a];
-                            const result = [];
-                            // Faixa acima de B
-                            if (a.y < b.y) result.push({ x: a.x, y: a.y, w: a.w, h: b.y - a.y });
-                            // Faixa abaixo de B
-                            if (a.y + a.h > b.y + b.h) result.push({ x: a.x, y: b.y + b.h, w: a.w, h: (a.y + a.h) - (b.y + b.h) });
-                            // Faixa à esquerda (só na zona de overlap Y)
-                            const oy1 = Math.max(a.y, b.y), oy2 = Math.min(a.y + a.h, b.y + b.h);
-                            if (oy2 > oy1) {
-                                if (a.x < b.x) result.push({ x: a.x, y: oy1, w: b.x - a.x, h: oy2 - oy1 });
-                                if (a.x + a.w > b.x + b.w) result.push({ x: b.x + b.w, y: oy1, w: (a.x + a.w) - (b.x + b.w), h: oy2 - oy1 });
-                            }
-                            return result.filter(r => r.w > 1 && r.h > 1);
-                        };
-
-                        // ── 1. Criar grade de células livres ──
-                        const xsSet = new Set([0, uW]);
-                        const ysSet = new Set([0, uH]);
-                        for (const p of pecas) {
-                            xsSet.add(Math.max(0, Math.min(uW, p.x)));
-                            xsSet.add(Math.max(0, Math.min(uW, p.x + p.w)));
-                            ysSet.add(Math.max(0, Math.min(uH, p.y)));
-                            ysSet.add(Math.max(0, Math.min(uH, p.y + p.h)));
-                        }
-                        const xs = [...xsSet].sort((a, b) => a - b);
-                        const ys = [...ysSet].sort((a, b) => a - b);
-                        const nx = xs.length - 1, ny = ys.length - 1;
-                        if (nx <= 0 || ny <= 0) return;
-
-                        const occ = Array.from({ length: nx }, () => Array(ny).fill(false));
-                        for (const p of pecas) {
-                            for (let ci = 0; ci < nx; ci++) {
-                                if (xs[ci + 1] <= p.x + 0.5 || xs[ci] >= p.x + p.w - 0.5) continue;
-                                for (let cj = 0; cj < ny; cj++) {
-                                    if (ys[cj + 1] <= p.y + 0.5 || ys[cj] >= p.y + p.h - 0.5) continue;
-                                    occ[ci][cj] = true;
-                                }
-                            }
-                        }
-
-                        // ── 2. Histograma → retângulos maximais ──
-                        const height = Array.from({ length: nx }, () => Array(ny).fill(0));
-                        for (let ci = 0; ci < nx; ci++) {
-                            for (let cj = 0; cj < ny; cj++) {
-                                height[ci][cj] = occ[ci][cj] ? 0 : (cj > 0 ? height[ci][cj - 1] + 1 : 1);
-                            }
-                        }
-                        const allRects = [];
-                        for (let cj = 0; cj < ny; cj++) {
-                            const stack = [];
-                            for (let ci = 0; ci <= nx; ci++) {
-                                const h = ci < nx ? height[ci][cj] : 0;
-                                let start = ci;
-                                while (stack.length && stack[stack.length - 1][1] > h) {
-                                    const [sci, sh] = stack.pop();
-                                    const rx = xs[sci], rw = (ci < xs.length ? xs[ci] : xs[xs.length - 1]) - rx;
-                                    const ry = ys[cj - sh + 1], rh = ys[cj + 1] - ry;
-                                    if (rw > 5 && rh > 5) allRects.push({ x: rx, y: ry, w: rw, h: rh, area: rw * rh });
-                                    start = sci;
-                                }
-                                stack.push([start, h]);
-                            }
-                        }
-                        // Deduplicar exatos
-                        const seen = new Set();
-                        const uniqueRects = allRects.filter(r => {
-                            const key = `${r.x.toFixed(1)}_${r.y.toFixed(1)}_${r.w.toFixed(1)}_${r.h.toFixed(1)}`;
-                            if (seen.has(key)) return false;
-                            seen.add(key);
-                            return true;
-                        });
-                        uniqueRects.sort((a, b) => b.area - a.area);
-
-                        // ── 3. Seleção gulosa SEM sobreposição ──
-                        // Pegar o maior, recortar todos os outros contra ele, repetir
-                        const minW = sobraMinW, minH = sobraMinH;
-                        const isValid = (r) => { const s = Math.min(r.w, r.h), l = Math.max(r.w, r.h); return s >= minW && l >= minH; };
-
-                        const selected = [];
-                        let candidates = uniqueRects.filter(r => isValid(r));
-
-                        for (let iter = 0; iter < 20 && candidates.length > 0; iter++) {
-                            // Pegar o maior candidato
-                            candidates.sort((a, b) => (b.w * b.h) - (a.w * a.h));
-                            const best = candidates.shift();
-                            selected.push(best);
-
-                            // Recortar todos os restantes contra o selecionado
-                            const nextCandidates = [];
-                            for (const c of candidates) {
-                                const clipped = clipRect(c, best);
-                                for (const piece of clipped) {
-                                    piece.area = piece.w * piece.h;
-                                    if (isValid(piece)) nextCandidates.push(piece);
-                                }
-                            }
-                            candidates = nextCandidates;
-                        }
-
-                        // ── 4. Tentar merge adjacente dos selecionados ──
-                        let rects = selected;
-                        let merged = true;
-                        while (merged) {
-                            merged = false;
-                            const next = [];
-                            const skip = new Set();
-                            for (let i = 0; i < rects.length; i++) {
-                                if (skip.has(i)) continue;
-                                let { x: rx, y: ry, w: rw, h: rh } = rects[i];
-                                for (let j = i + 1; j < rects.length; j++) {
-                                    if (skip.has(j)) continue;
-                                    const o = rects[j];
-                                    const T = 1;
-                                    if (Math.abs(ry - o.y) < T && Math.abs(rh - o.h) < T && Math.abs(rx + rw - o.x) < T) { rw += o.w; skip.add(j); merged = true; }
-                                    else if (Math.abs(ry - o.y) < T && Math.abs(rh - o.h) < T && Math.abs(o.x + o.w - rx) < T) { rx = o.x; rw += o.w; skip.add(j); merged = true; }
-                                    else if (Math.abs(rx - o.x) < T && Math.abs(rw - o.w) < T && Math.abs(ry + rh - o.y) < T) { rh += o.h; skip.add(j); merged = true; }
-                                    else if (Math.abs(rx - o.x) < T && Math.abs(rw - o.w) < T && Math.abs(o.y + o.h - ry) < T) { ry = o.y; rh += o.h; skip.add(j); merged = true; }
-                                }
-                                next.push({ x: rx, y: ry, w: rw, h: rh });
-                            }
-                            rects = next;
-                        }
-
-                        const remnants = rects
-                            .filter(r => isValid(r))
-                            .map(r => ({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) }));
-
-                        if (onAdjust) {
-                            onAdjust({ action: 'recalc_sobras', chapaIdx: idx, retalhos: remnants });
-                        }
-                    }}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 4,
-                            padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-                            background: 'var(--bg-muted)', color: 'var(--text-primary)',
-                            border: '1px solid var(--border)', cursor: 'pointer',
-                        }}
-                        title="Detectar espaço livre e gerar retalhos baseado na posição atual das peças">
-                        <RefreshCw size={11} /> Recalcular Sobras
-                    </button>
-                    {(chapa.retalhos?.length > 0) && (
-                        <button onClick={() => {
-                            if (!retMode) {
-                                setRetDefs((chapa.retalhos || []).map(r => ({ ...r, type: null })));
-                                setRetSelected(null);
-                                setRetSplitPreview(null);
-                            }
-                            setRetMode(!retMode);
-                        }}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-                                background: retMode ? '#059669' : 'var(--bg-muted)',
-                                color: retMode ? '#fff' : 'var(--text-primary)',
-                                border: retMode ? '1px solid #059669' : '1px solid var(--border)', cursor: 'pointer',
-                            }}
-                            title="Definir retalhos e refugos">
-                            <Scissors size={11} /> {retMode ? 'Editando Sobras' : 'Definir Sobras'}
-                        </button>
+                    {/* separator before primary CTA */}
+                    {onGerarGcode && (
+                        <div style={{ width: 1, height: 20, background: 'var(--border)', marginLeft: 2 }} />
                     )}
                     {onGerarGcode && (
                         <button
                             onClick={() => onGerarGcode(idx)}
                             disabled={gcodeLoading === idx}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '5px 12px', borderRadius: 6, fontSize: 10, fontWeight: 800,
-                                background: gcodeLoading === idx ? 'var(--bg-muted)' : '#1e40af',
-                                color: '#fff', border: 'none', cursor: gcodeLoading === idx ? 'wait' : 'pointer',
-                                boxShadow: gcodeLoading === idx ? 'none' : '0 6px 14px rgba(30,64,175,0.18)',
+                                display: 'flex', alignItems: 'center', gap: 5,
+                                padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                                background: gcodeLoading === idx ? 'var(--bg-muted)' : 'var(--primary)',
+                                color: gcodeLoading === idx ? 'var(--text-muted)' : '#fff',
+                                border: 'none', cursor: gcodeLoading === idx ? 'wait' : 'pointer',
+                                boxShadow: gcodeLoading === idx ? 'none' : '0 2px 8px rgba(19,121,240,0.25)',
+                                transition: 'box-shadow 0.15s',
                             }}
                             title="Gerar G-code e abrir pré-corte desta chapa"
                         >
-                            <Cpu size={11} />
-                            {gcodeLoading === idx ? 'Gerando...' : 'Pré-corte'}
+                            <Cpu size={12} />
+                            {gcodeLoading === idx ? 'Gerando...' : 'Revisar Pré-corte'}
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Zoom controls */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center' }}>
+            {/* ── Viz toolbar: zoom + view toggles + sobras ── */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Zoom group */}
                 <button onClick={() => setZoomLevel(Math.max(1, zoomLevel - 0.2))} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>−</button>
                 <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', minWidth: 40, textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</span>
                 <button onClick={() => setZoomLevel(Math.min(5, zoomLevel + 0.2))} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>+</button>
                 <button onClick={resetView} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 10 }}>Reset</button>
-                <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>Ctrl+Scroll=Zoom · Alt+Drag=Pan · DblClick=Rotacionar · Direito=Menu</span>
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>Ctrl+Scroll · Alt+Drag · DblClick=Girar</span>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {/* View toggles */}
                     <button onClick={() => setShowMachining(!showMachining)} className={Z.btn2}
-                        style={{ padding: '3px 10px', fontSize: 10, fontWeight: 600,
-                            background: showMachining ? '#e11d48' : undefined, color: showMachining ? '#fff' : undefined }}>
-                        {showMachining ? '⊙ Usinagens' : '○ Usinagens'}
+                        style={{
+                            padding: '3px 10px', fontSize: 10, fontWeight: 600,
+                            background: showMachining ? 'rgba(225,29,72,0.10)' : undefined,
+                            color: showMachining ? '#e11d48' : undefined,
+                            border: showMachining ? '1px solid rgba(225,29,72,0.30)' : undefined,
+                        }}>
+                        Usinagens
                     </button>
                     {chapa.cortes && chapa.cortes.length > 0 && (
                         <button onClick={() => setShowCuts(!showCuts)} className={Z.btn2}
-                            style={{ padding: '3px 10px', fontSize: 10, fontWeight: 600,
-                                background: showCuts ? 'var(--primary)' : undefined, color: showCuts ? '#fff' : undefined }}>
+                            style={{
+                                padding: '3px 10px', fontSize: 10, fontWeight: 600,
+                                background: showCuts ? 'rgba(19,121,240,0.10)' : undefined,
+                                color: showCuts ? 'var(--primary)' : undefined,
+                                border: showCuts ? '1px solid rgba(19,121,240,0.30)' : undefined,
+                            }}>
                             {showCuts ? 'Ocultar Cortes' : 'Mostrar Cortes'}
                         </button>
+                    )}
+                    {/* Sobras actions */}
+                    <>
+                        <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
+                        <button onClick={handleRecalcSobras} className={Z.btn2}
+                            style={{ padding: '3px 10px', fontSize: 10 }}
+                            title="Detectar espaço livre e gerar retalhos">
+                            <RefreshCw size={10} style={{ display: 'inline', marginRight: 3 }} />
+                            Recalc. Sobras
+                        </button>
+                    </>
+                    {(chapa.retalhos?.length > 0) && (
+                        <>
+                            <button onClick={() => {
+                                if (!retMode) {
+                                    setRetDefs((chapa.retalhos || []).map(r => ({ ...r, type: null })));
+                                    setRetSelected(null);
+                                    setRetSplitPreview(null);
+                                }
+                                setRetMode(!retMode);
+                            }}
+                                className={Z.btn2}
+                                style={{
+                                    padding: '3px 10px', fontSize: 10, fontWeight: 600,
+                                    background: retMode ? 'rgba(5,150,105,0.12)' : undefined,
+                                    color: retMode ? '#059669' : undefined,
+                                    border: retMode ? '1px solid rgba(5,150,105,0.30)' : undefined,
+                                }}
+                                title="Definir retalhos e refugos">
+                                <Scissors size={10} style={{ display: 'inline', marginRight: 3 }} />
+                                {retMode ? 'Editando Sobras' : 'Sobras'}
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
@@ -1202,7 +1251,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                     </span>
                     {/* Furos fundo */}
                     <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="#7c3aed" opacity="0.55" stroke="#6d28d9" strokeWidth="0.8"/></svg>
+                        <svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="#0891b2" opacity="0.55" stroke="#0e7490" strokeWidth="0.8"/></svg>
                         Furos (fundo)
                     </span>
                     {/* Rasgos */}

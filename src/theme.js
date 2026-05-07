@@ -133,15 +133,15 @@ export const STATUS_COLORS = {
 
     // CNC Lote status
     importado:     { label: 'Importado',     color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'upload' },
-    otimizado:     { label: 'Otimizado',     color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'check' },
+    otimizado:     { label: 'Otimizado',     color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'check' },
     produzindo:    { label: 'Produzindo',    color: 'var(--success)', bg: 'var(--success-bg)', icon: 'play' },
 
     // Produção/Expedição
     em_producao:   { label: 'Em produção',   color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'factory' },
-    aguardando:    { label: 'Aguardando',    color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'clock' },
+    aguardando:    { label: 'Aguardando',    color: 'var(--muted)',   bg: 'var(--muted-bg)',   icon: 'clock' },
     expedido:      { label: 'Expedido',      color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'truck' },
     entregue:      { label: 'Entregue',      color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
-    instalando:    { label: 'Instalando',    color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'wrench' },
+    instalando:    { label: 'Instalando',    color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'wrench' },
 
     // Financeiro
     pago:          { label: 'Pago',          color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
