@@ -46,6 +46,10 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   if (NO_CACHE_PATTERNS.some((p) => p.test(url.pathname))) return;
 
+  // Nunca cachear arquivos internos do Vite dev server (/.vite/, /node_modules/)
+  // Esses chunks rotacionam a cada re-pre-bundle e causam duas instâncias de React.
+  if (url.pathname.includes('/.vite/') || url.pathname.includes('/node_modules/')) return;
+
   // API: network-first com fallback de cache (offline graceful)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(

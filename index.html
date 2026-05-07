@@ -108,7 +108,9 @@
   </noscript>
   <script type="module" src="/src/main.jsx"></script>
   <script>
-    if ('serviceWorker' in navigator) {
+    // Never register SW on localhost — Vite pre-bundles rotate chunk hashes and
+    // a cache-first SW would serve stale chunks (two React instances → hook errors).
+    if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(() => {});
       });
