@@ -1,35 +1,106 @@
-// GcodeSimCanvas — canvas-based CNC toolpath viewer used inside TabPlano modal.
-// Same professional CAM visual as GcodeSimWrapper (dark slate + warm MDF + grid).
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+// GcodeSimCanvas — CNC Cockpit CAM Simulator
+// Dark technical viewport, externally controlled playback, forwardRef API.
+// Visual: dark #0B0F14 bg, aluminum sheet, blue cut lines, monospace HUD.
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { parseGcodeForSim, getOpCat, feedHeatColor } from './parseGcode.js';
 
-export function GcodeSimCanvas({ gcode, chapa, onMoveChange }) {
-    const canvasRef = useRef(null);
-    const [zoom, setZoom] = useState(1);
-    const [panOff, setPanOff] = useState({ x: 0, y: 0 });
-    const panRef = useRef(null);
-    const [playing, setPlaying] = useState(false);
-    const [curMove, setCurMove] = useState(-1);
-    const [speed, setSpeed] = useState(1);
-    const animRef = useRef(null);
-    const [heatmapMode, setHeatmapMode] = useState(false);
-    const parsed = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
+// ─── CAM color palette (canvas can't use CSS vars) ─────────────────────────
+const CAM = {
+    bg:        '#0B0F14',
+    sheet:     '#1A2332',
+    sheetHi:   '#1F2B40',
+    gridMinor: 'rgba(47,129,247,0.055)',
+    gridMaj:   'rgba(47,129,247,0.14)',
+    border:    'rgba(47,129,247,0.55)',
+    axisX:     '#F85149',
+    axisY:     '#2EA043',
+    start:     '#2EA043',
+    rapid:     'rgba(139,148,158,0.38)',
+    cut:       '#58A6FF',
+    cutGlow:   'rgba(88,166,255,0.14)',
+    tool:      '#E6EDF3',
+    toolGlow:  'rgba(47,129,247,0.38)',
+    hud:       'rgba(9,13,20,0.92)',
+    text:      '#E6EDF3',
+    textDim:   '#7D8794',
+    textBlue:  '#79C0FF',
+    yellow:    '#D29922',
+    dimLabel:  'rgba(121,192,255,0.70)',
+    pieceFill: 'rgba(47,129,247,0.06)',
+    pieceBdr:  'rgba(88,166,255,0.22)',
+    retalho:   'rgba(46,160,67,0.28)',
+};
+
+export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
+    { gcode, chapa, playing: playingProp, speed: speedProp = 1, onPlayEnd, onMoveChange, heatmapMode: heatmapProp },
+    ref
+) {
+    const canvasRef     = useRef(null);
+    const animRef       = useRef(null);
+    const panRef        = useRef(null);
+    const containerRef  = useRef(null);
+
+    const [curMove, setCurMove]   = useState(-1);
+    const [zoom, setZoom]         = useState(1);
+    const [panOff, setPanOff]     = useState({ x: 0, y: 0 });
+    const [heatmap, setHeatmap]   = useState(false);
+
+    const heatmapMode = heatmapProp !== undefined ? heatmapProp : heatmap;
+
+    const parsed   = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
     const allMoves = parsed.moves;
     const allEvents = parsed.events;
-    const minFeed = parsed.minFeed ?? 0;
-    const maxFeed = parsed.maxFeed ?? 1;
-    const espReal = chapa?.espessura || 18.5;
+    const minFeed  = parsed.minFeed ?? 0;
+    const maxFeed  = parsed.maxFeed ?? 1;
+    const espReal  = chapa?.espessura || 18.5;
 
+    // ── Expose control API via ref ──────────────────────────────────────────
+    useImperativeHandle(ref, () => ({
+        reset:        () => setCurMove(-1),
+        seekTo:       (idx) => setCurMove(Math.max(-1, Math.min(allMoves.length - 1, idx))),
+        getTotalMoves: () => allMoves.length,
+        getCurMove:   () => curMove,
+    }), [allMoves.length, curMove]);
+
+    // ── Animation loop driven by external playing / speed props ─────────────
+    useEffect(() => {
+        if (animRef.current) clearInterval(animRef.current);
+        if (!playingProp) return;
+        const interval = Math.max(8, 80 / Math.max(0.1, speedProp));
+        animRef.current = setInterval(() => {
+            setCurMove(prev => {
+                const next = prev < 0 ? 0 : prev + 1;
+                if (next >= allMoves.length) {
+                    clearInterval(animRef.current);
+                    onPlayEnd?.();
+                    return allMoves.length - 1;
+                }
+                return next;
+            });
+        }, interval);
+        return () => clearInterval(animRef.current);
+    }, [playingProp, speedProp, allMoves.length, onPlayEnd]);
+
+    // ── Notify parent of move change ────────────────────────────────────────
+    useEffect(() => {
+        if (!onMoveChange) return;
+        const lineIdx = curMove >= 0 ? (allMoves[curMove]?.lineIdx ?? -1) : -1;
+        onMoveChange(curMove, lineIdx);
+    }, [curMove, onMoveChange, allMoves]);
+
+    // ── Get active events at a given move ───────────────────────────────────
     const getActiveEventsAt = useCallback((moveIdx) => {
-        let tool = '', op = '';
+        let tool = '', op = '', feed = 0;
         for (const ev of allEvents) {
             if (ev.moveIdx > moveIdx && moveIdx >= 0) break;
             if (ev.type === 'tool') tool = ev.label;
             if (ev.type === 'op') op = ev.label;
         }
-        return { tool, op };
-    }, [allEvents]);
+        if (moveIdx >= 0 && allMoves[moveIdx]) feed = allMoves[moveIdx].feed || 0;
+        return { tool, op, feed };
+    }, [allEvents, allMoves]);
 
+    // ── Found ops for legend ────────────────────────────────────────────────
     const foundOps = useMemo(() => {
         const map = new Map();
         for (const m of allMoves) {
@@ -40,34 +111,53 @@ export function GcodeSimCanvas({ gcode, chapa, onMoveChange }) {
         return [...map.values()];
     }, [allMoves]);
 
-    const renderCanvas = useCallback((moveLimit, _heatmap) => {
+    // ── Canvas resize observer ──────────────────────────────────────────────
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            canvas.width  = el.clientWidth;
+            canvas.height = el.clientHeight;
+            renderCanvas(curMove);
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);// eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Render ──────────────────────────────────────────────────────────────
+    const renderCanvas = useCallback((moveLimit) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
+        const W = canvas.width || 800, H = canvas.height || 500;
         ctx.clearRect(0, 0, W, H);
 
-        // ── Dark technical background (CAD/CAM style) ─────────────────────────
-        ctx.fillStyle = '#0f1117'; ctx.fillRect(0, 0, W, H);
+        // ── Dark cockpit background ─────────────────────────────────────────
+        ctx.fillStyle = CAM.bg;
+        ctx.fillRect(0, 0, W, H);
 
-        // Subtle dot-grid
-        ctx.fillStyle = 'rgba(255,255,255,0.045)';
-        const gridStep = 20;
-        for (let gx = 0; gx < W; gx += gridStep)
-            for (let gy = 0; gy < H; gy += gridStep)
+        // Subtle dot grid on background
+        ctx.fillStyle = 'rgba(255,255,255,0.018)';
+        const dotStep = 24;
+        for (let gx = dotStep / 2; gx < W; gx += dotStep)
+            for (let gy = dotStep / 2; gy < H; gy += dotStep)
                 ctx.fillRect(gx, gy, 1, 1);
 
-        if (!gcode) {
-            ctx.fillStyle = 'rgba(148,163,184,0.6)'; ctx.font = '13px sans-serif';
-            ctx.fillText('G-Code não disponível', W / 2 - 80, H / 2);
-            return;
-        }
-        if (allMoves.length === 0) {
-            ctx.fillStyle = 'rgba(148,163,184,0.6)'; ctx.font = '13px sans-serif';
-            ctx.fillText('Nenhum movimento detectado no G-Code', W / 2 - 140, H / 2);
+        if (!gcode || allMoves.length === 0) {
+            ctx.fillStyle = CAM.textDim;
+            ctx.font = '13px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(
+                gcode ? 'Nenhum movimento detectado no G-code' : 'G-code não disponível',
+                W / 2, H / 2
+            );
+            ctx.textAlign = 'left';
             return;
         }
 
+        // ── Coordinate space ────────────────────────────────────────────────
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const m of allMoves) {
             minX = Math.min(minX, m.x1, m.x2); minY = Math.min(minY, m.y1, m.y2);
@@ -76,487 +166,380 @@ export function GcodeSimCanvas({ gcode, chapa, onMoveChange }) {
         const cw = chapa?.comprimento || 2750, cl = chapa?.largura || 1850;
         if (chapa) { minX = 0; minY = 0; maxX = Math.max(maxX, cw); maxY = Math.max(maxY, cl); }
         const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1;
-        const pad = 30;
+        const pad = 40;
         const sc = Math.min((W - pad * 2) / rangeX, (H - pad * 2) / rangeY) * zoom;
         const offX = pad + panOff.x + ((W - pad * 2) - rangeX * sc) / 2;
         const offY = pad + panOff.y + ((H - pad * 2) - rangeY * sc) / 2;
         const tx = (v) => offX + (v - minX) * sc;
         const ty = (v) => offY + (v - minY) * sc;
 
+        // ── Sheet ───────────────────────────────────────────────────────────
         if (chapa) {
             const shX = tx(0), shY = ty(0), shW = cw * sc, shH = cl * sc;
 
-            // ── Elevation shadow ─────────────────────────────────────────────
+            // Drop shadow
             ctx.save();
-            ctx.shadowColor = 'rgba(0,0,0,0.65)';
-            ctx.shadowBlur = 18;
+            ctx.shadowColor = 'rgba(0,0,0,0.55)';
+            ctx.shadowBlur = 20;
             ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 6;
-            ctx.fillStyle = '#1e2535';
+            ctx.fillStyle = CAM.sheet;
             ctx.fillRect(shX, shY, shW, shH);
             ctx.restore();
 
-            // ── Sheet base — clean light engineering paper / aluminum ─────────
-            ctx.fillStyle = '#e8edf5';
+            // Sheet gradient (subtle top-left highlight)
+            const sg = ctx.createLinearGradient(shX, shY, shX + shW * 0.6, shY + shH * 0.6);
+            sg.addColorStop(0, 'rgba(50,80,130,0.14)');
+            sg.addColorStop(1, 'rgba(10,15,25,0.12)');
+            ctx.fillStyle = sg;
             ctx.fillRect(shX, shY, shW, shH);
 
-            // ── Subtle paper-white gradient ───────────────────────────────────
-            const sheetGrad = ctx.createLinearGradient(shX, shY, shX + shW, shY + shH);
-            sheetGrad.addColorStop(0,   'rgba(255,255,255,0.30)');
-            sheetGrad.addColorStop(0.4, 'rgba(255,255,255,0.08)');
-            sheetGrad.addColorStop(1,   'rgba(180,190,210,0.15)');
-            ctx.fillStyle = sheetGrad;
-            ctx.fillRect(shX, shY, shW, shH);
-
-            // ── Grid lines — every 100mm (minor) and 500mm (major) ───────────
+            // Grid lines — minor every 100mm, major every 500mm
             ctx.lineWidth = 0.5;
             for (let gx = 100; gx < cw; gx += 100) {
                 const isMaj = gx % 500 === 0;
-                ctx.globalAlpha = isMaj ? 0.18 : 0.07;
-                ctx.strokeStyle = isMaj ? '#3b82f6' : '#64748b';
+                ctx.globalAlpha = isMaj ? 1 : 1;
+                ctx.strokeStyle = isMaj ? CAM.gridMaj : CAM.gridMinor;
+                ctx.lineWidth = isMaj ? 0.6 : 0.4;
                 ctx.beginPath(); ctx.moveTo(tx(gx), shY); ctx.lineTo(tx(gx), shY + shH); ctx.stroke();
             }
             for (let gy = 100; gy < cl; gy += 100) {
                 const isMaj = gy % 500 === 0;
-                ctx.globalAlpha = isMaj ? 0.18 : 0.07;
-                ctx.strokeStyle = isMaj ? '#3b82f6' : '#64748b';
+                ctx.strokeStyle = isMaj ? CAM.gridMaj : CAM.gridMinor;
+                ctx.lineWidth = isMaj ? 0.6 : 0.4;
                 ctx.beginPath(); ctx.moveTo(shX, ty(gy)); ctx.lineTo(shX + shW, ty(gy)); ctx.stroke();
             }
             ctx.globalAlpha = 1;
 
-            // ── Sheet border (blue tech style) ───────────────────────────────
-            ctx.strokeStyle = 'rgba(59,130,246,0.55)'; ctx.lineWidth = 1.5;
+            // Sheet border (blue technical)
+            ctx.strokeStyle = CAM.border; ctx.lineWidth = 1.2;
             ctx.strokeRect(shX, shY, shW, shH);
 
-            // ── Dimension labels ─────────────────────────────────────────────
+            // Dimension labels
             ctx.save();
-            ctx.fillStyle = 'rgba(71,105,167,0.92)'; ctx.font = 'bold 9px monospace';
+            ctx.fillStyle = CAM.dimLabel;
+            ctx.font = 'bold 9px "JetBrains Mono", monospace';
             ctx.textAlign = 'center';
-            ctx.fillText(`${cw} mm`, shX + shW / 2, shY - 6);
-            ctx.save();
-            ctx.translate(shX - 10, shY + shH / 2);
-            ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
+            ctx.fillText(`${cw} mm`, shX + shW / 2, shY - 8);
+            ctx.translate(shX - 12, shY + shH / 2);
+            ctx.rotate(-Math.PI / 2);
             ctx.fillText(`${cl} mm`, 0, 0);
             ctx.restore();
-            ctx.textAlign = 'left';
-            ctx.restore();
 
-            // ── Origin marker — TOP-LEFT ──────────────────────────────────────
+            // Origin axes
             const ox = tx(0), oy = ty(0);
-            const axLen = Math.min(36, shW * 0.05, shH * 0.05);
-            ctx.globalAlpha = 0.90;
-            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
+            const axLen = Math.min(40, shW * 0.06, shH * 0.06);
+            ctx.globalAlpha = 0.85;
+            // X axis — red
+            ctx.strokeStyle = CAM.axisX; ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + axLen, oy); ctx.stroke();
-            ctx.fillStyle = '#ef4444';
-            ctx.beginPath(); ctx.moveTo(ox + axLen, oy); ctx.lineTo(ox + axLen - 4, oy - 2.5); ctx.lineTo(ox + axLen - 4, oy + 2.5); ctx.closePath(); ctx.fill();
-            ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1.5;
+            ctx.fillStyle = CAM.axisX;
+            ctx.beginPath(); ctx.moveTo(ox + axLen, oy); ctx.lineTo(ox + axLen - 5, oy - 3); ctx.lineTo(ox + axLen - 5, oy + 3); ctx.closePath(); ctx.fill();
+            // Y axis — green
+            ctx.strokeStyle = CAM.axisY; ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy + axLen); ctx.stroke();
-            ctx.fillStyle = '#22c55e';
-            ctx.beginPath(); ctx.moveTo(ox, oy + axLen); ctx.lineTo(ox - 2.5, oy + axLen - 4); ctx.lineTo(ox + 2.5, oy + axLen - 4); ctx.closePath(); ctx.fill();
-            ctx.fillStyle = 'rgba(30,37,53,0.88)'; ctx.globalAlpha = 0.95;
+            ctx.fillStyle = CAM.axisY;
+            ctx.beginPath(); ctx.moveTo(ox, oy + axLen); ctx.lineTo(ox - 3, oy + axLen - 5); ctx.lineTo(ox + 3, oy + axLen - 5); ctx.closePath(); ctx.fill();
+            // Origin dot
+            ctx.fillStyle = CAM.text; ctx.globalAlpha = 0.9;
             ctx.beginPath(); ctx.arc(ox, oy, 2.5, 0, Math.PI * 2); ctx.fill();
-            ctx.globalAlpha = 0.82; ctx.font = 'bold 8px monospace';
-            ctx.fillStyle = '#ef4444'; ctx.fillText('X', ox + axLen + 3, oy + 3);
-            ctx.fillStyle = '#22c55e'; ctx.fillText('Y', ox - 10, oy + axLen + 2);
-            ctx.fillStyle = 'rgba(71,105,167,0.88)'; ctx.font = '7px monospace';
-            ctx.fillText('0,0', ox + 3, oy - 3);
+            // Axis labels
+            ctx.font = 'bold 8px "JetBrains Mono", monospace';
+            ctx.fillStyle = CAM.axisX; ctx.fillText('X', ox + axLen + 4, oy + 4);
+            ctx.fillStyle = CAM.axisY; ctx.fillText('Y', ox - 11, oy + axLen + 4);
+            ctx.font = '7px "JetBrains Mono", monospace';
+            ctx.fillStyle = CAM.dimLabel; ctx.fillText('0,0', ox + 4, oy - 4);
             ctx.globalAlpha = 1;
 
-            // ── Pieces — clean tinted rectangles on light sheet ──────────────
-            if (chapa.pecas) {
+            // Pieces layout
+            if (chapa.pecas?.length) {
                 const ref = chapa.refilo || 10;
-                const pColors = [
-                    'rgba( 59,130,246,0.10)', 'rgba( 34,197, 94,0.10)',
-                    'rgba(249,115, 22,0.09)', 'rgba(168, 85,247,0.09)',
-                    'rgba(234,179,  8,0.09)', 'rgba( 20,184,166,0.09)',
-                    'rgba(239, 68, 68,0.09)', 'rgba( 99,102,241,0.09)',
-                ];
-                const pBorders = [
-                    'rgba( 59,130,246,0.40)', 'rgba( 34,197, 94,0.40)',
-                    'rgba(249,115, 22,0.38)', 'rgba(168, 85,247,0.38)',
-                    'rgba(234,179,  8,0.38)', 'rgba( 20,184,166,0.38)',
-                    'rgba(239, 68, 68,0.38)', 'rgba( 99,102,241,0.38)',
-                ];
                 for (let i = 0; i < chapa.pecas.length; i++) {
                     const p = chapa.pecas[i];
-                    const px = tx(ref + p.x), py = ty(ref + p.y), pw2 = p.w * sc, ph2 = p.h * sc;
-                    ctx.fillStyle = pColors[i % pColors.length];
-                    ctx.fillRect(px, py, pw2, ph2);
-                    ctx.strokeStyle = pBorders[i % pBorders.length]; ctx.lineWidth = 1;
-                    ctx.strokeRect(px, py, pw2, ph2);
-                    if (p.nome && pw2 > 20 && ph2 > 12) {
-                        ctx.fillStyle = 'rgba(30,42,75,0.82)';
-                        ctx.font = `600 ${Math.min(10, pw2 / 6)}px sans-serif`;
-                        ctx.fillText(p.nome, px + 3, py + 11, pw2 - 6);
-                        if (ph2 > 22) {
-                            ctx.fillStyle = 'rgba(71,105,167,0.65)';
-                            ctx.font = `${Math.min(8, pw2 / 8)}px monospace`;
-                            ctx.fillText(`${Math.round(p.w)}×${Math.round(p.h)}`, px + 3, py + 21, pw2 - 6);
+                    const px = tx(ref + p.x), py = ty(ref + p.y), pw = p.w * sc, ph = p.h * sc;
+                    ctx.fillStyle = CAM.pieceFill;
+                    ctx.fillRect(px, py, pw, ph);
+                    ctx.strokeStyle = CAM.pieceBdr; ctx.lineWidth = 0.8;
+                    ctx.strokeRect(px, py, pw, ph);
+                    if (p.nome && pw > 22 && ph > 14) {
+                        ctx.fillStyle = CAM.dimLabel;
+                        ctx.font = `500 ${Math.min(9.5, pw / 6)}px "JetBrains Mono", monospace`;
+                        ctx.fillText(p.nome, px + 3, py + 11, pw - 6);
+                        if (ph > 24) {
+                            ctx.fillStyle = 'rgba(88,166,255,0.45)';
+                            ctx.font = `${Math.min(8, pw / 8)}px monospace`;
+                            ctx.fillText(`${Math.round(p.w)}×${Math.round(p.h)}`, px + 3, py + 21, pw - 6);
                         }
                     }
                 }
             }
-            // ── Retalhos ────────────────────────────────────────────────────
-            if (chapa.retalhos) {
+
+            // Retalhos
+            if (chapa.retalhos?.length) {
                 const ref = chapa.refilo || 10;
-                ctx.setLineDash([4, 3]);
+                ctx.setLineDash([5, 4]);
                 for (const r of chapa.retalhos) {
-                    ctx.strokeStyle = 'rgba(34,197,94,0.50)'; ctx.lineWidth = 1;
+                    ctx.strokeStyle = CAM.retalho; ctx.lineWidth = 1;
                     ctx.strokeRect(tx(ref + r.x), ty(ref + r.y), r.w * sc, r.h * sc);
                 }
                 ctx.setLineDash([]);
             }
         }
 
+        // ── Draw moves ──────────────────────────────────────────────────────
         const drawCount = moveLimit < 0 ? allMoves.length : Math.min(moveLimit + 1, allMoves.length);
         let rapidDist = 0, cutDist = 0;
-        const helicalHoleDrawn = new Set();
 
         for (let i = 0; i < drawCount; i++) {
             const m = allMoves[i];
             const x1 = tx(m.x1), y1 = ty(m.y1), x2 = tx(m.x2), y2 = ty(m.y2);
-            const dist = Math.sqrt((m.x2 - m.x1) ** 2 + (m.y2 - m.y1) ** 2);
+            const dist = Math.hypot(m.x2 - m.x1, m.y2 - m.y1);
             const cat = getOpCat(m.op);
-
-            // ── Helicoidal holes ─────────────────────────────────────────────
-            if (m.isHelicalHole) {
-                cutDist += dist;
-                const nextIsHelical = i + 1 < drawCount && allMoves[i + 1].isHelicalHole &&
-                    Math.abs(allMoves[i + 1].holeCx - m.holeCx) < 1 && Math.abs(allMoves[i + 1].holeCy - m.holeCy) < 1;
-                if (!nextIsHelical) {
-                    const hKey = `${m.holeCx.toFixed(1)}_${m.holeCy.toFixed(1)}`;
-                    if (!helicalHoleDrawn.has(hKey)) {
-                        helicalHoleDrawn.add(hKey);
-                        const hCx = tx(m.holeCx), hCy = ty(m.holeCy);
-                        const hR = Math.max((m.holeDiam / 2) * sc, 1.5);
-                        const isThrough = (espReal - m.z2) / espReal > 0.85;
-                        // Hole — dark opening on light sheet
-                        ctx.save();
-                        ctx.shadowColor = 'rgba(0,0,0,0.50)'; ctx.shadowBlur = hR * 0.8;
-                        ctx.fillStyle = isThrough ? '#0a0c11' : '#1a2030'; ctx.globalAlpha = 0.92;
-                        ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.fill();
-                        ctx.restore();
-                        // Depth gradient
-                        const ihG = ctx.createRadialGradient(hCx - hR*0.32, hCy - hR*0.32, 0, hCx, hCy, hR);
-                        ihG.addColorStop(0, 'rgba(180,210,255,0.06)');
-                        ihG.addColorStop(0.5, 'rgba(10,15,30,0.25)');
-                        ihG.addColorStop(1, 'rgba(0,0,0,0.90)');
-                        ctx.fillStyle = ihG; ctx.globalAlpha = 1;
-                        ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.fill();
-                        // Blue tech rim
-                        ctx.strokeStyle = 'rgba(59,130,246,0.65)'; ctx.lineWidth = Math.max(1, hR * 0.10);
-                        ctx.globalAlpha = 0.88;
-                        ctx.beginPath(); ctx.arc(hCx, hCy, hR, 0, Math.PI * 2); ctx.stroke();
-                        // Op color inner ring
-                        const hInner = hR - Math.max(1.2, hR * 0.14);
-                        if (hInner > 0.5) {
-                            ctx.strokeStyle = cat.color; ctx.lineWidth = Math.max(0.6, hR * 0.05);
-                            ctx.globalAlpha = 0.60;
-                            ctx.beginPath(); ctx.arc(hCx, hCy, hInner, 0, Math.PI * 2); ctx.stroke();
-                        }
-                        ctx.globalAlpha = 1;
-                    }
-                }
-                continue;
-            }
+            const isActive = (i === moveLimit && moveLimit >= 0);
 
             if (m.type === 'G0') {
-                if (!m.isZOnly) {
-                    // Rapid move — thin cyan dashed (CAD style)
-                    ctx.strokeStyle = 'rgba(34,211,238,0.35)'; ctx.lineWidth = 0.8;
-                    ctx.setLineDash([4, 5]);
-                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-                    ctx.setLineDash([]);
-                }
+                // Rapid — dashed gray
+                ctx.strokeStyle = CAM.rapid; ctx.lineWidth = 0.8;
+                ctx.setLineDash([4, 5]);
+                ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                ctx.setLineDash([]);
                 rapidDist += dist;
-            } else if (m.isZOnly) {
-                const depthRatio = Math.min(Math.max((espReal - m.z2) / espReal, 0), 1);
-                if (depthRatio > 0.02) {
-                    const r = Math.max(3 * sc, 1);
-                    const isThrough = depthRatio > 0.9;
-                    // Plunge point — dark circle on light sheet
-                    ctx.save();
-                    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = r * 0.8;
-                    ctx.fillStyle = isThrough ? '#0f1117' : '#1e2535'; ctx.globalAlpha = 0.90;
-                    ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.fill();
-                    ctx.restore();
-                    ctx.strokeStyle = 'rgba(59,130,246,0.65)'; ctx.lineWidth = Math.max(0.8, r * 0.14);
-                    ctx.globalAlpha = 0.85;
-                    ctx.beginPath(); ctx.arc(x2, y2, r, 0, Math.PI * 2); ctx.stroke();
-                    ctx.globalAlpha = 1;
-                }
-                cutDist += Math.abs(m.z2 - m.z1);
             } else {
-                // ── Cut move — crisp CAD blue lines on light sheet ────────────
-                const depthRatio = Math.min(Math.max((espReal - m.z2) / espReal, 0), 1);
-                const kerfW = Math.max(6 * sc * 0.88, 1.2);
-                const isPassante = depthRatio > 0.9;
+                // Cut move
+                const depthRatio = Math.min(1, Math.max(0, (espReal - m.z2) / espReal));
+                const isThrough = depthRatio > 0.88;
+                const kerfPx = Math.max(sc * 0.004, 1.0); // thin CAM line, not fat kerf
+                const alpha = 0.55 + depthRatio * 0.45;
 
-                // Kerf shadow — dark slot cut into the sheet
-                ctx.strokeStyle = isPassante
-                    ? 'rgba(15,17,23,0.78)'
-                    : `rgba(30,37,53,${0.55 + depthRatio * 0.30})`;
-                ctx.globalAlpha = 0.88 + depthRatio * 0.12;
-                ctx.lineWidth = kerfW; ctx.lineCap = 'round'; ctx.setLineDash([]);
+                // Glow shadow pass
+                ctx.strokeStyle = CAM.cutGlow;
+                ctx.lineWidth = kerfPx * 4;
+                ctx.globalAlpha = 0.35 + depthRatio * 0.25;
+                ctx.lineCap = 'round';
                 ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
 
-                // Kerf edge highlight (subtle light on one side)
-                const ddx = x2 - x1, ddy = y2 - y1;
-                const dlen = Math.sqrt(ddx * ddx + ddy * ddy);
-                if (dlen > 0.5 && kerfW > 1.5) {
-                    const nx = -ddy / dlen, ny = ddx / dlen;
-                    const edgeOff = kerfW * 0.42;
-                    ctx.strokeStyle = 'rgba(200,220,255,0.55)';
-                    ctx.globalAlpha = 0.22 + depthRatio * 0.20;
-                    ctx.lineWidth = Math.max(0.6, kerfW * 0.10); ctx.lineCap = 'butt';
-                    ctx.beginPath();
-                    ctx.moveTo(x1 + nx * edgeOff, y1 + ny * edgeOff);
-                    ctx.lineTo(x2 + nx * edgeOff, y2 + ny * edgeOff);
-                    ctx.stroke();
-                    ctx.lineCap = 'round';
-                }
-
-                // Op color stripe — categoria ou heatmap
-                const stripeColor = heatmapMode ? feedHeatColor(m.feed, minFeed, maxFeed) : cat.color;
-                ctx.strokeStyle = stripeColor;
-                ctx.globalAlpha = (isPassante ? 0.92 : 0.72) * (0.45 + depthRatio * 0.55);
-                ctx.lineWidth = Math.max(kerfW * (heatmapMode ? 0.38 : 0.22), 0.8); ctx.lineCap = 'round';
+                // Main line — category color or heatmap
+                const lineColor = heatmapMode
+                    ? feedHeatColor(m.feed, minFeed, maxFeed)
+                    : (isThrough ? cat.color : cat.color + 'BB');
+                ctx.strokeStyle = lineColor;
+                ctx.lineWidth = Math.max(kerfPx, 1.1);
+                ctx.globalAlpha = alpha;
                 ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
                 ctx.globalAlpha = 1;
+
+                // Active move highlight
+                if (isActive) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = Math.max(kerfPx * 0.5, 0.8);
+                    ctx.globalAlpha = 0.35;
+                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+
                 cutDist += dist;
             }
         }
         ctx.setLineDash([]);
+        ctx.lineCap = 'round';
 
-        // Tool change markers
+        // ── Tool change markers (full view) ─────────────────────────────────
         if (moveLimit < 0) {
             for (const ev of allEvents) {
-                if (ev.type === 'tool' && ev.moveIdx < allMoves.length) {
-                    const m = allMoves[ev.moveIdx] || allMoves[0];
-                    const cx = tx(m?.x1 ?? 0), cy = ty(m?.y1 ?? 0);
-                    ctx.fillStyle = '#fbbf24'; ctx.globalAlpha = 0.75;
-                    ctx.beginPath();
-                    ctx.moveTo(cx, cy - 5); ctx.lineTo(cx + 3, cy); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx - 3, cy);
-                    ctx.closePath(); ctx.fill();
-                    ctx.globalAlpha = 1;
-                }
+                if (ev.type !== 'tool' || ev.moveIdx >= allMoves.length) continue;
+                const m = allMoves[ev.moveIdx] || allMoves[0];
+                const cx = tx(m?.x1 ?? 0), cy = ty(m?.y1 ?? 0);
+                ctx.fillStyle = CAM.yellow; ctx.globalAlpha = 0.75;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - 5); ctx.lineTo(cx + 3, cy); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx - 3, cy);
+                ctx.closePath(); ctx.fill();
+                ctx.globalAlpha = 1;
             }
         }
 
-        // Start/end/current markers
+        // ── Start marker ────────────────────────────────────────────────────
         if (allMoves.length > 0) {
             const first = allMoves[0];
-            ctx.fillStyle = '#22c55e'; ctx.beginPath();
-            ctx.arc(tx(first.x1), ty(first.y1), 4, 0, Math.PI * 2); ctx.fill();
-
-            if (moveLimit >= 0 && moveLimit < allMoves.length) {
-                const cur = allMoves[moveLimit];
-                const curCat = getOpCat(cur.op);
-                ctx.strokeStyle = curCat.color + '40'; ctx.lineWidth = 6;
-                ctx.beginPath(); ctx.arc(tx(cur.x2), ty(cur.y2), 7, 0, Math.PI * 2); ctx.stroke();
-                ctx.fillStyle = curCat.color; ctx.beginPath();
-                ctx.arc(tx(cur.x2), ty(cur.y2), 3.5, 0, Math.PI * 2); ctx.fill();
-                ctx.strokeStyle = curCat.color + '70'; ctx.lineWidth = 0.6;
-                ctx.beginPath(); ctx.moveTo(tx(cur.x2) - 12, ty(cur.y2)); ctx.lineTo(tx(cur.x2) + 12, ty(cur.y2)); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(tx(cur.x2), ty(cur.y2) - 12); ctx.lineTo(tx(cur.x2), ty(cur.y2) + 12); ctx.stroke();
-                // Coord label — dark pill on canvas
-                ctx.fillStyle = 'rgba(15,17,23,0.82)';
-                const label = `X${cur.x2.toFixed(1)} Y${cur.y2.toFixed(1)} Z${cur.z2.toFixed(1)}`;
-                const lw = label.length * 5.5 + 8;
-                ctx.fillRect(tx(cur.x2) + 9, ty(cur.y2) - 16, lw, 13);
-                ctx.fillStyle = curCat.color; ctx.font = '9px monospace';
-                ctx.fillText(label, tx(cur.x2) + 13, ty(cur.y2) - 6);
-            } else if (moveLimit < 0) {
-                const last = allMoves[allMoves.length - 1];
-                ctx.fillStyle = '#ef4444'; ctx.beginPath();
-                ctx.arc(tx(last.x2), ty(last.y2), 4, 0, Math.PI * 2); ctx.fill();
-            }
+            ctx.fillStyle = CAM.start;
+            ctx.beginPath(); ctx.arc(tx(first.x1), ty(first.y1), 3.5, 0, Math.PI * 2); ctx.fill();
         }
 
-        // ── HUD — dark pill in top-left ───────────────────────────────────────
-        if (moveLimit >= 0) {
-            const { tool, op } = getActiveEventsAt(moveLimit);
-            const cat = getOpCat(op);
-            const hudH = (tool ? 16 : 0) + (op ? 16 : 0) + 10;
-            ctx.fillStyle = 'rgba(15,17,23,0.88)';
+        // ── Tool head (current position) ────────────────────────────────────
+        if (moveLimit >= 0 && moveLimit < allMoves.length) {
+            const cur = allMoves[moveLimit];
+            const cx = tx(cur.x2), cy = ty(cur.y2);
+
+            // Outer glow ring
+            ctx.strokeStyle = CAM.toolGlow; ctx.lineWidth = 5; ctx.globalAlpha = 0.5;
+            ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.stroke();
+            // Blue ring
+            ctx.strokeStyle = '#2F81F7'; ctx.lineWidth = 1.2; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.stroke();
+            // White center
+            ctx.fillStyle = CAM.tool; ctx.globalAlpha = 1;
+            ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+            // Crosshair
+            ctx.strokeStyle = CAM.tool; ctx.lineWidth = 0.7; ctx.globalAlpha = 0.45;
             ctx.beginPath();
-            const hudW = 300, rx = 6;
-            ctx.roundRect ? ctx.roundRect(4, 28, hudW, hudH, rx) : ctx.rect(4, 28, hudW, hudH);
+            ctx.moveTo(cx - 16, cy); ctx.lineTo(cx + 16, cy);
+            ctx.moveTo(cx, cy - 16); ctx.lineTo(cx, cy + 16);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            // Coord pill
+            const coordLabel = `X${cur.x2.toFixed(2)}  Y${cur.y2.toFixed(2)}  Z${cur.z2.toFixed(2)}`;
+            ctx.font = '9px "JetBrains Mono", monospace';
+            const lw = ctx.measureText(coordLabel).width + 14;
+            const lx = Math.min(cx + 12, W - lw - 6);
+            const ly = cy - 18 < 12 ? cy + 14 : cy - 18;
+            ctx.fillStyle = CAM.hud;
+            ctx.beginPath();
+            ctx.roundRect ? ctx.roundRect(lx, ly, lw, 14, 3) : ctx.rect(lx, ly, lw, 14);
             ctx.fill();
-            let hy = 44;
-            if (tool) { ctx.fillStyle = 'rgba(251,191,36,0.95)'; ctx.font = 'bold 10px monospace'; ctx.fillText(`◈ ${tool}`, 12, hy); hy += 16; }
-            if (op) { ctx.fillStyle = cat.color; ctx.font = 'bold 10px sans-serif'; ctx.fillText(`${cat.label}: ${op}`, 12, hy); }
+            ctx.fillStyle = CAM.textBlue;
+            ctx.fillText(coordLabel, lx + 7, ly + 10);
+        } else if (moveLimit < 0 && allMoves.length > 0) {
+            // End marker when fully rendered
+            const last = allMoves[allMoves.length - 1];
+            ctx.fillStyle = '#F85149';
+            ctx.beginPath(); ctx.arc(tx(last.x2), ty(last.y2), 3.5, 0, Math.PI * 2); ctx.fill();
         }
 
-        // ── Bottom status bar ─────────────────────────────────────────────────
-        ctx.fillStyle = 'rgba(15,17,23,0.80)'; ctx.fillRect(0, H - 20, W, 20);
+        // ── HUD — top-left (tool + op + stats) ──────────────────────────────
+        const { tool, op, feed } = getActiveEventsAt(Math.max(0, moveLimit));
+        const cat = getOpCat(op);
+        const hudLines = [];
         if (moveLimit >= 0) {
-            const pct = allMoves.length > 0 ? (moveLimit + 1) / allMoves.length : 0;
-            ctx.fillStyle = 'rgba(59,130,246,0.20)'; ctx.fillRect(0, H - 20, W * pct, 20);
-            for (const ev of allEvents) {
-                if (ev.type === 'tool') {
-                    ctx.fillStyle = 'rgba(251,191,36,0.70)';
-                    ctx.fillRect(W * (ev.moveIdx / allMoves.length) - 1, H - 20, 2, 20);
-                }
-            }
-            ctx.fillStyle = 'rgba(148,163,184,0.88)'; ctx.font = '9px monospace';
-            ctx.fillText(`Move ${moveLimit + 1}/${allMoves.length}  ·  Rápido: ${(rapidDist / 1000).toFixed(1)}m  ·  Corte: ${(cutDist / 1000).toFixed(1)}m`, 10, H - 5);
-        } else {
-            ctx.fillStyle = 'rgba(100,116,139,0.72)'; ctx.font = '9px monospace';
-            ctx.fillText(`${allMoves.length} movimentos  ·  Rápido: ${(rapidDist / 1000).toFixed(1)}m  ·  Corte: ${(cutDist / 1000).toFixed(1)}m`, 10, H - 5);
+            if (tool) hudLines.push({ text: `◈  ${tool}`, color: CAM.yellow });
+            if (op) hudLines.push({ text: `▶  ${cat.label}: ${op}`, color: cat.color || CAM.cut });
+            if (feed > 0) hudLines.push({ text: `F  ${feed.toFixed(0)} mm/min`, color: CAM.textDim });
         }
+        if (hudLines.length > 0) {
+            const hudH = hudLines.length * 16 + 10;
+            ctx.fillStyle = CAM.hud;
+            ctx.beginPath();
+            ctx.roundRect ? ctx.roundRect(6, 32, 260, hudH, 5) : ctx.rect(6, 32, 260, hudH);
+            ctx.fill();
+            ctx.font = 'bold 9.5px "JetBrains Mono", monospace';
+            let hy = 47;
+            for (const ln of hudLines) {
+                ctx.fillStyle = ln.color;
+                ctx.fillText(ln.text, 14, hy, 246);
+                hy += 16;
+            }
+        }
+
+        // ── Progress bar at very bottom of canvas ───────────────────────────
+        if (moveLimit >= 0 && allMoves.length > 0) {
+            const pct = (moveLimit + 1) / allMoves.length;
+            const bh = 3;
+            ctx.fillStyle = 'rgba(47,129,247,0.15)'; ctx.fillRect(0, H - bh, W, bh);
+            ctx.fillStyle = '#2F81F7'; ctx.fillRect(0, H - bh, W * pct, bh);
+            // Tool change ticks on the bar
+            for (const ev of allEvents) {
+                if (ev.type !== 'tool') continue;
+                const bx = W * (ev.moveIdx / allMoves.length);
+                ctx.fillStyle = CAM.yellow; ctx.fillRect(bx - 1, H - bh, 2, bh);
+            }
+        }
+
     }, [gcode, chapa, allMoves, allEvents, getActiveEventsAt, zoom, panOff, espReal, heatmapMode, minFeed, maxFeed]);
 
     useEffect(() => { renderCanvas(curMove); }, [curMove, renderCanvas]);
 
-    // Notifica parent do move atual para sincronizar G-code viewer
-    useEffect(() => {
-        if (onMoveChange) {
-            const lineIdx = curMove >= 0 ? (allMoves[curMove]?.lineIdx ?? -1) : -1;
-            onMoveChange(curMove, lineIdx);
-        }
-    }, [curMove, onMoveChange, allMoves]);
+    // ── Pan / Zoom ──────────────────────────────────────────────────────────
+    const handleWheel = useCallback((e) => {
+        e.preventDefault();
+        setZoom(z => Math.max(0.25, Math.min(8, z + (e.deltaY < 0 ? 0.18 : -0.18))));
+    }, []);
+    const handleMouseDown = useCallback((e) => {
+        panRef.current = { sx: e.clientX - panOff.x, sy: e.clientY - panOff.y };
+    }, [panOff]);
+    const handleMouseMove = useCallback((e) => {
+        if (!panRef.current) return;
+        setPanOff({ x: e.clientX - panRef.current.sx, y: e.clientY - panRef.current.sy });
+    }, []);
+    const handleMouseUp = useCallback(() => { panRef.current = null; }, []);
 
-    useEffect(() => {
-        if (!playing) { if (animRef.current) clearInterval(animRef.current); return; }
-        const interval = Math.max(10, 80 / speed);
-        animRef.current = setInterval(() => {
-            setCurMove(prev => {
-                const next = prev + 1;
-                if (next >= allMoves.length) { setPlaying(false); return allMoves.length - 1; }
-                return next;
-            });
-        }, interval);
-        return () => { if (animRef.current) clearInterval(animRef.current); };
-    }, [playing, speed, allMoves.length]);
-
-    // Keyboard shortcuts
+    // ── Keyboard ────────────────────────────────────────────────────────────
     useEffect(() => {
         const onKey = (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            switch (e.key) {
-                case ' ': e.preventDefault();
-                    if (playing) setPlaying(false);
-                    else { if (curMove >= allMoves.length - 1 || curMove < 0) setCurMove(0); setPlaying(true); }
-                    break;
-                case 'ArrowRight': e.preventDefault(); setPlaying(false); setCurMove(p => Math.min(allMoves.length - 1, (p < 0 ? 0 : p) + 1)); break;
-                case 'ArrowLeft': e.preventDefault(); setPlaying(false); setCurMove(p => Math.max(0, (p < 0 ? 0 : p) - 1)); break;
-                case 'f': case 'F': if (!e.ctrlKey && !e.metaKey) { setZoom(1); setPanOff({ x: 0, y: 0 }); } break;
+            if (e.key === 'f' || e.key === 'F') {
+                if (!e.ctrlKey && !e.metaKey) { setZoom(1); setPanOff({ x: 0, y: 0 }); }
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [playing, curMove, allMoves.length]);
+    }, []);
 
-    const handlePlay = () => { if (curMove >= allMoves.length - 1 || curMove < 0) setCurMove(0); setPlaying(true); };
-    const handlePause = () => setPlaying(false);
-    const handleStop = () => { setPlaying(false); setCurMove(-1); };
-    const handleStep = (dir) => { setPlaying(false); setCurMove(p => Math.max(0, Math.min(allMoves.length - 1, (p < 0 ? 0 : p) + dir))); };
-    const handleSlider = (e) => { setPlaying(false); setCurMove(parseInt(e.target.value)); };
-    const handleWheel = useCallback((e) => { e.preventDefault(); setZoom(z => Math.max(0.3, Math.min(5, z + (e.deltaY < 0 ? 0.15 : -0.15)))); }, []);
-    const handleMouseDown = (e) => { panRef.current = { startX: e.clientX - panOff.x, startY: e.clientY - panOff.y }; };
-    const handleMouseMove = (e) => { if (panRef.current) setPanOff({ x: e.clientX - panRef.current.startX, y: e.clientY - panRef.current.startY }); };
-    const handleMouseUp = () => { panRef.current = null; };
-
-    const { tool: activeTool, op: activeOp } = curMove >= 0 ? getActiveEventsAt(curMove) : { tool: '', op: '' };
-
-    const btnSt = {
-        padding: '3px 7px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-        borderRadius: 4, border: '1px solid var(--border)',
-        background: 'var(--surface-2)', color: 'var(--text-secondary)',
-        display: 'flex', alignItems: 'center', gap: 3, lineHeight: 1, whiteSpace: 'nowrap',
-    };
-    const btnAct = { ...btnSt, background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' };
-    const sepSt = { width: 1, height: 15, background: 'var(--border)', flexShrink: 0, alignSelf: 'center' };
+    // ── Active cat for legend ───────────────────────────────────────────────
+    const { op: activeOp } = curMove >= 0 ? getActiveEventsAt(curMove) : { op: '' };
 
     return (
-        <div style={{ position: 'relative' }}>
-            {/* Canvas */}
-            <canvas ref={canvasRef} width={760} height={400}
-                style={{
-                    borderRadius: '8px 8px 0 0', border: '1px solid var(--border)',
-                    borderBottom: 'none', cursor: panRef.current ? 'grabbing' : 'grab',
-                    display: 'block', width: '100%',
-                }}
-                onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+        <div ref={containerRef} style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: CAM.bg }}>
+            <canvas
+                ref={canvasRef}
+                style={{ flex: 1, display: 'block', cursor: panRef.current ? 'grabbing' : 'crosshair', width: '100%', height: '100%' }}
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
             />
 
-            {/* Transport + view controls unified bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderTop: 'none' }}>
-                {!playing
-                    ? <button onClick={handlePlay} style={btnAct} title="Play (Espaço)">▶</button>
-                    : <button onClick={handlePause} style={btnAct} title="Pausar">⏸</button>
-                }
-                <button onClick={handleStop} style={btnSt} title="Parar">⏹</button>
-                <div style={sepSt} />
-                <button onClick={() => handleStep(-1)} style={btnSt} title="Voltar (←)">⏮</button>
-                <button onClick={() => handleStep(1)} style={btnSt} title="Avançar (→)">⏭</button>
-                <input type="range" min={0} max={Math.max(0, allMoves.length - 1)}
-                    value={curMove < 0 ? 0 : curMove} onChange={handleSlider}
-                    style={{ flex: 1, height: 4, accentColor: 'var(--primary)', cursor: 'pointer' }} />
-                <select value={speed} onChange={e => setSpeed(Number(e.target.value))}
-                    style={{ ...btnSt, padding: '2px 4px', fontSize: 10 }}>
-                    {[0.5,1,2,5,10,20,50].map(v => <option key={v} value={v}>{v}x</option>)}
-                </select>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 68, textAlign: 'right', fontFamily: 'monospace' }}>
-                    {curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : `${allMoves.length} mov`}
-                </span>
-                <div style={sepSt} />
-                {/* Zoom controls */}
-                <button onClick={() => setZoom(z => Math.max(0.3, z - 0.3))} style={{ ...btnSt, padding: '2px 5px' }}>−</button>
-                <span style={{ fontSize: 10, color: 'var(--text-secondary)', minWidth: 30, textAlign: 'center', fontFamily: 'monospace' }}>{(zoom * 100).toFixed(0)}%</span>
-                <button onClick={() => setZoom(z => Math.min(5, z + 0.3))} style={{ ...btnSt, padding: '2px 5px' }}>+</button>
-                <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); }} style={{ ...btnSt, padding: '2px 6px' }} title="Encaixar (F)">⊡</button>
-                {/* Feed heatmap toggle */}
-                <button onClick={() => setHeatmapMode(h => !h)}
-                    style={{
-                        ...btnSt, fontWeight: 700,
-                        background: heatmapMode ? 'linear-gradient(90deg,#ef4444,#f59e0b,#22c55e,#3b82f6)' : 'var(--surface-2)',
-                        color: heatmapMode ? '#fff' : 'var(--text-muted)',
-                        border: heatmapMode ? '1px solid var(--primary)' : '1px solid var(--border)',
-                    }}
-                    title="Heatmap de velocidade de avanço">Feed</button>
+            {/* ── Legend chips ─────────────────────────────────────────────── */}
+            <div style={{
+                position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'rgba(9,13,20,0.82)', borderRadius: 8,
+                border: '1px solid rgba(47,129,247,0.18)',
+                padding: '5px 10px', backdropFilter: 'blur(4px)',
+                flexWrap: 'wrap', maxWidth: '90%',
+            }}>
+                {/* Rapid chip */}
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontSize: 10, color: '#8B949E', fontFamily: '"JetBrains Mono", monospace',
+                }}>
+                    <svg width={18} height={6}>
+                        <line x1={0} y1={3} x2={18} y2={3} stroke="#8B949E" strokeWidth={1} strokeDasharray="4 3" />
+                    </svg>
+                    Rápido
+                </div>
+                {foundOps.map(cat => {
+                    const isAct = activeOp && getOpCat(activeOp).key === cat.key;
+                    return (
+                        <div key={cat.key} style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            fontSize: 10, fontFamily: '"JetBrains Mono", monospace',
+                            color: isAct ? cat.color : 'rgba(180,190,210,0.55)',
+                            fontWeight: isAct ? 700 : 400,
+                            transition: 'color 0.15s',
+                        }}>
+                            <div style={{
+                                width: 8, height: 3, borderRadius: 1,
+                                background: cat.color, opacity: isAct ? 1 : 0.45,
+                            }} />
+                            {cat.label}
+                        </div>
+                    );
+                })}
+                {foundOps.length === 0 && (
+                    <span style={{ fontSize: 10, color: '#7D8794', fontFamily: 'monospace' }}>
+                        Aguardando simulação
+                    </span>
+                )}
             </div>
 
-            {/* Legend bar */}
+            {/* ── Zoom hint ────────────────────────────────────────────────── */}
             <div style={{
-                display: 'flex', alignItems: 'center', gap: 7, padding: '3px 10px',
-                background: 'var(--surface)', borderRadius: '0 0 8px 8px',
-                border: '1px solid var(--border)', borderTop: 'none', flexWrap: 'wrap',
+                position: 'absolute', top: 8, right: 10,
+                fontSize: 9.5, color: 'rgba(121,192,255,0.45)',
+                fontFamily: '"JetBrains Mono", monospace',
+                background: 'rgba(9,13,20,0.70)', padding: '3px 7px', borderRadius: 4,
             }}>
-                {heatmapMode ? (
-                    <>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Feed:</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <span style={{ fontSize: 9, color: '#ef4444', fontFamily: 'monospace' }}>{minFeed.toFixed(0)}</span>
-                            <span style={{ width: 48, height: 5, borderRadius: 2, background: 'linear-gradient(90deg,#ef4444,#f59e0b,#22c55e,#3b82f6)', display: 'inline-block' }} />
-                            <span style={{ fontSize: 9, color: '#3b82f6', fontFamily: 'monospace' }}>{maxFeed.toFixed(0)} mm/min</span>
-                        </span>
-                        <span style={{ fontSize: 10, color: '#ef4444', opacity: 0.85 }}>● Lento</span>
-                        <span style={{ fontSize: 10, color: '#f59e0b', opacity: 0.85 }}>● Médio</span>
-                        <span style={{ fontSize: 10, color: '#22c55e', opacity: 0.85 }}>● Corte</span>
-                        <span style={{ fontSize: 10, color: '#3b82f6', opacity: 0.85 }}>● Rápido</span>
-                    </>
-                ) : (
-                    <>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text-muted)', opacity: 0.65 }}>
-                            <span style={{ width: 12, height: 0, borderTop: '1px dashed rgba(34,211,238,0.55)', display: 'inline-block' }} />
-                            Rápido
-                        </span>
-                        {foundOps.map(cat => {
-                            const isActive = activeOp && getOpCat(activeOp).key === cat.key;
-                            return (
-                                <span key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: isActive ? cat.color : 'var(--text-muted)', fontWeight: isActive ? 700 : 400, transition: 'all 0.15s' }}>
-                                    <span style={{ width: 8, height: 3, borderRadius: 1, background: cat.color, display: 'inline-block', opacity: isActive ? 1 : 0.55 }} />
-                                    {cat.label}
-                                </span>
-                            );
-                        })}
-                        {foundOps.length === 0 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Sem operações</span>}
-                    </>
-                )}
-                {activeTool && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#fbbf24', fontWeight: 600 }}>◈ {activeTool}</span>}
+                {(zoom * 100).toFixed(0)}% · scroll=zoom · F=fit
             </div>
         </div>
     );
-}
+});
