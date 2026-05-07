@@ -128,33 +128,31 @@ export const Z = {
 // Editorial v3: chip com acent cobre, typography com Space Grotesk
 export function PageHeader({ icon: Icon, title, subtitle, children, accent = 'primary' }) {
     const isAccent = accent === 'accent';
-    const chipBg = isAccent ? 'var(--accent-gradient)' : 'var(--primary-gradient)';
-    const chipShadow = isAccent
-        ? 'inset 0 1px 0 rgba(255,255,255,0.22), 0 1px 2px rgba(184,147,90,0.32), 0 8px 20px rgba(184,147,90,0.20)'
-        : 'inset 0 1px 0 rgba(255,255,255,0.22), 0 1px 2px rgba(19,121,240,0.30), 0 8px 20px rgba(19,121,240,0.20)';
+    const chipBg = isAccent ? 'var(--accent)' : 'var(--primary)';
     return (
         <div className="animate-fade-up page-header-root" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: 12, marginBottom: 24, flexWrap: 'wrap',
+            gap: 12, marginBottom: 20, flexWrap: 'wrap',
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: '1 1 220px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 220px' }}>
                 {Icon && (
                     <div className="page-header-chip" style={{
-                        width: 46, height: 46, borderRadius: 14, flexShrink: 0,
+                        width: 38, height: 38, borderRadius: 8, flexShrink: 0,
                         background: chipBg,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: chipShadow,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
                         position: 'relative',
                     }}>
-                        <Icon size={22} style={{ color: '#fff' }} strokeWidth={2.2} />
+                        <Icon size={18} style={{ color: '#fff' }} strokeWidth={2.2} />
                     </div>
                 )}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                    <h1 className="font-display page-header-title" style={{
-                        fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.035em',
-                        margin: 0, lineHeight: 1.1,
+                    <h1 className="page-header-title" style={{
+                        fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em',
+                        margin: 0, lineHeight: 1.15,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         color: 'var(--text-primary)',
+                        fontFamily: 'var(--font-sans)',
                     }}>{title}</h1>
                     {subtitle && (
                         <p className="page-header-subtitle" style={{

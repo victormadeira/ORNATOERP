@@ -292,9 +292,15 @@ body::before {
 
 #root { position: relative; z-index: 2; }
 
-h1, h2, h3, h4 {
+/* Headers: Inter for h2-h4 (body/section context), Space Grotesk only for h1 display */
+h1 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+h2, h3, h4 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.015em;
   font-weight: 600;
 }
 
@@ -1067,7 +1073,7 @@ aside.sidebar-dark::after {
   justify-content: space-between;
   padding: 10px 12px;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
-  background: linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%);
+  background: var(--bg-subtle);
   border-bottom: 2px solid var(--accent-color, var(--border));
   position: relative;
 }
@@ -1098,9 +1104,9 @@ aside.sidebar-dark::after {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--bg-muted) 0%, transparent 100%);
+  background: var(--bg-subtle);
 }
 
 .section-card-header-title {
@@ -1563,11 +1569,11 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
 }
 .chart-card-pro:hover { box-shadow: var(--shadow-md); }
 .chart-card-pro-head {
-  padding: 16px 22px 12px;
+  padding: 14px 20px 12px;
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--bg-subtle), transparent);
+  background: var(--bg-subtle);
 }
 .chart-card-pro-title {
   display: flex; align-items: center; gap: 10px;
@@ -1786,18 +1792,14 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
    EMPTY STATE
    ═══════════════════════════════════════════════════════════ */
 .empty-state-icon {
-  width: 64px; height: 64px;
-  border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, var(--bg-muted), var(--bg-hover));
+  width: 56px; height: 56px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 16px;
   border: 1px dashed var(--border-hover);
-}
-
-.dark .empty-state-icon {
-  background: linear-gradient(135deg, rgba(34, 30, 25, 0.8), rgba(51, 44, 36, 0.4));
 }
 
 /* ═══════════════════════════════════════════════════════════

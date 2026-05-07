@@ -55,16 +55,14 @@ export default function Topbar({
                             touchAction: 'manipulation',
                         }}
                         onMouseEnter={e => {
-                            e.currentTarget.style.background = 'var(--bg-card)';
-                            e.currentTarget.style.borderColor = 'var(--accent-bright)';
+                            e.currentTarget.style.background = 'var(--bg-hover)';
+                            e.currentTarget.style.borderColor = 'var(--border-hover)';
                             e.currentTarget.style.color = 'var(--text-primary)';
-                            e.currentTarget.style.boxShadow = '0 2px 10px rgba(184, 147, 90, 0.18)';
                         }}
                         onMouseLeave={e => {
                             e.currentTarget.style.background = 'var(--bg-muted)';
                             e.currentTarget.style.borderColor = 'var(--border)';
                             e.currentTarget.style.color = 'var(--text-secondary)';
-                            e.currentTarget.style.boxShadow = 'none';
                         }}
                     >
                         <ArrowLeft size={15} strokeWidth={2.4} />
