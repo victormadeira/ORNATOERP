@@ -1106,6 +1106,16 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         </div>
     );
 
+    // Clamp pan so the board never escapes the viewport
+    const clampPan = (pan, zoom, vw, vh) => {
+        if (zoom <= 1) return { x: 0, y: 0 };
+        const maxDrift = zoom - 1;
+        return {
+            x: Math.max(-vw * maxDrift, Math.min(vw * 0.15, pan.x)),
+            y: Math.max(-vh * maxDrift, Math.min(vh * 0.15, pan.y)),
+        };
+    };
+
     // Zoom handlers for detail view — zoom towards mouse position
     const handleWheel = (e) => {
         e.preventDefault();
@@ -1116,12 +1126,20 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         setZoomLevel(oldZoom => {
             const newZoom = Math.max(1, Math.min(5, oldZoom + delta));
             if (newZoom === oldZoom) return oldZoom;
+            // Snap back to origin when returning to 1×
+            if (newZoom === 1) {
+                setPanOffset({ x: 0, y: 0 });
+                return newZoom;
+            }
             const ratio = newZoom / oldZoom;
-            // Adjust pan to keep the point under the mouse cursor fixed
-            setPanOffset(pan => ({
-                x: mouseX - (mouseX - pan.x) * ratio,
-                y: mouseY - (mouseY - pan.y) * ratio,
-            }));
+            // Adjust pan to keep the point under the mouse cursor fixed, then clamp
+            setPanOffset(pan => {
+                const raw = {
+                    x: mouseX - (mouseX - pan.x) * ratio,
+                    y: mouseY - (mouseY - pan.y) * ratio,
+                };
+                return clampPan(raw, newZoom, rect.width, rect.height);
+            });
             return newZoom;
         });
     };
@@ -1134,7 +1152,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     };
     const handlePanMove = (e) => {
         if (!isPanning) return;
-        setPanOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
+        const rect = e.currentTarget.getBoundingClientRect();
+        const raw = { x: e.clientX - panStart.x, y: e.clientY - panStart.y };
+        setPanOffset(clampPan(raw, zoomLevel, rect.width, rect.height));
     };
     const handlePanEnd = () => setIsPanning(false);
     const resetView = () => { setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); };

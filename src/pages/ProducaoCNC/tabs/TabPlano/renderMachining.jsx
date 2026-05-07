@@ -1148,10 +1148,14 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
             {/* ── Viz toolbar: zoom + view toggles + sobras ── */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 {/* Zoom group */}
-                <button onClick={() => setZoomLevel(Math.max(1, zoomLevel - 0.2))} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>−</button>
+                <button onClick={() => { setZoomLevel(Math.max(1, zoomLevel - 0.2)); if (zoomLevel - 0.2 <= 1) setPanOffset({ x: 0, y: 0 }); }} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>−</button>
                 <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', minWidth: 40, textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</span>
                 <button onClick={() => setZoomLevel(Math.min(5, zoomLevel + 0.2))} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700 }}>+</button>
-                <button onClick={resetView} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 10 }}>Reset</button>
+                <button onClick={() => { setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 10 }}>100%</button>
+                <button onClick={resetView} className={Z.btn2} style={{ padding: '3px 8px', fontSize: 10 }}>Encaixar</button>
+                {(panOffset.x !== 0 || panOffset.y !== 0) && (
+                    <span style={{ fontSize: 9, color: 'var(--info)', fontWeight: 600, marginLeft: 2 }}>· Pan ativo</span>
+                )}
                 <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>Ctrl+Scroll · Alt+Drag · DblClick=Girar</span>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
                     {/* View toggles */}
