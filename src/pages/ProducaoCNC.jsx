@@ -833,9 +833,9 @@ export default function ProducaoCNC({ notify }) {
                             fontFamily: 'var(--font-sans)',
                         }}
                     >
-                        <GitCompare size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                        <GitCompare size={14} style={{ color: 'var(--info)', flexShrink: 0 }} />
                         <span>Sugestões de agrupamento</span>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', background: 'var(--accent-alpha)', border: '1px solid var(--accent-ring)', padding: '2px 8px', borderRadius: 20 }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--info)', background: 'var(--info-bg, rgba(14,116,144,0.08))', border: '1px solid rgba(14,116,144,0.25)', padding: '2px 8px', borderRadius: 20 }}>
                             {sugestoes.length} LOTE{sugestoes.length > 1 ? 'S' : ''}
                         </span>
                         <ChevronDown size={13} style={{ marginLeft: 'auto', color: 'var(--text-muted)', transition: 'transform .2s', transform: sugestoesOpen ? 'rotate(180deg)' : '' }} />
@@ -847,7 +847,7 @@ export default function ProducaoCNC({ notify }) {
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
                                 >
-                                    <Package size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                                    <Package size={13} style={{ color: 'var(--info)', flexShrink: 0 }} />
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lote_nome}</div>
                                         <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1 }}>

@@ -503,7 +503,7 @@ export default function Sidebar({
                             <div className="flex items-center gap-2.5 px-2.5 py-2">
                                 <div onClick={() => setShowPerfil(true)} className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer rounded-lg px-1 py-0.5 transition-colors hover:bg-[var(--bg-hover)]">
                                     <div className="relative shrink-0">
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--accent)' }}>
+                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary)' }}>
                                             {user.nome?.[0]?.toUpperCase()}
                                         </div>
                                         <span className="status-online" />
@@ -599,7 +599,7 @@ export default function Sidebar({
                         </button>
                         <div className="flex items-center gap-2.5 px-2.5 py-2 mt-1">
                             <div className="relative shrink-0">
-                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--accent)' }}>
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary)' }}>
                                     {user.nome?.[0]?.toUpperCase()}
                                 </div>
                                 <span className="status-online" />

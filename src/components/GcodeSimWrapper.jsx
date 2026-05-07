@@ -1446,13 +1446,13 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
                             {renderMiniMetric({ label: 'Mov.', value: curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : allMoves.length, tone: '#2563eb' })}
                             {renderMiniMetric({ label: 'Zoom', value: `${(zoom * 100).toFixed(0)}%`, tone: '#2f2a24' })}
-                            {renderMiniMetric({ label: 'Feed', value: activeFeed ? `${activeFeed.toFixed(0)}` : '—', tone: 'var(--accent)' })}
+                            {renderMiniMetric({ label: 'Feed', value: activeFeed ? `${activeFeed.toFixed(0)}` : '—', tone: 'var(--primary)' })}
                             {renderMiniMetric({ label: 'Z atual', value: activeZ != null ? activeZ.toFixed(2) : '—', tone: activeZ != null && activeZ < 0 ? '#b91c1c' : '#2f2a24' })}
                         </div>
 
                         <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                             <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Ferramenta atual</div>
-                            <div style={{ color: activeTool ? 'var(--accent)' : 'var(--text-muted)', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
+                            <div style={{ color: activeTool ? 'var(--primary)' : 'var(--text-muted)', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
                                 {activeTool || 'Aguardando início'}
                             </div>
                             {nextTool && (
@@ -1854,7 +1854,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         </span>
                     )}
                     {activeTool && (
-                        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>
+                        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--primary)', fontWeight: 700, flexShrink: 0 }}>
                             ◈ {activeTool}
                         </span>
                     )}
@@ -1877,9 +1877,9 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                 const isActiveTool = i === activeToolIdx;
                                 const isPast = i < activeToolIdx;
                                 const isLast = i === toolEvents.length - 1;
-                                const circleColor = isActiveTool ? 'var(--accent)' : isPast ? '#7c6a58' : '#c4bdb5';
+                                const circleColor = isActiveTool ? 'var(--primary)' : isPast ? '#7c6a58' : '#c4bdb5';
                                 const circleBg = isActiveTool ? '#ffe4b8' : isPast ? '#f0ebe5' : '#fbf8f2';
-                                const circleBorder = isActiveTool ? 'var(--accent)' : isPast ? '#b5a898' : 'var(--border)';
+                                const circleBorder = isActiveTool ? 'var(--primary)' : isPast ? '#b5a898' : 'var(--border)';
                                 return (
                                     <div key={i} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                                         <button

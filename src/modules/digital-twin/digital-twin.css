@@ -236,7 +236,7 @@
 .dt-section-title::before {
   content: '';
   width: 2px; height: 12px;
-  background: var(--accent);
+  background: var(--primary);
   border-radius: 1px;
 }
 .dt-section-count {
@@ -367,7 +367,7 @@
 }
 .dt-op-furo_cego,
 .dt-op-furo_passante  { border-left-color: var(--primary); }
-.dt-op-rasgo          { border-left-color: var(--accent); }
+.dt-op-rasgo          { border-left-color: var(--warning); }
 .dt-op-rebaixo        { border-left-color: var(--info); }
 .dt-op-freza_circular { border-left-color: var(--success); }
 .dt-op-chanfro        { border-left-color: var(--warning); }

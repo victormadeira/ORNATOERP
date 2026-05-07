@@ -595,10 +595,10 @@ export default function Estoque({ notify }) {
                 </div>
                 <div className={Z.card} style={{ padding: '16px 18px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <BarChart3 size={16} color="var(--accent)" />
+                        <BarChart3 size={16} color="var(--primary)" />
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Valor em Estoque</span>
                     </div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>{R$(totalValor)}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary)' }}>{R$(totalValor)}</div>
                 </div>
             </div>
 
@@ -817,10 +817,10 @@ export default function Estoque({ notify }) {
                         </div>
                         <div className={Z.card} style={{ padding: '16px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                <DollarSign size={16} color="var(--accent)" />
+                                <DollarSign size={16} color="var(--primary)" />
                                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Custo Mão de Obra Mês</span>
                             </div>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>{R$(dashMO.custo_mao_obra_mes)}</div>
+                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary)' }}>{R$(dashMO.custo_mao_obra_mes)}</div>
                         </div>
                         <div className={Z.card} style={{ padding: '16px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -920,7 +920,7 @@ export default function Estoque({ notify }) {
                                             <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13 }}>{a.colaborador_nome || '—'}</td>
                                             <td style={{ padding: '10px 14px', fontSize: 13, color: 'var(--text-muted)' }}>{a.projeto_nome || '—'}</td>
                                             <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 14, color: 'var(--primary)' }}>{N(a.horas, 1)}</td>
-                                            <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, color: 'var(--accent)' }}>{R$(a.valor)}</td>
+                                            <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, color: 'var(--primary)' }}>{R$(a.valor)}</td>
                                             <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)' }}>{a.descricao || '—'}</td>
                                             <td style={{ padding: '10px 14px' }}>
                                                 {isGerente && (
@@ -1021,7 +1021,7 @@ export default function Estoque({ notify }) {
                                             <td style={{ padding: '10px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
                                                 {c.funcao || '—'}
                                             </td>
-                                            <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, color: 'var(--accent)' }}>
+                                            <td style={{ padding: '10px 14px', fontWeight: 600, fontSize: 13, color: 'var(--primary)' }}>
                                                 {c.valor_hora ? R$(c.valor_hora) : '—'}
                                             </td>
                                             <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)' }}>

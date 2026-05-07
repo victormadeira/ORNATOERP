@@ -234,7 +234,7 @@ function GCodeLine({ n, line }) {
   else if (/^G0\b/.test(trimmed.toUpperCase())) color = 'var(--dt-g0, #E0513F)';
   else if (/^G1\b/.test(trimmed.toUpperCase())) color = 'var(--dt-g1, #2E7FD6)';
   else if (/^G[23]\b/.test(trimmed.toUpperCase())) color = 'var(--dt-g2, #3D9B47)';
-  else if (/^M\d+/.test(trimmed.toUpperCase())) color = 'var(--accent)';
+  else if (/^M\d+/.test(trimmed.toUpperCase())) color = 'var(--text-muted)';
 
   return (
     <div style={{ display: 'flex', gap: 14 }}>

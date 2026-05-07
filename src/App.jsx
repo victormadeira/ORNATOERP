@@ -850,7 +850,7 @@ export default function App() {
                 const CMD_RTYPE = {
                     cliente:   { label: 'Cliente',    color: 'var(--info)',    ic: <Ic.Usr size={14} /> },
                     orcamento: { label: 'Orçamento',  color: 'var(--warning)', ic: <Ic.File size={14} /> },
-                    projeto:   { label: 'Projeto',    color: 'var(--accent)',  ic: <Ic.Briefcase size={14} /> },
+                    projeto:   { label: 'Projeto',    color: 'var(--primary)', ic: <Ic.Briefcase size={14} /> },
                     peca:      { label: 'Peça',       color: 'var(--success)', ic: <Ic.Box size={14} /> },
                     lote_cnc:  { label: 'Lote CNC',  color: 'var(--info)',    ic: <Ic.Layers size={14} /> },
                 };

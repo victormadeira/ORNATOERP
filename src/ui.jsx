@@ -559,7 +559,7 @@ export function KpiCard({ label, value, color, icon: Icon, sub, sparkData, accen
 
 // ─── SectionHeader — header padronizado para cards ──────
 export function SectionHeader({ icon: Icon, title, accent, children }) {
-    const c = accent || 'var(--accent)';
+    const c = accent || 'var(--primary)';
     return (
         <div style={{
             padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',

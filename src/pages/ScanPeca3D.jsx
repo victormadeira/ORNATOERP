@@ -256,7 +256,7 @@ function classifyPiece(desc) {
 
 const PIECE_COLORS = {
     lateral_dir: 'var(--info)', lateral_esq: 'var(--info)',
-    base: 'var(--success)', tampo: 'var(--accent)',
+    base: 'var(--success)', tampo: 'var(--primary)',
     traseira: 'var(--muted)', prateleira: '#06b6d4',
     porta: 'var(--warning)', gaveta: 'var(--warning)',
     divisoria: '#ec4899', other: 'var(--muted)',
