@@ -463,8 +463,8 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                         <td style={{ ...tdStyle, textAlign: 'center' }}>
                                             <span style={{
                                                 fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
-                                                color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
+                                                background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : 'var(--info-bg)',
+                                                color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : 'var(--info)',
                                             }}>
                                                 {b.tipo}
                                             </span>

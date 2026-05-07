@@ -27,5 +27,5 @@ export const STATUS_COLORS = {
     importado: THEME_STATUS.importado?.color || '#3b82f6',
     otimizado: THEME_STATUS.otimizado?.color || '#22c55e',
     produzindo: THEME_STATUS.produzindo?.color || '#f59e0b',
-    concluido: THEME_STATUS.concluido?.color  || '#8b5cf6',
+    concluido: THEME_STATUS.concluido?.color  || 'var(--success)',
 };

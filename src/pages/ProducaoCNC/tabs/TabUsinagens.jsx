@@ -832,7 +832,7 @@ export function TabUsinagens({ loteAtual, notify }) {
                 <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--border)' }}>
                     <KPI label="operações" value={totalAtivas} sub={`de ${totalOps}`} color={totalAtivas < totalOps ? '#f59e0b' : 'var(--text-primary)'} />
                     <div style={{ width: 1, background: 'var(--border)' }} />
-                    <KPI label="tempo est." value={fmtSeg(totalTempoSeg)} color="#8b5cf6" />
+                    <KPI label="tempo est." value={fmtSeg(totalTempoSeg)} color="var(--info)" />
                     <div style={{ width: 1, background: 'var(--border)' }} />
                     <KPI label="peças c/ usin." value={pecasComUsin.length} />
 

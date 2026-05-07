@@ -125,7 +125,7 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                                     className="w-full text-left px-3 py-1.5 flex items-center justify-between cursor-pointer transition-colors"
                                     style={{
                                         background: isActive ? 'var(--accent-bg, rgba(201,169,110,0.10))' : 'transparent',
-                                        borderLeft: isActive ? '2px solid #a855f7' : '2px solid transparent',
+                                        borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
                                     }}
                                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--accent-bg, rgba(201,169,110,0.05))'; }}
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}>

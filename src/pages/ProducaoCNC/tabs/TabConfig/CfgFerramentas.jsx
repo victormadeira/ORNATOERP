@@ -18,8 +18,8 @@ function ToolIcon({ tipoCorte, size = 28 }) {
     const tc = (tipoCorte || '').toLowerCase();
     const isFresa = tc.includes('fresa') || tc.includes('slot');
     const isSerra = tc.includes('serra') || tc.includes('disco');
-    const color = isFresa ? '#3b82f6' : isSerra ? '#f59e0b' : '#a855f7';
-    const bg = isFresa ? '#dbeafe' : isSerra ? '#fef3c7' : '#f3e8ff';
+    const color = isFresa ? '#3b82f6' : isSerra ? '#f59e0b' : 'var(--info)';
+    const bg = isFresa ? '#dbeafe' : isSerra ? '#fef3c7' : 'var(--info-bg)';
     return (
         <div style={{
             width: size, height: size, borderRadius: 6,
@@ -86,7 +86,7 @@ function ToolCard({ f, onEdit, onDel, onReset }) {
                         <code style={{ fontSize: 9, color: 'var(--primary)', background: 'rgba(var(--primary-rgb),0.1)', padding: '1px 5px', borderRadius: 4 }}>{f.tool_code}</code>
                     )}
                     {hasRampa && (
-                        <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(139,92,246,0.12)', color: '#8b5cf6', fontWeight: 700 }}>
+                        <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'var(--info-bg)', color: 'var(--info)', fontWeight: 700 }}>
                             rampa: {f.rampa_tipo}
                         </span>
                     )}
@@ -277,7 +277,7 @@ export function CfgFerramentas({ maquinaId, maquina: maquinaProp, notify }) {
                         <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{
                                 width: 6, height: 6, borderRadius: '50%',
-                                background: grupo === 'Fresas' ? '#3b82f6' : grupo === 'Serras' ? '#f59e0b' : '#a855f7',
+                                background: grupo === 'Fresas' ? '#3b82f6' : grupo === 'Serras' ? '#f59e0b' : 'var(--info)',
                                 display: 'inline-block',
                             }} />
                             {grupo} ({tools.length})
@@ -325,7 +325,7 @@ export function CfgFerramentas({ maquinaId, maquina: maquinaProp, notify }) {
                                         <td style={{ padding: '4px 6px', textAlign: 'center', color: f.doc ? 'var(--text-primary)' : 'var(--text-muted)' }}>{f.doc ?? '—'}</td>
                                         <td style={{ padding: '4px 6px', textAlign: 'center', fontSize: 9 }}>
                                             {f.rampa_tipo
-                                                ? <span style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>{f.rampa_tipo}</span>
+                                                ? <span style={{ background: 'var(--info-bg)', color: 'var(--info)', padding: '1px 4px', borderRadius: 3, fontWeight: 700 }}>{f.rampa_tipo}</span>
                                                 : <span style={{ color: 'var(--text-muted)' }}>herdar</span>}
                                         </td>
                                         <td style={{ padding: '4px 6px', minWidth: 80 }}>
@@ -385,7 +385,7 @@ function Section({ title, children, defaultOpen = true }) {
 // Chip de estratégia de rampa
 const RAMPA_OPCOES = [
     { value: null,          label: 'Herdar da máquina', sub: 'usa configuração global',  color: 'var(--text-muted)',  bg: 'var(--bg-muted)' },
-    { value: 'plunge',      label: 'Plunge direto',      sub: 'descida vertical Z (brocas)', color: '#a855f7', bg: '#f3e8ff' },
+    { value: 'plunge',      label: 'Plunge direto',      sub: 'descida vertical Z (brocas)', color: 'var(--info)', bg: 'var(--info-bg)' },
     { value: 'linear',      label: 'Rampa linear',       sub: 'desce ao longo do 1º segmento', color: '#3b82f6', bg: '#dbeafe' },
     { value: 'helicoidal',  label: 'Helicoidal',         sub: 'entrada circular descendente (bolsos)', color: '#22c55e', bg: '#dcfce7' },
 ];
@@ -771,7 +771,7 @@ function CalculadoraParametros({ tipoCorte, diametro, numCortes, onApply }) {
                                 {[
                                     { lb: 'RPM',       val: RPM.toLocaleString(),     unit: 'rpm',    color: '#3b82f6', tip: `Vc=${Vc} m/min` },
                                     { lb: 'Feed',      val: Feed.toLocaleString(),     unit: 'mm/min', color: '#22c55e', tip: `${nZ} dentes × ${fz.toFixed(3)} mm/dente` },
-                                    { lb: 'Chip Load', val: fz.toFixed(3),             unit: 'mm/z',   color: '#8b5cf6', tip: `fz ref: ${fz_ref.toFixed(3)} (Ø6)` },
+                                    { lb: 'Chip Load', val: fz.toFixed(3),             unit: 'mm/z',   color: 'var(--text-muted)', tip: `fz ref: ${fz_ref.toFixed(3)} (Ø6)` },
                                     { lb: 'DOC Máx',   val: doc_mm,                    unit: 'mm',     color: '#f59e0b', tip: `${tbl.doc_max_D}× diâmetro` },
                                 ].map(s => (
                                     <div key={s.lb} title={s.tip} style={{

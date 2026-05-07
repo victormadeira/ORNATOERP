@@ -315,7 +315,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                     label="Taxa Conversão"
                     value={`${m.taxa_conversao || 0}%`}
                     sub={m.total_orcamentos > 0 ? `${m.orcamentos_aprovados}/${m.total_orcamentos}` : 'Sem dados'}
-                    color="#8b5cf6"
+                    color="var(--info)"
                 />
                 <MetricCard
                     icon={<Briefcase size={20} />}

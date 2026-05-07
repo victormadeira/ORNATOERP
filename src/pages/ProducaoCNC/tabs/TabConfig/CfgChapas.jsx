@@ -77,7 +77,7 @@ export function CfgChapas({ notify }) {
                                 <td style={{ padding: '6px 8px', textAlign: 'center' }}>{c.refilo}</td>
                                 <td style={{ padding: '6px 8px' }}>
                                     {c.veio === 'sem_veio' || !c.veio ? <span style={{ color: 'var(--text-muted)' }}>—</span> :
-                                     <span style={{ color: '#8b5cf6', fontWeight: 600 }}>Com veio</span>}
+                                     <span style={{ color: 'var(--info)', fontWeight: 600 }}>Com veio</span>}
                                 </td>
                                 <td style={{ padding: '6px 8px', fontSize: 10 }}>
                                     {(!c.direcao_corte || c.direcao_corte === 'herdar') ? <span style={{ color: 'var(--text-muted)' }}>Global</span> :

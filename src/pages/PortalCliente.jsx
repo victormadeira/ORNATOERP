@@ -784,7 +784,7 @@ function PortalDocumentos({ token, accent }) {
         if (['doc', 'docx'].includes(tipo)) return { bg: 'var(--info-bg)', color: 'var(--info)', label: 'DOC' };
         if (['xls', 'xlsx', 'csv'].includes(tipo)) return { bg: 'var(--success-bg)', color: 'var(--success)', label: 'XLS' };
         if (['dxf', 'dwg'].includes(tipo)) return { bg: 'var(--warning-bg)', color: 'var(--warning)', label: 'CAD' };
-        if (isImage(tipo)) return { bg: '#ede9fe', color: '#8b5cf6', label: 'IMG' };
+        if (isImage(tipo)) return { bg: 'var(--info-bg)', color: 'var(--info)', label: 'IMG' };
         return { bg: 'var(--muted-bg)', color: 'var(--muted)', label: (tipo || '?').toUpperCase().slice(0, 3) };
     };
 
@@ -1418,7 +1418,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                         { key: 'aguardando', label: 'Aguardando', color: 'var(--muted)', icon: Clock },
                         { key: 'producao', label: 'Produção', color: '#f97316', icon: Factory },
                         { key: 'expedicao', label: 'Expedição', color: 'var(--info)', icon: Truck },
-                        { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
+                        { key: 'instalacao', label: 'Instalação', color: 'var(--info)', icon: Wrench },
                         { key: 'concluido', label: 'Concluído', color: 'var(--success)', icon: CheckCircle2 },
                     ];
                     const stMap = Object.fromEntries(AMB_ST.map(s => [s.key, s]));

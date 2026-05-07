@@ -375,7 +375,7 @@ export function TabCustos({ loteAtual, notify }) {
                             label="Tempo Estimado"
                             value={fmtMin(tempo.tempo_total_min)}
                             sub={`${tempo.total_metros_corte}m lineares`}
-                            color="#8b5cf6"
+                            color="var(--info)"
                         />
                     )}
                 </div>

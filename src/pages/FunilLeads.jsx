@@ -35,7 +35,7 @@ const ORIGENS_LABEL = {
 };
 const ORIGENS_COLOR = {
     instagram: '#E1306C', google: '#4285F4', indicacao: 'var(--success)',
-    facebook: '#1877F2', arquiteto: '#8b5cf6', site: '#06b6d4',
+    facebook: '#1877F2', arquiteto: 'var(--info)', site: '#06b6d4',
     whatsapp: '#25D366', outro: 'var(--muted)', '': 'var(--muted)',
 };
 const TEMP_CONFIG = {
@@ -337,7 +337,7 @@ function MetricsDash({ metricas }) {
     const cards = [
         { label: 'Total Leads', value: m.totalLeads, icon: Users, color: 'var(--info)' },
         { label: 'Convertidos', value: m.convertidos, icon: Target, color: 'var(--success)' },
-        { label: 'Taxa Conversão', value: `${m.taxaConversao}%`, icon: TrendingUp, color: '#8b5cf6' },
+        { label: 'Taxa Conversão', value: `${m.taxaConversao}%`, icon: TrendingUp, color: 'var(--info)' },
         { label: 'Esta Semana', value: m.estaSemana, icon: Calendar, color: '#06b6d4', sub: m.semanaPassada > 0 ? `vs ${m.semanaPassada} sem. ant.` : null },
         { label: 'Tempo Médio', value: `${m.tempoMedioConversao}d`, icon: Clock, color: 'var(--warning)' },
         { label: 'Atrasados', value: m.followupAtrasado + m.parados, icon: AlertTriangle, color: m.followupAtrasado + m.parados > 0 ? 'var(--danger)' : 'var(--muted)' },
@@ -1033,7 +1033,7 @@ function LeadModal({ lead, colunas, onSave, onDelete, onClose, onNewOrc, onLinkO
                                     <PlusCircle size={12} style={{ color: 'var(--primary)' }} /> Criar orçamento
                                 </button>
                                 <button onClick={() => { onClose(); onLinkOrc?.(lead); }} className="flex-1 text-[11px] px-3 py-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 border border-[var(--border)] hover:bg-[var(--bg-muted)] transition-colors" style={{ color: 'var(--text-primary)' }}>
-                                    <Link2 size={12} style={{ color: '#8b5cf6' }} /> Vincular existente
+                                    <Link2 size={12} style={{ color: 'var(--info)' }} /> Vincular existente
                                 </button>
                             </div>
                         )}

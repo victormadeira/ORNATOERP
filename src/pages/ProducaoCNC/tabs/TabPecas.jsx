@@ -531,7 +531,7 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                                             <FileUp size={13} />
                                                         </button>
                                                         <button onClick={() => setTemplateApplyTarget(p)} title="Aplicar template de usinagem"
-                                                            style={{ background: 'rgba(139,92,246,0.1)', border: 'none', cursor: 'pointer', color: '#8b5cf6', padding: '2px 5px', borderRadius: 4 }}>
+                                                            style={{ background: 'var(--info-bg)', border: 'none', cursor: 'pointer', color: 'var(--info)', padding: '2px 5px', borderRadius: 4 }}>
                                                             <Zap size={13} />
                                                         </button>
                                                         <button onClick={async () => {
@@ -717,7 +717,7 @@ export function TabPecas({ lotes, loteAtual, setLoteAtual, notify, setTab, onOpe
                                 {historicoPeca.eventos.map((ev, i) => {
                                     const colors = {
                                         criacao: '#64748b', corte_inicio: '#3b82f6', corte_fim: '#16a34a',
-                                        conferencia_ok: '#16a34a', defeito: '#dc2626', expedicao: '#8b5cf6',
+                                        conferencia_ok: '#16a34a', defeito: '#dc2626', expedicao: 'var(--success)',
                                         gcode_gerado: '#f59e0b', observacao: '#64748b',
                                     };
                                     const cor = colors[ev.tipo] || '#64748b';

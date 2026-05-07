@@ -355,7 +355,7 @@ export const PRESET_DESCRICOES = {
     3: {
         iconKey: 'controle',
         badge: 'CONTROLE',
-        badgeColor: '#8b5cf6',
+        badgeColor: 'var(--info)',
         descricao: 'Formato pequeno para controle interno: material, dimensões, barcode e diagrama de bordas.',
         uso: 'Estoque e controle de materiais',
     },
