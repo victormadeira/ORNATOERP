@@ -250,7 +250,7 @@ function TabRentabilidade() {
                             const custo = p.custoTotal || p.custo || p.custo_total || 0;
                             const lucro = p.lucro ?? (receita - custo);
                             const margem = p.margem ?? (receita > 0 ? (lucro / receita) * 100 : 0);
-                            const margemColor = margem >= 30 ? 'var(--success)' : margem >= 15 ? '#eab308' : 'var(--danger)';
+                            const margemColor = margem >= 30 ? 'var(--success)' : margem >= 15 ? 'var(--warning)' : 'var(--danger)';
                             const clienteNome = p.cliente_nome || p.cliente;
 
                             return (
@@ -809,7 +809,7 @@ function TabNPS() {
     let scoreColor = 'var(--success)';
     let scoreLabel = 'Excelente';
     if (score < 0) { scoreColor = 'var(--danger)'; scoreLabel = 'Critico'; }
-    else if (score < 50) { scoreColor = '#eab308'; scoreLabel = 'Razoavel'; }
+    else if (score < 50) { scoreColor = 'var(--warning)'; scoreLabel = 'Razoavel'; }
     else if (score < 75) { scoreColor = 'var(--info)'; scoreLabel = 'Bom'; }
 
     const ScoreIcon = score >= 50 ? Smile : score >= 0 ? Meh : Frown;
@@ -824,7 +824,7 @@ function TabNPS() {
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{total} respostas</div>
                 </div>
                 <KPI icon={ThumbsUp} label="Promotores (9-10)" value={promotores} sub={total > 0 ? `${Math.round((promotores / total) * 100)}%` : ''} color="var(--success)" />
-                <KPI icon={Meh} label="Neutros (7-8)" value={neutros} sub={total > 0 ? `${Math.round((neutros / total) * 100)}%` : ''} color="#eab308" />
+                <KPI icon={Meh} label="Neutros (7-8)" value={neutros} sub={total > 0 ? `${Math.round((neutros / total) * 100)}%` : ''} color="var(--warning)" />
                 <KPI icon={ThumbsDown} label="Detratores (0-6)" value={detratores} sub={total > 0 ? `${Math.round((detratores / total) * 100)}%` : ''} color="var(--danger)" />
             </div>
 
@@ -833,7 +833,7 @@ function TabNPS() {
                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Avaliacoes Recentes</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {avaliacoes.map((a, i) => {
-                            const noteColor = a.nota >= 9 ? 'var(--success)' : a.nota >= 7 ? '#eab308' : 'var(--danger)';
+                            const noteColor = a.nota >= 9 ? 'var(--success)' : a.nota >= 7 ? 'var(--warning)' : 'var(--danger)';
                             return (
                                 <div key={a.id || i} style={{
                                     display: 'flex', gap: 12, padding: '12px 0',
@@ -998,7 +998,7 @@ function TabManutencao() {
                                 const isAtrasada = sKey === 'atrasada';
                                 const dataProx = m.data_proxima || m.data_prevista;
                                 return (
-                                    <tr key={m.id || i} style={{ borderBottom: '1px solid var(--border)', background: isAtrasada ? '#fef2f215' : 'transparent' }}>
+                                    <tr key={m.id || i} style={{ borderBottom: '1px solid var(--border)', background: isAtrasada ? 'rgba(220,38,38,0.04)' : 'transparent' }}>
                                         <td style={{ padding: '10px 12px' }}>
                                             <div style={{ fontWeight: 700 }}>{m.maquina_nome || m.maquina}</div>
                                             {m.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.descricao}</div>}

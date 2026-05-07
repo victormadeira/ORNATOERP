@@ -1284,7 +1284,7 @@ aside.sidebar-dark::after {
 }
 
 .prod-card-accent {
-  border-left: 3px solid var(--accent-color, var(--accent));
+  border-left: 3px solid var(--accent-color, var(--primary));
 }
 
 /* ─── Chip select ─── */

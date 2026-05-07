@@ -646,8 +646,8 @@ function FluxoCaixa({ data }) {
                     </span>
                 </div>
                 <div className="segmented-bar" style={{ marginBottom: 18 }}>
-                    <span style={{ width: `${pctEntrada}%`, background: 'linear-gradient(90deg, #7A9F5E, #5C7B43)' }} />
-                    <span style={{ width: `${pctSaida}%`, background: 'linear-gradient(90deg, #A0473A, #8A3C30)', animationDelay: '150ms' }} />
+                    <span style={{ width: `${pctEntrada}%`, background: 'var(--success)' }} />
+                    <span style={{ width: `${pctSaida}%`, background: 'var(--danger)', animationDelay: '150ms' }} />
                 </div>
 
                 {/* Entradas list */}
@@ -1138,8 +1138,8 @@ function FluxoProjetado({ data }) {
                                 <span className="font-tabular" style={{ color: 'var(--danger)', fontWeight: 600 }}>Saídas: {R$(m.saidas)}</span>
                             </div>
                             <div className="segmented-bar">
-                                <span style={{ width: `${pctIn}%`, background: 'linear-gradient(90deg, #7A9F5E, #5C7B43)', animationDelay: `${i * 80 + 100}ms` }} />
-                                <span style={{ width: `${pctOut}%`, background: 'linear-gradient(90deg, #A0473A, #8A3C30)', animationDelay: `${i * 80 + 150}ms` }} />
+                                <span style={{ width: `${pctIn}%`, background: 'var(--success)', animationDelay: `${i * 80 + 100}ms` }} />
+                                <span style={{ width: `${pctOut}%`, background: 'var(--danger)', animationDelay: `${i * 80 + 150}ms` }} />
                             </div>
                         </div>
                     );

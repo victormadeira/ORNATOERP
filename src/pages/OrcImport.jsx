@@ -642,7 +642,7 @@ function Step2Preview({ file, preview, warnings, cid, setCid, clis, saving, tota
             </div>
 
             {warnings.length > 0 && (
-                <div className="glass-card p-4" style={{ borderLeft: '3px solid #f59e0b' }}>
+                <div className="glass-card p-4" style={{ borderLeft: '3px solid var(--warning)' }}>
                     <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
                         <strong>{warnings.length} aviso(s) de catálogo</strong>
@@ -957,7 +957,7 @@ function BreakdownInput({ label, value, onChange, disabled, prefix, suffix, step
                         fontSize: 11, padding: '3px 5px',
                         background: disabled ? 'var(--surface)' : undefined,
                         opacity: disabled ? 0.7 : 1,
-                        borderColor: invalid ? '#f59e0b' : (highlight ? 'var(--primary)' : undefined),
+                        borderColor: invalid ? 'var(--warning)' : (highlight ? 'var(--primary)' : undefined),
                         fontWeight: highlight ? 600 : undefined,
                     }}
                 />
@@ -970,7 +970,7 @@ function BreakdownInput({ label, value, onChange, disabled, prefix, suffix, step
 function StatusChip({ kind }) {
     if (kind === 'livre') {
         return (
-            <span title="Item livre — valor manual" style={chipStyle('#f59e0b')}>
+            <span title="Item livre — valor manual" style={chipStyle('var(--warning)')}>
                 <Coins size={11} /> livre
             </span>
         );

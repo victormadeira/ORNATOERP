@@ -873,7 +873,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 const seg = s.tempo % 60;
                                                 const tempoStr = min > 0 ? `${min}m${seg > 0 ? seg + 's' : ''}` : `${seg}s`;
                                                 const heat = s.pct / 100;
-                                                const barColor = heat > 0.6 ? 'var(--danger)' : heat > 0.3 ? '#f97316' : heat > 0.15 ? 'var(--warning)' : 'var(--info)';
+                                                const barColor = heat > 0.6 ? 'var(--danger)' : heat > 0.3 ? 'var(--warning)' : heat > 0.15 ? 'var(--info)' : 'var(--success)';
                                                 const isResumo = s.id === 'resumo' || s.id === 'pagamento';
                                                 return (
                                                     <div key={i} className="flex items-center gap-2">

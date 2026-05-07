@@ -84,7 +84,7 @@ export default function Produtividade({ notify }) {
 
     const ETAPA_COLORS = {
         corte: 'var(--info)', usinagem: 'var(--info)', colagem_borda: 'var(--warning)', furacao: 'var(--danger)',
-        montagem: 'var(--success)', acabamento: '#06b6d4', embalagem: '#ec4899',
+        montagem: 'var(--success)', acabamento: 'var(--info)', embalagem: 'var(--text-muted)',
     };
 
     return (

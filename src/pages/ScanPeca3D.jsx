@@ -784,7 +784,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                         {loading && (
                             <div style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)' }}>
                                 <div style={{
-                                    width: 20, height: 20, border: '2px solid #3b82f6', borderTopColor: 'transparent',
+                                    width: 20, height: 20, border: '2px solid var(--primary)', borderTopColor: 'transparent',
                                     borderRadius: '50%', animation: 'spin 0.6s linear infinite',
                                 }} />
                             </div>

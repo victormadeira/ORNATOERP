@@ -648,7 +648,7 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                                                         setCheckingMats(false);
                                                     }
                                                 }}
-                                                className={action === 'vincular' ? 'btn-primary btn-sm' : 'btn-accent btn-sm'}
+                                                className={action === 'vincular' ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
                                                 style={{
                                                     fontSize: 12, padding: '7px 18px', gap: 6,
                                                     opacity: (action === 'vincular' && !matVinculos[i]) ? 0.4 : 1,

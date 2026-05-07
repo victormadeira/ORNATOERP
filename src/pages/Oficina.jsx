@@ -51,9 +51,9 @@ function prazoClass(prazo) {
 
 function ageDot(iso) {
   const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
-  if (d <= 1)  return '#10B981';
-  if (d <= 3)  return '#F59E0B';
-  return '#EF4444';
+  if (d <= 1)  return 'var(--success)';
+  if (d <= 3)  return 'var(--warning)';
+  return 'var(--danger)';
 }
 
 function timeFmt(iso) {
@@ -512,7 +512,7 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
             </div>
             {checkTotal > 0 && (
               <div style={{ height: 4, borderRadius: 99, background: '#E2E8F0', overflow: 'hidden', marginBottom: 10 }}>
-                <div style={{ width: `${Math.round(checkDone / checkTotal * 100)}%`, height: '100%', background: '#10B981', borderRadius: 99, transition: 'width 0.4s' }} />
+                <div style={{ width: `${Math.round(checkDone / checkTotal * 100)}%`, height: '100%', background: 'var(--success)', borderRadius: 99, transition: 'width 0.4s' }} />
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1108,9 +1108,9 @@ function TVCardActions({ card, onClose, onUpdate, onMove }) {
                 {['Aguardando material','Decisão do cliente','Máquina quebrada','Faltou acessório'].map(m => (
                   <button key={m} onClick={() => setMotivo(m)} style={{
                     ...btnBase, fontSize: 12, minHeight: 46, padding: '10px 12px',
-                    background: motivo === m ? '#EF444430' : '#1e2530',
+                    background: motivo === m ? 'rgba(220,38,38,0.19)' : '#1e2530',
                     color: motivo === m ? '#EF4444' : '#94a3b8',
-                    border: motivo === m ? '2px solid #EF444466' : '2px solid transparent',
+                    border: motivo === m ? '2px solid rgba(220,38,38,0.40)' : '2px solid transparent',
                   }}>{m}</button>
                 ))}
               </div>
@@ -1130,7 +1130,7 @@ function TVCardActions({ card, onClose, onUpdate, onMove }) {
               {/* INICIAR / RETOMAR */}
               {(card.status === 'pendente' || card.status === 'pausado') && (
                 <button onClick={() => acao(card.status === 'pausado' ? 'retomar' : 'iniciar')} disabled={loading}
-                  style={{ ...btnBase, background: '#10B981', color: '#fff', opacity: loading ? 0.6 : 1 }}>
+                  style={{ ...btnBase, background: 'var(--success)', color: '#fff', opacity: loading ? 0.6 : 1 }}>
                   <Play size={24} fill="#fff" />
                   {card.status === 'pausado' ? 'RETOMAR' : 'INICIAR'}
                 </button>
@@ -1283,7 +1283,7 @@ function TemplatesModal({ onClose, notify }) {
                       <input autoFocus value={editText} onChange={e => setEditText(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditId(null); }}
                         style={{ ...inp, flex: 1, padding: '5px 8px' }} />
-                      <button onClick={saveEdit} style={{ border: 0, background: '#10B981', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700 }}>OK</button>
+                      <button onClick={saveEdit} style={{ border: 0, background: 'var(--success)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 700 }}>OK</button>
                       <button onClick={() => setEditId(null)} style={{ border: 0, background: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 4 }}><X size={13} /></button>
                     </>
                   ) : (
@@ -1618,7 +1618,7 @@ function TVCard({ card, onClick }) {
       ) : (
         <div style={{
           fontSize: 11, fontWeight: 700, color: '#ef4444',
-          background: '#ef44441a', border: '1px dashed #ef444466',
+          background: 'rgba(220,38,38,0.10)', border: '1px dashed rgba(220,38,38,0.40)',
           borderRadius: 8, padding: '6px 8px', marginBottom: 8, textAlign: 'center',
           letterSpacing: 0.4, textTransform: 'uppercase',
         }}>Sem responsável</div>
@@ -1685,8 +1685,8 @@ function TVCalendar({ cards }) {
     if (!items.length) return null;
     const diffs = items.map(c => Math.floor((new Date(c.prazo + 'T12:00:00') - now) / 86400000));
     const min = Math.min(...diffs);
-    if (min < 0)  return '#EF4444';
-    if (min === 0) return '#F97316';
+    if (min < 0)  return 'var(--danger)';
+    if (min === 0) return 'var(--warning)';
     if (min <= 3)  return '#F59E0B';
     return '#C9A96E';
   };

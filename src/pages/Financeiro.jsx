@@ -59,23 +59,23 @@ function gerarParcelas(valorTotal, numParcelas, primeiraData, tipoIntervalo = 'm
 }
 
 function getStatusPagar(cp) {
-    if (cp.status === 'pago') return { label: 'Pago',    color: '#5B8C6B', bg: 'var(--success-bg)', icon: Check };
+    if (cp.status === 'pago') return { label: 'Pago',    color: 'var(--success)', bg: 'var(--success-bg)', icon: Check };
     if (cp.vencida || (cp.data_vencimento && cp.data_vencimento < new Date().toISOString().slice(0, 10)))
-        return { label: 'Vencida', color: '#B86565', bg: 'var(--danger-bg)', icon: AlertTriangle };
+        return { label: 'Vencida', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: AlertTriangle };
     if (cp.data_vencimento) {
         const dias = Math.ceil((new Date(cp.data_vencimento + 'T12:00:00') - new Date()) / 86400000);
-        if (dias <= 7) return { label: `${dias}d`, color: '#C4924C', bg: 'var(--warning-bg)', icon: Clock };
+        if (dias <= 7) return { label: `${dias}d`, color: 'var(--warning)', bg: 'var(--warning-bg)', icon: Clock };
     }
     return { label: 'Pendente', color: 'var(--muted)', bg: '#f9fafb', icon: Clock };
 }
 
 function getStatusReceber(cr) {
-    if (cr.status === 'pago') return { label: 'Recebido', color: '#5B8C6B', bg: 'var(--success-bg)', icon: Check };
+    if (cr.status === 'pago') return { label: 'Recebido', color: 'var(--success)', bg: 'var(--success-bg)', icon: Check };
     if (cr.vencida || (cr.data_vencimento && cr.data_vencimento < new Date().toISOString().slice(0, 10)))
-        return { label: 'Vencida', color: '#B86565', bg: 'var(--danger-bg)', icon: AlertTriangle };
+        return { label: 'Vencida', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: AlertTriangle };
     if (cr.data_vencimento) {
         const dias = Math.ceil((new Date(cr.data_vencimento + 'T12:00:00') - new Date()) / 86400000);
-        if (dias <= 7) return { label: `${dias}d`, color: '#C4924C', bg: 'var(--warning-bg)', icon: Clock };
+        if (dias <= 7) return { label: `${dias}d`, color: 'var(--warning)', bg: 'var(--warning-bg)', icon: Clock };
     }
     return { label: 'Pendente', color: 'var(--muted)', bg: '#f9fafb', icon: Clock };
 }
@@ -449,7 +449,7 @@ function SecaoPagar({ notify, projetos, user }) {
                                     const cat = CAT_MAP[cp.categoria];
                                     const isPago = cp.status === 'pago';
                                     return (
-                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: selectedIds.has(cp.id) ? 'rgba(19,121,240,0.06)' : !isPago && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isPago && st.color === '#B86565' ? '3px solid var(--danger)' : 'none' }}>
+                                        <tr key={cp.id} style={{ borderBottom: '1px solid var(--border)', opacity: isPago ? 0.65 : 1, background: selectedIds.has(cp.id) ? 'rgba(19,121,240,0.06)' : !isPago && st.color === 'var(--danger)' ? 'rgba(220,38,38,0.04)' : 'transparent', borderLeft: !isPago && st.color === 'var(--danger)' ? '3px solid var(--danger)' : 'none' }}>
                                             <td style={{ padding: '10px 8px', textAlign: 'center', width: 32 }}>
                                                 {!isPago && <input type="checkbox" checked={selectedIds.has(cp.id)} onChange={() => toggleSelect(cp.id)} style={{ cursor: 'pointer', accentColor: 'var(--primary)' }} />}
                                             </td>
@@ -475,15 +475,15 @@ function SecaoPagar({ notify, projetos, user }) {
                                                       : <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{cp.categoria}</span>}
                                             </td>
                                             <td style={{ padding: '10px 12px', fontSize: 11, color: cp.projeto_nome ? 'var(--primary)' : 'var(--text-muted)' }}>{cp.projeto_nome || '—'}</td>
-                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: isPago ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: isPago ? 'var(--success)' : st.color === 'var(--danger)' ? 'var(--danger)' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cp.valor)}</td>
                                             <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 {dtFmt(cp.data_vencimento)}
-                                                {isPago && cp.data_pagamento && <div style={{ fontSize: 9, color: '#5B8C6B' }}>Pago {dtFmt(cp.data_pagamento)}</div>}
+                                                {isPago && cp.data_pagamento && <div style={{ fontSize: 9, color: 'var(--success)' }}>Pago {dtFmt(cp.data_pagamento)}</div>}
                                             </td>
                                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
                                                     <button onClick={() => togglePago(cp)} title={isPago ? 'Reabrir' : 'Marcar pago'}
-                                                        style={{ width: 26, height: 26, borderRadius: 5, border: `2px solid ${isPago ? 'var(--primary)' : '#d1d5db'}`, background: isPago ? 'var(--primary)' : 'transparent', color: isPago ? '#fff' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                                        style={{ width: 26, height: 26, borderRadius: 5, border: `2px solid ${isPago ? 'var(--primary)' : 'var(--border)'}`, background: isPago ? 'var(--primary)' : 'transparent', color: isPago ? '#fff' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                                         <Check size={14} />
                                                     </button>
                                                     <button onClick={() => openAnexos(cp.id)} title="Anexos"
@@ -769,12 +769,12 @@ function SecaoReceber({ notify, projetos, user }) {
             {aba === 'pendentes' && topDevedores.length > 0 && (
                 <div className={Z.card} style={{ padding: '12px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600, fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
-                        <Trophy size={13} style={{ color: '#C4924C' }} /> Maiores pendentes
+                        <Trophy size={13} style={{ color: 'var(--warning)' }} /> Maiores pendentes
                     </div>
                     {topDevedores.map((d, i) => (
                         <span key={i} style={{ fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <span style={{ fontWeight: 600 }}>{d.nome}</span>
-                            <span style={{ color: '#B86565', fontWeight: 700 }}>{R$(d.total)}</span>
+                            <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{R$(d.total)}</span>
                             {i < topDevedores.length - 1 && <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>}
                         </span>
                     ))}
@@ -917,7 +917,7 @@ function SecaoReceber({ notify, projetos, user }) {
                                     const st = getStatusReceber(cr);
                                     const isRecebido = cr.status === 'pago';
                                     return (
-                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: selectedIds.has(cr.id) ? 'rgba(19,121,240,0.06)' : !isRecebido && st.color === '#B86565' ? '#fef2f218' : 'transparent', borderLeft: !isRecebido && st.color === '#B86565' ? '3px solid var(--danger)' : 'none' }}>
+                                        <tr key={cr.id} style={{ borderBottom: '1px solid var(--border)', opacity: isRecebido ? 0.65 : 1, background: selectedIds.has(cr.id) ? 'rgba(19,121,240,0.06)' : !isRecebido && st.color === 'var(--danger)' ? 'rgba(220,38,38,0.04)' : 'transparent', borderLeft: !isRecebido && st.color === 'var(--danger)' ? '3px solid var(--danger)' : 'none' }}>
                                             <td style={{ padding: '10px 8px', textAlign: 'center', width: 32 }}>
                                                 {!isRecebido && <input type="checkbox" checked={selectedIds.has(cr.id)} onChange={() => toggleSelect(cr.id)} style={{ cursor: 'pointer', accentColor: 'var(--primary)' }} />}
                                             </td>
@@ -938,15 +938,15 @@ function SecaoReceber({ notify, projetos, user }) {
                                             </td>
                                             <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--primary)' }}>{cr.projeto_nome || '—'}</td>
                                             <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--text-secondary)' }}>{cr.meio_pagamento || '—'}</td>
-                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: isRecebido ? '#5B8C6B' : st.color === '#B86565' ? '#B86565' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: isRecebido ? 'var(--success)' : st.color === 'var(--danger)' ? 'var(--danger)' : 'var(--text-primary)', whiteSpace: 'nowrap' }}>{R$(cr.valor)}</td>
                                             <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 {dtFmt(cr.data_vencimento)}
-                                                {isRecebido && cr.data_pagamento && <div style={{ fontSize: 9, color: '#5B8C6B' }}>Rec. {dtFmt(cr.data_pagamento)}</div>}
+                                                {isRecebido && cr.data_pagamento && <div style={{ fontSize: 9, color: 'var(--success)' }}>Rec. {dtFmt(cr.data_pagamento)}</div>}
                                             </td>
                                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
                                                     <button onClick={() => toggleRecebido(cr)} title={isRecebido ? 'Reabrir' : 'Marcar recebido'}
-                                                        style={{ width: 26, height: 26, borderRadius: 5, border: `2px solid ${isRecebido ? 'var(--primary)' : '#d1d5db'}`, background: isRecebido ? 'var(--primary)' : 'transparent', color: isRecebido ? '#fff' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                                        style={{ width: 26, height: 26, borderRadius: 5, border: `2px solid ${isRecebido ? 'var(--primary)' : 'var(--border)'}`, background: isRecebido ? 'var(--primary)' : 'transparent', color: isRecebido ? '#fff' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                                         <Check size={14} />
                                                     </button>
                                                     {canViewHistory && (
@@ -1125,7 +1125,7 @@ function SecaoNFs({ notify }) {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                         <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={nf.nf_chave}>{nf.nf_chave}</span>
                                                         <button onClick={() => copiarChave(nf.nf_chave, nf.id)} title="Copiar chave"
-                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: copiada === nf.id ? '#5B8C6B' : 'var(--primary)', padding: 0, display: 'flex', flexShrink: 0 }}>
+                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: copiada === nf.id ? 'var(--success)' : 'var(--primary)', padding: 0, display: 'flex', flexShrink: 0 }}>
                                                             {copiada === nf.id ? <Check size={12} /> : <Copy size={12} />}
                                                         </button>
                                                     </div>
@@ -1232,15 +1232,15 @@ function SecaoFluxo({ notify }) {
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--primary)', marginTop: 2 }}>{R$(totalEntradas)}</div>
                 </div>
-                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: '4px solid #94a3b8' }}>
+                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: '4px solid var(--text-muted)' }}>
                     <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <TrendingDown size={11} /> Saídas (12m)
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--muted)', marginTop: 2 }}>{R$(totalSaidas)}</div>
                 </div>
-                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: `4px solid ${saldoTotal >= 0 ? 'var(--primary)' : '#B86565'}` }}>
+                <div className={Z.card} style={{ padding: '14px 16px', borderLeft: `4px solid ${saldoTotal >= 0 ? 'var(--primary)' : 'var(--danger)'}` }}>
                     <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Saldo Período</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: saldoTotal >= 0 ? 'var(--primary)' : '#B86565', marginTop: 2 }}>{R$(saldoTotal)}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: saldoTotal >= 0 ? 'var(--primary)' : 'var(--danger)', marginTop: 2 }}>{R$(saldoTotal)}</div>
                 </div>
             </div>
 
@@ -1308,7 +1308,7 @@ function SecaoFluxo({ notify }) {
                                     <td style={{ padding: '8px 12px', fontWeight: 500 }}>{mesFmt(r.mes)}</td>
                                     <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--primary)', fontWeight: 600 }}>{r.entradas > 0 ? R$(r.entradas) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span>}</td>
                                     <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--muted)', fontWeight: 600 }}>{r.saidas > 0 ? R$(r.saidas) : <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>—</span>}</td>
-                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: r.saldo >= 0 ? 'var(--primary)' : '#B86565' }}>{R$(r.saldo)}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: r.saldo >= 0 ? 'var(--primary)' : 'var(--danger)' }}>{R$(r.saldo)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1336,7 +1336,7 @@ function SecaoFluxo({ notify }) {
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
                                         <ArrowUpCircle size={12} /> {R$(sai)}
                                     </span>
-                                    <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 13, color: sal >= 0 ? 'var(--primary)' : '#B86565' }}>
+                                    <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 13, color: sal >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
                                         {sal >= 0 ? '+' : ''}{R$(sal)}
                                     </span>
                                 </div>
@@ -1414,7 +1414,7 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
                             const isCreate = e.acao === 'criar' || e.acao === 'criar_financeiro';
 
                             return (
-                                <div key={e.id} style={{ padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, borderLeft: `3px solid ${isDelete ? '#B86565' : isRevert ? '#C4924C' : isCreate ? '#5B8C6B' : 'var(--primary)'}` }}>
+                                <div key={e.id} style={{ padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, borderLeft: `3px solid ${isDelete ? 'var(--danger)' : isRevert ? 'var(--warning)' : isCreate ? 'var(--success)' : 'var(--primary)'}` }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
                                             {e.user_nome || 'Sistema'}
@@ -1433,9 +1433,9 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
                                             {campos.map(c => (
                                                 <div key={c} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     <span style={{ fontWeight: 600, color: 'var(--text-secondary)', minWidth: 80 }}>{LABEL_CAMPO[c] || c}</span>
-                                                    <span style={{ color: '#B86565', textDecoration: 'line-through', fontSize: 10 }}>{fmtVal(c, det.antes[c])}</span>
+                                                    <span style={{ color: 'var(--danger)', textDecoration: 'line-through', fontSize: 10 }}>{fmtVal(c, det.antes[c])}</span>
                                                     <ChevronRight size={10} style={{ color: 'var(--text-muted)' }} />
-                                                    <span style={{ color: '#5B8C6B', fontWeight: 600, fontSize: 10 }}>{fmtVal(c, det.depois[c])}</span>
+                                                    <span style={{ color: 'var(--success)', fontWeight: 600, fontSize: 10 }}>{fmtVal(c, det.depois[c])}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -1451,7 +1451,7 @@ function HistoricoModal({ tipo, id, onClose, onReload, notify, isAdmin }) {
                                     {/* Botão reverter (admin) */}
                                     {isAdmin && det.antes && !isCreate && (
                                         <button onClick={() => setConfirmDel({ id: e.id, acao: 'reverter' })} disabled={reverting === e.id}
-                                            style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#C4924C', background: '#C4924C18', border: '1px solid #C4924C44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                            style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: 'var(--warning)', background: 'rgba(176,120,32,0.08)', border: '1px solid rgba(176,120,32,0.25)', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                             <RotateCcw size={10} /> {reverting === e.id ? 'Revertendo...' : 'Reverter para esta versão'}
                                         </button>
                                     )}
@@ -1562,11 +1562,11 @@ function SecaoLixeira({ notify }) {
                                         <td style={{ padding: '8px 8px', textAlign: 'center' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
                                                 <button onClick={() => setConfirmDel({ tipo: it._tipo, id: it.id, nome: it.descricao, acao: 'restaurar' })} title="Restaurar"
-                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#5B8C6B', background: '#5B8C6B14', border: '1px solid #5B8C6B44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: 'var(--success)', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                                     <RotateCcw size={10} /> Restaurar
                                                 </button>
                                                 <button onClick={() => setConfirmDel({ tipo: it._tipo, id: it.id, nome: it.descricao, acao: 'excluir' })} title="Excluir permanentemente"
-                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#B86565', background: '#B8656514', border: '1px solid #B8656544', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: 'var(--danger)', background: 'var(--danger)14', border: '1px solid var(--danger)44', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>
                                                     <Trash2 size={10} /> Permanente
                                                 </button>
                                             </div>

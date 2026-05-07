@@ -4297,7 +4297,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     </div>
 
                                                     {/* Taxas individuais */}
-                                                    {[[impR, 'Impostos', '#B86565', taxas.imp], [comR, 'Comissão', '#C4924C', taxas.com], [lucroR, 'Lucro', '#5B8C6B', taxas.lucro], [instR, 'Instalação', 'var(--muted)', taxas.inst ?? 5], [freteR, 'Frete', 'var(--muted)', taxas.frete], [montR, 'Montagem', 'var(--muted)', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
+                                                    {[[impR, 'Impostos', 'var(--danger)', taxas.imp], [comR, 'Comissão', 'var(--warning)', taxas.com], [lucroR, 'Lucro', 'var(--success)', taxas.lucro], [instR, 'Instalação', 'var(--muted)', taxas.inst ?? 5], [freteR, 'Frete', 'var(--muted)', taxas.frete], [montR, 'Montagem', 'var(--muted)', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
                                                         <div key={l}>
                                                             <div className="flex justify-between items-center mb-0.5">
                                                                 <span className="text-[10px] font-semibold" style={{ color: cor }}>{l} ({N(t,1)}%)</span>

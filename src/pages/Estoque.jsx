@@ -571,7 +571,7 @@ export default function Estoque({ notify }) {
                 <button onClick={() => setMovModal('ajuste')} className={Z.btn2} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <RefreshCw size={14} /> Ajuste
                 </button>
-                <button onClick={() => setSaidaLoteModal(true)} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f97316' }}>
+                <button onClick={() => setSaidaLoteModal(true)} className={Z.btn} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--warning)' }}>
                     <Layers size={14} /> Saída em Lote
                 </button>
             </PageHeader>
