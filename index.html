@@ -74,6 +74,13 @@
 </head>
 
 <body>
+  <!-- Theme init: aplica antes do CSS render para evitar flash -->
+  <script>
+    (function() {
+      var t = localStorage.getItem('ornato-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <div id="root"></div>
   <!-- Fallback SEO para bots que não executam JS (Bing, DuckDuckGo, WhatsApp/LinkedIn preview, etc.) -->
   <noscript>

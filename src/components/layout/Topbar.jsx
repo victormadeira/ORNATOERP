@@ -1,5 +1,5 @@
 import { Ic } from '../../ui';
-import { Search, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft, Sun, Moon } from 'lucide-react';
 
 export default function Topbar({
     isMobile, setMobileOpen, pg, ALL_MENUS, nav, navToRecord,
@@ -7,7 +7,7 @@ export default function Topbar({
     buscaRef, buscaQuery, setBuscaQuery, buscaResults, buscaOpen, setBuscaOpen,
     waUnread, notifsRef, showNotifs, setShowNotifs,
     notifs, notifBadgeColor, markAllRead, goToNotif, getNotifStyle,
-    crumbSub,
+    crumbSub, dark, setDark,
 }) {
     const isHome = pg === 'dash';
     const showBack = canGoBack && !isHome;
@@ -15,9 +15,9 @@ export default function Topbar({
     return (
         <div className="topbar-fixed sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 h-[56px] no-print"
             style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
+                background: 'var(--topbar-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
                 borderBottom: '1px solid var(--border)',
             }}>
             <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-muted)', minWidth: 0, flex: 1 }}>
@@ -175,6 +175,24 @@ export default function Topbar({
                     </div>
                 )}
             </div>
+            {/* Theme toggle */}
+            <button
+                onClick={() => setDark?.(!dark)}
+                title={dark ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+                aria-label="Alternar tema"
+                style={{
+                    background: 'none', border: '1px solid var(--border)', cursor: 'pointer',
+                    width: 34, height: 34, borderRadius: 'var(--radius-md)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--text-muted)', transition: 'all var(--transition-fast)',
+                    flexShrink: 0,
+                }}
+                className="hover:bg-[var(--bg-hover)] hover:!text-[var(--text-primary)] hover:!border-[var(--border-hover)]"
+            >
+                {dark
+                    ? <Sun size={15} strokeWidth={2} />
+                    : <Moon size={15} strokeWidth={2} />}
+            </button>
             {/* WhatsApp Badge */}
             {waUnread > 0 && (
                 <button

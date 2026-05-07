@@ -154,7 +154,7 @@ export default function App() {
     useEffect(() => {
         localStorage.setItem('erp_sidebar', sb ? 'expanded' : 'collapsed');
     }, [sb]);
-    const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+    const [dark, setDark] = useState(() => (localStorage.getItem('ornato-theme') || 'dark') === 'dark');
     const [notif, setNotif] = useState(null);
     const [notifExiting, setNotifExiting] = useState(false);
     const notifTimer = useRef(null);
@@ -338,8 +338,10 @@ export default function App() {
     }, [isMobile, mobileOpen]);
 
     useEffect(() => {
-        document.documentElement.classList.toggle('dark', dark);
-        localStorage.setItem('theme', dark ? 'dark' : 'light');
+        const theme = dark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.classList.toggle('dark', dark); /* backward compat */
+        localStorage.setItem('ornato-theme', theme);
     }, [dark]);
 
     const notify = useCallback((m) => {
@@ -782,6 +784,7 @@ export default function App() {
                     waUnread={waUnread} notifsRef={notifsRef} showNotifs={showNotifs} setShowNotifs={setShowNotifs}
                     notifs={notifs} notifBadgeColor={notifBadgeColor} markAllRead={markAllRead}
                     goToNotif={goToNotif} getNotifStyle={getNotifStyle}
+                    dark={dark} setDark={setDark}
                     crumbSub={(() => {
                         if (pg === 'novo' && editOrc?.id) {
                             const orc = orcs.find(o => o.id === editOrc.id);
