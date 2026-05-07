@@ -1004,23 +1004,10 @@ aside.sidebar-dark::after {
   overflow: hidden;
 }
 
-.prod-card::after {
-  content: '';
-  position: absolute;
-  top: 0; right: 0;
-  width: 40%; height: 100%;
-  background: linear-gradient(135deg, transparent 0%, var(--accent-color, var(--accent-alpha)) 100%);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-  pointer-events: none;
-}
-
 .prod-card:hover {
   border-color: var(--border-hover);
   box-shadow: var(--shadow-md);
 }
-
-.prod-card:hover::after { opacity: 0.4; }
 
 .prod-card-accent {
   border-left: 3px solid var(--accent-color, var(--accent));
@@ -1407,8 +1394,8 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 18px 20px;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+  padding: 16px 18px;
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
 .stat-tile:hover {
@@ -1447,8 +1434,8 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 18px 20px 16px;
-  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out), border-color 200ms var(--ease-out);
+  padding: 16px 18px 14px;
+  transition: box-shadow 200ms var(--ease-out), border-color 200ms var(--ease-out);
   isolation: isolate;
 }
 .kpi-pro:hover {
@@ -1653,14 +1640,14 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
 
 /* Activity feed avatar */
 .activity-avatar {
-  width: 34px; height: 34px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display);
-  font-size: 13px; font-weight: 700;
+  font-family: var(--font-sans);
+  font-size: 12px; font-weight: 700;
   color: var(--text-on-dark);
-  background: linear-gradient(135deg, #2B231B 0%, #1A1612 100%);
+  background: #2A2218;
   border: 2px solid var(--bg-card);
-  box-shadow: 0 0 0 1px var(--border), inset 0 1px 0 rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 1px var(--border);
   flex-shrink: 0;
 }
 .activity-avatar.activity-avatar-accent {
