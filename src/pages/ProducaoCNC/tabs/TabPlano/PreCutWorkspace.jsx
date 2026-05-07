@@ -174,12 +174,13 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     // ── UI state ──────────────────────────────────────────────────────────────
     const [faceAtiva,    setFaceAtiva]    = useState('A');
     const [sending,      setSending]      = useState(false);
-    const [sidebarTab,   setSidebarTab]   = useState('dados');
+    const [sidebarTab,   setSidebarTab]   = useState('gcode'); // default: G-code highlight visível
     const [currentLineIdx, setCurrentLineIdx] = useState(-1);
 
     const simRef         = useRef(null);
     const gcodeViewerRef = useRef(null);
     const currentLineRef = useRef(null);
+    const scrollTimerRef = useRef(null); // debounce scroll during fast playback
 
     // ── Sync total moves once canvas mounts (or gcode changes) ───────────────
     useEffect(() => {
@@ -356,10 +357,13 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         return () => window.removeEventListener('keydown', onKey);
     }, [simPlaying, handlePlay, handlePause, handleStep, handleSeekFirst, handleSeekLast]);
 
-    // ── Auto-scroll G-code viewer ─────────────────────────────────────────────
+    // ── Auto-scroll G-code viewer — debounced so fast playback doesn't stutter ─
     useEffect(() => {
         if (sidebarTab !== 'gcode' || !currentLineRef.current) return;
-        currentLineRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        clearTimeout(scrollTimerRef.current);
+        scrollTimerRef.current = setTimeout(() => {
+            currentLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 60);
     }, [currentLineIdx, sidebarTab]);
 
     // ── Live position from current move ──────────────────────────────────────
@@ -694,7 +698,19 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                 color: sidebarTab === t.id ? C.text : C.muted,
                                 fontSize: 11.5, fontWeight: sidebarTab === t.id ? 700 : 500,
                                 cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                            }}>{t.label}</button>
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                            }}>
+                                {t.label}
+                                {/* dot animado quando simulando e na tab gcode */}
+                                {t.id === 'gcode' && simPlaying && (
+                                    <span style={{
+                                        width: 5, height: 5, borderRadius: '50%',
+                                        background: C.success,
+                                        display: 'inline-block',
+                                        animation: 'pulse 1s infinite',
+                                    }} />
+                                )}
+                            </button>
                         ))}
                     </div>
 
@@ -721,13 +737,18 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                         style={{
                                             display: 'flex', alignItems: 'flex-start',
                                             padding: '1px 8px 1px 0',
-                                            borderLeft: isCurrent ? `2px solid ${C.blue}` : '2px solid transparent',
-                                            background: isCurrent ? 'rgba(47,129,247,0.10)' : 'transparent',
-                                            opacity: isExecuted ? 0.32 : 1,
+                                            borderLeft: isCurrent
+                                                ? `3px solid ${C.blueHi}`
+                                                : '3px solid transparent',
+                                            background: isCurrent
+                                                ? 'rgba(47,129,247,0.16)'
+                                                : 'transparent',
+                                            opacity: isExecuted ? 0.28 : 1,
                                             cursor: isClickable ? 'pointer' : 'default',
                                             minHeight: 18,
+                                            transition: 'background 0.08s',
                                         }}
-                                        onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = 'rgba(88,166,255,0.05)'; }}
+                                        onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = 'rgba(88,166,255,0.06)'; }}
                                         onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}
                                     >
                                         <span style={{
@@ -739,7 +760,10 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                         }}>
                                             {li + 1}
                                         </span>
-                                        <span style={{ flex: 1, lineHeight: '18px', whiteSpace: 'pre', color: '#8B949E' }}>
+                                        <span style={{
+                                            flex: 1, lineHeight: '18px', whiteSpace: 'pre',
+                                            color: isCurrent ? '#e6edf3' : '#8B949E', // linha atual fica branca
+                                        }}>
                                             {gcodeTokenize(rawLine)}
                                         </span>
                                     </div>

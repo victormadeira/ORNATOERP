@@ -16,15 +16,21 @@ import { parseGcodeForSim } from './parseGcode.js';
 const RAPID_FEED_MM_MIN = 20000;
 const STOCK_THICKNESS   = 15.5;
 
-// Colors — bright like professional CAM reference (not dim pending!)
+// Colors: pending = barely visible ghost; executed = bright; current = white
+// This way the toolpath "draws itself" as the simulation runs — no confusion
+// about what's already been cut.
 const COL = {
-    rapidPending:  0xf0883e,  // orange  (was 0xd29922 — much dimmer)
-    rapidExec:     0xffaa55,  // lighter orange when executed (fades behind)
-    cutPending:    0x58a6ff,  // bright blue  (was 0x1a5e9e — nearly invisible!)
-    cutExec:       0x79c0ff,  // lighter blue
-    abovePending:  0x56d364,  // bright green (was 0x145e30 — barely visible)
-    aboveExec:     0x7ee787,  // lighter green
-    current:       0xffffff,  // white for active segment
+    // Pending ghost — very dark, low opacity, clearly "not yet cut"
+    rapidPending:  0x4a2a0a,  // dark orange ghost
+    cutPending:    0x0a1e38,  // dark blue ghost
+    abovePending:  0x0a1e10,  // dark green ghost
+
+    // Executed — full bright color pops in as tool passes
+    rapidExec:     0xf0883e,  // vivid orange
+    cutExec:       0x58a6ff,  // vivid blue
+    aboveExec:     0x56d364,  // vivid green
+
+    current:       0xffffff,  // white for the active segment
     toolBody:      0xf78166,
     toolTip:       0xff4444,
     grid:          0x1e2733,
@@ -242,7 +248,10 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
             curFeed = last.feed || 0;
         }
 
-        // Update segment colors: executed (bright/faded) → pending (bright) → current (white)
+        // Segment color state machine:
+        // pending  → very dim ghost  (clearly not yet cut)
+        // executed → full bright     (pops in as tool passes)
+        // current  → white           (tool is here right now)
         for (let i = 0; i < segments.length; i++) {
             const seg = segments[i];
             const shouldExec = i < curIdx;
@@ -254,10 +263,12 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
                 targetOpacity = 1.0;
             } else if (shouldExec) {
                 targetColor   = seg.execColor;
-                targetOpacity = seg.isRapid ? 0.18 : 1.0;
+                targetOpacity = seg.isRapid ? 0.30 : 1.0; // rapids fade after pass
             } else {
+                // pending: barely visible ghost so operator can see the planned path
+                // but it's obviously "not cut yet"
                 targetColor   = seg.pendingColor;
-                targetOpacity = seg.isRapid ? 0.45 : (seg.isCutting ? 0.65 : 0.55);
+                targetOpacity = seg.isRapid ? 0.20 : 0.12;
             }
 
             if (seg.executed !== shouldExec || seg.wasCurrent !== isCurrent) {
@@ -380,30 +391,30 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
             let line;
 
             if (isRapid) {
-                // G0 rapids — dashed thin line (LineDashedMaterial, Line2 doesn't support dashing)
+                // G0 rapids — dashed ghost line (barely visible pending)
                 const geom = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(m.x1, m.y1, m.z1),
                     new THREE.Vector3(m.x2, m.y2, m.z2),
                 ]);
                 const mat = new THREE.LineDashedMaterial({
                     color: pendingColor, dashSize: 8, gapSize: 5,
-                    transparent: true, opacity: 0.45,
+                    transparent: true, opacity: 0.20, // ghost: dim until executed
                 });
                 line = new THREE.Line(geom, mat);
                 line.computeLineDistances();
             } else {
-                // G1 cuts — Line2 for thick, high-visibility lines
+                // G1 cuts — Line2 for thick lines, starts as faint ghost
                 const geom = new LineGeometry();
                 geom.setPositions([m.x1, m.y1, m.z1, m.x2, m.y2, m.z2]);
                 const mat = new LineMaterial({
-                    color:      pendingColor,
-                    linewidth:  isCutting ? 2.5 : 1.8, // pixels (not world units)
+                    color:       pendingColor,
+                    linewidth:   isCutting ? 2.5 : 1.8,
                     transparent: true,
-                    opacity:    isCutting ? 0.65 : 0.55,
-                    resolution: vpRes.clone(),
+                    opacity:     0.12, // ghost until executed
+                    resolution:  vpRes.clone(),
                 });
                 line = new Line2(geom, mat);
-                t.lineMaterials.push(mat); // track for resize updates
+                t.lineMaterials.push(mat);
             }
 
             pathGroup.add(line);
