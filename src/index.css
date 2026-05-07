@@ -72,12 +72,19 @@
   --glass-blur: 20px;
   --topbar-bg: rgba(14, 14, 17, 0.92);
 
-  /* Semantic colors */
-  --success: #6EBF8B; --success-bg: rgba(110, 191, 139, 0.12); --success-border: rgba(110, 191, 139, 0.24); --success-hover: #8CCFA2;
-  --danger: #E06458;  --danger-bg: rgba(224, 100, 88, 0.12);   --danger-border: rgba(224, 100, 88, 0.24);   --danger-hover: #EE8278;
-  --warning: #E8A84A; --warning-bg: rgba(232, 168, 74, 0.12);  --warning-border: rgba(232, 168, 74, 0.24);  --warning-hover: #EFBA74;
-  --info: #6AA0C0;    --info-bg: rgba(106, 160, 192, 0.12);    --info-border: rgba(106, 160, 192, 0.24);    --info-hover: #88B8D4;
+  /* Semantic colors — Linear-aligned palette */
+  --success: #4ADE80; --success-bg: rgba(74, 222, 128, 0.10); --success-border: rgba(74, 222, 128, 0.22); --success-hover: #6EEA9A;
+  --danger: #F87171;  --danger-bg: rgba(248, 113, 113, 0.10); --danger-border: rgba(248, 113, 113, 0.22); --danger-hover: #FCA5A5;
+  --warning: #FBBF24; --warning-bg: rgba(251, 191, 36, 0.10); --warning-border: rgba(251, 191, 36, 0.22); --warning-hover: #FCD34D;
+  --info: #60A5FA;    --info-bg: rgba(96, 165, 250, 0.10);    --info-border: rgba(96, 165, 250, 0.22);    --info-hover: #93C5FD;
   --muted: #8C8C9E;   --muted-bg: rgba(140, 140, 158, 0.10);
+
+  /* Operational surfaces — CNC / telas densas sem "glass" */
+  --bg-operational: #131318;
+  --bg-operational-card: #1A1A22;
+  --bg-operational-elevated: #22222E;
+  --border-operational: rgba(255, 255, 255, 0.06);
+  --border-operational-strong: rgba(255, 255, 255, 0.12);
 
   --color-ok: var(--success);
   --color-err: var(--danger);
@@ -172,11 +179,11 @@
   --accent-light: #F4F0E8;
   --accent-alpha: rgba(201, 169, 110, 0.08);
 
-  /* Semantic */
-  --success: #3D7A54; --success-bg: #E8F4EE; --success-border: #A8CEB8; --success-hover: #2E6244;
-  --danger: #C03828;  --danger-bg: #FBEAE8;  --danger-border: #E0A89C;  --danger-hover: #A02E20;
-  --warning: #8E5C0A; --warning-bg: #FAF0DC; --warning-border: #D4B070; --warning-hover: #6E4608;
-  --info: #2C6080;    --info-bg: #E0EEF8;    --info-border: #90B8D4;    --info-hover: #1E4E6C;
+  /* Semantic — light mode */
+  --success: #16A34A; --success-bg: #F0FDF4; --success-border: #86EFAC; --success-hover: #15803D;
+  --danger: #DC2626;  --danger-bg: #FEF2F2;  --danger-border: #FCA5A5;  --danger-hover: #B91C1C;
+  --warning: #D97706; --warning-bg: #FFFBEB; --warning-border: #FCD34D; --warning-hover: #B45309;
+  --info: #2563EB;    --info-bg: #EFF6FF;    --info-border: #93C5FD;    --info-hover: #1D4ED8;
   --muted: #6C6C7A;   --muted-bg: #EDEDF4;
 }
 
@@ -1219,6 +1226,100 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
 .dark .alert-banner-error   { color: var(--danger); }
 .dark .alert-banner-info    { color: var(--info); }
 .dark .alert-banner-success { color: var(--success); }
+
+/* ═══════════════════════════════════════════════════════════
+   CNC OPERATIONAL — superfícies sólidas, sem ornamento
+   Aplica em telas de produção/industrial (mais contraste, sem glass)
+   ═══════════════════════════════════════════════════════════ */
+.cnc-surface {
+  background: var(--bg-operational, var(--bg-card));
+  border: 1px solid var(--border-operational, var(--border));
+  border-radius: var(--radius-md);
+}
+
+.cnc-card {
+  background: var(--bg-operational-card, var(--bg-card));
+  border: 1px solid var(--border-operational, var(--border));
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+.cnc-card:hover { border-color: var(--border-operational-strong, var(--border-hover)); }
+
+/* Area nav — Linear-style segmented pill nav */
+.cnc-area-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+}
+.cnc-area-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+.cnc-area-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.cnc-area-btn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25), 0 0 0 1px var(--border);
+}
+
+/* Step status badges */
+.cnc-step-ok      { color: var(--success); }
+.cnc-step-pending { color: var(--warning); }
+.cnc-step-blocked { color: var(--danger); }
+.cnc-step-alert   { color: var(--warning); }
+.cnc-step-idle    { color: var(--text-muted); }
+
+/* Pending panel */
+.cnc-pending-panel {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.cnc-pending-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition-fast);
+  font-size: 12px;
+}
+.cnc-pending-row:last-child { border-bottom: none; }
+.cnc-pending-row:hover { background: var(--bg-hover); }
+
+/* Next-action button (primary action per row) */
+.cnc-next-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  font-family: var(--font-sans);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.cnc-next-action-btn:active { transform: scale(0.97); }
 
 /* ═══════════════════════════════════════════════════════════
    HERO CARD — para Dashboard, encantador

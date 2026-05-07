@@ -6,7 +6,7 @@ import api from '../../../api';
 import { Z, SectionHeader } from '../../../ui';
 import {
     Upload, Eye, AlertTriangle, CheckCircle2, Check,
-    ChevronRight, Package, X, Link2, PlusCircle, FileCode2, Info,
+    ChevronRight, Package, X, Link2, PlusCircle, FileCode2, Info, Play,
 } from 'lucide-react';
 import { InfoCard } from '../shared/InfoCard.jsx';
 
@@ -151,8 +151,92 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
     const totalPendentes = matCheck?.nao_cadastrados?.length || 0;
     const totalResolvidos = Object.keys(matConfirmados).filter(k => matConfirmados[k]).length;
 
+    // Lotes que precisam de ação (importado sem otimizar, ou otimizado sem enviar)
+    const lotesAtivos = lotes.filter(l => !['concluido'].includes(l.status));
+    const lotesComAcao = lotesAtivos.slice(0, 3);
+
+    const getAcaoLote = (l) => {
+        if (l.status === 'produzindo') return { label: 'Produção em andamento', color: 'var(--warning)', tab: 'gcode', icon: '▶' };
+        if (l.status === 'otimizado') return { label: 'Pronto para corte', color: 'var(--success)', tab: 'gcode', icon: '⚡' };
+        if (l.aproveitamento > 0) return { label: 'Plano gerado', color: 'var(--info)', tab: 'plano', icon: '✓' };
+        if (l.total_pecas > 0) return { label: 'Aguardando otimização', color: '#8B5CF6', tab: 'plano', icon: '○' };
+        return { label: 'Ver peças', color: 'var(--text-muted)', tab: 'pecas', icon: '→' };
+    };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* ── Lotes pendentes — mostrar primeiro se existirem (item #1) ── */}
+            {lotesComAcao.length > 0 && !preview && (
+                <div style={{ marginBottom: 2 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                        Continuar produção
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {lotesComAcao.map(l => {
+                            const acao = getAcaoLote(l);
+                            const diasRestantes = l.data_entrega
+                                ? Math.ceil((new Date(l.data_entrega + 'T12:00:00') - new Date()) / 86400000)
+                                : null;
+                            const isAtrasado = diasRestantes !== null && diasRestantes < 0;
+                            return (
+                                <div key={l.id}
+                                    onClick={() => setLoteAtual(l, acao.tab)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+                                        background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                        transition: 'all var(--transition-fast)',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg-card)'; }}
+                                >
+                                    <span style={{
+                                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                                        background: `${acao.color}14`, border: `1px solid ${acao.color}28`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: 14, color: acao.color,
+                                    }}>{acao.icon}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {l.nome}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                                            {l.total_pecas} peças
+                                            {l.cliente && ` · ${l.cliente}`}
+                                            {l.projeto && ` / ${l.projeto}`}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                        {isAtrasado && (
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', padding: '2px 7px', borderRadius: 10 }}>
+                                                {Math.abs(diasRestantes)}d atrasado
+                                            </span>
+                                        )}
+                                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: `${acao.color}14`, color: acao.color, border: `1px solid ${acao.color}28` }}>
+                                            {acao.label}
+                                        </span>
+                                        <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {lotesAtivos.length > 3 && (
+                            <button onClick={() => setTab('lotes')} style={{ fontSize: 11, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '4px 0' }}>
+                                Ver todos os {lotesAtivos.length} lotes ativos →
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Divider */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 2px' }}>
+                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Importar novo lote</span>
+                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                    </div>
+                </div>
+            )}
+
             {/* ── Drop zone ── */}
             <div
                 className="glass-card"

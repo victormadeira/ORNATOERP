@@ -104,6 +104,17 @@ function EditLoteModal({ lote, onSave, onCancel, notify }) {
     );
 }
 
+// Computes the next recommended action for a lote
+const getNextAction = (l) => {
+    const status = l.status || 'importado';
+    if (status === 'concluido') return { label: 'Concluído', color: 'var(--success)', tab: null, done: true };
+    if (status === 'produzindo') return { label: 'Acompanhar produção', color: 'var(--warning)', tab: 'gcode' };
+    if (status === 'otimizado') return { label: 'Abrir G-code', color: 'var(--primary)', tab: 'gcode' };
+    if (l.aproveitamento > 0 && status === 'importado') return { label: 'Ver plano de corte', color: 'var(--info)', tab: 'plano' };
+    if (l.total_pecas > 0 && !l.aproveitamento) return { label: 'Otimizar corte', color: '#8B5CF6', tab: 'plano' };
+    return { label: 'Ver peças', color: 'var(--text-muted)', tab: 'pecas' };
+};
+
 export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
     const [selectedLotes, setSelectedLotes] = useState(new Set());
     const [deleteTarget, setDeleteTarget] = useState(null);
@@ -212,7 +223,7 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                 </SectionHeader>
 
                 <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="table-stagger" style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
                                 <th className="th-glass" style={{ width: 40, textAlign: 'center' }}>
@@ -232,6 +243,7 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                 <th className="th-glass" style={{ textAlign: 'center' }}>Chapas</th>
                                 <th className="th-glass" style={{ textAlign: 'center' }}>Aprov.</th>
                                 <th className="th-glass">Status</th>
+                                <th className="th-glass" style={{ whiteSpace: 'nowrap' }}>Próxima ação</th>
                                 <th className="th-glass" style={{ whiteSpace: 'nowrap' }}>Criado</th>
                                 <th className="th-glass" style={{ whiteSpace: 'nowrap' }}>Entrega</th>
                                 <th className="th-glass" style={{ width: 160 }}></th>
@@ -243,9 +255,11 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                 const diasRestantes = calcDiasRestantes(l.data_entrega);
                                 const isAtrasado = diasRestantes !== null && diasRestantes < 0 && l.status !== 'concluido';
                                 const isUrgente = diasRestantes !== null && diasRestantes >= 0 && diasRestantes <= 3 && l.status !== 'concluido';
+                                const nextAction = getNextAction(l);
                                 return (
                                     <tr
                                         key={l.id}
+                                        className="group transition-colors"
                                         onClick={() => abrirLote(l)}
                                         style={{
                                             cursor: 'pointer',
@@ -345,6 +359,32 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                                 )}
                                             </div>
                                         </td>
+                                        <td className="td-glass" onClick={e => e.stopPropagation()}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span style={{
+                                                    fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                                                    background: nextAction.done ? 'var(--success-bg)' : `${nextAction.color}18`,
+                                                    color: nextAction.done ? 'var(--success)' : nextAction.color,
+                                                    border: `1px solid ${nextAction.done ? 'var(--success-border)' : `${nextAction.color}30`}`,
+                                                    whiteSpace: 'nowrap',
+                                                }}>
+                                                    {nextAction.done ? '✓ ' : ''}{nextAction.label}
+                                                </span>
+                                                {nextAction.tab && (
+                                                    <button
+                                                        onClick={() => abrirLote(l, nextAction.tab)}
+                                                        style={{
+                                                            background: `${nextAction.color}14`, border: `1px solid ${nextAction.color}28`,
+                                                            color: nextAction.color, borderRadius: 6, padding: '3px 8px',
+                                                            fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                                                        }}
+                                                        title={`Ir para: ${nextAction.label}`}
+                                                    >
+                                                        Abrir →
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td className="td-glass" style={{
                                             color: 'var(--text-muted)',
                                             fontVariantNumeric: 'tabular-nums',
@@ -376,7 +416,7 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                                             )}
                                         </td>
                                         <td className="td-glass" onClick={e => e.stopPropagation()}>
-                                            <div style={{ display: 'flex', gap: 4 }}>
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ display: 'flex', gap: 4 }}>
                                                 <button
                                                     onClick={() => abrirLote(l, 'pecas')}
                                                     title="Ver peças"

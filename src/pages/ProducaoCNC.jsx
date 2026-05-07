@@ -1,36 +1,24 @@
 // ═══════════════════════════════════════════════════════════════════════
-// Produção CNC — Shell
-// ═══════════════════════════════════════════════════════════════════════
-// Esta página foi dividida em subarquivos dentro de ./ProducaoCNC/.
-// Aqui fica apenas o shell: header, tabs nível 1/2, alertas e orquestração.
-// As tabs pesadas (TabPlano, TabPecas, TabConfig) são carregadas via
-// React.lazy pra reduzir o bundle inicial da rota.
-//
-// Layout dos arquivos:
-//   ./ProducaoCNC/
-//       shared/           (LoteSelector, InfoCard, BarcodeSVG, printing/*)
-//       tabs/             (TabImportar, TabLotes, TabDashboard, TabRetalhos,
-//                          TabEtiquetas, TabGcode, TabPecas, _RelatorioDesperdicio)
-//       tabs/TabPlano/    (index + renderMachining + GcodeSim + Modals + helpers)
-//       tabs/TabConfig/   (index + CfgChapas/Maquinas/Ferramentas/Usinagem/...)
-//       _deprecated/      (TabMateriais — não renderizado; TabUsinagens foi reativada)
+// Produção CNC — Shell v2
+// Estrutura: 4 áreas (Operação / Produção / Gestão / Administração)
+// Workspace dedicado por lote com stepper de status real.
 // ═══════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import api from '../api';
-import { PageHeader, TabBar, Spinner } from '../ui';
+import { PageHeader, Spinner } from '../ui';
 import {
     Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu,
-    ArrowLeft, AlertTriangle, GitCompare, ChevronDown, ShieldAlert, X, QrCode,
-    Calendar, Clock, User, MessageSquare,
+    ArrowLeft, AlertTriangle, GitCompare, ChevronDown, X, QrCode,
+    Calendar, Clock, User, MessageSquare, Workflow, Wrench, DollarSign,
+    ShieldAlert, CheckCircle2, Circle, AlertCircle, ChevronRight,
+    Play, Zap,
 } from 'lucide-react';
 import useWebSocket from '../hooks/useWebSocket';
 import EditorEtiquetas from '../components/EditorEtiquetas';
+import { STATUS_COLORS } from './ProducaoCNC/shared/constants.js';
 
-// ── Shared constants (tab IDs + cores de status) ──────────
-import { TABS_MAIN, TABS_LOTE, STATUS_COLORS } from './ProducaoCNC/shared/constants.js';
-
-// ── Tabs — lazy (não carrega o código até precisar) ───────
+// ── Tabs lazy ───────────────────────────────────────────────
 const TabImportar  = lazy(() => import('./ProducaoCNC/tabs/TabImportar.jsx').then(m => ({ default: m.TabImportar })));
 const TabLotes     = lazy(() => import('./ProducaoCNC/tabs/TabLotes.jsx').then(m => ({ default: m.TabLotes })));
 const TabDashboard = lazy(() => import('./ProducaoCNC/tabs/TabDashboard.jsx').then(m => ({ default: m.TabDashboard })));
@@ -43,20 +31,340 @@ const TabUsinagens    = lazy(() => import('./ProducaoCNC/tabs/TabUsinagens.jsx')
 const TabCustos       = lazy(() => import('./ProducaoCNC/tabs/TabCustos.jsx').then(m => ({ default: m.TabCustos })));
 const TabFilaMaquinas = lazy(() => import('./ProducaoCNC/tabs/TabFilaMaquinas.jsx').then(m => ({ default: m.TabFilaMaquinas })));
 const TabConfig       = lazy(() => import('./ProducaoCNC/tabs/TabConfig/index.jsx').then(m => ({ default: m.TabConfig })));
-
-// ── Modais pesados (three.js + CSG + html5-qrcode) ────────
 const Piece3DModal = lazy(() => import('../modules/digital-twin/components/modals/Piece3DModal.jsx').then(m => ({ default: m.Piece3DModal })));
 const QRScanModal  = lazy(() => import('../modules/digital-twin/components/modals/QRScanModal.jsx').then(m => ({ default: m.QRScanModal })));
 
-// Fallback enquanto a tab lazy carrega — usa o Spinner padrão do sistema
 const TabFallback = () => (
     <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}>
         <Spinner size={24} />
     </div>
 );
 
+// ── Áreas de trabalho (item #2 do plano) ─────────────────────
+const AREA_GROUPS = [
+    {
+        id: 'operacao', label: 'Operação',
+        tabs: [
+            { id: 'importar', lb: 'Importar', ic: Upload },
+            { id: 'lotes',    lb: 'Lotes',    ic: Package },
+        ],
+    },
+    {
+        id: 'producao', label: 'Produção',
+        tabs: [
+            { id: 'fila', lb: 'Fila de Máquinas', ic: Workflow },
+        ],
+    },
+    {
+        id: 'gestao', label: 'Gestão',
+        tabs: [
+            { id: 'dashboard', lb: 'Dashboard', ic: BarChart3 },
+            { id: 'retalhos',  lb: 'Retalhos',  ic: Box },
+        ],
+    },
+    {
+        id: 'admin', label: 'Administração',
+        tabs: [
+            { id: 'config', lb: 'Configurações CNC', ic: Settings },
+        ],
+    },
+];
+
+// Nível 2 — etapas do workspace de lote (com status computável)
+const TABS_LOTE = [
+    { id: 'pecas',     lb: 'Peças',          ic: Layers,     step: 1 },
+    { id: 'plano',     lb: 'Plano de Corte', ic: Scissors,   step: 2 },
+    { id: 'usinagens', lb: 'Usinagens',       ic: Wrench,     step: 3 },
+    { id: 'gcode',     lb: 'G-code / CNC',   ic: Cpu,        step: 4 },
+    { id: 'custos',    lb: 'Custos',          ic: DollarSign, step: 5 },
+];
+
+// ── Stepper status real por etapa (item #4) ──────────────────
+function getStepStatus(stepId, lote, materialAlerts, toolAlerts) {
+    if (!lote) return 'idle';
+    switch (stepId) {
+        case 'pecas':
+            return lote.total_pecas > 0 ? 'ok' : 'pending';
+        case 'plano':
+            if (lote.total_pecas === 0) return 'blocked';
+            if (materialAlerts.length > 0) return 'alert';
+            return lote.aproveitamento > 0 ? 'ok' : 'pending';
+        case 'usinagens':
+            return lote.total_pecas > 0 ? (toolAlerts.length > 0 ? 'alert' : 'ok') : 'blocked';
+        case 'gcode':
+            if (lote.aproveitamento === 0) return 'blocked';
+            return lote.status === 'otimizado' || lote.status === 'produzindo' || lote.status === 'concluido' ? 'ok' : 'pending';
+        case 'custos':
+            return lote.total_pecas > 0 ? 'ok' : 'blocked';
+        default:
+            return 'idle';
+    }
+}
+
+const STEP_STATUS_STYLE = {
+    ok:      { color: 'var(--success)',  bg: 'var(--success-bg)',  border: 'var(--success-border)', icon: <CheckCircle2 size={13} /> },
+    pending: { color: 'var(--warning)',  bg: 'var(--warning-bg)',  border: 'var(--warning-border)', icon: <Clock size={13} /> },
+    blocked: { color: 'var(--danger)',   bg: 'var(--danger-bg)',   border: 'var(--danger-border)',  icon: <AlertCircle size={13} /> },
+    alert:   { color: 'var(--warning)',  bg: 'var(--warning-bg)',  border: 'var(--warning-border)', icon: <AlertTriangle size={13} /> },
+    idle:    { color: 'var(--text-muted)', bg: 'var(--bg-muted)', border: 'var(--border)',          icon: <Circle size={13} /> },
+};
+
+// ── Painel de pendências agrupadas (item #5) ─────────────────
+function PendingPanel({ materialAlerts, toolAlerts, onDismiss, onNavigate }) {
+    const [open, setOpen] = useState(true);
+    const groups = [];
+
+    if (materialAlerts.length > 0) {
+        groups.push({
+            id: 'material',
+            label: 'Materiais indisponíveis',
+            count: materialAlerts.length,
+            color: 'var(--danger)',
+            bg: 'var(--danger-bg)',
+            border: 'var(--danger-border)',
+            icon: <Package size={13} />,
+            action: { label: 'Ver plano de corte', tab: 'plano' },
+            detail: materialAlerts.slice(0, 2).map(a => a.material || a.material_code).join(', ') +
+                    (materialAlerts.length > 2 ? ` e mais ${materialAlerts.length - 2}` : ''),
+        });
+    }
+
+    if (toolAlerts.length > 0) {
+        groups.push({
+            id: 'ferramenta',
+            label: 'Ferramentas com desgaste',
+            count: toolAlerts.length,
+            color: 'var(--warning)',
+            bg: 'var(--warning-bg)',
+            border: 'var(--warning-border)',
+            icon: <ShieldAlert size={13} />,
+            action: { label: 'Ver ferramentas', tab: 'config' },
+            detail: toolAlerts.slice(0, 2).map(t => `${t.nome} (${t.percentage}%)`).join(', ') +
+                    (toolAlerts.length > 2 ? ` e mais ${toolAlerts.length - 2}` : ''),
+        });
+    }
+
+    if (groups.length === 0) return null;
+
+    const criticalCount = materialAlerts.length + toolAlerts.length;
+
+    return (
+        <div className="cnc-pending-panel">
+            <button
+                onClick={() => setOpen(v => !v)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '9px 14px', background: 'none', border: 'none',
+                    cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)',
+                }}
+            >
+                <AlertTriangle size={14} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>
+                    Riscos operacionais
+                </span>
+                <span style={{
+                    fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20,
+                    background: 'var(--danger-bg)', color: 'var(--danger)',
+                    border: '1px solid var(--danger-border)',
+                }}>
+                    {criticalCount} item{criticalCount > 1 ? 's' : ''}
+                </span>
+                <button
+                    onClick={(e) => { e.stopPropagation(); onDismiss?.(); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, marginLeft: 4, flexShrink: 0 }}
+                    title="Dispensar alertas"
+                >
+                    <X size={13} />
+                </button>
+                <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : '', transition: 'transform .2s', flexShrink: 0 }} />
+            </button>
+
+            {open && groups.map((g, i) => (
+                <div key={g.id} className="cnc-pending-row" style={{ borderTop: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                    <span style={{
+                        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                        background: g.bg, border: `1px solid ${g.border}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: g.color,
+                    }}>{g.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: g.color }}>
+                            {g.count} {g.label}
+                        </div>
+                        {g.detail && (
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {g.detail}
+                            </div>
+                        )}
+                    </div>
+                    {g.action && (
+                        <button
+                            onClick={() => onNavigate?.(g.action.tab)}
+                            className="cnc-next-action-btn"
+                            style={{
+                                background: `${g.color}14`, border: `1px solid ${g.border}`,
+                                color: g.color,
+                            }}
+                        >
+                            {g.action.label} <ChevronRight size={11} />
+                        </button>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ── Workspace header do lote (item #3) ───────────────────────
+function LoteWorkspaceHeader({ lote, tab, setTab, onVoltar, materialAlerts, toolAlerts }) {
+    const diasRestantes = lote.data_entrega
+        ? Math.ceil((new Date(lote.data_entrega + 'T12:00:00') - new Date()) / 86400000)
+        : null;
+    const prazoColor = diasRestantes === null ? 'var(--text-muted)'
+        : diasRestantes < 0 ? 'var(--danger)'
+        : diasRestantes <= 3 ? 'var(--warning)'
+        : 'var(--success)';
+
+    const totalAlerts = materialAlerts.length + toolAlerts.length;
+
+    return (
+        <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+            marginBottom: 16,
+        }}>
+            {/* Breadcrumb + Meta bar */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 16px',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--bg-subtle)',
+                flexWrap: 'wrap',
+            }}>
+                {/* Breadcrumb */}
+                <button
+                    onClick={onVoltar}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '4px 10px 4px 8px', borderRadius: 8,
+                        background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                        color: 'var(--text-secondary)', cursor: 'pointer',
+                        fontSize: 11.5, fontWeight: 600, fontFamily: 'var(--font-sans)',
+                        transition: 'all var(--transition-fast)',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-muted)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                >
+                    <ArrowLeft size={13} /> Lotes
+                </button>
+                <ChevronRight size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}
+                    title={lote.nome || `Lote #${lote.id}`}>
+                    {lote.nome || `Lote #${lote.id}`}
+                </span>
+
+                {/* Meta chips */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                    {lote.cliente && (
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <User size={11} /> {lote.cliente}
+                            {lote.projeto && <span style={{ color: 'var(--text-muted)' }}> / {lote.projeto}</span>}
+                        </span>
+                    )}
+                    {diasRestantes !== null && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: prazoColor, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Calendar size={11} />
+                            {new Date(lote.data_entrega + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            {diasRestantes < 0 ? <><AlertTriangle size={10} /> {Math.abs(diasRestantes)}d atrasado</> : diasRestantes <= 3 ? <><Clock size={10} /> {diasRestantes}d</> : null}
+                        </span>
+                    )}
+                    {lote.prioridade > 0 && (
+                        <span style={{
+                            fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap',
+                            color: lote.prioridade === 2 ? 'var(--danger)' : 'var(--warning)',
+                            background: lote.prioridade === 2 ? 'var(--danger-bg)' : 'var(--warning-bg)',
+                            border: `1px solid ${lote.prioridade === 2 ? 'var(--danger-border)' : 'var(--warning-border)'}`,
+                        }}>
+                            {lote.prioridade === 2 ? '🔴 URGENTE' : '⚡ ALTA PRIORIDADE'}
+                        </span>
+                    )}
+                    {totalAlerts > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap', color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)' }}>
+                            <AlertTriangle size={10} style={{ display: 'inline', marginRight: 3 }} />
+                            {totalAlerts} pendência{totalAlerts > 1 ? 's' : ''}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Stepper com status real (item #4) */}
+            <div style={{ display: 'flex', alignItems: 'stretch', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                {TABS_LOTE.map((t, idx) => {
+                    const active = tab === t.id;
+                    const status = getStepStatus(t.id, lote, materialAlerts, toolAlerts);
+                    const ss = STEP_STATUS_STYLE[status];
+                    const isLast = idx === TABS_LOTE.length - 1;
+                    const I = t.ic;
+
+                    return (
+                        <div key={t.id} style={{ display: 'flex', alignItems: 'stretch', flexShrink: 0 }}>
+                            <button
+                                onClick={() => setTab(t.id)}
+                                aria-current={active ? 'step' : undefined}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    padding: '11px 16px', border: 'none', cursor: 'pointer',
+                                    fontSize: 12, fontWeight: active ? 700 : 500,
+                                    fontFamily: 'var(--font-sans)',
+                                    color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                                    background: active ? 'var(--bg-elevated)' : 'transparent',
+                                    borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
+                                    transition: 'all var(--transition-fast)',
+                                    whiteSpace: 'nowrap',
+                                    position: 'relative',
+                                }}
+                                onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+                                onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+                            >
+                                {/* Step number / status icon */}
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                                    fontSize: 10, fontWeight: 800,
+                                    background: active ? 'var(--primary)' : (status === 'ok' ? ss.bg : 'var(--bg-muted)'),
+                                    color: active ? '#fff' : ss.color,
+                                    border: `1.5px solid ${active ? 'var(--primary)' : (status === 'idle' ? 'var(--border)' : ss.border)}`,
+                                    transition: 'all .2s',
+                                }}>
+                                    {status === 'ok' && !active ? '✓' : t.step}
+                                </span>
+                                <I size={12} />
+                                <span>{t.lb}</span>
+                                {/* Status dot */}
+                                {(status === 'pending' || status === 'blocked' || status === 'alert') && !active && (
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: ss.color, flexShrink: 0 }} />
+                                )}
+                            </button>
+                            {!isLast && (
+                                <div style={{
+                                    width: 1, alignSelf: 'stretch',
+                                    background: 'var(--border)',
+                                    flexShrink: 0,
+                                }} />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ── Shell principal ──────────────────────────────────────────
 export default function ProducaoCNC({ notify }) {
-    const [tab, setTab] = useState('importar');
+    const [tab, setTab] = useState('lotes');
     const [lotes, setLotes] = useState([]);
     const [loteAtual, setLoteAtual] = useState(null);
     const [editorMode, setEditorMode] = useState(false);
@@ -67,12 +375,12 @@ export default function ProducaoCNC({ notify }) {
     const [materialAlertsDismissed, setMaterialAlertsDismissed] = useState(false);
     const [sugestoes, setSugestoes] = useState([]);
     const [sugestoesOpen, setSugestoesOpen] = useState(false);
-
-    // Digital Twin — modais embutidos (3D CSG real + scanner QR)
     const [modal3DPeca, setModal3DPeca] = useState(null);
     const [modalScanOpen, setModalScanOpen] = useState(false);
 
-    // WebSocket real-time (#23) + Push Notifications (#35)
+    // Área ativa derivada do tab (não precisa de estado separado)
+    const activeArea = AREA_GROUPS.find(g => g.tabs.some(t => t.id === tab))?.id || 'operacao';
+
     useWebSocket(useCallback((msg) => {
         if (msg.type === 'gcode_complete' && msg.data?.message) {
             notify?.(msg.data.message, 'success');
@@ -88,7 +396,6 @@ export default function ProducaoCNC({ notify }) {
     const loadLotes = useCallback(() => {
         api.get('/cnc/lotes').then(data => {
             setLotes(data);
-            // Sincronizar metadados do loteAtual se ele foi editado
             setLoteAtual(prev => {
                 if (!prev) return prev;
                 const updated = data.find(l => l.id === prev.id);
@@ -103,7 +410,6 @@ export default function ProducaoCNC({ notify }) {
 
     useEffect(() => { loadLotes(); loadToolAlerts(); }, [loadLotes, loadToolAlerts]);
 
-    // Abrir lote = entrar no workspace do lote
     const abrirLote = useCallback((lote, aba = 'pecas') => {
         setLoteAtual(lote);
         setTab(aba);
@@ -127,16 +433,13 @@ export default function ProducaoCNC({ notify }) {
 
     const isInsideLote = loteAtual && ['pecas', 'plano', 'etiquetas', 'gcode', 'usinagens', 'custos'].includes(tab);
 
-    // ── MODO EDITOR FULL-SCREEN (editor de etiquetas) ─────
+    // ── Modo editor etiquetas ─────────────────────────────────
     if (editorMode) {
         return (
             <div className="w-full page-enter" style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 52px)' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <EditorEtiquetas
-                        api={api}
-                        notify={notify}
-                        lotes={lotes}
-                        loteAtual={loteAtual}
+                        api={api} notify={notify} lotes={lotes} loteAtual={loteAtual}
                         initialTemplateId={editorTemplateId}
                         onBack={() => { setEditorMode(false); setEditorTemplateId(null); setConfigSection('etiquetas'); }}
                     />
@@ -145,228 +448,116 @@ export default function ProducaoCNC({ notify }) {
         );
     }
 
-    // ── MODO NORMAL ───────────────────────────────────────
+    // ── Alertas globais de ferramenta (fora do workspace de lote) ─
+    const showGlobalToolAlert = toolAlerts.length > 0 && !isInsideLote;
+
     return (
         <div className="w-full page-enter" style={{ padding: '8px 12px 12px' }}>
-            <PageHeader icon={Cpu} title="Produção CNC" subtitle="Importar JSON, otimizar corte, etiquetas e G-code">
+            <PageHeader icon={Cpu} title="Produção CNC" subtitle="Importar, otimizar, G-code e rastrear">
                 <button
                     onClick={() => setModalScanOpen(true)}
-                    title="Escanear QR de uma peça para ver 3D/G-Code"
+                    title="Escanear QR de uma peça"
                     className="btn-secondary"
                     style={{ fontSize: 13, fontWeight: 600, gap: 8 }}
                 >
-                    <QrCode size={16} />
-                    Escanear Peça
+                    <QrCode size={16} /> Escanear
                 </button>
             </PageHeader>
 
-            {/* Alerta global de desgaste de ferramentas */}
-            {toolAlerts.length > 0 && (
-                <div className="alert-banner alert-banner-error" style={{ marginBottom: 12 }}>
-                    <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span style={{ flex: 1 }}>
-                        <b>{toolAlerts.length} ferramenta(s)</b> com desgaste acima de 80%:
-                        {' '}{toolAlerts.slice(0, 3).map(t => `${t.maquina_nome ? `${t.maquina_nome}: ` : ''}${t.nome} (${t.percentage}%)`).join(', ')}
-                        {toolAlerts.length > 3 && ` e mais ${toolAlerts.length - 3}...`}
+            {/* ── Alerta global de ferramentas (compacto, fora do lote) */}
+            {showGlobalToolAlert && (
+                <div className="alert-banner alert-banner-warning" style={{ marginBottom: 10 }}>
+                    <ShieldAlert size={14} style={{ flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: 12 }}>
+                        <b>{toolAlerts.length} ferramenta(s)</b> com desgaste acima de 80%.{' '}
+                        {toolAlerts.slice(0, 2).map(t => `${t.nome} (${t.percentage}%)`).join(', ')}
+                        {toolAlerts.length > 2 && ` e mais ${toolAlerts.length - 2}...`}
                     </span>
-                    <button
-                        onClick={() => { setTab('config'); setConfigSection('maquinas'); }}
-                        className="btn-secondary"
-                        style={{ fontSize: 11, padding: '3px 10px', whiteSpace: 'nowrap', minHeight: 0 }}
-                    >
-                        Ver Ferramentas
+                    <button onClick={() => { setTab('config'); setConfigSection('maquinas'); }}
+                        className="btn-secondary" style={{ fontSize: 11, padding: '3px 10px', minHeight: 0 }}>
+                        Ver ferramentas
                     </button>
                 </div>
             )}
 
-            {/* Nível 1 — Tab bar principal */}
-            <TabBar
-                tabs={TABS_MAIN.map(t => ({ id: t.id, label: t.lb, icon: t.ic }))}
-                active={!isInsideLote ? tab : null}
-                onChange={(id) => { setTab(id); if (id !== 'config') setLoteAtual(null); }}
-            />
-
-            {/* Nível 2 — Workspace do lote (aparece só com lote aberto) */}
-            {isInsideLote && (
-                <div style={{
-                    display: 'flex', alignItems: 'stretch', gap: 0,
-                    marginBottom: 20, borderRadius: 10, overflow: 'hidden',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    boxShadow: 'var(--shadow-sm)',
-                }}>
-                    <button
-                        onClick={voltarLotes}
-                        aria-label="Voltar aos lotes"
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '10px 16px', fontSize: 12, fontWeight: 600,
-                            color: 'var(--text-secondary)', cursor: 'pointer',
-                            background: 'var(--bg-subtle)', border: 'none',
-                            borderRight: '1px solid var(--border)',
-                            fontFamily: 'var(--font-sans)', transition: 'all .15s',
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.background = 'var(--bg-hover)';
-                            e.currentTarget.style.color = 'var(--text-primary)';
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.background = 'var(--bg-subtle)';
-                            e.currentTarget.style.color = 'var(--text-secondary)';
-                        }}
-                    >
-                        <ArrowLeft size={14} />
-                        {/* P3: title tooltip mostra nome completo quando truncado */}
-                        <span
-                            title={loteAtual.nome || `Lote #${loteAtual.id}`}
-                            style={{
-                                maxWidth: 280, overflow: 'hidden',
-                                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {loteAtual.nome || `Lote #${loteAtual.id}`}
-                        </span>
-                    </button>
-
-                    <div style={{
-                        display: 'flex', alignItems: 'center',
-                        flex: 1, overflowX: 'auto', WebkitOverflowScrolling: 'touch',
-                    }}>
-                        {TABS_LOTE.map((t, idx) => {
-                            const active = tab === t.id;
-                            const I = t.ic;
-                            const stepIdx = TABS_LOTE.findIndex(x => x.id === tab);
-                            const isDone = idx < stepIdx;
-                            const isLast = idx === TABS_LOTE.length - 1;
-                            return (
-                                <div key={t.id} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                                    <button
-                                        onClick={() => setTab(t.id)}
-                                        aria-current={active ? 'step' : undefined}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 8,
-                                            padding: '10px 16px', fontSize: 12.5,
-                                            fontWeight: active ? 700 : 500, cursor: 'pointer',
-                                            color: active ? 'var(--primary)' : isDone ? 'var(--success)' : 'var(--text-muted)',
-                                            background: active ? 'var(--primary-alpha)' : 'transparent',
-                                            border: 'none', whiteSpace: 'nowrap',
-                                            transition: 'all .15s',
-                                            fontFamily: 'var(--font-sans)',
-                                        }}
-                                        onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                        onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
-                                    >
-                                        <span style={{
-                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                            width: 22, height: 22, borderRadius: '50%',
-                                            fontSize: 10, fontWeight: 800,
-                                            background: active ? 'var(--primary)' : isDone ? 'var(--success)' : 'var(--bg-muted)',
-                                            color: (active || isDone) ? '#fff' : 'var(--text-muted)',
-                                            border: `1.5px solid ${active ? 'var(--primary)' : isDone ? 'var(--success)' : 'var(--border)'}`,
-                                            flexShrink: 0, transition: 'all .2s',
-                                            fontVariantNumeric: 'tabular-nums',
-                                        }}>
-                                            {isDone ? '\u2713' : t.step}
-                                        </span>
-                                        <I size={13} />
-                                        <span>{t.lb}</span>
-                                    </button>
-                                    {!isLast && (
-                                        <div style={{
-                                            width: 24, height: 2,
-                                            background: isDone ? 'var(--success)' : 'var(--border)',
-                                            transition: 'background .3s',
-                                            flexShrink: 0,
-                                        }} />
-                                    )}
-                                </div>
-                            );
-                        })}
+            {/* ── Nav principal: 2 níveis (Área → Tabs) — só fora do workspace ── */}
+            {!isInsideLote && (
+                <div style={{ marginBottom: 12 }}>
+                    {/* Nível 1 — Área (pills) */}
+                    <div className="cnc-area-nav" style={{ marginBottom: 6 }}>
+                        {AREA_GROUPS.map(area => (
+                            <button
+                                key={area.id}
+                                className={`cnc-area-btn${activeArea === area.id ? ' active' : ''}`}
+                                onClick={() => setTab(area.tabs[0].id)}
+                            >
+                                {area.label}
+                            </button>
+                        ))}
                     </div>
-                </div>
-            )}
 
-            {/* Faixa de metadados do lote (cliente, prazo, observacoes) */}
-            {isInsideLote && (loteAtual.cliente || loteAtual.data_entrega || loteAtual.observacoes || loteAtual.prioridade > 0) && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-                    padding: '6px 14px', marginBottom: 4, marginTop: -12,
-                    borderRadius: 8, background: 'var(--bg-subtle)',
-                    border: '1px solid var(--border)', fontSize: 11,
-                }}>
-                    {loteAtual.cliente && (
-                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>
-                            <User size={13} style={{ display: 'inline', marginRight: 4 }} /> {loteAtual.cliente}
-                            {loteAtual.projeto ? <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> / {loteAtual.projeto}</span> : null}
-                        </span>
-                    )}
-                    {loteAtual.data_entrega && (() => {
-                        const diff = Math.ceil((new Date(loteAtual.data_entrega + 'T12:00:00') - new Date()) / 86400000);
-                        const color = diff < 0 ? 'var(--danger)' : diff <= 3 ? 'var(--warning)' : 'var(--success)';
+                    {/* Nível 2 — Tabs da área ativa */}
+                    {(() => {
+                        const currentAreaTabs = AREA_GROUPS.find(a => a.id === activeArea)?.tabs || [];
+                        if (currentAreaTabs.length <= 1) return null; // única tab → sem barra
                         return (
-                            <span style={{ color, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                <Calendar size={12} />
-                                {new Date(loteAtual.data_entrega + 'T12:00:00').toLocaleDateString('pt-BR')}
-                                {diff < 0
-                                    ? <><AlertTriangle size={11} style={{ marginLeft: 2 }} />{Math.abs(diff)}d atrasado</>
-                                    : diff <= 3
-                                        ? <><Clock size={11} style={{ marginLeft: 2 }} />{diff}d</>
-                                        : null}
-                            </span>
-                        );
-                    })()}
-                    {loteAtual.prioridade > 0 && (
-                        <span style={{
-                            fontWeight: 800, fontSize: 10, padding: '2px 8px', borderRadius: 10,
-                            color: loteAtual.prioridade === 2 ? 'var(--danger)' : 'var(--warning)',
-                            background: loteAtual.prioridade === 2 ? 'var(--danger-bg)' : 'var(--warning-bg)',
-                            border: `1px solid ${loteAtual.prioridade === 2 ? 'var(--danger-border)' : 'var(--warning-border)'}`,
-                        }}>
-                            {loteAtual.prioridade === 2 ? 'URGENTE' : 'ALTA PRIORIDADE'}
-                        </span>
-                    )}
-                    {loteAtual.observacoes && (
-                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}
-                            title={loteAtual.observacoes}>
-                            <MessageSquare size={13} style={{ display: 'inline', marginRight: 4, flexShrink: 0 }} /> {loteAtual.observacoes}
-                        </span>
-                    )}
-                </div>
-            )}
-
-            {/* Material stock alert banner */}
-            {isInsideLote && materialAlerts.length > 0 && !materialAlertsDismissed && (
-                <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {materialAlerts.map((a, i) => {
-                        const noStock = a.estoque_chapas === 0 && a.retalhos_disponiveis === 0;
-                        return (
-                            <div key={i} className={`alert-banner ${noStock ? 'alert-banner-error' : 'alert-banner-warning'}`}>
-                                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                                <span style={{ flex: 1 }}>
-                                    <b>{a.material || a.material_code}</b>
-                                    {' — precisa de '}<b>{a.chapas_necessarias}</b>{' chapa(s), '}
-                                    {a.estoque_chapas > 0
-                                        ? <>estoque: <b>{a.estoque_chapas}</b></>
-                                        : <span style={{ fontWeight: 700 }}>sem estoque</span>}
-                                    {a.retalhos_disponiveis > 0 && <>, retalhos: <b>{a.retalhos_disponiveis}</b></>}
-                                    {noStock && <span style={{ fontWeight: 700, marginLeft: 6 }}>MATERIAL INDISPONÍVEL</span>}
-                                </span>
-                                {/* P2: botão fechar em cada alerta, não apenas no primeiro */}
-                                <button
-                                    onClick={() => setMaterialAlertsDismissed(true)}
-                                    title="Dispensar alertas de material"
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, opacity: 0.6, flexShrink: 0 }}
-                                    aria-label="Fechar alerta de material"
-                                >
-                                    <X size={14} />
-                                </button>
+                            <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
+                                {currentAreaTabs.map(t => {
+                                    const active = tab === t.id;
+                                    const I = t.ic;
+                                    return (
+                                        <button key={t.id}
+                                            onClick={() => setTab(t.id)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 7,
+                                                padding: '8px 14px', border: 'none', cursor: 'pointer',
+                                                fontSize: 12.5, fontWeight: active ? 700 : 500,
+                                                fontFamily: 'var(--font-sans)',
+                                                color: active ? 'var(--primary)' : 'var(--text-muted)',
+                                                background: 'transparent',
+                                                borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
+                                                transition: 'all var(--transition-fast)',
+                                                marginBottom: -1,
+                                            }}
+                                            onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                                            onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)'; }}
+                                        >
+                                            <I size={13} />
+                                            {t.lb}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         );
-                    })}
+                    })()}
                 </div>
             )}
 
-            {/* Grouping suggestions */}
+            {/* ── Workspace do lote (substitui tabs globais) ── */}
+            {isInsideLote && (
+                <>
+                    <LoteWorkspaceHeader
+                        lote={loteAtual}
+                        tab={tab}
+                        setTab={setTab}
+                        onVoltar={voltarLotes}
+                        materialAlerts={materialAlerts}
+                        toolAlerts={toolAlerts}
+                    />
+
+                    {/* Painel de pendências agrupadas */}
+                    {!materialAlertsDismissed && (materialAlerts.length > 0 || toolAlerts.length > 0) && (
+                        <PendingPanel
+                            materialAlerts={materialAlerts}
+                            toolAlerts={toolAlerts}
+                            onDismiss={() => setMaterialAlertsDismissed(true)}
+                            onNavigate={(t) => setTab(t)}
+                        />
+                    )}
+                </>
+            )}
+
+            {/* Sugestões de agrupamento */}
             {isInsideLote && sugestoes.length > 0 && (
                 <div className="glass-card" style={{ marginBottom: 12, overflow: 'hidden', padding: 0 }}>
                     <button
@@ -374,110 +565,44 @@ export default function ProducaoCNC({ notify }) {
                         aria-expanded={sugestoesOpen}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                            padding: '10px 16px', background: 'linear-gradient(180deg, var(--bg-subtle) 0%, transparent 100%)',
-                            border: 'none', cursor: 'pointer',
-                            fontSize: 13, fontWeight: 700, color: 'var(--text-primary)',
+                            padding: '10px 16px', background: 'none', border: 'none',
+                            cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)',
                             borderBottom: sugestoesOpen ? '1px solid var(--border)' : 'none',
-                            transition: 'all .15s',
+                            fontFamily: 'var(--font-sans)',
                         }}
                     >
-                        <div style={{
-                            width: 26, height: 26, borderRadius: 8,
-                            background: 'var(--accent-alpha, rgba(139,92,246,0.1))',
-                            border: '1px solid var(--accent)',
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                            <GitCompare size={13} style={{ color: 'var(--accent)' }} />
-                        </div>
-                        <span>Sugestões de Agrupamento</span>
-                        <span style={{
-                            fontSize: 10, fontWeight: 800,
-                            color: 'var(--accent)',
-                            background: 'var(--accent-alpha, rgba(139,92,246,0.1))',
-                            border: '1px solid var(--accent)',
-                            padding: '2px 8px', borderRadius: 20,
-                            fontVariantNumeric: 'tabular-nums',
-                        }}>
+                        <GitCompare size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                        <span>Sugestões de agrupamento</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', background: 'var(--accent-alpha)', border: '1px solid var(--accent-ring)', padding: '2px 8px', borderRadius: 20 }}>
                             {sugestoes.length} LOTE{sugestoes.length > 1 ? 'S' : ''}
                         </span>
-                        <ChevronDown
-                            size={14}
-                            style={{
-                                marginLeft: 'auto',
-                                transition: 'transform .2s',
-                                transform: sugestoesOpen ? 'rotate(180deg)' : '',
-                                color: 'var(--text-muted)',
-                            }}
-                        />
+                        <ChevronDown size={13} style={{ marginLeft: 'auto', color: 'var(--text-muted)', transition: 'transform .2s', transform: sugestoesOpen ? 'rotate(180deg)' : '' }} />
                     </button>
                     {sugestoesOpen && (
-                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0, marginBottom: 2 }}>
-                                Lotes que usam os mesmos materiais e podem ser otimizados juntos para reduzir desperdício:
-                            </p>
+                        <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {sugestoes.map((s, i) => (
-                                <div
-                                    key={i}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: 10,
-                                        padding: '8px 12px', borderRadius: 8,
-                                        background: 'var(--bg-subtle)',
-                                        border: '1px solid var(--border)',
-                                        transition: 'all .15s',
-                                    }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-subtle)'}
                                 >
-                                    <div style={{
-                                        width: 26, height: 26, borderRadius: 8,
-                                        background: 'var(--accent-alpha, rgba(139,92,246,0.1))',
-                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                        flexShrink: 0,
-                                    }}>
-                                        <Package size={13} style={{ color: 'var(--accent)' }} />
-                                    </div>
+                                    <Package size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{
-                                            fontSize: 12.5, fontWeight: 600,
-                                            color: 'var(--text-primary)',
-                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                        }}>
-                                            {s.lote_nome}
-                                        </div>
+                                        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lote_nome}</div>
                                         <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1 }}>
-                                            {s.pecas_count} peça(s) em comum
-                                            {s.material_codes.length > 0 && ` · ${s.material_codes.join(', ')}`}
+                                            {s.pecas_count} peça(s) em comum{s.material_codes.length > 0 && ` · ${s.material_codes.join(', ')}`}
                                         </div>
                                     </div>
                                     {s.economia_estimada_pct > 0 && (
-                                        <span style={{
-                                            fontSize: 10, fontWeight: 800,
-                                            color: 'var(--success)',
-                                            background: 'var(--success-bg)',
-                                            border: '1px solid var(--success-border)',
-                                            padding: '2px 8px', borderRadius: 20,
-                                            whiteSpace: 'nowrap',
-                                            fontVariantNumeric: 'tabular-nums',
-                                        }}>
+                                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success-border)', padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap' }}>
                                             −{s.economia_estimada_pct}% desperdício
                                         </span>
                                     )}
-                                    <span style={{
-                                        fontSize: 9, padding: '2px 8px', borderRadius: 20,
-                                        background: STATUS_COLORS[s.lote_status] || 'var(--text-muted)',
-                                        color: '#fff', fontWeight: 700,
-                                        textTransform: 'uppercase', whiteSpace: 'nowrap',
-                                        letterSpacing: '0.05em',
-                                    }}>
+                                    <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 20, background: STATUS_COLORS[s.lote_status] || 'var(--text-muted)', color: '#fff', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                                         {s.lote_status}
                                     </span>
-                                    <button
-                                        onClick={() => abrirLote({ id: s.lote_id, nome: s.lote_nome }, 'plano')}
-                                        className="btn-secondary btn-sm"
-                                        style={{ fontSize: 11, gap: 4 }}
-                                        aria-label={`Abrir lote ${s.lote_nome}`}
-                                    >
-                                        Abrir <ChevronDown size={11} style={{ transform: 'rotate(-90deg)' }} />
+                                    <button onClick={() => abrirLote({ id: s.lote_id, nome: s.lote_nome }, 'plano')}
+                                        className="btn-secondary btn-sm" style={{ fontSize: 11, gap: 4 }}>
+                                        Abrir <ChevronRight size={11} />
                                     </button>
                                 </div>
                             ))}
@@ -486,7 +611,7 @@ export default function ProducaoCNC({ notify }) {
                 </div>
             )}
 
-            {/* ═══ Tabs — cada uma em seu próprio chunk lazy ═══ */}
+            {/* ═══ Conteúdo das tabs ═══ */}
             <Suspense fallback={<TabFallback />}>
                 {tab === 'importar' && !isInsideLote && (
                     <TabImportar lotes={lotes} loadLotes={loadLotes} notify={notify} setLoteAtual={abrirLote} setTab={setTab} />
@@ -523,8 +648,7 @@ export default function ProducaoCNC({ notify }) {
                 )}
                 {tab === 'config' && (
                     <TabConfig
-                        notify={notify}
-                        setEditorMode={setEditorMode}
+                        notify={notify} setEditorMode={setEditorMode}
                         setEditorTemplateId={setEditorTemplateId}
                         initialSection={configSection}
                         setConfigSection={setConfigSection}
@@ -532,21 +656,11 @@ export default function ProducaoCNC({ notify }) {
                 )}
             </Suspense>
 
-            {/* ═══ Digital Twin — modais 3D CSG + Scanner QR (lazy) ═══ */}
+            {/* ═══ Modais 3D + QR ═══ */}
             {(modal3DPeca || modalScanOpen) && (
                 <Suspense fallback={null}>
-                    {modal3DPeca && (
-                        <Piece3DModal
-                            peca={modal3DPeca}
-                            onClose={() => setModal3DPeca(null)}
-                        />
-                    )}
-                    {modalScanOpen && (
-                        <QRScanModal
-                            onClose={() => setModalScanOpen(false)}
-                            notify={notify}
-                        />
-                    )}
+                    {modal3DPeca && <Piece3DModal peca={modal3DPeca} onClose={() => setModal3DPeca(null)} />}
+                    {modalScanOpen && <QRScanModal onClose={() => setModalScanOpen(false)} notify={notify} />}
                 </Suspense>
             )}
         </div>

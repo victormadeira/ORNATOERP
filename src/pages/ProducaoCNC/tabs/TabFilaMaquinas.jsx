@@ -7,7 +7,7 @@ import { Spinner, EmptyState, SectionHeader, Modal, ConfirmModal } from '../../.
 import {
     Monitor, Play, CheckCircle2, Clock, Trash2, Plus, RefreshCw,
     ArrowUp, ArrowDown, AlertTriangle, Package, Layers, Zap,
-    GripVertical, Send, MessageSquare, Check,
+    GripVertical, Send, MessageSquare, Check, LayoutGrid, List,
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -26,6 +26,7 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
     const [addPrioridade, setAddPrioridade] = useState(0);
     const [adding, setAdding] = useState(false);
     const [filterMaquina, setFilterMaquina] = useState(''); // '' = todas
+    const [viewMode, setViewMode] = useState('status'); // 'status' | 'maquina'
     const [cncConfirm, setCncConfirm] = useState(null); // { msg, title?, onOk }
 
     const load = useCallback(async () => {
@@ -164,7 +165,7 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
                         background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
                     <RefreshCw size={13} /> Atualizar
                 </button>
-                {maquinas.length > 1 && (
+                {maquinas.length > 1 && viewMode === 'status' && (
                     <select value={filterMaquina} onChange={e => setFilterMaquina(e.target.value)}
                         style={{ padding: '7px 12px', fontSize: 12, borderRadius: 8,
                             border: '1px solid var(--border)', background: 'var(--bg-muted)',
@@ -173,12 +174,33 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
                         {maquinas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                     </select>
                 )}
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+                {/* View toggle — Por status / Por máquina */}
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 0, background: 'var(--bg-muted)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
+                    {[
+                        { id: 'status', label: 'Por status', Icon: List },
+                        { id: 'maquina', label: 'Por máquina', Icon: LayoutGrid },
+                    ].map(({ id, label, Icon }) => (
+                        <button key={id} onClick={() => setViewMode(id)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
+                                borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 600,
+                                fontFamily: 'var(--font-sans)',
+                                background: viewMode === id ? 'var(--bg-card)' : 'transparent',
+                                color: viewMode === id ? 'var(--text-primary)' : 'var(--text-muted)',
+                                boxShadow: viewMode === id ? '0 1px 3px rgba(0,0,0,.2)' : 'none',
+                                transition: 'all var(--transition-fast)',
+                            }}>
+                            <Icon size={12} /> {label}
+                        </button>
+                    ))}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     {fila.filter(f => f.status === 'em_producao').length} em produção · {fila.filter(f => f.status === 'aguardando').length} aguardando
                 </span>
             </div>
 
             {/* Kanban por status */}
+            {viewMode === 'status' && (
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 <KanbanColumn
                     title="Aguardando"
@@ -202,6 +224,98 @@ export function TabFilaMaquinas({ lotes, loteAtual, notify }) {
                     emptyMsg="Nenhuma concluída hoje"
                 />
             </div>
+            )}
+
+            {/* Vista por máquina (item #13) */}
+            {viewMode === 'maquina' && (
+            <div style={{ display: 'flex', gap: 14, overflowX: 'auto', alignItems: 'flex-start', paddingBottom: 8 }}>
+                {maquinas.map(m => {
+                    const itens = fila.filter(f => f.maquina_id === m.id);
+                    const emProducao = itens.find(f => f.status === 'em_producao');
+                    const aguardando = itens.filter(f => f.status === 'aguardando');
+                    return (
+                        <div key={m.id} style={{ flex: '0 0 280px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                            {/* Machine header */}
+                            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <Monitor size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome}</span>
+                                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap',
+                                        background: emProducao ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                        color: emProducao ? 'var(--success)' : 'var(--text-muted)',
+                                        border: `1px solid ${emProducao ? 'var(--success-border)' : 'var(--border)'}`,
+                                    }}>
+                                        {emProducao ? '● EM PRODUÇÃO' : '○ LIVRE'}
+                                    </span>
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                                    {aguardando.length} na fila · {itens.filter(f => f.status === 'concluido').length} concluídas hoje
+                                </div>
+                            </div>
+                            {/* Chapa atual */}
+                            {emProducao ? (
+                                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--success-bg)' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--success)', marginBottom: 4 }}>Em produção agora</div>
+                                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {emProducao.lote_nome} · Chapa {(emProducao.chapa_idx ?? 0) + 1}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                        <button onClick={() => updateStatus(emProducao.id, 'concluido')}
+                                            style={{ flex: 1, padding: '6px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none', cursor: 'pointer', background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                                            <Check size={12} /> Concluir
+                                        </button>
+                                        <button onClick={() => updateStatus(emProducao.id, 'pausado')}
+                                            style={{ padding: '6px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
+                                            Pausar
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ padding: '10px 14px', borderBottom: itens.length > 0 ? '1px solid var(--border)' : 'none', color: 'var(--text-muted)', fontSize: 12, fontStyle: 'italic' }}>
+                                    Sem chapa em produção
+                                </div>
+                            )}
+                            {/* Fila */}
+                            {aguardando.length > 0 && (
+                                <div style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Fila ({aguardando.length})</div>
+                                    {aguardando.slice(0, 3).map(f => (
+                                        <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-muted)', borderRadius: 7, cursor: 'pointer' }}
+                                            onClick={() => updateStatus(f.id, 'em_producao')}>
+                                            <Play size={11} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                            <span style={{ fontSize: 12, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {f.lote_nome} · Ch.{(f.chapa_idx ?? 0) + 1}
+                                            </span>
+                                            <span style={{ fontSize: 10, color: 'var(--primary)', whiteSpace: 'nowrap' }}>Iniciar</span>
+                                        </div>
+                                    ))}
+                                    {aguardando.length > 3 && (
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: '4px 0' }}>+ {aguardando.length - 3} mais na fila</div>
+                                    )}
+                                </div>
+                            )}
+                            {itens.length === 0 && (
+                                <div style={{ padding: '14px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>Máquina livre</div>
+                            )}
+                        </div>
+                    );
+                })}
+                {/* Sem máquina */}
+                {semMaquina.length > 0 && (
+                    <div style={{ flex: '0 0 280px', background: 'var(--warning-bg)', border: '1px solid var(--warning-border)', borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--warning-border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                <AlertTriangle size={14} style={{ color: 'var(--warning)' }} />
+                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)' }}>Sem máquina ({semMaquina.length})</span>
+                            </div>
+                        </div>
+                        <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {semMaquina.slice(0, 5).map(f => <FilaCard key={f.id} item={f} onStatus={updateStatus} onMaquina={atribuirMaquina} onRemove={remover} maquinas={maquinas} highlight />)}
+                        </div>
+                    </div>
+                )}
+            </div>
+            )}
 
             {/* Seção sem máquina */}
             {semMaquina.length > 0 && !filterMaquina && (
