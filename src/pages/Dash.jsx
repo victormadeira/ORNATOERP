@@ -21,93 +21,115 @@ const greet = () => {
 };
 
 // ══════════════════════════════════════════════════════════════════
-// HERO — saudação premium com aurora + faturamento destacado
+// EXEC SUMMARY BAR — command center compacto (Linear/Stripe style)
+// Substitui o HeroCard: saudação + métricas-chave em 1 unidade
 // ══════════════════════════════════════════════════════════════════
-function HeroCard({ user, headline, today, refreshing, onRefresh }) {
-    const up = headline?.pct_variacao > 0;
-    const down = headline?.pct_variacao < 0;
+function ExecSummaryBar({ user, data, today, refreshing, onRefresh, nav, isVendedor }) {
     const nome = (user?.nome || '').split(' ')[0] || '';
-    const dateMain = today.split(',')[0];
-    const dateRest = today.split(',').slice(1).join(',').trim();
-    const animFat = useCountUp(headline?.faturamento_mes || 0, { duration: 1100 });
+    const h = data?.headline;
+    const atencao = data?.atencao;
+    const fc = data?.fluxo_caixa || {};
+    const pipeTotal = data?.pipeline_total || 0;
+    const projAtivos = data?.total_projetos_ativos || 0;
+    const contasVencidas = atencao?.valor_vencido || 0;
+    const numVencidas = atencao?.total_vencidas || 0;
+    const prodPendente = data?.producao_resumo?.pecas_pendentes || 0;
+    const animFat = useCountUp(h?.faturamento_mes || 0, { duration: 900 });
+    const animPipe = useCountUp(pipeTotal, { duration: 900 });
+
+    const up = h?.pct_variacao > 0;
+    const down = h?.pct_variacao < 0;
 
     return (
-        <div className="hero-card animate-fade-up" style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 28, flexWrap: 'wrap' }}>
-                {/* Left — saudação */}
-                <div style={{ flex: '1 1 300px', minWidth: 0 }}>
-                    <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 8,
-                        padding: '5px 11px', borderRadius: 99,
-                        background: 'rgba(201, 169, 110, 0.14)',
-                        border: '1px solid rgba(201, 169, 110, 0.30)',
-                        fontSize: 10.5, fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase',
-                        color: '#D4B47C', marginBottom: 18,
-                    }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D4B47C', boxShadow: '0 0 8px #D4B47C' }} />
-                        {dateMain}
+        <div className="animate-fade-up" style={{ marginBottom: 20 }}>
+            {/* Header line: greeting + date + refresh */}
+            <div className="exec-header">
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="live-dot" style={{ width: 6, height: 6 }} />
+                        <h1 className="exec-header-title">
+                            {greet()}{nome ? `, ${nome}` : ''}
+                        </h1>
                     </div>
-                    <h1 className="hero-card-title">
-                        {greet()}{nome ? ',' : ''}
-                        {nome && <span className="text-gradient-accent" style={{ marginLeft: 12 }}>{nome}</span>}
-                    </h1>
-                    <p className="hero-card-subtitle">{dateRest}</p>
-                </div>
-
-                {/* Right — faturamento stat */}
-                {headline && (
-                    <div className="hero-stat-block" style={{ flex: '1 1 260px', minWidth: 0 }}>
-                        <div className="hero-stat-label">
-                            Faturamento · {headline.mes_atual}
-                        </div>
-                        <div className="hero-stat-value">{R$(animFat)}</div>
-                        <div className="hero-stat-meta" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-                            <span style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 4,
-                                padding: '4px 10px', borderRadius: 99,
-                                background: up ? 'rgba(159, 191, 126, 0.18)' : down ? 'rgba(217, 117, 96, 0.18)' : 'rgba(244,236,219,0.10)',
-                                color: up ? '#B6CF98' : down ? '#E5907D' : 'rgba(244,236,219,0.8)',
-                                fontWeight: 700, fontSize: 12,
-                                border: `1px solid ${up ? 'rgba(159, 191, 126, 0.30)' : down ? 'rgba(217, 117, 96, 0.30)' : 'rgba(244,236,219,0.16)'}`,
-                            }}>
-                                {up ? <TrendingUp size={13} /> : down ? <TrendingDown size={13} /> : <Minus size={13} />}
-                                {up && '+'}{headline.pct_variacao}%
-                            </span>
-                            <span style={{ fontSize: 11.5, color: 'rgba(244, 236, 219, 0.55)', fontWeight: 500 }}>
-                                {headline.qtd_fechados} fechado{headline.qtd_fechados !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Bottom — live feed + refresh */}
-            <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginTop: 26, paddingTop: 20, borderTop: '1px solid rgba(244, 236, 219, 0.08)',
-                gap: 16, flexWrap: 'wrap',
-            }}>
-                <div style={{ fontSize: 11.5, color: 'rgba(244, 236, 219, 0.5)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#9FBF7E', boxShadow: '0 0 8px #9FBF7E' }} />
-                    Dados em tempo real · sincronização a cada 60s
+                    <div className="exec-header-date">{today}</div>
                 </div>
                 <button
                     onClick={onRefresh}
                     aria-label={refreshing ? 'Atualizando…' : 'Atualizar dados'}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '7px 14px', borderRadius: 10,
-                        background: 'rgba(244, 236, 219, 0.08)', border: '1px solid rgba(244, 236, 219, 0.12)',
-                        color: 'rgba(244, 236, 219, 0.85)', fontSize: 12, fontWeight: 600,
-                        cursor: 'pointer', transition: 'all 180ms var(--ease-out)', touchAction: 'manipulation',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(244, 236, 219, 0.14)'; e.currentTarget.style.borderColor = 'rgba(201, 169, 110, 0.4)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(244, 236, 219, 0.08)'; e.currentTarget.style.borderColor = 'rgba(244, 236, 219, 0.12)'; }}
+                    className="btn-ghost btn-sm"
+                    style={{ gap: 5 }}
                 >
                     <RefreshCw size={13} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
                     {refreshing ? 'Atualizando…' : 'Atualizar'}
                 </button>
             </div>
+
+            {/* Exec bar — métricas-chave side by side */}
+            {!isVendedor && h && (
+                <div className="exec-bar">
+                    {/* Faturamento */}
+                    <div className="exec-bar-cell clickable exec-ok" onClick={() => nav('orcs')}>
+                        <div className="exec-bar-status" />
+                        <div className="exec-bar-label">Faturamento · {h.mes_atual}</div>
+                        <div className="exec-bar-value font-tabular">{R$(animFat)}</div>
+                        <div className="exec-bar-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 3,
+                                fontSize: 10, fontWeight: 700,
+                                color: up ? 'var(--success)' : down ? 'var(--danger)' : 'var(--text-muted)',
+                            }}>
+                                {up ? <TrendingUp size={11} /> : down ? <TrendingDown size={11} /> : <Minus size={11} />}
+                                {up && '+'}{h.pct_variacao}%
+                            </span>
+                            <span>{h.qtd_fechados} fechados</span>
+                        </div>
+                    </div>
+
+                    {/* Pipeline */}
+                    <div className="exec-bar-cell clickable" onClick={() => nav('kb')}>
+                        <div className="exec-bar-label">Pipeline ativo</div>
+                        <div className="exec-bar-value font-tabular">{R$(animPipe)}</div>
+                        <div className="exec-bar-sub">
+                            {(data?.pipeline || []).reduce((s, d) => s + (d.qtd || 0), 0)} propostas em aberto
+                        </div>
+                    </div>
+
+                    {/* Projetos */}
+                    <div className="exec-bar-cell clickable" onClick={() => nav('proj')}>
+                        <div className="exec-bar-label">Projetos ativos</div>
+                        <div className="exec-bar-value font-tabular">{projAtivos}</div>
+                        <div className="exec-bar-sub">
+                            {data?.producao_resumo?.projetos_atrasados > 0
+                                ? `${data.producao_resumo.projetos_atrasados} atrasados`
+                                : 'todos no prazo'}
+                        </div>
+                    </div>
+
+                    {/* Contas vencidas */}
+                    <div
+                        className={`exec-bar-cell ${numVencidas > 0 ? 'clickable exec-danger' : ''}`}
+                        onClick={numVencidas > 0 ? () => nav('financeiro') : undefined}
+                    >
+                        {numVencidas > 0 && <div className="exec-bar-status" />}
+                        <div className="exec-bar-label">Contas vencidas</div>
+                        <div className="exec-bar-value font-tabular">
+                            {numVencidas > 0 ? R$(contasVencidas) : '—'}
+                        </div>
+                        <div className="exec-bar-sub">
+                            {numVencidas > 0 ? `${numVencidas} conta${numVencidas > 1 ? 's' : ''} a receber` : 'nenhuma pendência'}
+                        </div>
+                    </div>
+
+                    {/* Produção */}
+                    {data?.producao_resumo && (
+                        <div className="exec-bar-cell clickable" onClick={() => nav('cnc')}>
+                            <div className="exec-bar-label">Produção CNC</div>
+                            <div className="exec-bar-value font-tabular">{prodPendente}</div>
+                            <div className="exec-bar-sub">peças pendentes</div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -1717,10 +1739,22 @@ export default function Dash({ nav, notify, user }) {
     if (loading) {
         return (
             <div className={Z.pg}>
-                <div className="hero-card" style={{ marginBottom: 24, minHeight: 180 }}>
-                    <Skeleton width={220} height={18} />
-                    <div style={{ height: 12 }} />
-                    <Skeleton width={320} height={38} />
+                <div style={{ marginBottom: 20 }}>
+                    <div className="exec-header" style={{ marginBottom: 16 }}>
+                        <div>
+                            <Skeleton width={200} height={20} style={{ marginBottom: 6 }} />
+                            <Skeleton width={160} height={13} />
+                        </div>
+                    </div>
+                    <div className="exec-bar">
+                        {[1,2,3,4].map(i => (
+                            <div key={i} className="exec-bar-cell">
+                                <Skeleton width={80} height={10} style={{ marginBottom: 8 }} />
+                                <Skeleton width={120} height={22} style={{ marginBottom: 6 }} />
+                                <Skeleton width={100} height={10} />
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
                     <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
@@ -1753,12 +1787,14 @@ export default function Dash({ nav, notify, user }) {
 
     return (
         <div className={Z.pg}>
-            <HeroCard
+            <ExecSummaryBar
                 user={user}
-                headline={!isVendedor ? data.headline : null}
+                data={data}
                 today={today}
                 refreshing={refreshing}
                 onRefresh={() => load(true)}
+                nav={nav}
+                isVendedor={isVendedor}
             />
 
             <KpiStrip data={data} isVendedor={isVendedor} nav={nav} />

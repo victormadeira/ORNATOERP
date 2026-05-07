@@ -445,7 +445,7 @@ export default function Sidebar({
                                                             className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer
                                                                 ${active ? 'sidebar-item-active font-semibold' : ''}`}
                                                             style={!active ? { color: 'var(--text-secondary)' } : undefined}>
-                                                            <span className="shrink-0 relative" style={{ width: 18, display: 'flex', justifyContent: 'center' }}>
+                                                            <span className="shrink-0 relative" style={{ width: 18, display: 'flex', justifyContent: 'center', color: active ? 'var(--accent-bright)' : 'var(--text-muted)' }}>
                                                                 <I />
                                                                 {badge && !sidebarExpanded && (
                                                                     <span style={{
@@ -503,7 +503,7 @@ export default function Sidebar({
                             <div className="flex items-center gap-2.5 px-2.5 py-2">
                                 <div onClick={() => setShowPerfil(true)} className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer rounded-lg px-1 py-0.5 transition-colors hover:bg-[var(--bg-hover)]">
                                     <div className="relative shrink-0">
-                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--accent-gradient)' }}>
+                                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--accent)' }}>
                                             {user.nome?.[0]?.toUpperCase()}
                                         </div>
                                         <span className="status-online" />
@@ -599,7 +599,7 @@ export default function Sidebar({
                         </button>
                         <div className="flex items-center gap-2.5 px-2.5 py-2 mt-1">
                             <div className="relative shrink-0">
-                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--primary-gradient)' }}>
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'var(--accent)' }}>
                                     {user.nome?.[0]?.toUpperCase()}
                                 </div>
                                 <span className="status-online" />
