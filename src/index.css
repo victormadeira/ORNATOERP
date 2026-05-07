@@ -560,7 +560,8 @@ h1, h2, h3, h4 {
 }
 
 .td-glass {
-  padding: 0 12px;
+  padding: 8px 12px;
+  min-height: 40px;
   height: 40px;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
@@ -568,6 +569,11 @@ h1, h2, h3, h4 {
   transition: background var(--transition-fast);
   font-variant-numeric: tabular-nums;
   vertical-align: middle;
+}
+/* Células com conteúdo empilhado quebram a altura fixa */
+.td-glass.td-stack {
+  height: auto;
+  min-height: 40px;
 }
 
 tr:hover .td-glass {

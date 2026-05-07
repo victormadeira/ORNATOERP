@@ -291,182 +291,143 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                 </button>
             </PageHeader>
 
-            {/* ─── Filtros ──────────────────────────────────── */}
-            <div className="flex flex-col gap-3 mb-6">
-                {/* Linha 1: Busca + botão filtros */}
-                <div className="flex flex-col md:flex-row gap-3">
-                    <div className="flex-1 relative">
-                        <input
-                            placeholder="Buscar por cliente, projeto, número ou notas..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className={`${Z.inp} !pl-9`}
-                        />
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }}>
-                            <Ic.Search />
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`${Z.btn2} flex items-center gap-1.5 text-xs shrink-0`}
-                        style={hasActiveFilters ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : {}}
-                    >
-                        <Filter size={13} />
-                        Filtros {hasActiveFilters && `(${[statusFilter, clienteFilter, periodoFilter].filter(Boolean).length})`}
-                    </button>
-                    {/* Ordenação */}
-                    <select
-                        value={sortBy}
-                        onChange={e => setSortBy(e.target.value)}
-                        className={`${Z.inp} w-full md:w-52 text-xs`}
-                    >
-                        <option value="data_desc">Mais recentes primeiro</option>
-                        <option value="data_asc">Mais antigos primeiro</option>
-                        <option value="mod_desc">Última modificação</option>
-                        <option value="valor_desc">Maior valor</option>
-                        <option value="valor_asc">Menor valor</option>
-                        <option value="cliente_asc">Cliente (A-Z)</option>
-                    </select>
+            {/* ─── FilterBar ─────────────────────────────────── */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                padding: '6px 10px', background: 'var(--bg-card)',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                flexWrap: 'wrap', rowGap: 6,
+            }}>
+                {/* Busca */}
+                <div style={{ position: 'relative', flex: '1 1 160px', minWidth: 0 }}>
+                    <Search size={12} style={{
+                        position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                        color: 'var(--text-muted)', pointerEvents: 'none',
+                    }} />
+                    <input
+                        value={search} onChange={e => setSearch(e.target.value)}
+                        placeholder="Buscar cliente, projeto, número..."
+                        style={{
+                            width: '100%', paddingLeft: 26, height: 30,
+                            borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                            background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)',
+                            outline: 'none', transition: 'border-color var(--transition-fast)',
+                        }}
+                        onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                        onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                    />
                 </div>
 
-                {/* Linha 2: Filtros expandíveis */}
-                {showFilters && (
-                    <div className="flex flex-col md:flex-row gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                        <div className="flex-1">
-                            <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Status</label>
-                            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={`${Z.inp} w-full text-xs`}>
-                                <option value="">Todos os status</option>
-                                {KCOLS.map(c => <option key={c.id} value={c.id}>{c.nm}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex-1">
-                            <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Cliente</label>
-                            <select value={clienteFilter} onChange={e => setClienteFilter(e.target.value)} className={`${Z.inp} w-full text-xs`}>
-                                <option value="">Todos os clientes</option>
-                                {clientes.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex-1">
-                            <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: 'var(--text-muted)' }}>Período</label>
-                            <select value={periodoFilter} onChange={e => setPeriodoFilter(e.target.value)} className={`${Z.inp} w-full text-xs`}>
-                                <option value="">Todo período</option>
-                                <option value="7d">Última semana</option>
-                                <option value="30d">Último mês</option>
-                                <option value="90d">Últimos 3 meses</option>
-                            </select>
-                        </div>
-                        {hasActiveFilters && (
-                            <div className="flex items-end">
-                                <button
-                                    onClick={() => { setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); }}
-                                    className="text-[11px] px-3 py-1.5 rounded-md cursor-pointer hover:bg-red-500/10"
-                                    style={{ color: 'var(--danger)' }}
-                                >
-                                    Limpar filtros
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
+                {/* div-sep */}
+                <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
 
-                {/* Result count + clear */}
-                {(statusFilter || clienteFilter || periodoFilter || search.trim()) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                        <span>Mostrando <strong style={{ color: 'var(--text-primary)' }}>{filtered.length}</strong> de {orcs.filter(o => o.versao_ativa !== 0).length} orçamentos</span>
-                        <button onClick={() => { setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); setSearch(''); }}
-                            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)' }}>
-                            Limpar filtros
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* ─── Sumário pipeline ─────────────────────────── */}
-            {filtered.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 stagger-children">
-                    {KCOLS.slice(0, 4).map(col => {
-                        const colOrcs = filtered.filter(o => (o.kb_col || 'lead') === col.id);
-                        if (!colOrcs.length) return null;
-                        const c = col.c || 'var(--text-muted)';
+                {/* Status chips */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+                    {KCOLS.map(col => {
+                        const cnt = orcs.filter(o => o.versao_ativa !== 0 && (o.kb_col || 'lead') === col.id).length;
+                        if (!cnt) return null;
                         const isActive = statusFilter === col.id;
                         return (
-                            <button
-                                key={col.id}
-                                type="button"
-                                className="glass-card hover-lift cursor-pointer"
-                                aria-pressed={isActive}
-                                aria-label={`Filtrar por ${col.nm}: ${colOrcs.length} orçamentos`}
+                            <button key={col.id}
+                                onClick={() => setStatusFilter(isActive ? '' : col.id)}
                                 style={{
-                                    padding: '14px 16px',
-                                    background: `linear-gradient(90deg, ${c}10, transparent 40%), var(--bg-card)`,
-                                    border: `1px solid ${isActive ? c : 'var(--border)'}`,
-                                    position: 'relative', overflow: 'hidden',
-                                    textAlign: 'left',
-                                    minHeight: 44,
-                                    touchAction: 'manipulation',
-                                    cursor: 'pointer',
-                                    outline: isActive ? `2px solid ${c}` : 'none',
-                                    outlineOffset: -1,
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    padding: '2px 8px', borderRadius: 99, cursor: 'pointer',
+                                    fontSize: 11, fontWeight: 600,
+                                    border: `1px solid ${isActive ? col.c : 'var(--border)'}`,
+                                    background: isActive ? `${col.c}18` : 'transparent',
+                                    color: isActive ? col.c : 'var(--text-secondary)',
+                                    transition: 'all var(--transition-fast)',
                                 }}
-                                onClick={() => setStatusFilter(isActive ? '' : col.id)}>
-                                <div style={{ position: 'absolute', top: 0, right: 0, width: 50, height: '100%', background: `linear-gradient(135deg, transparent, ${c}08)`, pointerEvents: 'none' }} />
-                                <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: c }}>{col.nm}</div>
-                                <div className="text-xl font-extrabold mt-1" style={{ color: 'var(--text-primary)' }}>{colOrcs.length}</div>
-                                <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--text-muted)' }}>{R$(colOrcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}</div>
+                            >
+                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col.c, flexShrink: 0 }} />
+                                {col.nm}
+                                <span style={{ fontSize: 10, opacity: 0.7, fontWeight: 700 }}>{cnt}</span>
                             </button>
                         );
                     })}
                 </div>
-            )}
 
-            {/* ─── Filter chips ativos ──────────────────────── */}
-            {(search || statusFilter || clienteFilter || periodoFilter) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginRight: 2 }}>Filtrando:</span>
-                    {statusFilter && (() => {
-                        const col = KCOLS.find(c => c.id === statusFilter);
+                {/* div-sep */}
+                <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
+
+                {/* Cliente */}
+                <select value={clienteFilter} onChange={e => setClienteFilter(e.target.value)}
+                    style={{
+                        height: 30, padding: '0 8px', borderRadius: 'var(--radius-sm)',
+                        border: `1px solid ${clienteFilter ? 'var(--primary)' : 'var(--border)'}`,
+                        background: 'var(--bg-subtle)', fontSize: 11,
+                        color: clienteFilter ? 'var(--primary)' : 'var(--text-secondary)',
+                        cursor: 'pointer', outline: 'none', maxWidth: 140,
+                    }}>
+                    <option value="">Todos clientes</option>
+                    {clientes.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+
+                {/* Sort */}
+                <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                    style={{
+                        height: 30, padding: '0 8px', borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                        fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer', outline: 'none',
+                    }}>
+                    <option value="data_desc">Mais recentes</option>
+                    <option value="data_asc">Mais antigos</option>
+                    <option value="mod_desc">Modificados</option>
+                    <option value="valor_desc">Maior valor</option>
+                    <option value="valor_asc">Menor valor</option>
+                    <option value="cliente_asc">A-Z</option>
+                </select>
+
+                {/* Count + Clear */}
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {(search || statusFilter || clienteFilter || periodoFilter)
+                            ? <><strong style={{ color: 'var(--text-primary)' }}>{filtered.length}</strong> / {orcs.filter(o => o.versao_ativa !== 0).length}</>
+                            : <>{orcs.filter(o => o.versao_ativa !== 0).length} orçamentos</>}
+                    </span>
+                    {(search || statusFilter || clienteFilter || periodoFilter) && (
+                        <button
+                            onClick={() => { setSearch(''); setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); }}
+                            style={{ fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            Limpar
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* ─── Pipeline strip ─────────────────────────── */}
+            {!statusFilter && orcs.filter(o => o.versao_ativa !== 0).length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
+                    {KCOLS.map(col => {
+                        const colOrcs = orcs.filter(o => o.versao_ativa !== 0 && (o.kb_col || 'lead') === col.id);
+                        if (!colOrcs.length) return null;
                         return (
-                            <button onClick={() => setStatusFilter('')} style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
-                                background: `${col?.c || 'var(--primary)'}18`, border: `1px solid ${col?.c || 'var(--primary)'}40`,
-                                color: col?.c || 'var(--primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                            }}>
-                                {col?.nm || statusFilter} ×
+                            <button key={col.id}
+                                onClick={() => setStatusFilter(col.id)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                                    border: `1px solid ${col.c}28`, background: `${col.c}0A`,
+                                    cursor: 'pointer', flexShrink: 0, textAlign: 'left',
+                                    transition: 'all var(--transition-fast)',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = col.c + '55'; e.currentTarget.style.background = col.c + '18'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = col.c + '28'; e.currentTarget.style.background = col.c + '0A'; }}
+                            >
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: col.c, flexShrink: 0 }} />
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: col.c, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>{col.nm}</div>
+                                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.25 }}>{colOrcs.length}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{R$(colOrcs.reduce((s, o) => s + (o.valor_venda || 0), 0))}</div>
+                                </div>
                             </button>
                         );
-                    })()}
-                    {clienteFilter && (
-                        <button onClick={() => setClienteFilter('')} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
-                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
-                            color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        }}>
-                            {clienteFilter} ×
-                        </button>
-                    )}
-                    {periodoFilter && (
-                        <button onClick={() => setPeriodoFilter('')} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
-                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
-                            color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        }}>
-                            {periodoFilter === '7d' ? 'Últimos 7 dias' : periodoFilter === '30d' ? 'Últimos 30 dias' : periodoFilter === '90d' ? 'Últimos 90 dias' : periodoFilter} ×
-                        </button>
-                    )}
-                    {search && (
-                        <button onClick={() => setSearch('')} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
-                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
-                            color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        }}>
-                            "{search}" ×
-                        </button>
-                    )}
-                    <button onClick={() => { setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); setSearch(''); }} style={{
-                        background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', padding: '3px 6px', marginLeft: 2,
-                    }}>
-                        Limpar tudo
-                    </button>
+                    })}
+                    <div style={{ marginLeft: 'auto', flexShrink: 0, padding: '8px 14px', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Portfólio</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary)' }}>{R$(totalValue)}</div>
+                    </div>
                 </div>
             )}
 
@@ -519,9 +480,16 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     const diasParado = diasAtras(o.atualizado_em || o.criado_em);
                                     const isStale = (o.kb_col === 'lead' || o.kb_col === 'proposal') && diasParado > 30;
                                     return (
-                                        <tr key={o.id} className="group hover:bg-[var(--bg-muted)] transition-colors">
-                                            <td className="td-glass">
-                                                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                                        <tr
+                                            key={o.id}
+                                            className="group transition-colors cursor-pointer"
+                                            onClick={() => nav("novo", o)}
+                                        >
+                                            <td className="td-glass td-stack">
+                                                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.02em', display: 'block', lineHeight: 1 }}>
+                                                    #{o.numero}
+                                                </span>
+                                                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'block', lineHeight: 1 }}>
                                                     {dt(o.criado_em)}
                                                 </span>
                                             </td>
@@ -564,7 +532,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                             <td className="td-glass text-right hide-mobile" style={{ color: 'var(--text-muted)' }}>
                                                 {nAmb > 0 ? `${nAmb} amb.` : (o.mods?.length > 0 ? `${o.mods.length} mód.` : '—')}
                                             </td>
-                                            <td className="td-glass text-right font-bold relative" style={{ color: 'var(--primary)' }}>
+                                            <td className="td-glass text-right font-bold relative" style={{ color: 'var(--primary)' }} onClick={e => e.stopPropagation()}>
                                                 {R$(o.valor_venda)}
                                                 {aditivoCount[o.id] > 0 && (
                                                     <div
@@ -694,18 +662,18 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="td-glass">
-                                                <div className="flex items-center" style={{ gap: 0 }}>
+                                            <td className="td-glass" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ gap: 0 }}>
                                                     {/* Grupo: ações primárias */}
                                                     <div className="flex items-center gap-0.5">
                                                         <button
-                                                            onClick={() => nav("novo", o)}
+                                                            onClick={(e) => { e.stopPropagation(); nav("novo", o); }}
                                                             className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-hover)]"
                                                             style={{ color: 'var(--text-secondary)' }} title="Editar orçamento">
                                                             <Ic.Edit />
                                                         </button>
                                                         <button
-                                                            onClick={() => previewProposta(o)}
+                                                            onClick={(e) => { e.stopPropagation(); previewProposta(o); }}
                                                             className="p-1.5 rounded-md transition-colors hover:bg-green-500/10"
                                                             style={{ color: isLoadingThisLink ? 'var(--primary)' : 'var(--success-hover)' }}
                                                             title="Abrir proposta (nova aba)"
@@ -715,7 +683,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                             ) : <Ic.Eye />}
                                                         </button>
                                                         <button
-                                                            onClick={() => abrirLink(o)}
+                                                            onClick={(e) => { e.stopPropagation(); abrirLink(o); }}
                                                             className="p-1.5 rounded-md transition-colors hover:bg-blue-500/10"
                                                             style={{ color: 'var(--text-muted)' }}
                                                             title="Link público + rastreamento"
@@ -723,7 +691,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                             <Ic.Link />
                                                         </button>
                                                         <button
-                                                            onClick={() => duplicar(o)}
+                                                            onClick={(e) => { e.stopPropagation(); duplicar(o); }}
                                                             className="p-1.5 rounded-md transition-colors hover:bg-violet-500/10"
                                                             style={{ color: isLoadingThisDup ? 'var(--text-muted)' : '#8b5cf6' }}
                                                             title="Duplicar orçamento"
@@ -737,7 +705,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 6px', flexShrink: 0 }} />
                                                     {/* Excluir — ação destrutiva separada */}
                                                     <button
-                                                        onClick={() => setConfirmDel({ id: o.id, nome: o.cliente_nome })}
+                                                        onClick={(e) => { e.stopPropagation(); setConfirmDel({ id: o.id, nome: o.cliente_nome }); }}
                                                         className="p-1.5 rounded-md transition-colors hover:bg-red-500/10"
                                                         style={{ color: 'var(--danger)' }} title="Excluir">
                                                         <Ic.Trash />

@@ -4703,6 +4703,17 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     const useOnion = maquina.usar_onion_skin !== 0;
     const onionEsp = maquina.onion_skin_espessura || 0.5;
     const onionAreaMax = maquina.onion_skin_area_max || 500;
+    const onionModo = maquina.onion_skin_modo || 'diferido'; // 'diferido' | 'por_peca'
+    // ── Qualidade de trajetória ──
+    const entradaPeloInterior = maquina.entrada_pelo_interior !== 0; // default: ativo
+    const usarLeadOut = maquina.usar_lead_out === 1;
+    const leadOutR = maquina.lead_out_raio || 3;
+    const useFeedCantos = maquina.usar_feed_cantos === 1;
+    const feedCantosPct = maquina.feed_cantos_pct || 60;   // 0-100%
+    const feedCantosDist = maquina.feed_cantos_dist || 8;  // mm antes do canto
+    const ordenarBordaPrimeiro = maquina.ordenar_borda_primeiro === 1;
+    const useArcCorners = maquina.usar_arc_corners === 1;
+    const arcCornersR = maquina.arc_corners_raio || 0.8;   // mm
     const feedPct = maquina.feed_rate_pct_pequenas || 50;
     const feedAreaMax = maquina.feed_rate_area_max || 500;
     const exportA = maquina.exportar_lado_a !== 0;
@@ -5452,7 +5463,14 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (ordenarContornos === 'menor_primeiro') {
                 // Prioridade de estabilidade: peças menores soltam/movem mais cedo.
                 // O TSP entra depois, apenas dentro de buckets parecidos.
-                return contourSmallFirstCompare(a, b);
+                const baseOrd = contourSmallFirstCompare(a, b);
+                if (baseOrd !== 0) return baseOrd;
+                // Critério secundário: peças na borda da chapa são cortadas primeiro
+                // → as peças do centro ficam presas no vácuo mais tempo.
+                if (ordenarBordaPrimeiro && a.distBorda !== b.distBorda) {
+                    return (a.distBorda ?? 9999) - (b.distBorda ?? 9999);
+                }
+                return 0;
             } else if (ordenarContornos === 'maior_primeiro') {
                 if ((a.clsOrder ?? 9) !== (b.clsOrder ?? 9)) return (b.clsOrder ?? 9) - (a.clsOrder ?? 9);
                 if (a.areaCm2 !== b.areaCm2) return b.areaCm2 - a.areaCm2;
@@ -5518,7 +5536,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
     // ═══ PASSO 3: Gerar G-code ═══
     const onionOps = [];
+    let onionInlineCount = 0;
     let trocas = 0, totalOps = 0, curTool = null;
+    // Centro da chapa para otimização "entrada pelo interior" (usado em múltiplos blocos)
+    const _sCx = (chapa.comprimento || 2750) / 2;
+    const _sCy = (chapa.largura || 1850) / 2;
 
     // ─── Cabeçalho ───
     L.push(header, '');
@@ -5680,7 +5702,38 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 emit(`G0 Z${fmt(useFastRetract ? zRapid() : zSafe())}`);
             }
             if (op.needsOnionSkin) {
-                onionOps.push({ ...op, velFinal: Math.round(op.velCorte * 0.6) });
+                if (onionModo === 'por_peca') {
+                    // Breakthrough imediato: corta o skin logo após o desbaste desta peça
+                    const path = op.contornoPath;
+                    if (path && path.length >= 4) {
+                        const dFull = op.onionDepthFull || op.depthTotal;
+                        const velFinal = Math.round(op.velCorte * 0.6);
+                        L.push(`${cmt} Breakthrough (por peça): ${op.pecaDesc} — skin=${onionEsp}mm`);
+                        // Mesma rotação "entrada pelo interior" do desbaste
+                        const _bk = (() => { if(!entradaPeloInterior) return 0; let b=0, bd=Infinity; for (let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
+                        const _bp = _bk===0?path:[...path.slice(_bk),...path.slice(0,_bk)];
+                        const p0=_bp[0],p1=_bp[1],p2=_bp[2],p3=_bp[3];
+                        emit(`G0 ${XY(p0.x, p0.y)}`);
+                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G1 Z${fmt(zCut(dFull))} F${Math.min(velMergulho, velFinal)}`);
+                        L.push(`${cmt}   vel. reduzida (breakthrough ${onionEsp}mm)`);
+                        if (dirCorte === 'climb') {
+                            emit(`G1 ${XY(p3.x, p3.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p2.x, p2.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p1.x, p1.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p0.x, p0.y)} F${velFinal}`);
+                        } else {
+                            emit(`G1 ${XY(p1.x, p1.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p2.x, p2.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p3.x, p3.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p0.x, p0.y)} F${velFinal}`);
+                        }
+                        emit(`G0 Z${fmt(zRapid())}`);
+                        onionInlineCount++;
+                    }
+                } else {
+                    onionOps.push({ ...op, velFinal: Math.round(op.velCorte * 0.6) });
+                }
             }
             L.push('');
 
@@ -5860,20 +5913,92 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (op.highVacuumRisk) L.push(`${cmt}   Small-first MDF: sem tabs; fixacao por onion/feed reduzido`);
             if (op.isPequena) L.push(`${cmt}   PECA PEQUENA -- Feed ${feedPct}%`);
 
-            // Calcular ponto de entrada com lead-in
-            // Para climb (CW): entrada no meio da aresta inferior (P0→P1)
-            // Lead-in: deslocar ponto de entrada para fora do contorno
-            const p0 = path[0], p1 = path[1], p2 = path[2], p3 = path[3];
-            const edgeLen = Math.abs(p1.x - p0.x); // comprimento da aresta inferior
-            const leadR = usarLeadIn ? Math.min(leadInRaio, edgeLen * 0.2, 15) : 0;
+            // ─── Ponto de entrada do contorno ───
+            // "Entrada pelo interior": iniciar pelo canto mais próximo do centro da chapa
+            // → a peça permanece presa no vácuo forte até o último momento.
+            // Desativável por máquina (ex.: máquinas com ponto de troca fixo).
+            const _bestK = (() => {
+                if (!entradaPeloInterior) return 0; // usa sempre BL quando desativado
+                let best = 0, bestDist = Infinity;
+                for (let k = 0; k < path.length; k++) {
+                    const d = Math.hypot(path[k].x - _sCx, path[k].y - _sCy);
+                    if (d < bestDist) { bestDist = d; best = k; }
+                }
+                return best;
+            })();
+            const rPath = _bestK === 0 ? path : [...path.slice(_bestK), ...path.slice(0, _bestK)];
+            const p0 = rPath[0], p1 = rPath[1], p2 = rPath[2], p3 = rPath[3];
 
-            // Ponto de entrada: meio da primeira aresta, deslocado para fora
-            const entryX = (p0.x + p1.x) / 2;
-            const entryY = p0.y - leadR;  // fora do contorno (abaixo)
+            // Lead-in: normal dinâmica perpendicular à aresta p0→p1, apontando para fora do contorno
+            const _eVx = p1.x - p0.x, _eVy = p1.y - p0.y;
+            const _eLen = Math.sqrt(_eVx * _eVx + _eVy * _eVy);
+            const _outNx = _eLen > 0 ? _eVy / _eLen : 0;
+            const _outNy = _eLen > 0 ? -_eVx / _eLen : -1;
+            const leadR = usarLeadIn ? Math.min(leadInRaio, _eLen * 0.2, 15) : 0;
+            const contX = (p0.x + p1.x) / 2, contY = (p0.y + p1.y) / 2;
+            const entryX = contX + _outNx * leadR, entryY = contY + _outNy * leadR;
 
-            // Ponto no contorno onde o lead-in termina
-            const contX = (p0.x + p1.x) / 2;
-            const contY = p0.y;
+            // Indicar o canto de entrada no G-code para rastreabilidade
+            if (_bestK !== 0) {
+                const _cornerNames = ['BL', 'BR', 'TR', 'TL'];
+                L.push(`${cmt}   Entrada pelo interior: canto ${_cornerNames[_bestK]} (mais proximo do centro da chapa)`);
+            }
+
+            // ── Helper: aresta retangular com arc-blending e/ou feed adaptativo ──
+            // curPos  : posição atual {x,y} (ponto de partida desta aresta)
+            // target  : canto alvo desta aresta
+            // nextDir : canto seguinte (usado para direção do arc); null = aresta de fechamento
+            // vel     : feed rate desta aresta
+            // Retorna : posição final após a aresta (pode diferir de target se houve arc)
+            const emitRectEdge = (curPos, target, nextDir, vel) => {
+                const dx = target.x - curPos.x, dy = target.y - curPos.y;
+                const edgeLen = Math.sqrt(dx*dx + dy*dy);
+                if (edgeLen < 0.01) return { x: target.x, y: target.y };
+                const eNx = dx/edgeLen, eNy = dy/edgeLen;
+
+                const hasArc = useArcCorners && arcCornersR > 0 && nextDir !== null
+                    && edgeLen > arcCornersR * 3;
+                // Feed reduzido antes do canto (apenas se não é aresta de fechamento)
+                const slowVel = (useFeedCantos && nextDir !== null)
+                    ? Math.max(100, Math.round(vel * feedCantosPct / 100))
+                    : vel;
+
+                if (hasArc) {
+                    // ─── Arco no canto ───
+                    const arcSX = target.x - eNx * arcCornersR;
+                    const arcSY = target.y - eNy * arcCornersR;
+                    const tvX = arcSX - curPos.x, tvY = arcSY - curPos.y;
+                    const tvLen = Math.sqrt(tvX*tvX + tvY*tvY);
+                    if (tvLen > 0.01) {
+                        if (useFeedCantos && feedCantosDist > 0 && tvLen > feedCantosDist + 0.5) {
+                            const ff = (tvLen - feedCantosDist) / tvLen;
+                            emit(`G1 ${XY(curPos.x + tvX*ff, curPos.y + tvY*ff)} F${vel}`);
+                            emit(`G1 ${XY(arcSX, arcSY)} F${slowVel}`);
+                        } else {
+                            emit(`G1 ${XY(arcSX, arcSY)} F${useFeedCantos ? slowVel : vel}`);
+                        }
+                    }
+                    const ndx = nextDir.x - target.x, ndy = nextDir.y - target.y;
+                    const nLen = Math.sqrt(ndx*ndx + ndy*ndy);
+                    const arcEX = target.x + (ndx/nLen)*arcCornersR;
+                    const arcEY = target.y + (ndy/nLen)*arcCornersR;
+                    // climb=CCW → G2 (arco CW no exterior convexo)
+                    // conv=CW   → G3 (arco CCW no exterior convexo)
+                    const arcCmd = dirCorte === 'climb' ? 'G2' : 'G3';
+                    emit(`${arcCmd} ${XY(arcEX, arcEY)} ${IJ(eNx*arcCornersR, eNy*arcCornersR)} F${vel}`);
+                    return { x: arcEX, y: arcEY };
+                } else if (useFeedCantos && nextDir !== null && feedCantosDist > 0
+                           && edgeLen > feedCantosDist * 1.5) {
+                    // ─── Feed reduzido antes do canto (sem arc) ───
+                    const splitFrac = (edgeLen - feedCantosDist) / edgeLen;
+                    emit(`G1 ${XY(curPos.x + dx*splitFrac, curPos.y + dy*splitFrac)} F${vel}`);
+                    emit(`G1 ${XY(target.x, target.y)} F${slowVel}`);
+                    return { x: target.x, y: target.y };
+                } else {
+                    emit(`G1 ${XY(target.x, target.y)} F${vel}`);
+                    return { x: target.x, y: target.y };
+                }
+            };
 
             for (let pi = 0; pi < op.passes.length; pi++) {
                 const pd = op.passes[pi];
@@ -5916,23 +6041,23 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     }
 
                     // 4. Percorrer contorno completo a partir do meio da aresta
-                    // Climb milling (concordante) com spindle CW = CCW no contorno externo (p0→p3→p2→p1)
-                    // Conventional (convencional) = CW no contorno externo (p0→p1→p2→p3)
+                    // Climb=CCW (contX→p0→p3→p2→p1→contX), Conv=CW (contX→p1→p2→p3→p0→contX)
+                    const contPt = { x: contX, y: contY };
                     if (dirCorte === 'climb') {
-                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
+                        let pos = emitRectEdge(contPt,  p0, p3,    op.velCorte); // contX→p0 (arc at p0 toward p3)
+                        pos     = emitRectEdge(pos,     p3, p2,    op.velCorte); // p0→p3 (arc at p3 toward p2)
+                        pos     = emitRectEdge(pos,     p2, p1,    op.velCorte); // p3→p2 (arc at p2 toward p1)
+                        pos     = emitRectEdge(pos,     p1, contPt,op.velCorte); // p2→p1 (arc at p1 toward contX)
+                        emitRectEdge(pos, contPt, null, op.velCorte);            // p1→contX (fechamento, sem arc)
                     } else {
-                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
+                        let pos = emitRectEdge(contPt,  p1, p2,    op.velCorte);
+                        pos     = emitRectEdge(pos,     p2, p3,    op.velCorte);
+                        pos     = emitRectEdge(pos,     p3, p0,    op.velCorte);
+                        pos     = emitRectEdge(pos,     p0, contPt,op.velCorte);
+                        emitRectEdge(pos, contPt, null, op.velCorte);
                     }
 
-                    // 5. Lead-out: sair do contorno
+                    // 5. Lead-out: sair do contorno (já garantido pela saída para entryX,entryY)
                     emit(`G1 ${XY(entryX, entryY)} F${op.velCorte}`);
 
                 } else {
@@ -5955,17 +6080,21 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
 
-                    // Direção do contorno: climb=CCW (p0→p3→p2→p1), conv=CW (p0→p1→p2→p3)
+                    // Direção do contorno: climb=CCW (p0→p3→p2→p1→p0), conv=CW (p0→p1→p2→p3→p0)
                     if (dirCorte === 'climb') {
-                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
+                        let pos = emitRectEdge({ x: p0.x, y: p0.y }, p3, p2, op.velCorte);
+                        pos     = emitRectEdge(pos, p2, p1, op.velCorte);
+                        pos     = emitRectEdge(pos, p1, p0, op.velCorte); // arc at p1 toward p0
+                        emitRectEdge(pos, p0, null, op.velCorte);          // fechamento em p0, sem arc
                     } else {
-                        emit(`G1 ${XY(p1.x, p1.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p2.x, p2.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p3.x, p3.y)} F${op.velCorte}`);
-                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
+                        let pos = emitRectEdge({ x: p0.x, y: p0.y }, p1, p2, op.velCorte);
+                        pos     = emitRectEdge(pos, p2, p3, op.velCorte);
+                        pos     = emitRectEdge(pos, p3, p0, op.velCorte); // arc at p3 toward p0
+                        emitRectEdge(pos, p0, null, op.velCorte);
+                    }
+                    // Lead-out tangencial: sair do ponto de fechamento evitando dwell mark
+                    if (usarLeadOut && leadOutR > 0) {
+                        emit(`G1 ${XY(p0.x + _outNx * leadOutR, p0.y + _outNy * leadOutR)} F${op.velCorte}`);
                     }
                 }
 
@@ -5975,7 +6104,38 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 emit(`G0 Z${fmt(useFastRetract ? zRapid() : zSafe())}`);
             }
             if (op.needsOnionSkin) {
-                onionOps.push({ ...op, velFinal: Math.round(op.velCorte * 0.6) });
+                if (onionModo === 'por_peca') {
+                    // Breakthrough imediato: corta o skin logo após o desbaste desta peça
+                    const path = op.contornoPath;
+                    if (path && path.length >= 4) {
+                        const dFull = op.onionDepthFull || op.depthTotal;
+                        const velFinal = Math.round(op.velCorte * 0.6);
+                        L.push(`${cmt} Breakthrough (por peça): ${op.pecaDesc} — skin=${onionEsp}mm`);
+                        // Mesma rotação "entrada pelo interior"
+                        const _bk2 = (() => { if(!entradaPeloInterior) return 0; let b=0,bd=Infinity; for(let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
+                        const _bp2 = _bk2===0?path:[...path.slice(_bk2),...path.slice(0,_bk2)];
+                        const p0=_bp2[0],p1=_bp2[1],p2=_bp2[2],p3=_bp2[3];
+                        emit(`G0 ${XY(p0.x, p0.y)}`);
+                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G1 Z${fmt(zCut(dFull))} F${Math.min(velMergulho, velFinal)}`);
+                        L.push(`${cmt}   vel. reduzida (breakthrough ${onionEsp}mm)`);
+                        if (dirCorte === 'climb') {
+                            emit(`G1 ${XY(p3.x, p3.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p2.x, p2.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p1.x, p1.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p0.x, p0.y)} F${velFinal}`);
+                        } else {
+                            emit(`G1 ${XY(p1.x, p1.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p2.x, p2.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p3.x, p3.y)} F${velFinal}`);
+                            emit(`G1 ${XY(p0.x, p0.y)} F${velFinal}`);
+                        }
+                        emit(`G0 Z${fmt(zRapid())}`);
+                        onionInlineCount++;
+                    }
+                } else {
+                    onionOps.push({ ...op, velFinal: Math.round(op.velCorte * 0.6) });
+                }
             }
             L.push('');
 
@@ -6344,10 +6504,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
     if (curTool !== null) { emit(`${sOff}`); L.push(`${cmt} Spindle OFF`, ''); }
 
-    // ═══ PASSE FINAL: Onion-skin breakthrough ═══
+    // ═══ PASSE FINAL: Onion-skin breakthrough (modo diferido) ═══
     if (onionOps.length > 0) {
         L.push('', `${cmt} ════════════════════════════════════════════════════════`);
-        L.push(`${cmt} PASSE FINAL -- Onion-skin breakthrough (${onionOps.length} contornos)`);
+        L.push(`${cmt} PASSE FINAL -- Onion-skin breakthrough diferido (${onionOps.length} contornos)`);
         L.push(`${cmt} Corte dos ultimos ${onionEsp}mm com velocidade reduzida (60%)`);
         L.push(`${cmt} ════════════════════════════════════════════════════════`, '');
 
@@ -6379,9 +6539,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 const path = os.contornoPath;
                 if (!path || path.length < 4) continue;
                 const dFull = os.onionDepthFull || os.depthTotal;
-                L.push(`${cmt} Breakthrough: ${os.pecaDesc} Prof=${fmt(dFull)} (${os.areaCm2.toFixed(0)}cm2)`);
 
-                const p0 = path[0], p1 = path[1], p2 = path[2], p3 = path[3];
+                // Entrada pelo interior também no breakthrough diferido
+                const _bkBt = (() => { if(!entradaPeloInterior) return 0; let b=0,bd=Infinity; for(let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
+                const _bpBt = _bkBt===0?path:[...path.slice(_bkBt),...path.slice(0,_bkBt)];
+                const p0=_bpBt[0],p1=_bpBt[1],p2=_bpBt[2],p3=_bpBt[3];
+
+                L.push(`${cmt} Breakthrough: ${os.pecaDesc} Prof=${fmt(dFull)} (${os.areaCm2.toFixed(0)}cm2)`);
 
                 // Para breakthrough, entrada direta (pele fina, sem necessidade de rampa complexa)
                 emit(`G0 ${XY(p0.x, p0.y)}`);
@@ -6824,6 +6988,21 @@ router.post('/gcode/:loteId', requireAuth, async (req, res) => {
                     const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(i + 1).padStart(2, '0')}`;
                     const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + extensao;
                     const critical = hasCriticalGcodeAlert(gcodeResult);
+                    const planChapa = ctx.plano.chapas[i];
+                    // Build simulator-ready piece list with side info
+                    const pecasSim = (planChapa.pecas || []).map(pp => {
+                        const pDb = ctx.pecasDb.find(p => p.id === pp.pecaId);
+                        const mjb = pDb?.machining_json_b;
+                        const hasB = !!(mjb && mjb !== '{}' && mjb !== 'null' && mjb.length > 5);
+                        return {
+                            pecaId: pp.pecaId,
+                            nome: pDb?.descricao || '',
+                            x: pp.x, y: pp.y, w: pp.w, h: pp.h,
+                            rotated: !!pp.rotated,
+                            lado_ativo: pp.lado_ativo || 'A',
+                            has_b: hasB,
+                        };
+                    });
                     results.push({
                         idx: i,
                         ok: !critical && (gcodeResult.ferramentas_faltando || []).length === 0,
@@ -6833,6 +7012,14 @@ router.post('/gcode/:loteId', requireAuth, async (req, res) => {
                         alertas: gcodeResult.alertas || [],
                         error: critical ? 'G-code com erro crítico de validação.' : undefined,
                         maquina: gcodeResult.maquina || { id: maquina.id, nome: maquina.nome },
+                        // Geometry for simulator
+                        comprimento: planChapa.comprimento,
+                        largura: planChapa.largura,
+                        espessura: planChapa.espessura_real,
+                        refilo: planChapa.refilo,
+                        material: planChapa.material,
+                        pecas: pecasSim,
+                        retalhos: (planChapa.retalhos || []).map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h })),
                     });
 
                     // Registrar histórico (JS fallback)
@@ -7181,15 +7368,18 @@ router.post('/maquinas', requireAuth, (req, res) => {
         coordenada_zero, trocar_eixos_xy, eixo_x_invertido, eixo_y_invertido,
         exportar_lado_a, exportar_lado_b, exportar_furos, exportar_rebaixos, exportar_usinagens,
         usar_ponto_decimal, casas_decimais, comentario_prefixo, troca_ferramenta_cmd, spindle_on_cmd, spindle_off_cmd,
-        usar_onion_skin, onion_skin_espessura, onion_skin_area_max, usar_tabs, tab_largura, tab_altura, tab_qtd, tab_area_max,
-        usar_lead_in, lead_in_tipo, lead_in_raio, feed_rate_pct_pequenas, feed_rate_area_max,
+        usar_onion_skin, onion_skin_espessura, onion_skin_area_max, onion_skin_modo, usar_tabs, tab_largura, tab_altura, tab_qtd, tab_area_max,
+        usar_lead_in, lead_in_tipo, lead_in_raio, usar_lead_out, lead_out_raio,
+        entrada_pelo_interior, usar_feed_cantos, feed_cantos_pct, feed_cantos_dist,
+        ordenar_borda_primeiro, usar_arc_corners, arc_corners_raio,
+        feed_rate_pct_pequenas, feed_rate_area_max,
         z_origin, z_aproximacao, direcao_corte, usar_n_codes, n_code_incremento, dwell_spindle,
         usar_rampa, rampa_angulo, vel_mergulho, z_aproximacao_rapida, ordenar_contornos,
         rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
         compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
         margem_mesa_sacrificio, g0_com_feed, capacidade_magazine, operador,
         tipo, pode_virar, estrategia_face,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(req.user.id, m.nome, m.fabricante || '', m.modelo || '', m.tipo_pos || 'generic', m.extensao_arquivo || '.nc',
             m.x_max || 2800, m.y_max || 1900, m.z_max || 200,
             m.gcode_header || '%\nG90 G54 G17',
@@ -7200,9 +7390,12 @@ router.post('/maquinas', requireAuth, (req, res) => {
             m.exportar_lado_a ?? 1, m.exportar_lado_b ?? 1, m.exportar_furos ?? 1, m.exportar_rebaixos ?? 1, m.exportar_usinagens ?? 1,
             m.usar_ponto_decimal ?? 1, m.casas_decimais || 3, m.comentario_prefixo || ';',
             m.troca_ferramenta_cmd || 'M6', m.spindle_on_cmd || 'M3', m.spindle_off_cmd || 'M5',
-            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 0.5, m.onion_skin_area_max ?? 500,
+            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 0.5, m.onion_skin_area_max ?? 500, m.onion_skin_modo || 'diferido',
             m.usar_tabs ?? 0, m.tab_largura ?? 4, m.tab_altura ?? 1.5, m.tab_qtd ?? 2, m.tab_area_max ?? 800,
             m.usar_lead_in ?? 0, m.lead_in_tipo || 'arco', m.lead_in_raio ?? 5,
+            m.usar_lead_out ?? 0, m.lead_out_raio ?? 3,
+            m.entrada_pelo_interior ?? 1, m.usar_feed_cantos ?? 0, m.feed_cantos_pct ?? 60, m.feed_cantos_dist ?? 8,
+            m.ordenar_borda_primeiro ?? 0, m.usar_arc_corners ?? 0, m.arc_corners_raio ?? 0.8,
             m.feed_rate_pct_pequenas ?? 50, m.feed_rate_area_max ?? 500,
             m.z_origin || 'mesa', m.z_aproximacao ?? 2.0, m.direcao_corte || 'climb',
             m.usar_n_codes ?? 1, m.n_code_incremento ?? 10, m.dwell_spindle ?? 1.0,
@@ -7231,9 +7424,12 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
         coordenada_zero=?, trocar_eixos_xy=?, eixo_x_invertido=?, eixo_y_invertido=?,
         exportar_lado_a=?, exportar_lado_b=?, exportar_furos=?, exportar_rebaixos=?, exportar_usinagens=?,
         usar_ponto_decimal=?, casas_decimais=?, comentario_prefixo=?, troca_ferramenta_cmd=?, spindle_on_cmd=?, spindle_off_cmd=?,
-        usar_onion_skin=?, onion_skin_espessura=?, onion_skin_area_max=?,
+        usar_onion_skin=?, onion_skin_espessura=?, onion_skin_area_max=?, onion_skin_modo=?,
         usar_tabs=?, tab_largura=?, tab_altura=?, tab_qtd=?, tab_area_max=?,
         usar_lead_in=?, lead_in_tipo=?, lead_in_raio=?,
+        usar_lead_out=?, lead_out_raio=?,
+        entrada_pelo_interior=?, usar_feed_cantos=?, feed_cantos_pct=?, feed_cantos_dist=?,
+        ordenar_borda_primeiro=?, usar_arc_corners=?, arc_corners_raio=?,
         feed_rate_pct_pequenas=?, feed_rate_area_max=?,
         z_origin=?, z_aproximacao=?, direcao_corte=?, usar_n_codes=?, n_code_incremento=?, dwell_spindle=?,
         usar_rampa=?, rampa_angulo=?, vel_mergulho=?, z_aproximacao_rapida=?, ordenar_contornos=?,
@@ -7249,9 +7445,12 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
             m.coordenada_zero, m.trocar_eixos_xy || 0, m.eixo_x_invertido, m.eixo_y_invertido,
             m.exportar_lado_a, m.exportar_lado_b, m.exportar_furos, m.exportar_rebaixos, m.exportar_usinagens,
             m.usar_ponto_decimal, m.casas_decimais, m.comentario_prefixo, m.troca_ferramenta_cmd, m.spindle_on_cmd, m.spindle_off_cmd,
-            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 0.5, m.onion_skin_area_max ?? 500,
+            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 0.5, m.onion_skin_area_max ?? 500, m.onion_skin_modo || 'diferido',
             m.usar_tabs ?? 0, m.tab_largura ?? 4, m.tab_altura ?? 1.5, m.tab_qtd ?? 2, m.tab_area_max ?? 800,
             m.usar_lead_in ?? 0, m.lead_in_tipo || 'arco', m.lead_in_raio ?? 5,
+            m.usar_lead_out ?? 0, m.lead_out_raio ?? 3,
+            m.entrada_pelo_interior ?? 1, m.usar_feed_cantos ?? 0, m.feed_cantos_pct ?? 60, m.feed_cantos_dist ?? 8,
+            m.ordenar_borda_primeiro ?? 0, m.usar_arc_corners ?? 0, m.arc_corners_raio ?? 0.8,
             m.feed_rate_pct_pequenas ?? 50, m.feed_rate_area_max ?? 500,
             m.z_origin || 'mesa', m.z_aproximacao ?? 2.0, m.direcao_corte || 'climb',
             m.usar_n_codes ?? 1, m.n_code_incremento ?? 10, m.dwell_spindle ?? 1.0,
@@ -7285,13 +7484,16 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
         exportar_lado_a, exportar_lado_b, exportar_furos, exportar_rebaixos, exportar_usinagens,
         usar_ponto_decimal, casas_decimais, comentario_prefixo, troca_ferramenta_cmd, spindle_on_cmd, spindle_off_cmd,
         usar_onion_skin, onion_skin_espessura, onion_skin_area_max, usar_tabs, tab_largura, tab_altura, tab_qtd, tab_area_max,
-        usar_lead_in, lead_in_tipo, lead_in_raio, feed_rate_pct_pequenas, feed_rate_area_max,
+        usar_lead_in, lead_in_tipo, lead_in_raio, usar_lead_out, lead_out_raio,
+        entrada_pelo_interior, usar_feed_cantos, feed_cantos_pct, feed_cantos_dist,
+        ordenar_borda_primeiro, usar_arc_corners, arc_corners_raio,
+        feed_rate_pct_pequenas, feed_rate_area_max,
         z_origin, z_aproximacao, direcao_corte, usar_n_codes, n_code_incremento, dwell_spindle,
         usar_rampa, rampa_angulo, vel_mergulho, z_aproximacao_rapida, ordenar_contornos,
         rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
         compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
         margem_mesa_sacrificio, g0_com_feed,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
         .run(req.user.id, `${original.nome} (cópia)`, original.fabricante, original.modelo, original.tipo_pos, original.extensao_arquivo,
             original.x_max, original.y_max, original.z_max, original.gcode_header, original.gcode_footer,
             original.z_seguro, original.vel_vazio, original.vel_corte, original.vel_aproximacao, original.rpm_padrao, original.profundidade_extra,
@@ -7301,6 +7503,9 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
             original.usar_onion_skin, original.onion_skin_espessura, original.onion_skin_area_max,
             original.usar_tabs, original.tab_largura, original.tab_altura, original.tab_qtd, original.tab_area_max,
             original.usar_lead_in, original.lead_in_tipo, original.lead_in_raio,
+            original.usar_lead_out ?? 0, original.lead_out_raio ?? 3,
+            original.entrada_pelo_interior ?? 1, original.usar_feed_cantos ?? 0, original.feed_cantos_pct ?? 60, original.feed_cantos_dist ?? 8,
+            original.ordenar_borda_primeiro ?? 0, original.usar_arc_corners ?? 0, original.arc_corners_raio ?? 0.8,
             original.feed_rate_pct_pequenas, original.feed_rate_area_max,
             original.z_origin || 'mesa', original.z_aproximacao ?? 2.0, original.direcao_corte || 'climb',
             original.usar_n_codes ?? 1, original.n_code_incremento ?? 10, original.dwell_spindle ?? 1.0,

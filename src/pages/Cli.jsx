@@ -927,6 +927,7 @@ export default function Cli({ clis, reload, notify, nav }) {
     const [ed, se] = useState(null);
     const [mo, sm] = useState(false);
     const [sr, ssr] = useState('');
+    const [origemFilter, setOrigemFilter] = useState('');
     const [tab, setTab] = useState('basico');
     const [confirmDel, setConfirmDel] = useState(null);
     const [cepLoading, setCepLoading] = useState(false);
@@ -935,14 +936,16 @@ export default function Cli({ clis, reload, notify, nav }) {
     const [cliPage, setCliPage] = useState(1);
     const CLI_PER_PAGE = 30;
 
-    const fl = clis.filter(c =>
-        c.nome.toLowerCase().includes(sr.toLowerCase()) ||
-        (c.tel || '').includes(sr) ||
-        (c.email || '').toLowerCase().includes(sr.toLowerCase())
-    );
+    const fl = clis.filter(c => {
+        const matchSearch = c.nome.toLowerCase().includes(sr.toLowerCase()) ||
+            (c.tel || '').includes(sr) ||
+            (c.email || '').toLowerCase().includes(sr.toLowerCase());
+        const matchOrigem = !origemFilter || (c.origem || 'manual') === origemFilter;
+        return matchSearch && matchOrigem;
+    });
     const cliTotalPages = Math.ceil(fl.length / CLI_PER_PAGE);
     const flPaged = fl.slice((cliPage - 1) * CLI_PER_PAGE, cliPage * CLI_PER_PAGE);
-    useEffect(() => setCliPage(1), [sr]);
+    useEffect(() => setCliPage(1), [sr, origemFilter]);
 
     // Close row menu on click outside
     useEffect(() => {
@@ -1027,15 +1030,73 @@ export default function Cli({ clis, reload, notify, nav }) {
                 </button>
             </PageHeader>
 
-            {/* Search */}
-            <div className="mb-6 max-w-sm relative">
-                <input
-                    placeholder="Buscar por nome, telefone ou e-mail..."
-                    value={sr} onChange={e => ssr(e.target.value)}
-                    className={`${Z.inp} !pl-9`}
-                />
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none">
-                    <Ic.Search />
+            {/* ─── FilterBar ─────────────────────────────────── */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                padding: '6px 10px', background: 'var(--bg-card)',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                flexWrap: 'wrap', rowGap: 6,
+            }}>
+                {/* Busca */}
+                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 0 }}>
+                    <Ic.Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none', width: 12, height: 12 }} />
+                    <input
+                        value={sr} onChange={e => ssr(e.target.value)}
+                        placeholder="Buscar nome, telefone ou e-mail..."
+                        style={{
+                            width: '100%', paddingLeft: 26, height: 30,
+                            borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+                            background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)',
+                            outline: 'none', transition: 'border-color var(--transition-fast)',
+                        }}
+                        onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                        onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                    />
+                </div>
+
+                <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0 }} />
+
+                {/* Origem pills */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+                    {Object.entries(ORIGENS).filter(([k]) => k !== 'manual').map(([k, label]) => {
+                        const cnt = clis.filter(c => (c.origem || 'manual') === k).length;
+                        if (!cnt) return null;
+                        const isActive = origemFilter === k;
+                        const ORIGEM_COLORS = { instagram: '#e1306c', facebook: '#1877f2', whatsapp: '#25d366', indicacao: '#f59e0b', landing_page: '#8b5cf6' };
+                        const col = ORIGEM_COLORS[k] || 'var(--primary)';
+                        return (
+                            <button key={k}
+                                onClick={() => setOrigemFilter(isActive ? '' : k)}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    padding: '2px 8px', borderRadius: 99, cursor: 'pointer',
+                                    fontSize: 11, fontWeight: 600,
+                                    border: `1px solid ${isActive ? col : 'var(--border)'}`,
+                                    background: isActive ? `${col}18` : 'transparent',
+                                    color: isActive ? col : 'var(--text-secondary)',
+                                    transition: 'all var(--transition-fast)',
+                                }}>
+                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                                {label}
+                                <span style={{ fontSize: 10, opacity: 0.7, fontWeight: 700 }}>{cnt}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Count + Clear */}
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {(sr || origemFilter)
+                            ? <><strong style={{ color: 'var(--text-primary)' }}>{fl.length}</strong> / {clis.length}</>
+                            : <>{clis.length} clientes</>}
+                    </span>
+                    {(sr || origemFilter) && (
+                        <button onClick={() => { ssr(''); setOrigemFilter(''); }}
+                            style={{ fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            Limpar
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1089,7 +1150,7 @@ export default function Cli({ clis, reload, notify, nav }) {
                                         )}
                                     </td>
                                     <td className="td-glass" onClick={e => e.stopPropagation()}>
-                                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                                        <div style={{ position: 'relative', display: 'inline-block' }} className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                                             <button
                                                 onClick={() => setRowMenu(rowMenu === c.id ? null : c.id)}
                                                 className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-hover)]"

@@ -144,6 +144,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         google_ads_dev_token, google_ads_conversion_label,
         n8n_webhook_url, n8n_webhook_secret,
         video_processo,
+        prazo_padrao,
+        escopo_servicos_json,
     } = req.body;
 
     // Campos sensíveis: se vier valor mascarado (••••), manter o que está no banco
@@ -151,7 +153,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
     const cur = db.prepare(`SELECT ia_api_key, ia_api_key_anthropic, ia_api_key_gemini, ia_api_key_openai,
         wa_api_key, gdrive_client_secret,
         fb_access_token, n8n_webhook_secret, gdrive_credentials,
-        wa_webhook_token, n8n_webhook_url FROM empresa_config WHERE id = 1`).get() || {};
+        wa_webhook_token, n8n_webhook_url,
+        escopo_servicos_json FROM empresa_config WHERE id = 1`).get() || {};
     const safe = (incoming, field) => isMasked(incoming) ? cur[field] : incoming;
 
     const ia_api_key_s            = safe(ia_api_key,             'ia_api_key');
@@ -206,6 +209,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       google_ads_dev_token=?, google_ads_conversion_label=?,
       n8n_webhook_url=?, n8n_webhook_secret=?,
       video_processo=?,
+      prazo_padrao=?,
+      escopo_servicos_json=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
   `).run(
@@ -283,6 +288,8 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         n8n_webhook_url_s !== undefined ? n8n_webhook_url_s : '',
         n8n_webhook_secret_s !== undefined ? n8n_webhook_secret_s : '',
         video_processo !== undefined ? video_processo : '',
+        prazo_padrao !== undefined && prazo_padrao !== '' ? prazo_padrao : '45 dias úteis',
+        escopo_servicos_json !== undefined ? escopo_servicos_json : (cur.escopo_servicos_json || '{"incluso":[],"por_conta_cliente":[]}'),
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     // Mascarar campos sensíveis também na resposta do PUT

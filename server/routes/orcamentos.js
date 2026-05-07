@@ -212,159 +212,288 @@ router.post('/templates/:id/aplicar', requireAuth, (req, res) => {
 // POST /api/orcamentos/importar — importar JSON gerado pela IA
 // Recebe formato simplificado e expande com catálogo real
 // ═══════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+// Conversor isolado: aceita JSON externo da IA e devolve { ambientes,
+// warnings, stats } prontos para gravar. Usado por /importar (preview) e
+// /importar-e-criar (atômico).
+// ─────────────────────────────────────────────────────────────────────────────
+function converterAmbientesIA(ambientesIA) {
+    const caixasDB = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item='caixa'").all();
+    const compsDB = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item='componente'").all();
+
+    const findCaixa = (nome) => {
+        const n = (nome || '').toLowerCase().trim();
+        return caixasDB.find(c => c.nome.toLowerCase().trim() === n);
+    };
+    const findComp = (nome) => {
+        const n = (nome || '').toLowerCase().trim();
+        return compsDB.find(c => c.nome.toLowerCase().trim() === n);
+    };
+
+    const uid = () => Math.random().toString(36).slice(2, 10);
+    const warnings = [];
+    const ambientesConvertidos = [];
+    let countCatalogo = 0;
+    let countLivre = 0;
+    let countComponentes = 0;
+
+    for (const ambIA of ambientesIA) {
+        const amb = {
+            id: uid(),
+            nome: ambIA.nome || `Ambiente ${ambientesConvertidos.length + 1}`,
+            tipo: 'calculadora',
+            itens: [],
+            paineis: [],
+            itensEspeciais: [],
+        };
+
+        if (!ambIA.itens || !Array.isArray(ambIA.itens)) {
+            warnings.push(`Ambiente "${amb.nome}": sem itens`);
+            ambientesConvertidos.push(amb);
+            continue;
+        }
+
+        for (const itemIA of ambIA.itens) {
+            // ─── Modo LIVRE: item avulso, sem catálogo ───
+            const modo = itemIA.modo || 'catalogo';
+            if (modo === 'livre') {
+                const valorUnit = Number(itemIA.valor_unitario) || 0;
+                const memorial = String(itemIA._memorial || itemIA.memorial || '').trim();
+                // Schema legado: IA estima 2 números brutos
+                const custoMaterial = Number(itemIA.custo_material_estimado) || 0;
+                const horasMdo = Number(itemIA.horas_mdo_estimadas) || 0;
+                const complexidade = String(itemIA.complexidade || '').trim().toLowerCase();
+                // Schema novo (decomposição estruturada): { chapas, acabamentos, ferragens, extras, horas }
+                // Backend só persiste cru — frontend calcula custo_material a partir do banco.
+                const calculo = (itemIA.calculo && typeof itemIA.calculo === 'object') ? itemIA.calculo : null;
+                amb.itensEspeciais.push({
+                    id: uid(),
+                    modo: 'livre',
+                    tipo: 'outro',
+                    nome: itemIA.nome || 'Item livre',
+                    L: Number(itemIA.L) || 0,
+                    A: Number(itemIA.A) || 0,
+                    qtd: Number(itemIA.qtd) || 1,
+                    precoUnit: valorUnit,
+                    valor_unitario: valorUnit,
+                    // metadados de estimativa (preservados pra audit/relatório)
+                    custo_material_estimado: custoMaterial,
+                    horas_mdo_estimadas: horasMdo,
+                    complexidade: complexidade || null,
+                    calculo, // schema novo (decomposição) — null se IA não enviou
+                    unidade: itemIA.unidade || 'un',
+                    materialId: '',
+                    perfis: [],
+                    vidro: null,
+                    custoInstalacao: 0,
+                    obs: memorial,
+                    _memorial: memorial,
+                    grupo_id: '',
+                });
+                countLivre++;
+                continue;
+            }
+
+            // ─── Modo CATÁLOGO (default) ───
+            // Lookup: aceita 'nome' (formato preferido) ou 'caixa' (alias retrocompat).
+            const lookup = itemIA.nome || itemIA.caixa || '';
+            const lookupNorm = lookup.toLowerCase().trim();
+
+            // Painel Ripado / Muxarabi → vai para paineis[], não itens[]
+            const isPainel = lookupNorm === 'painel ripado' || lookupNorm === 'painel muxarabi' || lookupNorm === 'muxarabi';
+            if (isPainel) {
+                const tipoP = lookupNorm.includes('muxarabi') ? 'muxarabi' : 'ripado';
+                amb.paineis.push({
+                    id: uid(),
+                    nome: itemIA.nome || (tipoP === 'muxarabi' ? 'Muxarabi' : 'Painel Ripado'),
+                    tipo: tipoP,
+                    L: itemIA.L || itemIA.largura || 2400,
+                    A: itemIA.A || itemIA.altura || 2200,
+                    qtd: itemIA.qtd || 1,
+                    wV: itemIA.wV || 40, eV: itemIA.eV || 18, sV: itemIA.sV || 15,
+                    wH: itemIA.wH || 40, eH: itemIA.eH || 18, sH: itemIA.sH || 15,
+                    mesmasRipas: itemIA.mesmasRipas !== false,
+                    temSubstrato: itemIA.temSubstrato !== false,
+                    matRipaV: itemIA.matRipa || itemIA.matRipaV || '',
+                    matRipaH: itemIA.matRipaH || '',
+                    matSubstrato: itemIA.matSubstrato || '',
+                });
+                countCatalogo++;
+                continue;
+            }
+
+            const cxRow = findCaixa(lookup);
+            if (!cxRow) {
+                warnings.push(`Caixa "${lookup || '(sem nome)'}" não encontrada no catálogo (ambiente: ${amb.nome})`);
+                continue;
+            }
+            const caixaDef = { db_id: cxRow.id, ...safeParse(cxRow.json_data, {}) };
+            const dimsAplic = caixaDef.dimsAplicaveis || ['L', 'A', 'P'];
+
+            const dimsIA = itemIA.dims || {};
+            const dims = {
+                l: dimsIA.l || dimsIA.L || itemIA.largura || itemIA.L || 600,
+                a: dimsAplic.includes('A') ? (dimsIA.a || dimsIA.A || itemIA.altura || itemIA.A || (caixaDef.cat === 'especial' ? 2400 : 2200)) : 0,
+                p: dimsAplic.includes('P') ? (dimsIA.p || dimsIA.P || itemIA.profundidade || itemIA.P || 550) : 0,
+            };
+
+            const matsIA = itemIA.mats || {};
+            const item = {
+                id: uid(),
+                caixaId: cxRow.id,
+                caixaDef: JSON.parse(JSON.stringify(caixaDef)),
+                nome: itemIA.nome || caixaDef.nome,
+                dims,
+                qtd: itemIA.qtd || 1,
+                mats: {
+                    matInt: matsIA.matInt || itemIA.matInt || itemIA.material_interno || 'mdf18',
+                    matExt: matsIA.matExt || itemIA.matExt || itemIA.material_externo || '',
+                },
+                componentes: [],
+            };
+
+            if (itemIA.componentes && Array.isArray(itemIA.componentes)) {
+                for (const compIA of itemIA.componentes) {
+                    const cpRow = findComp(compIA.nome || compIA.componente);
+                    if (!cpRow) {
+                        warnings.push(`Componente "${compIA.nome || compIA.componente}" não encontrado (item: ${item.nome})`);
+                        continue;
+                    }
+                    const compDef = { db_id: cpRow.id, ...safeParse(cpRow.json_data, {}) };
+
+                    const vars = {};
+                    if (compIA.vars) {
+                        for (const [k, v] of Object.entries(compIA.vars)) { vars[k] = v; }
+                    } else {
+                        if (compIA.nPortas) vars.nPortas = compIA.nPortas;
+                        if (compIA.Ap) vars.Ap = compIA.Ap;
+                        if (compIA.ag) vars.ag = compIA.ag;
+                        if (compIA.nBand) vars.nBand = compIA.nBand;
+                    }
+
+                    const subItens = {};
+                    (compDef.sub_itens || []).forEach(s => { subItens[s.id] = s.defaultOn; });
+                    if (compIA.subItens) {
+                        for (const [k, v] of Object.entries(compIA.subItens)) { subItens[k] = v; }
+                    }
+
+                    item.componentes.push({
+                        id: uid(),
+                        compId: cpRow.id,
+                        compDef: JSON.parse(JSON.stringify(compDef)),
+                        qtd: compIA.qtd || 1,
+                        vars,
+                        matExtComp: compIA.matExtComp || compIA.material_frente || '',
+                        subItens,
+                    });
+                    countComponentes++;
+                }
+            }
+
+            amb.itens.push(item);
+            countCatalogo++;
+        }
+
+        ambientesConvertidos.push(amb);
+    }
+
+    return {
+        ambientes: ambientesConvertidos,
+        warnings,
+        stats: {
+            ambientes: ambientesConvertidos.length,
+            catalogo: countCatalogo,
+            livre: countLivre,
+            componentes: countComponentes,
+            warnings: warnings.length,
+            // Compat: campo legado mantido para clients antigos.
+            itens: countCatalogo,
+        },
+    };
+}
+
 router.post('/importar', requireAuth, (req, res) => {
     try {
         const { ambientes: ambientesIA } = req.body;
         if (!ambientesIA || !Array.isArray(ambientesIA) || ambientesIA.length === 0) {
             return res.status(400).json({ error: 'JSON inválido: campo "ambientes" (array) obrigatório' });
         }
-
-        // Carregar catálogo completo
-        const caixasDB = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item='caixa'").all();
-        const compsDB = db.prepare("SELECT id, nome, json_data FROM modulos_custom WHERE tipo_item='componente'").all();
-
-        const findCaixa = (nome) => {
-            const n = (nome || '').toLowerCase().trim();
-            return caixasDB.find(c => c.nome.toLowerCase().trim() === n);
-        };
-        const findComp = (nome) => {
-            const n = (nome || '').toLowerCase().trim();
-            return compsDB.find(c => c.nome.toLowerCase().trim() === n);
-        };
-
-        const uid = () => Math.random().toString(36).slice(2, 10);
-        const warnings = [];
-        const ambientesConvertidos = [];
-
-        for (const ambIA of ambientesIA) {
-            const amb = {
-                id: uid(),
-                nome: ambIA.nome || `Ambiente ${ambientesConvertidos.length + 1}`,
-                tipo: 'calculadora',
-                itens: [],
-                paineis: [],
-            };
-
-            if (!ambIA.itens || !Array.isArray(ambIA.itens)) {
-                warnings.push(`Ambiente "${amb.nome}": sem itens`);
-                ambientesConvertidos.push(amb);
-                continue;
-            }
-
-            for (const itemIA of ambIA.itens) {
-                // ── Painel Ripado / Muxarabi → vai para paineis[], não itens[]
-                const caixaNorm = (itemIA.caixa || '').toLowerCase().trim();
-                const isPainel = caixaNorm === 'painel ripado' || caixaNorm === 'painel muxarabi' || caixaNorm === 'muxarabi';
-                if (isPainel) {
-                    const tipoP = caixaNorm.includes('muxarabi') ? 'muxarabi' : 'ripado';
-                    amb.paineis.push({
-                        id: uid(),
-                        nome: itemIA.nome || (tipoP === 'muxarabi' ? 'Muxarabi' : 'Painel Ripado'),
-                        tipo: tipoP,
-                        L: itemIA.L || itemIA.largura || 2400,
-                        A: itemIA.A || itemIA.altura || 2200,
-                        qtd: itemIA.qtd || 1,
-                        wV: itemIA.wV || 40, eV: itemIA.eV || 18, sV: itemIA.sV || 15,
-                        wH: itemIA.wH || 40, eH: itemIA.eH || 18, sH: itemIA.sH || 15,
-                        mesmasRipas: itemIA.mesmasRipas !== false,
-                        temSubstrato: itemIA.temSubstrato !== false,
-                        matRipaV: itemIA.matRipa || itemIA.matRipaV || '',
-                        matRipaH: itemIA.matRipaH || '',
-                        matSubstrato: itemIA.matSubstrato || '',
-                    });
-                    continue;
-                }
-
-                const cxRow = findCaixa(itemIA.caixa);
-                if (!cxRow) {
-                    warnings.push(`Caixa "${itemIA.caixa}" não encontrada no catálogo (ambiente: ${amb.nome})`);
-                    continue;
-                }
-                const caixaDef = { db_id: cxRow.id, ...safeParse(cxRow.json_data, {}) };
-                const dimsAplic = caixaDef.dimsAplicaveis || ['L','A','P'];
-
-                const dims = {
-                    l: itemIA.largura || itemIA.L || 600,
-                    a: dimsAplic.includes('A') ? (itemIA.altura || itemIA.A || (caixaDef.cat === 'especial' ? 2400 : 2200)) : 0,
-                    p: dimsAplic.includes('P') ? (itemIA.profundidade || itemIA.P || 550) : 0,
-                };
-
-                const item = {
-                    id: uid(),
-                    caixaId: cxRow.id,
-                    caixaDef: JSON.parse(JSON.stringify(caixaDef)),
-                    nome: itemIA.nome || caixaDef.nome,
-                    dims,
-                    qtd: itemIA.qtd || 1,
-                    mats: {
-                        matInt: itemIA.matInt || itemIA.material_interno || 'mdf18',
-                        matExt: itemIA.matExt || itemIA.material_externo || '',
-                    },
-                    componentes: [],
-                };
-
-                // Processar componentes
-                if (itemIA.componentes && Array.isArray(itemIA.componentes)) {
-                    for (const compIA of itemIA.componentes) {
-                        const cpRow = findComp(compIA.nome || compIA.componente);
-                        if (!cpRow) {
-                            warnings.push(`Componente "${compIA.nome || compIA.componente}" não encontrado (item: ${item.nome})`);
-                            continue;
-                        }
-                        const compDef = { db_id: cpRow.id, ...safeParse(cpRow.json_data, {}) };
-
-                        // Montar vars do componente
-                        const vars = {};
-                        if (compIA.vars) {
-                            for (const [k, v] of Object.entries(compIA.vars)) { vars[k] = v; }
-                        } else {
-                            // Tentar mapear campos comuns
-                            if (compIA.nPortas) vars.nPortas = compIA.nPortas;
-                            if (compIA.Ap) vars.Ap = compIA.Ap;
-                            if (compIA.ag) vars.ag = compIA.ag;
-                            if (compIA.nBand) vars.nBand = compIA.nBand;
-                        }
-
-                        // Montar sub_itens (ativar/desativar ferragens)
-                        const subItens = {};
-                        (compDef.sub_itens || []).forEach(s => {
-                            subItens[s.id] = s.defaultOn;
-                        });
-                        // Permitir override
-                        if (compIA.subItens) {
-                            for (const [k, v] of Object.entries(compIA.subItens)) { subItens[k] = v; }
-                        }
-
-                        item.componentes.push({
-                            id: uid(),
-                            compId: cpRow.id,
-                            compDef: JSON.parse(JSON.stringify(compDef)),
-                            qtd: compIA.qtd || 1,
-                            vars,
-                            matExtComp: compIA.matExtComp || compIA.material_frente || '',
-                            subItens,
-                        });
-                    }
-                }
-
-                amb.itens.push(item);
-            }
-
-            ambientesConvertidos.push(amb);
-        }
-
-        res.json({
-            ok: true,
-            ambientes: ambientesConvertidos,
-            warnings,
-            stats: {
-                ambientes: ambientesConvertidos.length,
-                itens: ambientesConvertidos.reduce((s, a) => s + a.itens.length, 0),
-                componentes: ambientesConvertidos.reduce((s, a) => s + a.itens.reduce((s2, i) => s2 + i.componentes.length, 0), 0),
-            },
-        });
+        const result = converterAmbientesIA(ambientesIA);
+        res.json({ ok: true, ...result });
     } catch (e) {
         console.error('Erro ao importar:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// POST /api/orcamentos/importar-e-criar
+// Convert + persistência atômica em uma única transação.
+// Body: { cliente_id, projeto?, endereco_obra?, prazo_entrega?,
+//         validade_dias?, obs?, ambientes: [...] }
+// Retorno: { ok: true, orcamento_id, numero, warnings, stats }
+// Warnings de catálogo são NÃO-CRÍTICOS — gravação prossegue mesmo com eles.
+// ═══════════════════════════════════════════════════════
+router.post('/importar-e-criar', requireAuth, (req, res) => {
+    try {
+        const {
+            cliente_id, cliente_nome,
+            ambientes: ambientesIA,
+            projeto, endereco_obra, prazo_entrega, prazo_execucao,
+            validade_proposta, validade_dias, obs,
+        } = req.body;
+
+        if (!cliente_id) return res.status(400).json({ error: 'Cliente obrigatório (cliente_id)' });
+        if (!ambientesIA || !Array.isArray(ambientesIA) || ambientesIA.length === 0) {
+            return res.status(400).json({ error: 'JSON inválido: campo "ambientes" (array) obrigatório' });
+        }
+
+        const cli = db.prepare('SELECT id, nome FROM clientes WHERE id = ?').get(cliente_id);
+        if (!cli) return res.status(400).json({ error: 'Cliente não encontrado' });
+
+        const conversao = converterAmbientesIA(ambientesIA);
+
+        const persistir = db.transaction(() => {
+            const modsJson = JSON.stringify({
+                ambientes: conversao.ambientes,
+                taxas: null,
+                projeto: projeto || '',
+                padroes: null,
+                pagamento: null,
+                prazo_entrega: prazo_entrega || '',
+                prazo_execucao: prazo_execucao || null,
+                endereco_obra: endereco_obra || '',
+                validade_proposta: validade_proposta || '',
+                validade_dias: Number(validade_dias) || 15,
+            });
+
+            const result = db.prepare(`
+                INSERT INTO orcamentos (user_id, cliente_id, cliente_nome, ambiente, mods_json, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                req.user.id, cliente_id, cliente_nome || cli.nome || '',
+                projeto || '', modsJson, obs || '',
+                0, 0,
+                'rascunho', 'lead',
+                '', null,
+            );
+            const newId = result.lastInsertRowid;
+            const ano = new Date().getFullYear();
+            const autoNum = `ORN-${ano}-${String(newId).padStart(5, '0')}`;
+            db.prepare('UPDATE orcamentos SET numero = ? WHERE id = ?').run(autoNum, newId);
+            return { id: newId, numero: autoNum };
+        });
+
+        const { id, numero } = persistir();
+        res.status(201).json({
+            ok: true,
+            orcamento_id: id,
+            numero,
+            warnings: conversao.warnings,
+            stats: conversao.stats,
+        });
+    } catch (e) {
+        console.error('Erro ao importar-e-criar:', e);
         res.status(500).json({ error: e.message });
     }
 });

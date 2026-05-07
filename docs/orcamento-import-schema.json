@@ -1,0 +1,267 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Ornato ERP — Schema de Importação de Orçamento via IA",
+  "description": "Formato consumido por POST /api/orcamentos/importar (preview) e POST /api/orcamentos/importar-e-criar (atômico). Suporta dois modos de item: 'catalogo' (resolve contra modulos_custom) e 'livre' (linha avulsa com valor manual). UIDs e datas de criação ficam por conta do servidor; valor_venda e custo_material são gravados como 0.",
+  "_versao": "2 — adicionado modo livre",
+  "_notas_gerais": {
+    "tamanho_maximo": "5 MB (validado no frontend antes do upload e no backend pelo express.json)",
+    "matching_de_nomes_catalogo": "Caixas e componentes resolvidos por nome (case-insensitive, trim) contra modulos_custom. Nomes não encontrados geram warning e o item é descartado — não bloqueia a importação.",
+    "modo_livre_nao_falha": "Itens com modo:'livre' nunca geram warning e sempre entram no orçamento como itensEspeciais (tipo:'outro').",
+    "precos": "valor_venda e custo_material são gravados como 0. O usuário recalcula no editor após a importação. Apenas itens livres carregam valor_unitario explícito (já gravado em precoUnit).",
+    "unidades": "Dimensões em milímetros (mm). Quantidades em unidades inteiras. Valores monetários em BRL (number, sem string)."
+  },
+  "type": "object",
+  "required": ["ambientes"],
+  "properties": {
+    "projeto":       { "type": "string", "description": "Opcional. Nome do projeto/job (livre).", "example": "Cozinha + Sala — Cliente X" },
+    "endereco_obra": { "type": "string", "description": "Opcional. Endereço de instalação." },
+    "prazo_entrega": { "type": "string", "description": "Opcional. Texto livre. Default '45 dias úteis'.", "example": "45 dias úteis" },
+    "validade_dias": { "type": "integer", "description": "Opcional. Validade da proposta em dias. Default 15.", "default": 15 },
+    "obs":           { "type": "string", "description": "Opcional. Observações gerais do orçamento." },
+    "ambientes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/Ambiente" }
+    }
+  },
+  "definitions": {
+    "Ambiente": {
+      "type": "object",
+      "required": ["nome", "itens"],
+      "properties": {
+        "nome":  { "type": "string", "example": "Cozinha" },
+        "itens": { "type": "array", "items": { "oneOf": [{ "$ref": "#/definitions/ItemCatalogo" }, { "$ref": "#/definitions/ItemLivre" }] } }
+      }
+    },
+    "ItemCatalogo": {
+      "type": "object",
+      "required": ["nome"],
+      "description": "Item resolvido contra catálogo. O campo 'nome' É o lookup — deve casar com um dos _catalogo_caixas_disponiveis (case-insensitive). Quando 'nome' = 'Painel Ripado' ou contém 'muxarabi', vira amb.paineis[]. Demais valores entram em amb.itens[]. O campo legado 'caixa' ainda é aceito como alias quando 'nome' está ausente.",
+      "properties": {
+        "modo":  { "type": "string", "enum": ["catalogo"], "default": "catalogo", "description": "Opcional. Default 'catalogo' quando ausente." },
+        "nome":  { "type": "string", "description": "Nome EXATO da caixa no catálogo (lookup). Ver _catalogo_caixas_disponiveis.", "example": "Caixa Aérea" },
+        "caixa": { "type": "string", "description": "DEPRECATED. Alias retrocompat para 'nome' — só usado quando 'nome' ausente.", "deprecated": true },
+        "dims": {
+          "type": "object",
+          "description": "Forma preferida. Aliases legados aceitos no nível do item (largura/altura/profundidade ou L/A/P).",
+          "properties": {
+            "l": { "type": "number", "description": "Largura em mm." },
+            "a": { "type": "number", "description": "Altura em mm.  Default 2200 (2400 para caixas 'especial')." },
+            "p": { "type": "number", "description": "Profundidade em mm. Default 550. Não aplicável a algumas caixas." }
+          }
+        },
+        "qtd":   { "type": "integer", "minimum": 1, "default": 1 },
+        "mats": {
+          "type": "object",
+          "properties": {
+            "matInt": { "type": "string", "description": "Material da chapa interna. Ver _materiais_validos.", "default": "mdf18" },
+            "matExt": { "type": "string", "description": "Material externo (chapa OU acabamento). Vazio = usa matInt." }
+          }
+        },
+        "componentes": { "type": "array", "items": { "$ref": "#/definitions/Componente" } },
+        "_painel_ripado_only": {
+          "_descricao": "Aplicável apenas quando caixa contém 'painel ripado' / 'muxarabi'.",
+          "L":  { "type": "number" }, "A":  { "type": "number" },
+          "wV": { "type": "number", "default": 40 }, "eV": { "type": "number", "default": 18 }, "sV": { "type": "number", "default": 15 },
+          "wH": { "type": "number", "default": 40 }, "eH": { "type": "number", "default": 18 }, "sH": { "type": "number", "default": 15 },
+          "mesmasRipas": { "type": "boolean", "default": true },
+          "temSubstrato": { "type": "boolean", "default": true },
+          "matRipa":    { "type": "string", "description": "Material das ripas verticais (alias matRipaV)." },
+          "matRipaH":   { "type": "string" },
+          "matSubstrato": { "type": "string" }
+        }
+      }
+    },
+    "ItemLivre": {
+      "type": "object",
+      "required": ["modo", "nome", "valor_unitario"],
+      "description": "Item avulso sem catálogo. Vai para amb.itensEspeciais[] com tipo:'outro'. Não gera warning; não depende de FK.",
+      "properties": {
+        "modo":           { "type": "string", "enum": ["livre"], "description": "Obrigatório para o modo livre." },
+        "nome":           { "type": "string", "example": "Nicho ripado com iluminação embutida" },
+        "qtd":            { "type": "integer", "minimum": 1, "default": 1 },
+        "valor_unitario": { "type": "number", "description": "Preço unitário em BRL. Vai gravado em precoUnit do item especial.", "example": 2400.00 },
+        "_memorial":      { "type": "string", "description": "Texto livre descritivo (especificações, dimensões, materiais). Vira o campo 'obs' do item especial.", "example": "1800x400mm, ripas 20mm freijó, substrato MDF 15mm, fita LED 5m, sem ferragens" },
+        "L":              { "type": "number", "description": "Opcional. Largura em mm para fins de relatório." },
+        "A":              { "type": "number", "description": "Opcional. Altura em mm para fins de relatório." },
+        "unidade":        { "type": "string", "enum": ["un", "m²", "ml"], "default": "un" }
+      }
+    },
+    "Componente": {
+      "type": "object",
+      "required": ["nome"],
+      "description": "Componente dentro de uma caixa (modo catalogo). Resolvido por nome contra modulos_custom.tipo_item='componente'.",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome do componente. Ver _catalogo_componentes_disponiveis.", "example": "Porta" },
+        "qtd":  { "type": "integer", "minimum": 1, "default": 1 },
+        "vars": {
+          "type": "object",
+          "description": "Override de variáveis paramétricas. Chaves comuns: nPortas, Ap (altura porta), ag (altura gaveta), nBand (n bandejas).",
+          "additionalProperties": { "type": ["number", "string", "boolean"] }
+        },
+        "subItens": {
+          "type": "object",
+          "description": "Override de ferragens (corrediça, dobradiça, puxador, etc.). Chave = id do sub_item no catálogo, valor = boolean.",
+          "additionalProperties": { "type": "boolean" }
+        },
+        "matExtComp": { "type": "string", "description": "Material da frente (porta/gaveta). Vazio = herda do item." }
+      }
+    }
+  },
+  "_materiais_validos": {
+    "_descricao": "IDs canônicos hardcoded em src/engine.js (DB_CHAPAS e DB_ACABAMENTOS). matInt aceita apenas chapas. matExt aceita chapas OU acabamentos. IDs customizados criados na biblioteca também são aceitos.",
+    "chapas": [
+      { "id": "mdf15", "nome": "MDF 15mm" },
+      { "id": "mdf18", "nome": "MDF 18mm" },
+      { "id": "mdf25", "nome": "MDF 25mm" },
+      { "id": "mdp15", "nome": "MDP 15mm BP" },
+      { "id": "mdp18", "nome": "MDP 18mm BP" },
+      { "id": "comp3", "nome": "Compensado 3mm" }
+    ],
+    "acabamentos_externos": [
+      { "id": "bp_branco",   "nome": "BP Branco TX" },
+      { "id": "bp_cinza",    "nome": "BP Cinza Etna" },
+      { "id": "bp_nogueira", "nome": "BP Nogueira Boreal" },
+      { "id": "lam_freijo",  "nome": "Lâmina Natural Freijó" },
+      { "id": "lam_carv",    "nome": "Lâmina Natural Carvalho" },
+      { "id": "laca_branca", "nome": "Laca PU Branca Fosca" },
+      { "id": "laca_color",  "nome": "Laca PU Colorida Fosca" }
+    ]
+  },
+  "_catalogo_caixas_disponiveis": [
+    "Adega / Wine Bar", "Aparador / Buffet", "Armário Alto", "Armário Lavanderia",
+    "Armário Suspenso Quarto", "Armário da Ilha Gourmet", "Armário em L",
+    "Balcão com Botijão", "Base Cama", "Base Cama com Bicama", "Beliche / Mezzanine",
+    "Cabeceira", "Caixa Alta", "Caixa Aérea", "Caixa Baixa / Balcão",
+    "Canto (45° / L)", "Coluna / Torre Closet", "Cristaleira", "Cômoda",
+    "Despenseiro", "Escada MDF", "Espelheira", "Espelho Orgânico",
+    "Estante / Armário com Nichos", "Forro MDF", "Gabinete Banheiro",
+    "Geladeira / Forno Embutir", "Guarda-Roupa", "Home Office / Bancada",
+    "Ilha / Península", "Mesa / Escrivaninha", "Móvel Curvo",
+    "Nicho Aberto Decorativo", "Nicho Eletro", "Nicho Microondas",
+    "Painel Banheiro", "Painel Ripado", "Painel TV", "Painel da Viga",
+    "Painel de Fechamento", "Prateleira Avulsa", "Rack TV", "Sapateira",
+    "Torre Quente"
+  ],
+  "_catalogo_componentes_disponiveis": [
+    "Cabeceira Estofada", "Cabideiro", "Divisória Vertical", "Gaveta",
+    "Gaveta Basculante", "Gaveta Organizadora", "Gavetão", "Lixeira Deslizante",
+    "Maleiro", "Nicho Aberto", "Nicho Iluminado", "Porta", "Porta Basculante",
+    "Porta Fecho Toque", "Porta Perfil Alumínio", "Porta Provençal",
+    "Porta Ripada", "Porta com Friso", "Porta com Muxarabi", "Porta com Palhinha",
+    "Porta com Vidro", "Porta de Correr", "Porta de Correr com Espelho",
+    "Prateleira", "Prateleira Borda Curva", "Prateleira com LED",
+    "Sapateira Interna"
+  ],
+  "examples": [
+    {
+      "_titulo": "Exemplo completo — 2 ambientes, mix de itens catálogo e livres",
+      "projeto": "Apto João — Cozinha + Sala",
+      "endereco_obra": "Rua das Flores, 123 — São Luís/MA",
+      "prazo_entrega": "45 dias úteis",
+      "validade_dias": 15,
+      "ambientes": [
+        {
+          "nome": "Cozinha",
+          "itens": [
+            {
+              "modo": "catalogo",
+              "nome": "Caixa Aérea",
+              "dims": { "l": 1800, "a": 700, "p": 350 },
+              "qtd": 1,
+              "mats": { "matInt": "mdp15", "matExt": "lam_freijo" },
+              "componentes": [
+                { "nome": "Porta", "qtd": 1, "vars": { "nPortas": 3 } },
+                { "nome": "Prateleira", "qtd": 2 }
+              ]
+            },
+            {
+              "modo": "catalogo",
+              "nome": "Caixa Baixa / Balcão",
+              "dims": { "l": 1800, "a": 870, "p": 600 },
+              "qtd": 1,
+              "mats": { "matInt": "mdp15", "matExt": "lam_freijo" },
+              "componentes": [
+                { "nome": "Porta", "qtd": 1, "vars": { "nPortas": 2 } },
+                { "nome": "Gaveta", "qtd": 3, "vars": { "ag": 200 } }
+              ]
+            },
+            {
+              "modo": "livre",
+              "nome": "Nicho ripado com iluminação embutida",
+              "qtd": 1,
+              "valor_unitario": 2400.00,
+              "_memorial": "1800x400mm, ripas 20mm freijó, substrato MDF 15mm, fita LED 5m branco quente, transformador incluso, sem ferragens"
+            }
+          ]
+        },
+        {
+          "nome": "Sala — estante",
+          "itens": [
+            {
+              "modo": "catalogo",
+              "nome": "Painel TV",
+              "dims": { "l": 2400, "a": 2200, "p": 80 },
+              "qtd": 1,
+              "mats": { "matInt": "mdf18", "matExt": "lam_freijo" },
+              "componentes": [
+                { "nome": "Nicho Iluminado", "qtd": 2 }
+              ]
+            },
+            {
+              "modo": "catalogo",
+              "nome": "Painel Ripado",
+              "L": 1200,
+              "A": 2400,
+              "qtd": 1,
+              "wV": 40,
+              "eV": 18,
+              "sV": 20,
+              "temSubstrato": true,
+              "matRipa": "lam_freijo",
+              "matSubstrato": "mdp15"
+            },
+            {
+              "modo": "livre",
+              "nome": "Quadro decorativo sob medida (terceirizado)",
+              "qtd": 2,
+              "valor_unitario": 850.00,
+              "_memorial": "Moldura ripada freijó, tela esticada 80x60cm, instalação inclusa"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "_resposta_endpoints": {
+    "POST /api/orcamentos/importar": {
+      "_descricao": "Preview — converte e devolve estrutura interna SEM gravar no banco.",
+      "exemplo": {
+        "ok": true,
+        "ambientes": [
+          {
+            "id": "uid8",
+            "nome": "Cozinha",
+            "tipo": "calculadora",
+            "itens": ["…caixas resolvidas com caixaId e caixaDef…"],
+            "paineis": ["…painéis ripado/muxarabi…"],
+            "itensEspeciais": ["…itens livres convertidos para tipo='outro'…"]
+          }
+        ],
+        "warnings": ["Caixa \"X\" não encontrada no catálogo (ambiente: Cozinha)"],
+        "stats": { "ambientes": 2, "catalogo": 4, "livre": 2, "componentes": 5, "warnings": 1, "itens": 4 }
+      }
+    },
+    "POST /api/orcamentos/importar-e-criar": {
+      "_descricao": "Atômico — convert + persistência em transação única. Body inclui cliente_id obrigatório + os campos do schema acima.",
+      "body_extra": { "cliente_id": "integer (obrigatório)", "cliente_nome": "string (opcional, herda do cliente)" },
+      "exemplo_resposta": {
+        "ok": true,
+        "orcamento_id": 123,
+        "numero": "ORN-2026-00123",
+        "warnings": [],
+        "stats": { "ambientes": 2, "catalogo": 4, "livre": 2, "componentes": 5, "warnings": 0, "itens": 4 }
+      }
+    }
+  }
+}

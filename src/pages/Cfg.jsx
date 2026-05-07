@@ -841,16 +841,6 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         notify?.('Base de conhecimento copiada!', 'success');
     };
 
-    const sectionBtn = (id, label, icon) => (
-        <button
-            key={id}
-            onClick={() => setActiveSection(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${activeSection === id ? 'text-white' : 'hover:bg-[var(--bg-hover)]'}`}
-            style={activeSection === id ? { background: 'var(--primary)' } : { color: 'var(--text-secondary)' }}
-        >
-            {icon} {label}
-        </button>
-    );
 
     const landingServicos = parseJsonList(emp.landing_servicos_json, LANDING_SERVICOS_DEFAULT);
     const landingDiferenciais = parseJsonList(emp.landing_diferenciais_json, LANDING_DIFERENCIAIS_DEFAULT);
@@ -859,32 +849,118 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const updateLandingList = (field, list) => setEmp(prev => ({ ...prev, [field]: JSON.stringify(list) }));
     const landingUrl = typeof window !== 'undefined' ? `${window.location.origin}/landingpage` : '/landingpage';
 
+    // ── Sidebar nav groups ───────────────────────────────────
+    const CFG_GROUPS = [
+        {
+            label: 'Empresa',
+            items: [
+                { id: 'empresa', label: 'Dados da Empresa', icon: <Ic.Building /> },
+                { id: 'taxas', label: 'Taxas & Markup', icon: <Ic.Sliders /> },
+                { id: 'custos', label: 'Centro de Custo', icon: <Ic.Dollar /> },
+            ],
+        },
+        {
+            label: 'Proposta',
+            items: [
+                { id: 'proposta', label: 'Proposta Comercial', icon: <Ic.File /> },
+                { id: 'contrato', label: 'Modelo de Contrato', icon: <Ic.File /> },
+            ],
+        },
+        {
+            label: 'Integrações',
+            items: [
+                { id: 'drive', label: 'Google Drive', icon: <Ic.Folder /> },
+                { id: 'whatsapp', label: 'WhatsApp', icon: <Ic.WhatsApp /> },
+                { id: 'ia', label: 'Inteligência Artificial', icon: <Ic.Sparkles /> },
+                { id: 'automacoes', label: 'Automações n8n', icon: <Zap size={14} /> },
+            ],
+        },
+        {
+            label: 'Conteúdo Público',
+            items: [
+                { id: 'landing', label: 'Landing Page', icon: <Ic.Star /> },
+                { id: 'portfolio', label: 'Portfolio', icon: <Images size={14} /> },
+                { id: 'depoimentos', label: 'Depoimentos', icon: <Ic.Star /> },
+            ],
+        },
+        {
+            label: 'Workflow',
+            items: [
+                { id: 'followups', label: 'Follow-ups', icon: <Bell size={14} /> },
+                { id: 'etapas', label: 'Etapas do Projeto', icon: <CheckCircle2 size={14} /> },
+            ],
+        },
+        {
+            label: 'Sistema',
+            items: [
+                { id: 'modulos', label: 'Módulos', icon: <Shield size={14} /> },
+                { id: 'backup', label: 'Backup', icon: <Database size={14} /> },
+            ],
+        },
+    ];
+
     return (
         <div className={Z.pg}>
-            <div className="mb-6">
-                <h1 className={Z.h1}>Configurações & Taxas</h1>
-                <p className={Z.sub}>Configurações globais do sistema</p>
+            {/* Page header */}
+            <div style={{ marginBottom: 24 }}>
+                <h1 className={Z.h1}>Configurações</h1>
+                <p className={Z.sub}>Empresa, proposta, integrações e sistema</p>
             </div>
 
-            {/* Section tabs */}
-            <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit flex-wrap" style={{ background: 'var(--bg-muted)' }}>
-                {sectionBtn('empresa', 'Dados da Empresa', <Ic.Building />)}
-                {sectionBtn('taxas', 'Taxas & Markup', <Ic.Sliders />)}
-                {sectionBtn('proposta', 'Proposta Comercial', <Ic.File />)}
-                {sectionBtn('contrato', 'Modelo de Contrato', <Ic.File />)}
-                {sectionBtn('drive', 'Google Drive', <Ic.Folder />)}
-                {sectionBtn('whatsapp', 'WhatsApp', <Ic.WhatsApp />)}
-                {sectionBtn('ia', 'Inteligência Artificial', <Ic.Sparkles />)}
-                {sectionBtn('automacoes', 'Automações n8n', <Zap size={16} />)}
-                {sectionBtn('landing', 'Landing Page', <Ic.Star />)}
-                {sectionBtn('portfolio', 'Portfolio', <Images size={16} />)}
-                {sectionBtn('depoimentos', 'Depoimentos', <Ic.Star />)}
-                {sectionBtn('followups', 'Follow-ups', <Bell size={16} />)}
-                {sectionBtn('etapas', 'Etapas do Projeto', <CheckCircle2 size={16} />)}
-                {sectionBtn('custos', 'Centro de Custo', <Ic.Dollar />)}
-                {sectionBtn('modulos', 'Módulos', <Shield size={16} />)}
-                {sectionBtn('backup', 'Backup', <Database size={16} />)}
-            </div>
+            {/* ─── Sidebar + Content layout ─────────────────────── */}
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+
+                {/* ─── Sidebar nav ──────────────────────────────── */}
+                <nav style={{
+                    width: 208, flexShrink: 0,
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-lg)', padding: '8px 0',
+                    position: 'sticky', top: 72, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto',
+                }}>
+                    {CFG_GROUPS.map((group, gi) => (
+                        <div key={group.label} style={{ marginBottom: gi < CFG_GROUPS.length - 1 ? 2 : 0 }}>
+                            <div style={{
+                                padding: '8px 14px 4px',
+                                fontSize: 10, fontWeight: 700,
+                                textTransform: 'uppercase', letterSpacing: '0.08em',
+                                color: 'var(--text-muted)',
+                            }}>
+                                {group.label}
+                            </div>
+                            {group.items.map(item => {
+                                const isActive = activeSection === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setActiveSection(item.id)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 8,
+                                            width: 'calc(100% - 12px)', margin: '1px 6px',
+                                            padding: '7px 10px', border: 'none',
+                                            background: isActive ? 'var(--primary)' : 'transparent',
+                                            color: isActive ? '#fff' : 'var(--text-secondary)',
+                                            fontSize: 12.5, fontWeight: isActive ? 600 : 400,
+                                            cursor: 'pointer', textAlign: 'left',
+                                            borderRadius: 6,
+                                            transition: 'all var(--transition-fast)',
+                                        }}
+                                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                                    >
+                                        <span style={{ flexShrink: 0, opacity: isActive ? 1 : 0.65, display: 'flex' }}>{item.icon}</span>
+                                        {item.label}
+                                    </button>
+                                );
+                            })}
+                            {gi < CFG_GROUPS.length - 1 && (
+                                <div style={{ height: 1, background: 'var(--border)', margin: '6px 14px' }} />
+                            )}
+                        </div>
+                    ))}
+                </nav>
+
+                {/* ─── Content area ─────────────────────────────── */}
+                <div style={{ flex: 1, minWidth: 0 }}>
 
             {/* ─── Dados da Empresa ─────────────────────────────── */}
             {activeSection === 'empresa' && (
@@ -5529,6 +5605,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                     </div>
                 </div>
             )}
+
+                </div> {/* /content */}
+            </div> {/* /layout */}
 
             {cfgConfirm && (
                 <ConfirmModal

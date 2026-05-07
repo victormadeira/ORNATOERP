@@ -1648,6 +1648,18 @@ const migrations = [
     peca_ids TEXT NOT NULL,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  // ═══ CNC Máquinas: modo onion skin ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN onion_skin_modo TEXT DEFAULT 'diferido'",
+  // ═══ CNC Máquinas: qualidade de trajetória industrial ═══
+  "ALTER TABLE cnc_maquinas ADD COLUMN entrada_pelo_interior INTEGER DEFAULT 1",
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_lead_out INTEGER DEFAULT 0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN lead_out_raio REAL DEFAULT 3",
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_feed_cantos INTEGER DEFAULT 0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN feed_cantos_pct REAL DEFAULT 60",
+  "ALTER TABLE cnc_maquinas ADD COLUMN feed_cantos_dist REAL DEFAULT 8",
+  "ALTER TABLE cnc_maquinas ADD COLUMN ordenar_borda_primeiro INTEGER DEFAULT 0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN usar_arc_corners INTEGER DEFAULT 0",
+  "ALTER TABLE cnc_maquinas ADD COLUMN arc_corners_raio REAL DEFAULT 0.8",
   // ═══ CNC Peças: cor da fita de borda por face ═══
   "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_frontal TEXT",
   "ALTER TABLE cnc_pecas ADD COLUMN borda_cor_traseira TEXT",
@@ -2540,6 +2552,13 @@ const migrations = [
 
   // ═══ Meta/Facebook app secret (para validar HMAC-SHA256 de webhooks Lead Ads) ═══
   "ALTER TABLE empresa_config ADD COLUMN fb_app_secret TEXT DEFAULT ''",
+
+  // ═══ Prazo de entrega padrão (usado em /api/orcamentos/importar e prompt da IA) ═══
+  "ALTER TABLE empresa_config ADD COLUMN prazo_padrao TEXT DEFAULT '45 dias úteis'",
+
+  // ═══ Escopo de serviços (incluso vs por conta do cliente) — usado no prompt da IA ═══
+  // Estrutura: { incluso: [{id, nome, ref_custo, obs}], por_conta_cliente: [{id, nome, obs_padrao}] }
+  "ALTER TABLE empresa_config ADD COLUMN escopo_servicos_json TEXT DEFAULT '{\"incluso\":[{\"id\":\"vidro\",\"nome\":\"Tampos e elementos em vidro integrados ao móvel (inclui cúpulas de vidro custom)\",\"ref_custo\":\"R$ 200–400/m²\",\"obs\":\"vidro temperado, espelho, jateado\"},{\"id\":\"metalon\",\"nome\":\"Estrutura em metalon/aço\",\"ref_custo\":\"R$ 80–180/m linear\",\"obs\":\"preto fosco padrão; inclui solda e pintura\"},{\"id\":\"tamburato\",\"nome\":\"Tampos em tamburato\",\"ref_custo\":\"R$ 350–650/m²\",\"obs\":\"espessura 5cm padrão\"},{\"id\":\"aluminio\",\"nome\":\"Perfis de alumínio\",\"ref_custo\":\"R$ 60–150/m linear\",\"obs\":\"perfis para LED, divisórias, frente de gaveta\"},{\"id\":\"pintura\",\"nome\":\"Pintura (laca PU)\",\"ref_custo\":\"R$ 120–180/m²\",\"obs\":\"branca, colorida fosca, alto brilho\"},{\"id\":\"lamina_natural\",\"nome\":\"Lâmina natural\",\"ref_custo\":\"R$ 85–130/m²\",\"obs\":\"freijó, carvalho, jequitibá, etc.\"},{\"id\":\"espelho\",\"nome\":\"Espelho\",\"ref_custo\":\"R$ 180–280/m²\",\"obs\":\"comum 4mm; bisotê e dimensões grandes podem custar mais\"},{\"id\":\"led\",\"nome\":\"LED + transformador\",\"ref_custo\":\"R$ 30–60/m linear + R$ 80–200/transformador\",\"obs\":\"fita LED branca quente padrão\"},{\"id\":\"ferragens_especiais\",\"nome\":\"Ferragens especificadas (importadas)\",\"ref_custo\":\"varia conforme spec\",\"obs\":\"Blum, Hettich, Hafele, etc.\"}],\"por_conta_cliente\":[{\"id\":\"pedra\",\"nome\":\"Tampos em granito, mármore, quartzito ou outras pedras naturais\",\"obs_padrao\":\"Tampo em [pedra] por conta do cliente\"},{\"id\":\"instalacao_eletro\",\"nome\":\"Instalação de frigobar / equipamentos embutidos\",\"obs_padrao\":\"Instalação do equipamento por conta do cliente\"}]}'",
 
   // ═══ Índices para queries quentes (relatório de origens, busca por telefone) ═══
   "CREATE INDEX IF NOT EXISTS idx_landing_visitas_origem ON landing_visitas(criado_em DESC, utm_source)",
