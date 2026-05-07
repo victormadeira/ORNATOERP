@@ -16,6 +16,7 @@ const Cli = lazy(() => import('./pages/Cli'));
 const Cat = lazy(() => import('./pages/Cat'));
 const Orcs = lazy(() => import('./pages/Orcs'));
 const Novo = lazy(() => import('./pages/Novo'));
+const OrcImport = lazy(() => import('./pages/OrcImport'));
 const Kb = lazy(() => import('./pages/Kb'));
 const Cfg = lazy(() => import('./pages/Cfg'));
 const Users = lazy(() => import('./pages/Users'));
@@ -202,7 +203,10 @@ export default function App() {
     // Command palette (Ctrl+K)
     const [cmdOpen, setCmdOpen] = useState(false);
     const [cmdQuery, setCmdQuery] = useState('');
+    const [cmdResults, setCmdResults] = useState(null);
+    const [cmdLoading, setCmdLoading] = useState(false);
     const cmdInputRef = useRef(null);
+    const cmdSearchTimer = useRef(null);
     // Keyboard shortcuts overlay
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const gPressedRef = useRef(false);
@@ -219,11 +223,13 @@ export default function App() {
                 e.preventDefault();
                 setCmdOpen(v => !v);
                 setCmdQuery('');
+                setCmdResults(null);
+                setCmdLoading(false);
                 return;
             }
             if (e.key === 'Escape') {
                 if (shortcutsOpen) { setShortcutsOpen(false); return; }
-                if (cmdOpen) { setCmdOpen(false); return; }
+                if (cmdOpen) { setCmdOpen(false); setCmdResults(null); return; }
             }
             if (isInput()) return;
             // ? key shows shortcuts overlay
@@ -268,6 +274,20 @@ export default function App() {
     useEffect(() => {
         if (cmdOpen && cmdInputRef.current) cmdInputRef.current.focus();
     }, [cmdOpen]);
+
+    // Entity search inside command palette
+    useEffect(() => {
+        if (!cmdOpen || cmdQuery.length < 2) { setCmdResults(null); setCmdLoading(false); return; }
+        setCmdLoading(true);
+        clearTimeout(cmdSearchTimer.current);
+        cmdSearchTimer.current = setTimeout(() => {
+            api.get(`/search?q=${encodeURIComponent(cmdQuery)}`)
+                .then(r => { setCmdResults(r.results || []); })
+                .catch(() => setCmdResults([]))
+                .finally(() => setCmdLoading(false));
+        }, 250);
+        return () => clearTimeout(cmdSearchTimer.current);
+    }, [cmdOpen, cmdQuery]);
 
     // Detectar mobile via resize
     useEffect(() => {
@@ -452,6 +472,15 @@ export default function App() {
         } else {
             nav('dash');
         }
+    };
+
+    // Navigate directly to a search result record
+    const navToRecord = (r) => {
+        if (r.tipo === 'orcamento') { nav('novo', { id: r.id }); }
+        else if (r.tipo === 'projeto') { setOpenProjectId(r.id); nav('proj'); }
+        else if (r.tipo === 'cliente') { nav('cli'); }
+        else if (r.tipo === 'peca') { nav('cat'); }
+        else if (r.page) { nav(r.page); }
     };
 
     // Listen for keyboard shortcut navigation events
@@ -657,6 +686,7 @@ export default function App() {
             case "cat": return <Cat notify={notify} />;
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
             case "novo": return <Novo clis={clis} taxas={taxas} editOrc={editOrc} nav={nav} reload={reload} notify={notify} />;
+            case "orc-import": return <OrcImport clis={clis} nav={nav} reload={loadOrcs} notify={notify} />;
             case "kb": return <Kb orcs={orcs} reload={loadOrcs} notify={notify} nav={nav} />;
             case "proj": return <Projetos orcs={orcs} notify={notify} user={user} openProjectId={openProjectId} onProjectOpened={() => setOpenProjectId(null)} nav={nav} />;
             case "estoque": return <Estoque notify={notify} />;
@@ -735,7 +765,7 @@ export default function App() {
             <Sidebar
                 sb={sb} setSb={setSb} sidebarHover={sidebarHover} setSidebarHover={setSidebarHover}
                 sidebarExpanded={sidebarExpanded} dark={dark} setDark={setDark}
-                pg={pg} nav={nav} MENU_GROUPS={VISIBLE_MENU_GROUPS} canSee={canSee}
+                pg={pg} nav={nav} navToRecord={navToRecord} MENU_GROUPS={VISIBLE_MENU_GROUPS} canSee={canSee}
                 collapsed={collapsed} toggleGroup={toggleGroup}
                 user={user} logout={logout} logoSistema={logoSistema} empNome={empNome}
                 setShowPerfil={setShowPerfil} notifs={notifs} waUnread={waUnread}
@@ -746,12 +776,23 @@ export default function App() {
             <main className="flex-1 relative overflow-y-auto overflow-x-hidden" aria-label="Conteúdo principal">
                 <Topbar
                     isMobile={isMobile} setMobileOpen={setMobileOpen} pg={pg} ALL_MENUS={ALL_MENUS} nav={nav}
-                    canGoBack={navDepth > 0} goBack={goBack}
+                    navToRecord={navToRecord} canGoBack={navDepth > 0} goBack={goBack}
                     buscaRef={buscaRef} buscaQuery={buscaQuery} setBuscaQuery={setBuscaQuery}
                     buscaResults={buscaResults} buscaOpen={buscaOpen} setBuscaOpen={setBuscaOpen}
                     waUnread={waUnread} notifsRef={notifsRef} showNotifs={showNotifs} setShowNotifs={setShowNotifs}
                     notifs={notifs} notifBadgeColor={notifBadgeColor} markAllRead={markAllRead}
                     goToNotif={goToNotif} getNotifStyle={getNotifStyle}
+                    crumbSub={(() => {
+                        if (pg === 'novo' && editOrc?.id) {
+                            const orc = orcs.find(o => o.id === editOrc.id);
+                            return { label: `#${orc?.numero || editOrc.id}`, hint: orc?.cliente_nome || '' };
+                        }
+                        if (pg === 'proj' && openProjectId) {
+                            const orc = orcs.find(o => o.id === openProjectId);
+                            return { label: orc?.ambiente || `Projeto #${openProjectId}`, hint: orc?.cliente_nome || '' };
+                        }
+                        return null;
+                    })()}
                 />
 
                 {/* Toast */}
@@ -800,35 +841,53 @@ export default function App() {
             )}
 
             {/* Command Palette (Ctrl+K) */}
-            {cmdOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={() => setCmdOpen(false)}>
+            {cmdOpen && (() => {
+                const CMD_RTYPE = {
+                    cliente:   { label: 'Cliente',    color: 'var(--info)',    ic: <Ic.Usr size={14} /> },
+                    orcamento: { label: 'Orçamento',  color: 'var(--warning)', ic: <Ic.File size={14} /> },
+                    projeto:   { label: 'Projeto',    color: '#8b5cf6',        ic: <Ic.Briefcase size={14} /> },
+                    peca:      { label: 'Peça',       color: 'var(--success)', ic: <Ic.Box size={14} /> },
+                };
+                const getRecordTitle = (r) => {
+                    if (r.tipo === 'cliente') return r.nome;
+                    if (r.tipo === 'orcamento') return `#${r.numero}${r.cliente_nome ? ` — ${r.cliente_nome}` : ''}`;
+                    if (r.tipo === 'projeto') return r.nome || `Projeto #${r.id}`;
+                    return r.descricao || `#${r.id}`;
+                };
+                const filteredPages = ALL_PAGES.filter(p =>
+                    !cmdQuery || p.lb.toLowerCase().includes(cmdQuery.toLowerCase()) || p.id.toLowerCase().includes(cmdQuery.toLowerCase())
+                );
+                return (
+                <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={() => { setCmdOpen(false); setCmdResults(null); }}>
                     <div className="fixed inset-0 modal-overlay" style={{ background: 'rgba(0,0,0,0.4)' }} />
                     <div className="relative animate-scale-in" style={{
-                        width: '100%', maxWidth: 480, background: 'var(--bg-card)',
+                        width: '100%', maxWidth: 500, background: 'var(--bg-card)',
                         border: '1px solid var(--border)', borderRadius: 16,
                         boxShadow: 'var(--shadow-xl)', overflow: 'hidden',
                     }} onClick={e => e.stopPropagation()}>
+                        {/* Input */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-                            <Search size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            <Search size={16} style={{ color: cmdLoading ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0, transition: 'color 0.2s' }} />
                             <input
                                 ref={cmdInputRef}
                                 type="text"
                                 value={cmdQuery}
                                 onChange={e => setCmdQuery(e.target.value)}
-                                placeholder="Ir para..."
+                                placeholder="Buscar clientes, orçamentos, projetos ou ir para..."
                                 style={{
                                     flex: 1, background: 'none', border: 'none', outline: 'none',
-                                    fontSize: 15, color: 'var(--text-primary)',
+                                    fontSize: 14, color: 'var(--text-primary)',
                                 }}
                                 onKeyDown={e => {
                                     if (e.key === 'Enter') {
-                                        const filtered = ALL_PAGES.filter(p =>
-                                            p.lb.toLowerCase().includes(cmdQuery.toLowerCase()) ||
-                                            p.id.toLowerCase().includes(cmdQuery.toLowerCase())
-                                        );
-                                        if (filtered.length > 0) {
-                                            nav(filtered[0].id);
-                                            setCmdOpen(false);
+                                        if (cmdResults && cmdResults.length > 0) {
+                                            navToRecord(cmdResults[0]);
+                                            setCmdOpen(false); setCmdResults(null); setCmdQuery('');
+                                            return;
+                                        }
+                                        if (filteredPages.length > 0) {
+                                            nav(filteredPages[0].id);
+                                            setCmdOpen(false); setCmdResults(null);
                                         }
                                     }
                                 }}
@@ -839,33 +898,69 @@ export default function App() {
                                 color: 'var(--text-muted)', fontFamily: 'inherit',
                             }}>ESC</kbd>
                         </div>
-                        <div style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
-                            {ALL_PAGES.filter(p =>
-                                !cmdQuery || p.lb.toLowerCase().includes(cmdQuery.toLowerCase()) || p.id.toLowerCase().includes(cmdQuery.toLowerCase())
-                            ).map(p => {
-                                const I = p.ic;
-                                const active = pg === p.id;
-                                return (
-                                    <button key={p.id} onClick={() => { nav(p.id); setCmdOpen(false); }}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                            padding: '10px 12px', borderRadius: 10, border: 'none',
-                                            background: active ? 'var(--bg-hover)' : 'none',
-                                            cursor: 'pointer', textAlign: 'left', fontSize: 13,
-                                            color: active ? 'var(--primary)' : 'var(--text-primary)',
-                                            fontWeight: active ? 600 : 400, transition: 'background 0.15s',
-                                        }}
-                                        className="hover:bg-[var(--bg-hover)]">
-                                        <span style={{ color: active ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0 }}><I /></span>
-                                        <span>{p.lb}</span>
-                                        {active && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>atual</span>}
-                                    </button>
-                                );
-                            })}
+
+                        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                            {/* Entity results */}
+                            {cmdQuery.length >= 2 && (
+                                <div style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '8px 12px 4px' }}>Registros</div>
+                                    {cmdLoading && (
+                                        <div style={{ padding: '8px 12px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Buscando...</div>
+                                    )}
+                                    {!cmdLoading && cmdResults && cmdResults.length === 0 && (
+                                        <div style={{ padding: '8px 12px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum registro encontrado</div>
+                                    )}
+                                    {!cmdLoading && cmdResults && cmdResults.slice(0, 6).map((r) => {
+                                        const rt = CMD_RTYPE[r.tipo] || { label: r.tipo, color: 'var(--text-muted)', ic: <Search size={14} /> };
+                                        return (
+                                            <button key={`${r.tipo}-${r.id}`}
+                                                onClick={() => { navToRecord(r); setCmdOpen(false); setCmdResults(null); setCmdQuery(''); }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                    padding: '8px 12px', border: 'none', background: 'none',
+                                                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s',
+                                                }}
+                                                className="hover:bg-[var(--bg-hover)]">
+                                                <span style={{ color: rt.color, flexShrink: 0, display: 'flex' }}>{rt.ic}</span>
+                                                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getRecordTitle(r)}</span>
+                                                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'var(--bg-muted)', color: rt.color, flexShrink: 0, border: `1px solid ${rt.color}30` }}>{rt.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Pages */}
+                            <div style={{ padding: 6 }}>
+                                {cmdQuery.length >= 2 && (
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '6px 6px 4px' }}>Páginas</div>
+                                )}
+                                {filteredPages.map(p => {
+                                    const I = p.ic;
+                                    const active = pg === p.id;
+                                    return (
+                                        <button key={p.id} onClick={() => { nav(p.id); setCmdOpen(false); setCmdResults(null); }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                padding: '10px 12px', borderRadius: 10, border: 'none',
+                                                background: active ? 'var(--bg-hover)' : 'none',
+                                                cursor: 'pointer', textAlign: 'left', fontSize: 13,
+                                                color: active ? 'var(--primary)' : 'var(--text-primary)',
+                                                fontWeight: active ? 600 : 400, transition: 'background 0.15s',
+                                            }}
+                                            className="hover:bg-[var(--bg-hover)]">
+                                            <span style={{ color: active ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0 }}><I /></span>
+                                            <span>{p.lb}</span>
+                                            {active && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>atual</span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
             {/* Keyboard Shortcuts Modal */}
             {shortcutsOpen && (

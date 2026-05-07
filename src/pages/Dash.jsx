@@ -260,6 +260,42 @@ function QuickActions({ nav, isVendedor }) {
 // ══════════════════════════════════════════════════════════════════
 // FILA DE ATENÇÃO — cards de alerta lado a lado
 // ══════════════════════════════════════════════════════════════════
+// ATTENTION STRIP — compact banner acima das tabs, sempre visível
+// ══════════════════════════════════════════════════════════════════
+function AtencaoStrip({ data, nav }) {
+    if (!data || (data.total_parados === 0 && data.total_vencidas === 0)) return null;
+    const hasBoth = data.total_parados > 0 && data.total_vencidas > 0;
+    const critical = data.total_vencidas > 0;
+    const color = critical ? 'var(--danger)' : 'var(--warning)';
+    const bg = critical ? 'rgba(220,38,38,0.07)' : 'rgba(176,120,32,0.07)';
+    const border = critical ? 'rgba(220,38,38,0.20)' : 'rgba(176,120,32,0.20)';
+    return (
+        <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            padding: '9px 16px', marginBottom: 14, borderRadius: 10,
+            background: bg, border: `1px solid ${border}`,
+            flexWrap: 'wrap', gap: 8,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', gap: 6 }}>
+                <AlertTriangle size={13} style={{ color, flexShrink: 0 }} strokeWidth={2.4} />
+                {data.total_parados > 0 && (
+                    <button onClick={() => nav('orcs')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color, padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                        {data.total_parados} orçamento{data.total_parados > 1 ? 's' : ''} parado{data.total_parados > 1 ? 's' : ''}
+                    </button>
+                )}
+                {hasBoth && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>·</span>}
+                {data.total_vencidas > 0 && (
+                    <button onClick={() => nav('financeiro')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--danger)', padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                        {data.total_vencidas} conta{data.total_vencidas > 1 ? 's' : ''} vencida{data.total_vencidas > 1 ? 's' : ''} · {R$(data.valor_vencido)}
+                    </button>
+                )}
+            </div>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500, flexShrink: 0 }}>Precisa de atenção</span>
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
 function FilaAtencao({ data, nav }) {
     if (!data || (data.total_parados === 0 && data.total_vencidas === 0)) return null;
 
@@ -1707,6 +1743,11 @@ export default function Dash({ nav, notify, user }) {
             <KpiStrip data={data} isVendedor={isVendedor} nav={nav} />
 
             <QuickActions nav={nav} isVendedor={isVendedor} />
+
+            {/* Faixa de atenção — visível acima de qualquer tab */}
+            {!isVendedor && data.atencao && (
+                <AtencaoStrip data={data.atencao} nav={nav} />
+            )}
 
             <TabBar
                 tabs={[

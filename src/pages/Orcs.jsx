@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import { Z, Ic, Modal, ConfirmModal, tagStyle, tagClass, PageHeader, EmptyState } from '../ui';
 import { R$, KCOLS } from '../engine';
 import api from '../api';
-import { Copy, Download, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck, Monitor, Smartphone, MapPin, ExternalLink } from 'lucide-react';
+import { Copy, Download, Upload, SortAsc, SortDesc, Filter, AlertTriangle, Calendar, Flame, Eye as EyeIcon, RefreshCw, Share2, Printer, CheckCircle, FileText as FileTextIcon, Link2, Type, ZoomIn, Star, MousePointer, DollarSign, Search, Zap, CheckCheck, Monitor, Smartphone, MapPin, ExternalLink } from 'lucide-react';
 
 const dt = (s) => s ? new Date(s + 'Z').toLocaleDateString('pt-BR') : '—';
 const dtHr = (s) => s ? new Date(s + 'Z').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -283,6 +283,9 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                 <button onClick={exportCSV} className="btn-secondary btn-sm" title="Exportar CSV">
                     <Download size={13} /> CSV
                 </button>
+                <button onClick={() => nav("orc-import")} className="btn-secondary btn-sm" title="Importar orçamento de JSON gerado por IA">
+                    <Upload size={13} /> Importar via IA
+                </button>
                 <button onClick={() => nav("novo", null)} className="btn-primary">
                     <Ic.Plus /> Novo Orçamento
                 </button>
@@ -413,6 +416,57 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             </button>
                         );
                     })}
+                </div>
+            )}
+
+            {/* ─── Filter chips ativos ──────────────────────── */}
+            {(search || statusFilter || clienteFilter || periodoFilter) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginRight: 2 }}>Filtrando:</span>
+                    {statusFilter && (() => {
+                        const col = KCOLS.find(c => c.id === statusFilter);
+                        return (
+                            <button onClick={() => setStatusFilter('')} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
+                                background: `${col?.c || 'var(--primary)'}18`, border: `1px solid ${col?.c || 'var(--primary)'}40`,
+                                color: col?.c || 'var(--primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                            }}>
+                                {col?.nm || statusFilter} ×
+                            </button>
+                        );
+                    })()}
+                    {clienteFilter && (
+                        <button onClick={() => setClienteFilter('')} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
+                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        }}>
+                            {clienteFilter} ×
+                        </button>
+                    )}
+                    {periodoFilter && (
+                        <button onClick={() => setPeriodoFilter('')} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
+                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        }}>
+                            {periodoFilter === '7d' ? 'Últimos 7 dias' : periodoFilter === '30d' ? 'Últimos 30 dias' : periodoFilter === '90d' ? 'Últimos 90 dias' : periodoFilter} ×
+                        </button>
+                    )}
+                    {search && (
+                        <button onClick={() => setSearch('')} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99,
+                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        }}>
+                            "{search}" ×
+                        </button>
+                    )}
+                    <button onClick={() => { setStatusFilter(''); setClienteFilter(''); setPeriodoFilter(''); setSearch(''); }} style={{
+                        background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', padding: '3px 6px', marginLeft: 2,
+                    }}>
+                        Limpar tudo
+                    </button>
                 </div>
             )}
 
@@ -641,55 +695,51 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 </div>
                                             </td>
                                             <td className="td-glass">
-                                                <div className="flex items-center gap-1.5">
-                                                    {/* Editar */}
-                                                    <button
-                                                        onClick={() => nav("novo", o)}
-                                                        className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-hover)]"
-                                                        style={{ color: 'var(--text-secondary)' }} title="Editar orçamento"
-                                                    >
-                                                        <Ic.Edit />
-                                                    </button>
-                                                    {/* Pré-visualizar proposta */}
-                                                    <button
-                                                        onClick={() => previewProposta(o)}
-                                                        className="p-1.5 rounded-md transition-colors hover:bg-green-500/10"
-                                                        style={{ color: isLoadingThisLink ? 'var(--primary)' : 'var(--success-hover)' }}
-                                                        title="Abrir proposta (nova aba)"
-                                                        disabled={isLoadingThisLink}
-                                                    >
-                                                        {isLoadingThisLink ? (
-                                                            <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
-                                                        ) : <Ic.Eye />}
-                                                    </button>
-                                                    {/* Link público + rastreamento */}
-                                                    <button
-                                                        onClick={() => abrirLink(o)}
-                                                        className="p-1.5 rounded-md transition-colors hover:bg-blue-500/10"
-                                                        style={{ color: 'var(--text-muted)' }}
-                                                        title="Link público + rastreamento"
-                                                        disabled={isLoadingThisLink}
-                                                    >
-                                                        <Ic.Link />
-                                                    </button>
-                                                    {/* Duplicar */}
-                                                    <button
-                                                        onClick={() => duplicar(o)}
-                                                        className="p-1.5 rounded-md transition-colors hover:bg-violet-500/10"
-                                                        style={{ color: isLoadingThisDup ? 'var(--text-muted)' : '#8b5cf6' }}
-                                                        title="Duplicar orçamento"
-                                                        disabled={isLoadingThisDup}
-                                                    >
-                                                        {isLoadingThisDup ? (
-                                                            <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: '#8b5cf6', borderTopColor: 'transparent' }} />
-                                                        ) : <Copy size={14} />}
-                                                    </button>
-                                                    {/* Excluir */}
+                                                <div className="flex items-center" style={{ gap: 0 }}>
+                                                    {/* Grupo: ações primárias */}
+                                                    <div className="flex items-center gap-0.5">
+                                                        <button
+                                                            onClick={() => nav("novo", o)}
+                                                            className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-hover)]"
+                                                            style={{ color: 'var(--text-secondary)' }} title="Editar orçamento">
+                                                            <Ic.Edit />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => previewProposta(o)}
+                                                            className="p-1.5 rounded-md transition-colors hover:bg-green-500/10"
+                                                            style={{ color: isLoadingThisLink ? 'var(--primary)' : 'var(--success-hover)' }}
+                                                            title="Abrir proposta (nova aba)"
+                                                            disabled={isLoadingThisLink}>
+                                                            {isLoadingThisLink ? (
+                                                                <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
+                                                            ) : <Ic.Eye />}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => abrirLink(o)}
+                                                            className="p-1.5 rounded-md transition-colors hover:bg-blue-500/10"
+                                                            style={{ color: 'var(--text-muted)' }}
+                                                            title="Link público + rastreamento"
+                                                            disabled={isLoadingThisLink}>
+                                                            <Ic.Link />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => duplicar(o)}
+                                                            className="p-1.5 rounded-md transition-colors hover:bg-violet-500/10"
+                                                            style={{ color: isLoadingThisDup ? 'var(--text-muted)' : '#8b5cf6' }}
+                                                            title="Duplicar orçamento"
+                                                            disabled={isLoadingThisDup}>
+                                                            {isLoadingThisDup ? (
+                                                                <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: '#8b5cf6', borderTopColor: 'transparent' }} />
+                                                            ) : <Copy size={14} />}
+                                                        </button>
+                                                    </div>
+                                                    {/* Separador visual */}
+                                                    <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 6px', flexShrink: 0 }} />
+                                                    {/* Excluir — ação destrutiva separada */}
                                                     <button
                                                         onClick={() => setConfirmDel({ id: o.id, nome: o.cliente_nome })}
-                                                        className="p-1.5 rounded-md transition-colors bg-red-500/10 hover:bg-red-500/20"
-                                                        style={{ color: 'var(--danger)' }} title="Excluir"
-                                                    >
+                                                        className="p-1.5 rounded-md transition-colors hover:bg-red-500/10"
+                                                        style={{ color: 'var(--danger)' }} title="Excluir">
                                                         <Ic.Trash />
                                                     </button>
                                                 </div>

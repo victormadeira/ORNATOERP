@@ -2574,6 +2574,61 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     <button onClick={() => nav('orcs')} className={Z.btn2}>← Voltar</button>
             </PageHeader>
 
+            {/* ── Step progress bar ─────────────────────────────────────── */}
+            {(() => {
+                const totalItens = ambientes.reduce((s, a) => s + (a.itens?.length || 0) + (a.paineis?.length || 0), 0);
+                const somaBlocos = pagamento.blocos.reduce((s, b) => s + (Number(b.percentual) || 0), 0);
+                const STEPS = [
+                    { id: 'cliente',   label: 'Cliente',   done: !!cid },
+                    { id: 'ambientes', label: 'Ambientes', done: ambientes.length > 0 },
+                    { id: 'itens',     label: 'Itens',     done: totalItens > 0 },
+                    { id: 'pagamento', label: 'Pagamento', done: pagamento.blocos.length > 0 && Math.abs(somaBlocos - 100) < 0.5 },
+                    { id: 'proposta',  label: 'Proposta',  done: !!editOrc?.id, action: editOrc?.id ? () => setPropostaModal(true) : null },
+                ];
+                const firstPending = STEPS.findIndex(s => !s.done);
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 16, padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
+                        {STEPS.map((s, i) => {
+                            const isCurrent = i === firstPending;
+                            const color = s.done ? 'var(--success)' : isCurrent ? 'var(--primary)' : 'var(--text-muted)';
+                            const bg = s.done ? 'var(--success-bg)' : isCurrent ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--bg-muted)';
+                            const border = s.done ? 'var(--success-border, rgba(74,150,71,0.3))' : isCurrent ? 'color-mix(in srgb, var(--primary) 35%, transparent)' : 'var(--border)';
+                            const isLast = i === STEPS.length - 1;
+                            return (
+                                <div key={s.id} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                    <button
+                                        onClick={s.action || undefined}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                            padding: '5px 10px', borderRadius: 8,
+                                            background: isCurrent ? bg : 'none', border: 'none',
+                                            cursor: s.action ? 'pointer' : 'default',
+                                        }}>
+                                        <div style={{
+                                            width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                                            background: bg, border: `1.5px solid ${border}`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 9, fontWeight: 800, color,
+                                        }}>
+                                            {s.done ? '✓' : i + 1}
+                                        </div>
+                                        <span style={{ fontSize: 11, fontWeight: isCurrent ? 700 : 500, color, whiteSpace: 'nowrap' }}>{s.label}</span>
+                                    </button>
+                                    {!isLast && (
+                                        <div style={{ width: 20, height: 1.5, background: i < firstPending || firstPending === -1 ? 'var(--success-border, rgba(74,150,71,0.4))' : 'var(--border)', flexShrink: 0, margin: '0 2px' }} />
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {editOrc?.id && (
+                            <div style={{ marginLeft: 'auto', paddingLeft: 8, flexShrink: 0 }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>#{numero || editOrc.id}</span>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
+
             {/* Fase 5: Alerta de materiais com preço vencido */}
             {materiaisVencidos.length > 0 && (
                 <div className="mb-4 p-3 rounded-lg flex items-center gap-3 text-xs"

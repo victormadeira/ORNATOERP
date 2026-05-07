@@ -132,7 +132,17 @@
   --text-2xl: 24px;      /* títulos de página */
   --text-3xl: 32px;      /* hero / KPIs grandes */
   --text-4xl: 40px;      /* landing hero */
+
+  /* Aliases semânticos — 3 níveis de texto auxiliar */
+  --fs-label: 12px;      /* label de campo, coluna de tabela, chip de status */
+  --fs-helper: 11px;     /* texto de apoio, dica, subtítulo de linha */
+  --fs-note: 10px;       /* nota mínima, badge, legenda de gráfico */
 }
+
+/* Utility classes para níveis tipográficos semânticos */
+.text-label  { font-size: var(--fs-label);  font-weight: 600; color: var(--text-secondary); }
+.text-helper { font-size: var(--fs-helper); font-weight: 400; color: var(--text-muted); line-height: 1.45; }
+.text-note   { font-size: var(--fs-note);   font-weight: 500; color: var(--text-muted); }
 
 /* Tabular nums em medidas/valores numéricos para alinhamento perfeito
    de R$, mm, %, contadores em tabelas — diferencial de software industrial */

@@ -250,12 +250,14 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
     const [hoverInfo, setHoverInfo] = useState(null); // { x, y, piece }
     const animRef = useRef(null);
 
-    // ─── New state variables ───────────────────────────────────────────────
+    // ─── State variables ───────────────────────────────────────────────────
     const [showTimeline, setShowTimeline] = useState(false);
     const [hiddenCats, setHiddenCats] = useState(new Set());
     const [showRapids, setShowRapids] = useState(true);
     const [showStats, setShowStats] = useState(false);
     const [heatmapMode, setHeatmapMode] = useState(false);
+    // Side A/B filter: 'all' | 'A' | 'B'
+    const [sideFilter, setSideFilter] = useState('all');
     const [autoOrient, setAutoOrient] = useState(true);
 
     const parsed = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
@@ -678,58 +680,96 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
             ctx.fillText('0,0', ox + 5 * dpr, oy + 12 * dpr);
             ctx.globalAlpha = 1;
 
-            // ── Pieces — subtle color differentiation on warm MDF ──────────
+            // ── Pieces — with Side A/B awareness ──────────────────────────
             if (chapa.pecas) {
                 const ref = chapa.refilo || 10;
-                // Subtle warm tints — complement the MDF base color
-                const pColors = [
-                    'rgba( 40,  80, 180, 0.13)',  // blue-slate
-                    'rgba( 40, 130,  70, 0.13)',  // forest green
-                    'rgba(160,  60,  20, 0.11)',  // rust
-                    'rgba(110,  40, 160, 0.11)',  // purple
-                    'rgba(150, 110,   0, 0.12)',  // olive
-                    'rgba( 10, 120, 130, 0.12)',  // teal
-                    'rgba(160,  30,  80, 0.11)',  // wine
-                    'rgba( 70, 140,  30, 0.12)',  // lime
+                // Side A: warm blue-slate tints | Side B: cooler blue-violet tints
+                const pColorsA = [
+                    'rgba( 40,  80, 180, 0.12)', 'rgba( 40, 130,  70, 0.12)',
+                    'rgba(160,  60,  20, 0.10)', 'rgba(110,  40, 160, 0.10)',
+                    'rgba(150, 110,   0, 0.11)', 'rgba( 10, 120, 130, 0.11)',
+                    'rgba(160,  30,  80, 0.10)', 'rgba( 70, 140,  30, 0.11)',
                 ];
-                const pBorders = [
-                    'rgba( 30,  60, 140, 0.45)',
-                    'rgba( 20, 100,  50, 0.45)',
-                    'rgba(130,  40,  10, 0.40)',
-                    'rgba( 85,  25, 130, 0.40)',
-                    'rgba(120,  85,   0, 0.42)',
-                    'rgba(  5,  90, 100, 0.42)',
-                    'rgba(130,  20,  60, 0.40)',
-                    'rgba( 50, 110,  20, 0.42)',
+                const pBordersA = [
+                    'rgba( 30,  60, 140, 0.42)', 'rgba( 20, 100,  50, 0.42)',
+                    'rgba(130,  40,  10, 0.38)', 'rgba( 85,  25, 130, 0.38)',
+                    'rgba(120,  85,   0, 0.40)', 'rgba(  5,  90, 100, 0.40)',
+                    'rgba(130,  20,  60, 0.38)', 'rgba( 50, 110,  20, 0.40)',
                 ];
+                // Side B gets a distinct blue-violet fill + border
+                const pColorsB  = 'rgba( 60, 100, 220, 0.16)';
+                const pBordersB = 'rgba( 50,  80, 200, 0.55)';
+
                 for (let i = 0; i < chapa.pecas.length; i++) {
                     const p = chapa.pecas[i];
                     const isActivePiece = activePieceInCanvas === p;
+                    const lado = p.lado_ativo || 'A';
+                    const isB = lado === 'B';
+
+                    // Apply sideFilter — dim pieces that don't match
+                    const filtered = sideFilter !== 'all' && sideFilter !== lado;
+
                     const px = tx(ref + p.x);
                     const py = Math.min(ty(ref + p.y), ty(ref + p.y + p.h));
                     const pw2 = p.w * sc, ph2 = p.h * sc;
-                    // Subtle fill tint
-                    ctx.fillStyle = pColors[i % pColors.length];
+
+                    ctx.globalAlpha = filtered ? 0.25 : 1;
+
+                    // Fill tint — different for Side B
+                    ctx.fillStyle = isB ? pColorsB : pColorsA[i % pColorsA.length];
                     ctx.fillRect(px, py, pw2, ph2);
-                    // Border — dark warm, clearly delineating pieces
-                    ctx.strokeStyle = isActivePiece ? '#2563eb' : pBorders[i % pBorders.length];
-                    ctx.lineWidth = (isActivePiece ? 2.2 : 1.0) * dpr;
-                    ctx.strokeRect(px, py, pw2, ph2);
-                    if (isActivePiece) {
-                        ctx.fillStyle = 'rgba(37,99,235,0.10)';
+
+                    // Active highlight
+                    if (isActivePiece && !filtered) {
+                        ctx.fillStyle = 'rgba(37,99,235,0.11)';
                         ctx.fillRect(px, py, pw2, ph2);
                     }
-                    // Label — dark warm text (reads well on light MDF)
-                    if (p.nome && pw2 > 30 * dpr && ph2 > 14 * dpr) {
-                        ctx.fillStyle = 'rgba(45,28,10,0.85)';
+
+                    // Border
+                    ctx.strokeStyle = isActivePiece
+                        ? '#2563eb'
+                        : isB ? pBordersB : pBordersA[i % pBordersA.length];
+                    ctx.lineWidth = (isActivePiece ? 2.2 : isB ? 1.4 : 1.0) * dpr;
+                    ctx.strokeRect(px, py, pw2, ph2);
+
+                    // Name label
+                    if (pw2 > 30 * dpr && ph2 > 14 * dpr) {
+                        ctx.fillStyle = isB ? 'rgba(30,50,120,0.88)' : 'rgba(45,28,10,0.85)';
                         ctx.font = `600 ${Math.min(10 * dpr, pw2 / 5)}px sans-serif`;
-                        ctx.fillText(p.nome, px + 4 * dpr, py + 13 * dpr, pw2 - 8 * dpr);
+                        if (p.nome) ctx.fillText(p.nome, px + 4 * dpr, py + 13 * dpr, pw2 - 8 * dpr);
                         if (ph2 > 24 * dpr) {
-                            ctx.fillStyle = 'rgba(70,45,15,0.60)';
+                            ctx.fillStyle = isB ? 'rgba(50,80,160,0.55)' : 'rgba(70,45,15,0.60)';
                             ctx.font = `${Math.min(8 * dpr, pw2 / 7)}px monospace`;
                             ctx.fillText(`${Math.round(p.w)}×${Math.round(p.h)}`, px + 4 * dpr, py + 23 * dpr, pw2 - 8 * dpr);
                         }
                     }
+
+                    // ── Side badge (A or B) — top-right corner of piece ──────
+                    if (pw2 > 18 * dpr && ph2 > 12 * dpr && !filtered) {
+                        const badgeW = 14 * dpr, badgeH = 11 * dpr;
+                        const bx = px + pw2 - badgeW - 2 * dpr;
+                        const by = py + 2 * dpr;
+                        // Badge background
+                        ctx.fillStyle = isB ? 'rgba(50,80,200,0.82)' : 'rgba(30,90,50,0.78)';
+                        ctx.beginPath();
+                        ctx.roundRect?.(bx, by, badgeW, badgeH, 2 * dpr) || ctx.rect(bx, by, badgeW, badgeH);
+                        ctx.fill();
+                        // Badge text
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = `bold ${8 * dpr}px monospace`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(lado, bx + badgeW / 2, by + 8 * dpr);
+                        ctx.textAlign = 'left';
+                        // Small dot on badge if piece has both sides
+                        if (p.has_b && !isB) {
+                            ctx.fillStyle = 'rgba(80,130,255,0.90)';
+                            ctx.beginPath();
+                            ctx.arc(bx + badgeW - 2 * dpr, by + 2 * dpr, 2.5 * dpr, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+
+                    ctx.globalAlpha = 1;
                 }
             }
             // ── Scraps (retalhos) — dashed green outline ───────────────────
@@ -1069,7 +1109,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
         }
 
         if (viewRotated) ctx.restore();
-    }, [gcode, chapa, allMoves, allEvents, zoom, panOff, espReal, dims, simMode, moveToolDiams, hiddenCats, showRapids, heatmapMode, minFeed, maxFeed, autoOrient, getPieceAt]);
+    }, [gcode, chapa, allMoves, allEvents, zoom, panOff, espReal, dims, simMode, moveToolDiams, hiddenCats, showRapids, heatmapMode, minFeed, maxFeed, autoOrient, getPieceAt, sideFilter]);
 
     useEffect(() => { renderCanvas(curMove); }, [curMove, renderCanvas]);
 
@@ -1470,49 +1510,67 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                         {operationBlocks.length} etapas
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 180, overflowY: 'auto', paddingRight: 2 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto', paddingRight: 2 }}>
                                     {operationBlocks.map((op, idx) => {
                                         const isActive = curMove >= op.start && curMove <= op.end;
+                                        const opProgress = isActive
+                                            ? Math.max(3, Math.min(100, ((curMove - op.start + 1) / Math.max(1, op.end - op.start + 1)) * 100))
+                                            : 0;
                                         return (
                                             <button
                                                 key={op.id}
+                                                ref={isActive ? el => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) : undefined}
                                                 onClick={() => jumpToOperation(op)}
                                                 style={{
                                                     display: 'grid',
-                                                    gridTemplateColumns: '18px minmax(0,1fr) auto',
-                                                    gap: 7,
+                                                    gridTemplateColumns: '3px 18px minmax(0,1fr) auto',
+                                                    gap: 6,
                                                     alignItems: 'center',
-                                                    padding: '7px 8px',
+                                                    padding: '6px 7px 6px 0',
                                                     borderRadius: 7,
                                                     border: `1px solid ${isActive ? op.cat.glow : '#eadfce'}`,
-                                                    background: isActive ? 'rgba(37,99,235,0.08)' : '#fbf8f2',
+                                                    background: isActive ? `color-mix(in srgb, ${op.cat.glow} 10%, #fbf8f2)` : '#fbf8f2',
                                                     color: '#2f2a24',
                                                     cursor: 'pointer',
                                                     textAlign: 'left',
+                                                    overflow: 'hidden',
+                                                    transition: 'background 0.2s, border-color 0.2s',
+                                                    boxShadow: isActive ? `0 0 0 1.5px ${op.cat.glow}40` : 'none',
                                                 }}
                                             >
+                                                {/* Active stripe */}
                                                 <span style={{
-                                                    width: 16,
-                                                    height: 16,
-                                                    borderRadius: 999,
-                                                    background: op.cat.glow,
-                                                    color: '#fff',
-                                                    display: 'grid',
-                                                    placeItems: 'center',
-                                                    fontSize: 8,
-                                                    fontWeight: 900,
+                                                    display: 'block', width: 3, height: '100%', minHeight: 28,
+                                                    background: isActive ? op.cat.glow : 'transparent',
+                                                    borderRadius: '4px 0 0 4px',
+                                                    transition: 'background 0.2s',
+                                                    marginLeft: 0,
+                                                    alignSelf: 'stretch',
+                                                }} />
+                                                <span style={{
+                                                    width: 16, height: 16, borderRadius: 999,
+                                                    background: isActive ? op.cat.glow : '#e5ddd2',
+                                                    color: isActive ? '#fff' : '#8a8176',
+                                                    display: 'grid', placeItems: 'center',
+                                                    fontSize: 8, fontWeight: 900, flexShrink: 0,
+                                                    transition: 'background 0.2s',
                                                 }}>
                                                     {idx + 1}
                                                 </span>
                                                 <span style={{ minWidth: 0 }}>
-                                                    <span style={{ display: 'block', fontSize: 10, fontWeight: 850, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <span style={{ display: 'block', fontSize: 10, fontWeight: isActive ? 900 : 750, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isActive ? '#1a1614' : '#2f2a24' }}>
                                                         {op.label}
                                                     </span>
                                                     <span style={{ display: 'block', fontSize: 9, color: '#8a8176', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {op.tool || op.cat.label}
                                                     </span>
+                                                    {isActive && (
+                                                        <span style={{ display: 'block', height: 2, borderRadius: 999, background: '#eee6da', marginTop: 3, overflow: 'hidden' }}>
+                                                            <span style={{ display: 'block', height: '100%', width: `${opProgress}%`, background: op.cat.glow, transition: 'width 0.15s' }} />
+                                                        </span>
+                                                    )}
                                                 </span>
-                                                <span style={{ fontSize: 9, color: '#6b5f52', fontFamily: 'JetBrains Mono, Consolas, monospace', whiteSpace: 'nowrap' }}>
+                                                <span style={{ fontSize: 9, color: isActive ? op.cat.glow : '#6b5f52', fontFamily: 'JetBrains Mono, Consolas, monospace', whiteSpace: 'nowrap', fontWeight: isActive ? 800 : 400, paddingRight: 4 }}>
                                                     {op.cutM.toFixed(1)}m
                                                 </span>
                                             </button>
@@ -1572,35 +1630,66 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                 </div>
                             ))}
                         </div>
+                        {/* Side A/B breakdown */}
+                        {chapa?.pecas?.length > 0 && (() => {
+                            const cA = chapa.pecas.filter(p => (p.lado_ativo || 'A') === 'A').length;
+                            const cB = chapa.pecas.filter(p => p.lado_ativo === 'B').length;
+                            const cAB = chapa.pecas.filter(p => p.has_b).length;
+                            return (cA + cB > 0) ? (
+                                <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                                    <span style={{ fontSize: 9, color: '#8a8176', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lados:</span>
+                                    {cA > 0 && <span style={{ fontSize: 10, background: '#dcfce7', border: '1px solid #166534', color: '#166534', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>A: {cA} peças</span>}
+                                    {cB > 0 && <span style={{ fontSize: 10, background: '#dbeafe', border: '1px solid #3b52c4', color: '#3b52c4', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>B: {cB} peças</span>}
+                                    {cAB > 0 && <span style={{ fontSize: 9, color: '#8a8176' }}>· {cAB} peça(s) com 2 lados</span>}
+                                </div>
+                            ) : null;
+                        })()}
                     </div>
                 )}
 
                 {/* ── Row 1: Transport bar ── */}
                 <div style={CTRL.bar}>
+                    {/* Primary play/pause — larger, color-coded */}
                     {!playing
-                        ? <button onClick={handlePlay} style={CTRL.btnAct} title="Reproduzir simulação (Espaço)">▶ Reproduzir</button>
-                        : <button onClick={handlePause} style={CTRL.btnAct} title="Pausar simulação">⏸ Pausar</button>
+                        ? <button onClick={handlePlay} style={{
+                            ...CTRL.btnAct,
+                            padding: '6px 14px', fontSize: 12, fontWeight: 900, gap: 5,
+                            background: '#16a34a', borderColor: '#15803d',
+                            boxShadow: '0 0 0 0 rgba(22,163,74,0)',
+                          }} title="Reproduzir simulação (Espaço)">
+                            ▶ {curMove >= allMoves.length - 1 && curMove >= 0 ? 'Reiniciar' : 'Reproduzir'}
+                          </button>
+                        : <button onClick={handlePause} style={{
+                            ...CTRL.btnAct,
+                            padding: '6px 14px', fontSize: 12, fontWeight: 900, gap: 5,
+                            background: '#dc7000', borderColor: '#b35a00',
+                            animation: 'simPulse 1.4s ease-in-out infinite',
+                          }} title="Pausar simulação (Espaço)">
+                            ⏸ Pausar
+                          </button>
                     }
-                    <button onClick={handleStop} style={CTRL.btn} title="Parar e voltar para visão geral (Esc)">⏹ Parar</button>
+                    <button onClick={handleStop} style={{ ...CTRL.btn, fontSize: 11 }} title="Parar e voltar para visão geral (Esc)">⏹</button>
                     <div style={CTRL.sep} />
-                    <button onClick={() => handleStep(-1)} style={CTRL.btn} title="Movimento anterior (←)">−1</button>
-                    <button onClick={() => handleStep(1)} style={CTRL.btn} title="Próximo movimento (→)">+1</button>
+                    <button onClick={() => handleStep(-1)} style={CTRL.btn} title="Movimento anterior (←)">‹ Ant</button>
+                    <button onClick={() => handleStep(1)} style={CTRL.btn} title="Próximo movimento (→)">Próx ›</button>
                     {toolEvents.length > 0 && <>
-                        <button onClick={jumpPrevTool} style={CTRL.btn} title="Ferramenta anterior">Ferr. ant.</button>
-                        <button onClick={jumpNextTool} style={CTRL.btn} title="Próxima ferramenta">Próx. ferr.</button>
+                        <div style={CTRL.sep} />
+                        <button onClick={jumpPrevTool} style={CTRL.btn} title="Ferramenta anterior">⌖ Ant.</button>
+                        <button onClick={jumpNextTool} style={CTRL.btn} title="Próxima ferramenta">⌖ Próx.</button>
                     </>}
                     <input type="range" min={0} max={Math.max(0, allMoves.length - 1)} value={curMove < 0 ? 0 : curMove}
-                        onChange={handleSlider} style={{ flex: '1 1 170px', minWidth: 150, height: 4, accentColor: '#c87020', cursor: 'pointer' }} />
+                        onChange={handleSlider} style={{ flex: '1 1 170px', minWidth: 140, height: 4, accentColor: playing ? '#16a34a' : '#c87020', cursor: 'pointer' }} />
                     <select value={speed} onChange={e => setSpeed(Number(e.target.value))}
-                        style={{ ...CTRL.btn, padding: '2px 4px', fontSize: 10 }}>
+                        style={{ ...CTRL.btn, padding: '2px 6px', fontSize: 10 }}>
                         {[0.5,1,2,5,10,20,50,100,200].map(v => <option key={v} value={v}>{v}x</option>)}
                     </select>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 76, textAlign: 'right', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: 10, color: '#6b5f52', whiteSpace: 'nowrap', minWidth: 76, textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>
                         {curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : `${allMoves.length} mov`}
                     </span>
+                    <style>{`@keyframes simPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,112,0,0.45); } 50% { box-shadow: 0 0 0 5px rgba(220,112,0,0); } }`}</style>
                 </div>
 
-                {/* ── Row 2: View controls + legend ── */}
+                {/* ── Row 2: View controls — 3 zones: Visualização | Filtros | Painéis ── */}
                 <div style={{
                     ...CTRL.bar2,
                     borderLeft: '1px solid #ded6ca',
@@ -1608,139 +1697,221 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     borderBottom: '1px solid #ded6ca',
                     borderTop: 'none',
                     borderRadius: hasToolRow ? 0 : br,
+                    justifyContent: 'space-between',
                 }}>
-                    {/* Zoom */}
-                    <button onClick={() => setZoom(z => Math.max(0.3, z - 0.3))} style={CTRL.btn}>−</button>
-                    <span style={{ fontSize: 10, color: '#3f3426', minWidth: 36, textAlign: 'center', fontFamily: 'monospace' }}>{(zoom * 100).toFixed(0)}%</span>
-                    <button onClick={() => setZoom(z => Math.min(8, z + 0.3))} style={CTRL.btn}>+</button>
-                    <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); }} style={CTRL.btn} title="Encaixar na tela (F)">Encaixar</button>
-
-                    <div style={CTRL.sep} />
-
-                    {/* Mode toggle */}
-                    <div style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', border: '1px solid #d7cbbb' }}>
-                        {[['usinagem', 'Visual CAM'], ['trajetoria', 'Percurso']].map(([m, lbl]) => (
-                            <button key={m} onClick={() => setSimMode(m)} style={{
-                                padding: '5px 10px', fontSize: 10, fontWeight: 800, cursor: 'pointer', border: 'none',
-                                background: simMode === m ? '#2563eb' : '#fffaf2',
-                                color: simMode === m ? '#fff' : '#6b5f52', transition: 'all 0.15s',
-                            }}>{lbl}</button>
-                        ))}
+                    {/* Zone 1: Visualização */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        <button onClick={() => setZoom(z => Math.max(0.3, z - 0.3))} style={CTRL.btn} title="Diminuir zoom">−</button>
+                        <span style={{ fontSize: 10, color: '#3f3426', minWidth: 32, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace' }}>{(zoom * 100).toFixed(0)}%</span>
+                        <button onClick={() => setZoom(z => Math.min(8, z + 0.3))} style={CTRL.btn} title="Aumentar zoom">+</button>
+                        <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); }} style={CTRL.btn} title="Encaixar na tela (F)">Encaixar</button>
+                        <div style={CTRL.sep} />
+                        {/* Mode segmented */}
+                        <div style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', border: '1px solid #d7cbbb' }}>
+                            {[['usinagem', 'CAM'], ['trajetoria', 'Percurso']].map(([m, lbl]) => (
+                                <button key={m} onClick={() => setSimMode(m)} style={{
+                                    padding: '4px 9px', fontSize: 10, fontWeight: 800, cursor: 'pointer', border: 'none',
+                                    background: simMode === m ? '#2563eb' : '#fffaf2',
+                                    color: simMode === m ? '#fff' : '#6b5f52', transition: 'all 0.15s',
+                                }}>{lbl}</button>
+                            ))}
+                        </div>
+                        {isPortraitSheet && (
+                            <>
+                                <div style={CTRL.sep} />
+                                <button onClick={() => { setAutoOrient(v => !v); setPanOff({ x: 0, y: 0 }); setZoom(1); setHoverInfo(null); }}
+                                    style={autoOrient ? { ...CTRL.btnAct, padding: '4px 8px', fontSize: 10 } : { ...CTRL.btn, padding: '4px 8px', fontSize: 10 }}
+                                    title={autoOrient ? 'Voltar orientação original' : 'Girar visualização para ocupar melhor o canvas'}>
+                                    ↻ {autoOrient ? 'Vertical' : 'Girar'}
+                                </button>
+                            </>
+                        )}
                     </div>
 
-                    <div style={CTRL.sep} />
+                    {/* Zone 2: Filtros */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        {chapa?.pecas?.length > 0 && (() => {
+                            const countA = chapa.pecas.filter(p => (p.lado_ativo || 'A') === 'A').length;
+                            const countB = chapa.pecas.filter(p => p.lado_ativo === 'B').length;
+                            return countB > 0 ? (
+                                <>
+                                    <span style={{ fontSize: 10, color: '#8a8176', flexShrink: 0 }}>Lado:</span>
+                                    <div style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', border: '1px solid #d7cbbb' }}>
+                                        {[['all', 'A+B'], ['A', `A(${countA})`], ['B', `B(${countB})`]].map(([v, lbl]) => (
+                                            <button key={v} onClick={() => setSideFilter(v)} style={{
+                                                padding: '3px 7px', fontSize: 10, fontWeight: 700, cursor: 'pointer', border: 'none',
+                                                background: sideFilter === v ? (v === 'B' ? '#3b52c4' : v === 'A' ? '#166534' : '#2563eb') : '#fffaf2',
+                                                color: sideFilter === v ? '#fff' : '#6b5f52', transition: 'all 0.15s',
+                                            }}>{lbl}</button>
+                                        ))}
+                                    </div>
+                                    <div style={CTRL.sep} />
+                                </>
+                            ) : null;
+                        })()}
+                        <button onClick={() => setHeatmapMode(h => !h)}
+                            style={{
+                                ...CTRL.btn, fontWeight: 700, fontSize: 10,
+                                background: heatmapMode ? 'linear-gradient(90deg,#c03020 0%,#d4a020 50%,#1890d0 100%)' : '#fffaf2',
+                                color: heatmapMode ? '#fff' : '#6b5f52',
+                                border: heatmapMode ? '1px solid #c87020' : undefined,
+                            }}
+                            title="Colorir por velocidade de avanço">🌡 Feed</button>
+                    </div>
 
-                    {/* Toggles */}
-                    <button onClick={() => setHeatmapMode(h => !h)}
-                        style={{
-                            ...CTRL.btn, fontWeight: 700,
-                            background: heatmapMode ? 'linear-gradient(90deg,#c03020 0%,#d4a020 50%,#1890d0 100%)' : '#fffaf2',
-                            color: heatmapMode ? '#fff' : '#6b5f52',
-                            border: heatmapMode ? '1px solid #c87020' : undefined,
-                        }}
-                        title="Colorir por velocidade de avanço">Velocidade</button>
-                    {isPortraitSheet && (
-                        <button onClick={() => { setAutoOrient(v => !v); setPanOff({ x: 0, y: 0 }); setZoom(1); setHoverInfo(null); }}
-                            style={autoOrient ? CTRL.btnAct : CTRL.btn}
-                            title={autoOrient ? 'Voltar para a chapa na posição vertical original' : 'Girar apenas a visualização para ocupar melhor o canvas'}>
-                            {autoOrient ? 'Visual vertical' : 'Girar visual'}
+                    {/* Zone 3: Painéis + Tela cheia */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <button onClick={() => setShowStats(s => !s)}
+                            style={{ ...( showStats ? CTRL.btnAct : CTRL.btn), fontSize: 10, padding: '4px 8px' }}
+                            title="Estatísticas gerais">📊</button>
+                        <button onClick={() => setShowTimeline(t => !t)}
+                            style={{ ...(showTimeline ? CTRL.btnAct : CTRL.btn), fontSize: 10, padding: '4px 8px' }}
+                            title="Painel de eventos">📋</button>
+                        <div style={CTRL.sep} />
+                        {/* Fullscreen — destaque próprio, canto direito */}
+                        <button onClick={() => setFullscreen(f => !f)}
+                            style={{
+                                ...CTRL.btn, padding: '4px 9px', fontWeight: 800,
+                                background: isFS ? '#2563eb' : '#fffaf2',
+                                color: isFS ? '#fff' : '#3f3426',
+                                border: isFS ? '1px solid #2563eb' : undefined,
+                            }}
+                            title={isFS ? 'Sair tela cheia (ESC)' : 'Tela cheia'}>
+                            {isFS ? '⊠ Sair' : '⛶ Expandir'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Legend bar — dedicated row, only when not in heatmap ── */}
+                {!heatmapMode && foundOps.length > 0 && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                    padding: '4px 12px', background: '#f7f4ef',
+                    borderLeft: '1px solid #ded6ca', borderRight: '1px solid #ded6ca',
+                    borderBottom: hasToolRow ? 'none' : '1px solid #ded6ca',
+                    borderTop: 'none',
+                    borderRadius: hasToolRow ? 0 : br,
+                    minHeight: 28,
+                }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: '#8a8176', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Camadas:</span>
+                    <span onClick={() => setShowRapids(r => !r)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
+                            color: '#8a7050', opacity: showRapids ? 0.8 : 0.35,
+                            cursor: 'pointer', userSelect: 'none',
+                            textDecoration: showRapids ? 'none' : 'line-through' }}>
+                        <span style={{ width: 14, height: 0, borderTop: '1.5px dashed #8a7050', display: 'inline-block' }} />
+                        Rápido
+                    </span>
+                    {foundOps.map(cat => {
+                        const isActive = activeOp && getOpCat(activeOp).key === cat.key;
+                        const isHidden = hiddenCats.has(cat.key);
+                        const isFuro = cat.key === 'furo';
+                        return (
+                            <span key={cat.key} onClick={() => toggleCat(cat.key)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
+                                    color: isActive ? cat.glow : '#6b5f52',
+                                    fontWeight: isActive ? 800 : 500, transition: 'all 0.15s',
+                                    opacity: isHidden ? 0.3 : 1,
+                                    textDecoration: isHidden ? 'line-through' : 'none',
+                                    cursor: 'pointer', userSelect: 'none' }}>
+                                <span style={{
+                                    width: isFuro ? 7 : 10, height: isFuro ? 7 : 4,
+                                    borderRadius: isFuro ? '50%' : 2, display: 'inline-block',
+                                    background: isFuro ? 'transparent' : cat.glow,
+                                    border: isFuro ? `1.5px solid ${cat.glow}` : 'none',
+                                    opacity: isHidden ? 0.3 : isActive ? 1 : 0.6,
+                                    boxShadow: isActive ? `0 0 4px ${cat.glow}` : 'none',
+                                    flexShrink: 0,
+                                }} />
+                                {cat.label}
+                            </span>
+                        );
+                    })}
+                    {hasActiveFilters && (
+                        <button onClick={() => { setHiddenCats(new Set()); setShowRapids(true); }}
+                            style={{ fontSize: 9, padding: '2px 7px', cursor: 'pointer',
+                                borderRadius: 4, border: '1px solid #d7cbbb', background: '#fffaf2',
+                                color: '#2563eb', lineHeight: 1.4, fontWeight: 700 }}>
+                            Restaurar
                         </button>
                     )}
-                    <button onClick={() => setShowStats(s => !s)}
-                        style={showStats ? CTRL.btnAct : CTRL.btn}
-                        title="Mostrar estatísticas">Estatísticas</button>
-                    <button onClick={() => setShowTimeline(t => !t)}
-                        style={showTimeline ? CTRL.btnAct : CTRL.btn}
-                        title="Mostrar eventos de ferramenta e operação">Eventos</button>
-                    <button onClick={() => setFullscreen(f => !f)}
-                        style={CTRL.btn}
-                        title={isFS ? 'Sair tela cheia (ESC)' : 'Tela cheia'}>
-                        {isFS ? 'Sair' : 'Tela cheia'}
-                    </button>
-
-                    <div style={CTRL.sep} />
-
-                    {/* Legend inline */}
-                    {!heatmapMode ? (
-                        <>
-                            <span onClick={() => setShowRapids(r => !r)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
-                                    color: '#8a7050', opacity: showRapids ? 0.75 : 0.35,
-                                    cursor: 'pointer', userSelect: 'none',
-                                    textDecoration: showRapids ? 'none' : 'line-through' }}>
-                                <span style={{ width: 12, height: 0, borderTop: '1.5px dashed #8a7050', display: 'inline-block' }} />
-                                Rápido
-                            </span>
-                            {foundOps.map(cat => {
-                                const isActive = activeOp && getOpCat(activeOp).key === cat.key;
-                                const isHidden = hiddenCats.has(cat.key);
-                                const isFuro = cat.key === 'furo';
-                                return (
-                                    <span key={cat.key} onClick={() => toggleCat(cat.key)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10,
-                                            color: isActive ? cat.glow : 'var(--text-muted)',
-                                            fontWeight: isActive ? 700 : 400, transition: 'all 0.15s',
-                                            textShadow: isActive ? `0 0 6px ${cat.glow}` : 'none',
-                                            opacity: isHidden ? 0.3 : 1,
-                                            textDecoration: isHidden ? 'line-through' : 'none',
-                                            cursor: 'pointer', userSelect: 'none' }}>
-                                        <span style={{
-                                            width: isFuro ? 7 : 9, height: isFuro ? 7 : 3,
-                                            borderRadius: isFuro ? '50%' : 2, display: 'inline-block',
-                                            background: isFuro ? 'transparent' : cat.glow,
-                                            border: isFuro ? `1.5px solid ${cat.glow}` : 'none',
-                                            opacity: isActive ? 1 : 0.45,
-                                            boxShadow: isActive ? `0 0 5px ${cat.glow}` : 'none',
-                                        }} />
-                                        {cat.label}
-                                    </span>
-                                );
-                            })}
-                            {hasActiveFilters && (
-                                <button onClick={() => { setHiddenCats(new Set()); setShowRapids(true); }}
-                                    style={{ fontSize: 9, padding: '2px 6px', cursor: 'pointer',
-                                        borderRadius: 4, border: '1px solid #d7cbbb', background: '#fffaf2',
-                                        color: '#2563eb', lineHeight: 1.4 }}>
-                                    Limpar
-                                </button>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <span style={{ fontSize: 10, color: '#8a8176' }}>Feed:</span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                <span style={{ fontSize: 9, color: '#c03020', fontFamily: 'monospace' }}>{minFeed.toFixed(0)}</span>
-                                <span style={{ width: 48, height: 5, borderRadius: 2, background: 'linear-gradient(90deg,#dc3c1e,#dcb41e,#16a050,#1464c0)', display: 'inline-block' }} />
-                                <span style={{ fontSize: 9, color: '#1464c0', fontFamily: 'monospace' }}>{maxFeed.toFixed(0)} mm/min</span>
-                            </span>
-                        </>
+                    {/* Heatmap scale — shown in legend bar when heatmap active */}
+                    {heatmapMode && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+                            <span style={{ fontSize: 9, color: '#c03020', fontFamily: 'monospace' }}>{minFeed.toFixed(0)}</span>
+                            <span style={{ width: 48, height: 5, borderRadius: 2, background: 'linear-gradient(90deg,#dc3c1e,#dcb41e,#16a050,#1464c0)', display: 'inline-block' }} />
+                            <span style={{ fontSize: 9, color: '#1464c0', fontFamily: 'monospace' }}>{maxFeed.toFixed(0)} mm/min</span>
+                        </span>
                     )}
-
                     {activeTool && (
-                        <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9a5b13', fontWeight: 600, flexShrink: 0 }}>
+                        <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9a5b13', fontWeight: 700, flexShrink: 0 }}>
                             ◈ {activeTool}
                         </span>
                     )}
                 </div>
+                )}
 
                 {/* ── Row 3: Tool jump buttons (only when ≥2 tools) ── */}
                 {hasToolRow && (
                     <div style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
-                        padding: '5px 12px', background: '#fbf8f2',
+                        display: 'flex', alignItems: 'center', gap: 0,
+                        padding: '6px 14px', background: '#fbf8f2',
                         border: '1px solid #ded6ca', borderTop: 'none',
                         borderRadius: br, overflowX: 'auto',
                     }}>
-                        <span style={{ fontSize: 10, color: '#8a8176', flexShrink: 0, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ferramentas</span>
-                        {toolEvents.map((ev, i) => {
-                            const isActiveTool = i === activeToolIdx;
-                            return (
-                                <button key={i} onClick={() => { setPlaying(false); setCurMove(ev.moveIdx); }}
-                                    style={{ ...(isActiveTool ? CTRL.btnAct : CTRL.btn), flexShrink: 0, fontSize: 10, padding: '2px 7px' }}>
-                                    {i + 1}: {ev.label}
-                                </button>
-                            );
-                        })}
+                        <span style={{ fontSize: 9, color: '#8a8176', flexShrink: 0, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 10 }}>
+                            Sequência
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 0, flex: 1 }}>
+                            {toolEvents.map((ev, i) => {
+                                const isActiveTool = i === activeToolIdx;
+                                const isPast = i < activeToolIdx;
+                                const isLast = i === toolEvents.length - 1;
+                                const circleColor = isActiveTool ? '#9a5b13' : isPast ? '#7c6a58' : '#c4bdb5';
+                                const circleBg = isActiveTool ? '#ffe4b8' : isPast ? '#f0ebe5' : '#fbf8f2';
+                                const circleBorder = isActiveTool ? '#9a5b13' : isPast ? '#b5a898' : '#ded6ca';
+                                return (
+                                    <div key={i} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                        <button
+                                            title={ev.label}
+                                            onClick={() => { setPlaying(false); setCurMove(ev.moveIdx); }}
+                                            style={{
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                                                background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
+                                            }}>
+                                            <div style={{
+                                                width: isActiveTool ? 22 : 18,
+                                                height: isActiveTool ? 22 : 18,
+                                                borderRadius: '50%',
+                                                background: circleBg,
+                                                border: `2px solid ${circleBorder}`,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: isActiveTool ? 9 : 8,
+                                                fontWeight: 800, color: circleColor,
+                                                transition: 'all 0.2s',
+                                                boxShadow: isActiveTool ? `0 0 0 3px ${circleColor}20` : 'none',
+                                            }}>
+                                                {i + 1}
+                                            </div>
+                                            <span style={{
+                                                fontSize: 8, color: circleColor, fontWeight: isActiveTool ? 700 : 500,
+                                                maxWidth: 48, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                lineHeight: 1.2,
+                                            }}>
+                                                {ev.label.replace(/^T[0-9]+\s*/, '').slice(0, 8)}
+                                            </span>
+                                        </button>
+                                        {!isLast && (
+                                            <div style={{
+                                                width: 18, height: 2,
+                                                background: isPast ? '#b5a898' : '#ded6ca',
+                                                flexShrink: 0, margin: '0 0 10px',
+                                            }} />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
             </div>

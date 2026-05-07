@@ -83,7 +83,7 @@ function getResultSubtitle(r) {
     return '';
 }
 
-function SidebarSearch({ sidebarExpanded, nav, isMobile, setMobileOpen }) {
+function SidebarSearch({ sidebarExpanded, nav, navToRecord, isMobile, setMobileOpen }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
@@ -108,23 +108,7 @@ function SidebarSearch({ sidebarExpanded, nav, isMobile, setMobileOpen }) {
 
     useEffect(() => { doSearch(query); }, [query, doSearch]);
 
-    // Global Ctrl+K / "/" shortcut
-    useEffect(() => {
-        const handler = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                e.preventDefault();
-                setOpen(true);
-                setTimeout(() => inputRef.current?.focus(), 50);
-            }
-            if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
-                e.preventDefault();
-                setOpen(true);
-                setTimeout(() => inputRef.current?.focus(), 50);
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, []);
+    // Note: Ctrl+K / "/" are handled globally by App.jsx command palette
 
     // Close on click outside
     useEffect(() => {
@@ -146,8 +130,8 @@ function SidebarSearch({ sidebarExpanded, nav, isMobile, setMobileOpen }) {
     };
 
     const handleSelect = (r) => {
-        const cfg = TYPE_CONFIG[r.tipo];
-        if (cfg) nav(cfg.page);
+        if (navToRecord) { navToRecord(r); }
+        else { const cfg = TYPE_CONFIG[r.tipo]; if (cfg) nav(cfg.page); }
         closeSearch();
         if (isMobile) setMobileOpen?.(false);
     };
@@ -363,7 +347,7 @@ function SearchOverlay({ containerRef, inputRef, query, setQuery, results, loadi
 
 export default function Sidebar({
     sb, setSb, sidebarHover, setSidebarHover, sidebarExpanded,
-    dark, setDark, pg, nav, MENU_GROUPS, canSee, collapsed, toggleGroup,
+    dark, setDark, pg, nav, navToRecord, MENU_GROUPS, canSee, collapsed, toggleGroup,
     user, logout, logoSistema, empNome, setShowPerfil,
     notifs, waUnread, isMobile, mobileOpen, setMobileOpen,
 }) {
@@ -405,7 +389,7 @@ export default function Sidebar({
                     </div>
 
                     {/* Search */}
-                    <SidebarSearch sidebarExpanded={sidebarExpanded} nav={nav} isMobile={false} />
+                    <SidebarSearch sidebarExpanded={sidebarExpanded} nav={nav} navToRecord={navToRecord} isMobile={false} />
 
                     {/* Nav Items */}
                     <nav className="flex-1 overflow-y-auto py-2 px-2" style={{ scrollbarWidth: 'thin' }}>
@@ -559,7 +543,7 @@ export default function Sidebar({
                     </div>
 
                     {/* Search (mobile) */}
-                    <SidebarSearch sidebarExpanded={true} nav={nav} isMobile={true} setMobileOpen={setMobileOpen} />
+                    <SidebarSearch sidebarExpanded={true} nav={nav} navToRecord={navToRecord} isMobile={true} setMobileOpen={setMobileOpen} />
 
                     <nav className="flex-1 overflow-y-auto py-2 px-2">
                         {MENU_GROUPS.map(g => {

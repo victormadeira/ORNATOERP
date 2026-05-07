@@ -2,11 +2,12 @@ import { Ic } from '../../ui';
 import { Search, ArrowLeft } from 'lucide-react';
 
 export default function Topbar({
-    isMobile, setMobileOpen, pg, ALL_MENUS, nav,
+    isMobile, setMobileOpen, pg, ALL_MENUS, nav, navToRecord,
     canGoBack, goBack,
     buscaRef, buscaQuery, setBuscaQuery, buscaResults, buscaOpen, setBuscaOpen,
     waUnread, notifsRef, showNotifs, setShowNotifs,
     notifs, notifBadgeColor, markAllRead, goToNotif, getNotifStyle,
+    crumbSub,
 }) {
     const isHome = pg === 'dash';
     const showBack = canGoBack && !isHome;
@@ -70,9 +71,26 @@ export default function Topbar({
                         <span className="hidden sm:inline">Voltar</span>
                     </button>
                 )}
-                <span className="hidden md:inline"><Ic.Home /></span>
-                <span className="hidden md:inline" style={{ opacity: 0.4 }}>/</span>
-                <span style={{ color: 'var(--text-primary)' }} className="font-medium truncate">{[...ALL_MENUS, { id: "novo", lb: "Novo Orcamento" }, { id: "users", lb: "Usuarios" }].find(m => m.id === pg)?.lb || 'Home'}</span>
+                <span className="hidden md:inline" style={{ flexShrink: 0 }}><Ic.Home /></span>
+                <span className="hidden md:inline" style={{ opacity: 0.35, flexShrink: 0 }}>/</span>
+                {crumbSub ? (
+                    <>
+                        <span className="hidden md:inline font-medium truncate" style={{ color: 'var(--text-secondary)', flexShrink: 1, minWidth: 0 }}>
+                            {[...ALL_MENUS, { id: 'novo', lb: 'Orçamento' }, { id: 'users', lb: 'Usuários' }].find(m => m.id === pg)?.lb || 'Home'}
+                        </span>
+                        <span className="hidden md:inline" style={{ opacity: 0.35, flexShrink: 0 }}>/</span>
+                        <span className="font-semibold truncate" style={{ color: 'var(--primary)', flexShrink: 1, minWidth: 0 }}>
+                            {crumbSub.label}
+                        </span>
+                        {crumbSub.hint && (
+                            <span className="hidden lg:inline" style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 400, flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                · {crumbSub.hint}
+                            </span>
+                        )}
+                    </>
+                ) : (
+                    <span style={{ color: 'var(--text-primary)' }} className="font-medium truncate">{[...ALL_MENUS, { id: 'novo', lb: 'Novo Orçamento' }, { id: 'users', lb: 'Usuários' }].find(m => m.id === pg)?.lb || 'Home'}</span>
+                )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -110,7 +128,7 @@ export default function Topbar({
                             <>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em' }}>Clientes</div>
                                 {buscaResults.clientes.map(c => (
-                                    <button key={`c${c.id}`} onClick={() => { nav('cli'); setBuscaOpen(false); setBuscaQuery(''); }}
+                                    <button key={`c${c.id}`} onClick={() => { (navToRecord || nav)({ tipo: 'cliente', id: c.id }); setBuscaOpen(false); setBuscaQuery(''); }}
                                         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
                                         className="hover:bg-[var(--bg-hover)]">
                                         <Ic.Usr style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
@@ -126,7 +144,7 @@ export default function Topbar({
                             <>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Orcamentos</div>
                                 {buscaResults.orcamentos.map(o => (
-                                    <button key={`o${o.id}`} onClick={() => { nav('orcs'); setBuscaOpen(false); setBuscaQuery(''); }}
+                                    <button key={`o${o.id}`} onClick={() => { (navToRecord || nav)({ tipo: 'orcamento', id: o.id }); setBuscaOpen(false); setBuscaQuery(''); }}
                                         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
                                         className="hover:bg-[var(--bg-hover)]">
                                         <Ic.File style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
@@ -142,7 +160,7 @@ export default function Topbar({
                             <>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Projetos</div>
                                 {buscaResults.projetos.map(p => (
-                                    <button key={`p${p.id}`} onClick={() => { nav('proj'); setBuscaOpen(false); setBuscaQuery(''); }}
+                                    <button key={`p${p.id}`} onClick={() => { (navToRecord || nav)({ tipo: 'projeto', id: p.id }); setBuscaOpen(false); setBuscaQuery(''); }}
                                         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
                                         className="hover:bg-[var(--bg-hover)]">
                                         <Ic.Briefcase style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />

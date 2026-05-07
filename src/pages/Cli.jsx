@@ -5,7 +5,7 @@ import { STATUS_PROJ, colorBg, colorBorder } from '../theme';
 import {
     User, Phone, Mail, MapPin, Building2, Calendar, FileText, MessageCircle,
     TrendingUp, DollarSign, Target, Clock, ChevronRight, ArrowLeft,
-    Pin, PinOff, Briefcase, Eye, BarChart3, Sparkles, Plus, Edit, Trash2,
+    Pin, PinOff, Briefcase, Eye, BarChart3, Sparkles, Plus, Edit, Trash2, MoreVertical,
     Star, Hash, Send, ExternalLink, Copy, Check as CheckIcon
 } from 'lucide-react';
 
@@ -931,6 +931,7 @@ export default function Cli({ clis, reload, notify, nav }) {
     const [confirmDel, setConfirmDel] = useState(null);
     const [cepLoading, setCepLoading] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
+    const [rowMenu, setRowMenu] = useState(null); // id of row with open "..." menu
     const [cliPage, setCliPage] = useState(1);
     const CLI_PER_PAGE = 30;
 
@@ -942,6 +943,14 @@ export default function Cli({ clis, reload, notify, nav }) {
     const cliTotalPages = Math.ceil(fl.length / CLI_PER_PAGE);
     const flPaged = fl.slice((cliPage - 1) * CLI_PER_PAGE, cliPage * CLI_PER_PAGE);
     useEffect(() => setCliPage(1), [sr]);
+
+    // Close row menu on click outside
+    useEffect(() => {
+        if (!rowMenu) return;
+        const handler = () => setRowMenu(null);
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [rowMenu]);
 
     // Busca CEP na ViaCEP
     const buscarCEP = async (cep) => {
@@ -1080,17 +1089,32 @@ export default function Cli({ clis, reload, notify, nav }) {
                                         )}
                                     </td>
                                     <td className="td-glass" onClick={e => e.stopPropagation()}>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => abrirModal(c)}
+                                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                                            <button
+                                                onClick={() => setRowMenu(rowMenu === c.id ? null : c.id)}
                                                 className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-hover)]"
-                                                style={{ color: 'var(--text-secondary)' }} title="Editar">
-                                                <Ic.Edit />
+                                                style={{ color: 'var(--text-muted)' }} title="Mais ações">
+                                                <MoreVertical size={14} />
                                             </button>
-                                            <button onClick={() => setConfirmDel({ id: c.id, nome: c.nome })}
-                                                className="p-1.5 rounded-md transition-colors bg-red-500/10 hover:bg-red-500/20"
-                                                style={{ color: 'var(--danger)' }} title="Excluir">
-                                                <Ic.Trash />
-                                            </button>
+                                            {rowMenu === c.id && (
+                                                <div style={{
+                                                    position: 'absolute', right: 0, top: '100%', marginTop: 2,
+                                                    width: 160, background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                                    borderRadius: 10, boxShadow: 'var(--shadow-xl)', zIndex: 40, overflow: 'hidden',
+                                                }}>
+                                                    <button onClick={() => { abrirModal(c); setRowMenu(null); }}
+                                                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)', textAlign: 'left' }}
+                                                        className="hover:bg-[var(--bg-hover)]">
+                                                        <Edit size={13} style={{ color: 'var(--text-muted)' }} /> Editar
+                                                    </button>
+                                                    <div style={{ height: 1, background: 'var(--border)' }} />
+                                                    <button onClick={() => { setConfirmDel({ id: c.id, nome: c.nome }); setRowMenu(null); }}
+                                                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--danger)', textAlign: 'left' }}
+                                                        className="hover:bg-red-500/10">
+                                                        <Trash2 size={13} /> Excluir
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
