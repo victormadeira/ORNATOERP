@@ -1673,7 +1673,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     disabled={!isGerente || !emp.responsavel_legal_nome?.trim()}
                                                     style={{
                                                         width: '100%', padding: '8px 16px', borderRadius: 8, border: 'none',
-                                                        background: emp.responsavel_legal_nome?.trim() ? 'var(--primary)' : '#d1d5db',
+                                                        background: emp.responsavel_legal_nome?.trim() ? 'var(--primary)' : 'var(--border)',
                                                         color: '#fff', fontSize: 12, fontWeight: 600,
                                                         cursor: emp.responsavel_legal_nome?.trim() ? 'pointer' : 'not-allowed',
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -5512,8 +5512,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                     {/* ── Backup Google Drive ── */}
                     <div className={Z.card} style={{ marginTop: 16 }}>
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#e8f5e9' }}>
-                                <Database size={20} style={{ color: '#4caf50' }} />
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.10)' }}>
+                                <Database size={20} style={{ color: 'var(--success)' }} />
                             </div>
                             <div>
                                 <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Backup Automatico — Google Drive</h3>
@@ -5527,7 +5527,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <Upload size={16} style={{ color: '#4caf50' }} />
+                                            <Upload size={16} style={{ color: 'var(--success)' }} />
                                             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Backup Manual</span>
                                         </div>
                                         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -5549,7 +5549,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         }}
                                         disabled={driveBackupLoading}
                                         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white shrink-0"
-                                        style={{ background: '#4caf50' }}
+                                        style={{ background: 'var(--success)' }}
                                     >
                                         {driveBackupLoading ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
                                         Fazer Backup
@@ -5581,7 +5581,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         {driveBackups.map((b, i) => (
                                             <div key={b.id} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs" style={{
                                                 background: i === 0 ? 'var(--success-bg)' : 'transparent',
-                                                border: i === 0 ? '1px solid #bbf7d0' : '1px solid transparent',
+                                                border: i === 0 ? '1px solid rgba(34,197,94,0.30)' : '1px solid transparent',
                                             }}>
                                                 <div className="flex items-center gap-2">
                                                     <Database size={12} style={{ color: i === 0 ? 'var(--success-hover)' : 'var(--text-muted)' }} />
