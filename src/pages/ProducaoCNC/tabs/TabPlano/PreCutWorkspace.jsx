@@ -10,7 +10,7 @@ import {
     Wrench, FlipVertical2, Shield, BarChart2,
     ZapOff, Zap, Maximize2, Tag as TagIcon,
     SkipBack, SkipForward, ChevronLeft, ChevronRight as ChevronRightIcon,
-    Activity, Thermometer,
+    Activity,
 } from 'lucide-react';
 import { Spinner } from '../../../../ui';
 import { GcodeSimCanvas } from './GcodeSimCanvas.jsx';
@@ -168,7 +168,6 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const [simSpeed,   setSimSpeed]     = useState(1);
     const [curMove,    setCurMove]      = useState(-1);
     const [totalMoves, setTotalMoves]   = useState(0);
-    const [heatmapMode, setHeatmapMode] = useState(false);
     const [curSimTime,  setCurSimTime]  = useState(0);
 
     // ── UI state ──────────────────────────────────────────────────────────────
@@ -177,10 +176,14 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const [sidebarTab,   setSidebarTab]   = useState('gcode'); // default: G-code highlight visível
     const [currentLineIdx, setCurrentLineIdx] = useState(-1);
 
-    const simRef         = useRef(null);
-    const gcodeViewerRef = useRef(null);
-    const currentLineRef = useRef(null);
-    const scrollTimerRef = useRef(null); // debounce scroll during fast playback
+    // ── G-code filter ─────────────────────────────────────────────────────────
+    const [filterType, setFilterType] = useState('all');
+
+    const simRef          = useRef(null);
+    const gcodeViewerRef  = useRef(null);
+    const currentLineRef  = useRef(null);
+    const filterFirstRef  = useRef(null); // first matching line (for auto-scroll on filter change)
+    const scrollTimerRef  = useRef(null); // debounce scroll during fast playback
 
     // ── Sync total moves once canvas mounts (or gcode changes) ───────────────
     useEffect(() => {
@@ -215,6 +218,50 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
             counts.set(cat.key, { ...cat, count: (counts.get(cat.key)?.count || 0) + 1 });
         }
         return OP_CATS.map(cat => counts.get(cat.key)).filter(Boolean);
+    }, [parsedPreview.moves]);
+
+    // ── Filter: which lines match the active filter chip ─────────────────────
+    const { matchingLineSet, firstMatchLine } = useMemo(() => {
+        if (filterType === 'all') return { matchingLineSet: null, firstMatchLine: -1 };
+        const set = new Set();
+        const lm = parsedPreview.lineToMoveIdx || {};
+        for (const liStr of Object.keys(lm)) {
+            const m = parsedPreview.moves[lm[liStr]];
+            if (!m) continue;
+            let ok = false;
+            if      (filterType === 'rapid')    ok = m.type === 'G0';
+            else if (filterType === 'cut')      ok = m.type !== 'G0' && m.z2 <= 0;
+            else if (filterType === 'furo')     ok = /furo|hole|helicoidal|circular/i.test(m.op);
+            else if (filterType === 'contorno') ok = /contorno/i.test(m.op);
+            else if (filterType === 'rebaixo')  ok = /rebaixo/i.test(m.op);
+            if (ok) set.add(parseInt(liStr));
+        }
+        const firstMatchLine = set.size > 0 ? Math.min(...set) : -1;
+        return { matchingLineSet: set, firstMatchLine };
+    }, [filterType, parsedPreview.lineToMoveIdx, parsedPreview.moves]);
+
+    // ── Op blocks: per-line time badge (startLine → { label, color, duration }) ─
+    const opBlockMap = useMemo(() => {
+        const RAPID_F = 20000;
+        const map = new Map();
+        let lastOp;
+        let cur = null;
+        for (const m of parsedPreview.moves) {
+            const op = m.op || '';
+            if (op !== lastOp) {
+                if (cur) map.set(cur.startLine, cur);
+                const cat = getOpCat(op);
+                cur = { label: cat.label, color: cat.color, startLine: m.lineIdx, duration: 0 };
+                lastOp = op;
+            }
+            if (cur) {
+                const dist = Math.hypot(m.x2 - m.x1, m.y2 - m.y1, m.z2 - m.z1);
+                const f = m.type === 'G0' ? RAPID_F : (m.feed || 1000);
+                cur.duration += dist / (f / 60);
+            }
+        }
+        if (cur) map.set(cur.startLine, cur);
+        return map;
     }, [parsedPreview.moves]);
 
     const lines  = (gcode || '').split('\n');
@@ -365,6 +412,15 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
             currentLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 60);
     }, [currentLineIdx, sidebarTab]);
+
+    // ── Auto-scroll to first matching line on filter change ───────────────────
+    useEffect(() => {
+        if (filterType === 'all' || firstMatchLine < 0) return;
+        clearTimeout(scrollTimerRef.current);
+        scrollTimerRef.current = setTimeout(() => {
+            filterFirstRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
+    }, [filterType, firstMatchLine]);
 
     // ── Live position from current move ──────────────────────────────────────
     const liveMove = curMove >= 0 ? parsedPreview.moves[curMove] : null;
@@ -554,20 +610,6 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         <span style={{ fontSize: 10, color: C.muted, fontFamily: '"JetBrains Mono", monospace' }}>
                             {lines.length} ln · {sizeKB.toFixed(1)} KB
                         </span>
-                        {/* Heatmap toggle */}
-                        <button
-                            onClick={() => setHeatmapMode(v => !v)}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 4,
-                                padding: '2px 8px', borderRadius: 4, border: `1px solid ${heatmapMode ? C.blue : C.border}`,
-                                background: heatmapMode ? 'rgba(47,129,247,0.12)' : C.panel2,
-                                color: heatmapMode ? C.blueHi : C.muted,
-                                cursor: 'pointer', fontSize: 10, fontWeight: 700,
-                            }}
-                            title="Heatmap de velocidade de avanço"
-                        >
-                            <Thermometer size={10} /> Feed
-                        </button>
                     </div>
 
                     {/* Canvas */}
@@ -581,7 +623,6 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                 speed={simSpeed}
                                 onPlayEnd={() => setSimPlaying(false)}
                                 onMoveChange={handleMoveChange}
-                                heatmapMode={heatmapMode}
                             />
                         ) : (
                             <div style={{
@@ -716,64 +757,120 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
 
                     {/* ══ Tab: G-code viewer ══════════════════════════════ */}
                     {sidebarTab === 'gcode' && (
-                        <div ref={gcodeViewerRef} style={{
-                            flex: 1, overflowY: 'auto', overflowX: 'auto',
-                            background: '#0D1117',
-                            fontFamily: '"JetBrains Mono","Fira Code",Consolas,monospace',
-                            fontSize: 11,
-                        }}>
-                            {(parsedPreview.rawLines || []).map((rawLine, li) => {
-                                const isCurrent = li === currentLineIdx;
-                                const isExecuted = currentLineIdx >= 0 && li < currentLineIdx;
-                                const moveIdx = parsedPreview.lineToMoveIdx?.[li];
-                                const isClickable = moveIdx !== undefined;
-                                return (
-                                    <div
-                                        key={li}
-                                        ref={isCurrent ? currentLineRef : null}
-                                        onClick={() => {
-                                            if (isClickable) { setSimPlaying(false); simRef.current?.seekTo?.(moveIdx); }
-                                        }}
-                                        style={{
-                                            display: 'flex', alignItems: 'flex-start',
-                                            padding: '1px 8px 1px 0',
-                                            borderLeft: isCurrent
-                                                ? `3px solid ${C.blueHi}`
-                                                : '3px solid transparent',
-                                            background: isCurrent
-                                                ? 'rgba(47,129,247,0.16)'
-                                                : 'transparent',
-                                            opacity: isExecuted ? 0.28 : 1,
-                                            cursor: isClickable ? 'pointer' : 'default',
-                                            minHeight: 18,
-                                            transition: 'background 0.08s',
-                                        }}
-                                        onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = 'rgba(88,166,255,0.06)'; }}
-                                        onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}
-                                    >
-                                        <span style={{
-                                            minWidth: 36, textAlign: 'right',
-                                            color: isCurrent ? C.blueHi : '#484F58',
-                                            fontSize: 10, paddingRight: 8, flexShrink: 0,
-                                            userSelect: 'none', lineHeight: '18px',
-                                            fontWeight: isCurrent ? 700 : 400,
-                                        }}>
-                                            {li + 1}
-                                        </span>
-                                        <span style={{
-                                            flex: 1, lineHeight: '18px', whiteSpace: 'pre',
-                                            color: isCurrent ? '#e6edf3' : '#8B949E', // linha atual fica branca
-                                        }}>
-                                            {gcodeTokenize(rawLine)}
-                                        </span>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+
+                            {/* Filter chips */}
+                            <div style={{
+                                display: 'flex', gap: 3, flexWrap: 'wrap',
+                                padding: '5px 8px', flexShrink: 0,
+                                borderBottom: `1px solid ${C.border}`,
+                                background: C.bg,
+                            }}>
+                                {[
+                                    { id: 'all',      label: 'Todos',    color: C.muted   },
+                                    { id: 'rapid',    label: 'G0',       color: '#D29922' },
+                                    { id: 'cut',      label: 'Corte',    color: '#38bdf8' },
+                                    { id: 'furo',     label: 'Furos',    color: '#c03020' },
+                                    { id: 'contorno', label: 'Contorno', color: '#d48820' },
+                                    { id: 'rebaixo',  label: 'Rebaixo',  color: '#2878c0' },
+                                ].map(fc => {
+                                    const active = filterType === fc.id;
+                                    return (
+                                        <button key={fc.id} onClick={() => setFilterType(fc.id)} style={{
+                                            padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
+                                            fontSize: 10, fontWeight: active ? 700 : 500,
+                                            fontFamily: '"JetBrains Mono", monospace',
+                                            border: `1px solid ${active ? fc.color + '55' : C.border}`,
+                                            background: active ? fc.color + '18' : 'transparent',
+                                            color: active ? fc.color : C.muted,
+                                            transition: 'all 0.1s',
+                                        }}>{fc.label}</button>
+                                    );
+                                })}
+                                {matchingLineSet && (
+                                    <span style={{ marginLeft: 'auto', fontSize: 9.5, color: C.muted, alignSelf: 'center', fontFamily: '"JetBrains Mono", monospace' }}>
+                                        {matchingLineSet.size} linhas
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Lines */}
+                            <div ref={gcodeViewerRef} style={{
+                                flex: 1, overflowY: 'auto', overflowX: 'auto',
+                                background: '#0D1117',
+                                fontFamily: '"JetBrains Mono","Fira Code",Consolas,monospace',
+                                fontSize: 11,
+                            }}>
+                                {(parsedPreview.rawLines || []).map((rawLine, li) => {
+                                    const isCurrent    = li === currentLineIdx;
+                                    const isExecuted   = currentLineIdx >= 0 && li < currentLineIdx;
+                                    const moveIdx      = parsedPreview.lineToMoveIdx?.[li];
+                                    const isClickable  = moveIdx !== undefined;
+                                    const inFilter     = !matchingLineSet || matchingLineSet.has(li);
+                                    const isFirstMatch = li === firstMatchLine;
+                                    const opBlock      = opBlockMap.get(li);
+
+                                    return (
+                                        <div
+                                            key={li}
+                                            ref={node => {
+                                                if (isCurrent)    currentLineRef.current = node;
+                                                if (isFirstMatch) filterFirstRef.current = node;
+                                            }}
+                                            onClick={() => {
+                                                if (isClickable) { setSimPlaying(false); simRef.current?.seekTo?.(moveIdx); }
+                                            }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center',
+                                                padding: '1px 8px 1px 0',
+                                                borderLeft: isCurrent
+                                                    ? `3px solid ${C.blueHi}`
+                                                    : '3px solid transparent',
+                                                background: isCurrent ? 'rgba(47,129,247,0.16)' : 'transparent',
+                                                opacity: isExecuted ? 0.28 : (!inFilter ? 0.12 : 1),
+                                                cursor: isClickable ? 'pointer' : 'default',
+                                                minHeight: 18,
+                                                transition: 'background 0.08s, opacity 0.1s',
+                                            }}
+                                            onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = 'rgba(88,166,255,0.06)'; }}
+                                            onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <span style={{
+                                                minWidth: 36, textAlign: 'right',
+                                                color: isCurrent ? C.blueHi : '#484F58',
+                                                fontSize: 10, paddingRight: 8, flexShrink: 0,
+                                                userSelect: 'none', lineHeight: '18px',
+                                                fontWeight: isCurrent ? 700 : 400,
+                                            }}>
+                                                {li + 1}
+                                            </span>
+                                            <span style={{
+                                                flex: 1, lineHeight: '18px', whiteSpace: 'pre',
+                                                color: isCurrent ? '#e6edf3' : '#8B949E',
+                                            }}>
+                                                {gcodeTokenize(rawLine)}
+                                            </span>
+                                            {/* Mini time badge at operation boundaries */}
+                                            {opBlock && (
+                                                <span title={`${opBlock.label} — tempo estimado`} style={{
+                                                    marginLeft: 4, fontSize: 9,
+                                                    color: opBlock.color,
+                                                    fontFamily: '"JetBrains Mono", monospace',
+                                                    flexShrink: 0, lineHeight: '18px',
+                                                    whiteSpace: 'nowrap', opacity: 0.80,
+                                                }}>
+                                                    {fmtSimTime(opBlock.duration)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {!parsedPreview.rawLines?.length && (
+                                    <div style={{ padding: 24, color: C.muted, fontSize: 12, textAlign: 'center' }}>
+                                        G-code não disponível
                                     </div>
-                                );
-                            })}
-                            {!parsedPreview.rawLines?.length && (
-                                <div style={{ padding: 24, color: C.muted, fontSize: 12, textAlign: 'center' }}>
-                                    G-code não disponível
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     )}
 

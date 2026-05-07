@@ -9,13 +9,13 @@ import PecaViewer3D from '../../../../components/PecaViewer3D';
 import PecaEditor from '../../../../components/PecaEditor';
 import ToolpathSimulator, { parseGcodeToMoves } from '../../../../components/ToolpathSimulator';
 import GcodeSimWrapper, { parseGcodeForSim, getOpCat, OP_CATS } from '../../../../components/GcodeSimWrapper';
-import GcodeSim3D from '../../../../components/GcodeSim3D.jsx';
+import { GcodeSimCanvas } from './GcodeSimCanvas.jsx';
 import SlidePanel from '../../../../components/SlidePanel';
 import ToolbarDropdown from '../../../../components/ToolbarDropdown';
 import { STATUS_COLORS } from '../../shared/constants.js';
 import { analyzeGcodeOperational, formatMeters, formatMinutes } from '../../shared/operationalMetrics.js';
 
-export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, loteId }) {
+export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, loteId, onSimulate }) {
     const { gcode, filename, stats = {}, alertas = [], chapaIdx, contorno_tool } = data;
     const maquinaInfo = data.maquina || null;
 
@@ -449,7 +449,36 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
                     )}
 
                     {abaPreview === 'sim3d' && (
-                        <GcodeSim3D gcode={gcode} chapa={chapaData} />
+                        <div style={{ position: 'relative', height: 420, display: 'flex' }}>
+                            <GcodeSimCanvas
+                                gcode={gcode}
+                                chapa={chapaData}
+                                playing={false}
+                                speed={1}
+                                onPlayEnd={() => {}}
+                                onMoveChange={() => {}}
+                            />
+                            {/* CTA não-bloqueante — canto inferior direito */}
+                            {onSimulate && (
+                                <button
+                                    onClick={() => onSimulate(gcode, chapaData)}
+                                    title="Abrir cockpit completo com animação e G-code sincronizado"
+                                    style={{
+                                        position: 'absolute', bottom: 14, right: 14,
+                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                        background: 'rgba(31,111,235,0.92)',
+                                        backdropFilter: 'blur(6px)',
+                                        color: '#fff',
+                                        border: '1px solid rgba(56,139,253,0.6)',
+                                        borderRadius: 6, padding: '7px 14px',
+                                        fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                                        boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+                                    }}
+                                >
+                                    <Play size={12} /> Abrir revisão pré-corte
+                                </button>
+                            )}
+                        </div>
                     )}
 
                 </div>

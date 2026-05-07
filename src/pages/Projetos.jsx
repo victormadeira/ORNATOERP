@@ -914,6 +914,7 @@ function TabCronograma({ data, load, notify, users }) {
                                     <Badge label={STATUS_ETAPA[effectiveStatus]?.label || effectiveStatus} color={STATUS_ETAPA[effectiveStatus]?.color || 'var(--muted)'} />
                                     <button onClick={() => setEditEtapa(e)} title="Editar etapa"
                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 4, opacity: 0.7 }}><Ic.Edit /></button>
+                                    <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 1px' }} />
                                     <button onClick={() => setConfirmDel({ id: e.id, nome: e.nome })}
                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4, opacity: 0.6 }} title="Excluir etapa"><Ic.Trash /></button>
                                 </div>

@@ -424,9 +424,9 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                             className="login-submit-btn"
                             style={{
                                 width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-                                background: 'linear-gradient(135deg, #C9A96E 0%, #B8935A 50%, #8E6A3C 100%)',
-                                color: '#1a130b', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                                boxShadow: `0 4px 20px rgba(${cobre.r},${cobre.g},${cobre.b},0.35), inset 0 1px 0 rgba(255,255,255,0.25)`,
+                                background: 'linear-gradient(135deg, #1379F0 0%, #0f69d9 50%, #0d5bb8 100%)',
+                                color: '#ffffff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                                boxShadow: '0 4px 20px rgba(19,121,240,0.35), inset 0 1px 0 rgba(255,255,255,0.2)',
                                 transition: 'transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease',
                                 marginTop: 2,
                                 opacity: loading ? 0.7 : 1,
@@ -440,7 +440,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                         >
                             {success ? (
                                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a130b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                         <polyline points="20 6 9 17 4 12" style={{ strokeDasharray: 30, strokeDashoffset: 30, animation: 'check-draw 0.4s ease-out forwards' }} />
                                     </svg>
                                     Entrando
@@ -448,8 +448,8 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                             ) : loading ? (
                                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                                     <div style={{
-                                        width: 14, height: 14, border: '2px solid rgba(26,19,11,0.25)',
-                                        borderTopColor: '#1a130b', borderRadius: '50%', animation: 'spin 0.7s linear infinite',
+                                        width: 14, height: 14, border: '2px solid rgba(255,255,255,0.25)',
+                                        borderTopColor: '#ffffff', borderRadius: '50%', animation: 'spin 0.7s linear infinite',
                                     }} />
                                     Autenticando
                                 </span>

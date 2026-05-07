@@ -140,9 +140,11 @@ function TabFornecedores({ notify }) {
                                     <td style={{ padding: '8px 10px' }}>{f.telefone || '—'}</td>
                                     <td style={{ padding: '8px 10px' }}>{[f.cidade, f.estado].filter(Boolean).join('/') || '—'}</td>
                                     <td style={{ padding: '8px 10px' }}>{f.contato || '—'}</td>
-                                    <td style={{ padding: '8px 10px', display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                    <td style={{ padding: '8px 10px', display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
                                         <button onClick={() => openEdit(f)} className={Z.btn2Sm} title="Editar"><Edit2 size={13} /></button>
-                                        <button onClick={() => del(f.id)} className={Z.btnDSm} title="Excluir"><Trash2 size={13} /></button>
+                                        {/* Divisor visual — separa ação comum de ação destrutiva */}
+                                        <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+                                        <button onClick={() => del(f.id)} className={Z.btnDSm} title="Excluir fornecedor"><Trash2 size={13} /></button>
                                     </td>
                                 </tr>
                             ))}

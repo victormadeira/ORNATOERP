@@ -5,7 +5,7 @@ import {
     Package, Filter, RefreshCw, Users, Calendar, ClipboardCheck,
     GripVertical, Maximize2, Minimize2, Smartphone, Inbox
 } from 'lucide-react';
-import { PageHeader, Spinner, EmptyState, ProgressBar as PBar, ToolbarButton, ToolbarDivider } from '../ui';
+import { PageHeader, Spinner, EmptyState, ProgressBar as PBar } from '../ui';
 
 const ETAPAS = [
     { id: 'aguardando', label: 'Aguardando', color: 'var(--muted)', icon: Clock },
@@ -361,14 +361,58 @@ export default function ProducaoFabrica({ notify, user }) {
         <div className="page-enter" style={{ padding: '24px 32px', maxWidth: view === 'list' ? 1200 : '100%', margin: '0 auto' }}>
             {/* Header */}
             <PageHeader icon={Factory} title="Acompanhamento" subtitle={`Chão de fábrica — ${view === 'kanban' ? 'visão Kanban' : 'visão lista'}`}>
-                <div className="toolbar" style={{ border: 'none', padding: 0, background: 'none' }}>
-                    {/* View toggle */}
-                    <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                        <ToolbarButton icon={BarChart3} label="Kanban" onClick={() => setView('kanban')} active={view === 'kanban'} />
-                        <ToolbarButton icon={ClipboardCheck} label="Lista" onClick={() => setView('list')} active={view === 'list'} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* Segmented control — apenas modo de visualização */}
+                    <div style={{
+                        display: 'inline-flex', borderRadius: 8,
+                        background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                        padding: 3, gap: 2,
+                    }}>
+                        {[
+                            { id: 'kanban', icon: BarChart3, label: 'Kanban' },
+                            { id: 'list',   icon: ClipboardCheck, label: 'Lista' },
+                        ].map(({ id, icon: Icon, label }) => (
+                            <button key={id} onClick={() => setView(id)} style={{
+                                display: 'flex', alignItems: 'center', gap: 5,
+                                padding: '4px 10px', borderRadius: 5, border: 'none',
+                                cursor: 'pointer', fontSize: 11.5, fontWeight: 600,
+                                transition: 'all 0.15s ease',
+                                background: view === id ? 'var(--bg-card)' : 'transparent',
+                                color: view === id ? 'var(--primary)' : 'var(--text-muted)',
+                                boxShadow: view === id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                            }}>
+                                <Icon size={13} /> {label}
+                            </button>
+                        ))}
                     </div>
-                    <ToolbarButton icon={Smartphone} label="Tablet" onClick={() => setTabletMode(!tabletMode)} active={tabletMode} />
-                    <ToolbarButton icon={RefreshCw} onClick={load} title="Atualizar" />
+
+                    {/* Modo tablet — visualmente separado: é um modo de operação, não de visualização */}
+                    <button onClick={() => setTabletMode(v => !v)} style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '5px 11px', borderRadius: 8, cursor: 'pointer',
+                        fontSize: 11.5, fontWeight: 600,
+                        border: `1px solid ${tabletMode ? 'var(--primary-ring)' : 'var(--border)'}`,
+                        background: tabletMode ? 'var(--primary-light)' : 'var(--bg-muted)',
+                        color: tabletMode ? 'var(--primary)' : 'var(--text-muted)',
+                        transition: 'all 0.15s ease',
+                    }} title={tabletMode ? 'Modo tablet ativo — clique para desativar' : 'Ativar modo tablet'}>
+                        <Smartphone size={13} />
+                        Tablet
+                    </button>
+
+                    {/* Refresh — ação utilitária, ícone discreto sem label */}
+                    <button onClick={load} title="Atualizar dados" style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 30, height: 30, borderRadius: 7,
+                        border: '1px solid var(--border)',
+                        background: 'transparent', color: 'var(--text-muted)',
+                        cursor: 'pointer', transition: 'all 0.15s ease',
+                    }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                    >
+                        <RefreshCw size={13} />
+                    </button>
                 </div>
             </PageHeader>
 
