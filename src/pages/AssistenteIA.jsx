@@ -245,9 +245,9 @@ export default function AssistenteIA({ notify }) {
                         {chatHistory.map((m, i) => (
                             <div key={i} className={Z.card} style={{
                                 padding: 16,
-                                borderLeft: `4px solid ${m.role === 'user' ? 'var(--primary)' : '#8b5cf6'}`,
+                                borderLeft: `4px solid ${m.role === 'user' ? 'var(--primary)' : 'var(--accent)'}`,
                             }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: m.role === 'user' ? 'var(--primary)' : '#8b5cf6', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: m.role === 'user' ? 'var(--primary)' : 'var(--accent)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                                     {m.role === 'user' ? <><Send size={10} /> Você</> : <><Bot size={10} /> Assistente IA</>}
                                 </div>
                                 <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>
@@ -322,7 +322,7 @@ export default function AssistenteIA({ notify }) {
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                                 <span style={{
                                                     fontSize: 10, padding: '2px 8px', borderRadius: 99,
-                                                    background: '#8b5cf620', color: '#8b5cf6', fontWeight: 700,
+                                                    background: 'var(--accent-alpha)', color: 'var(--accent)', fontWeight: 700,
                                                 }}>
                                                     {tipoInfo.label}
                                                 </span>

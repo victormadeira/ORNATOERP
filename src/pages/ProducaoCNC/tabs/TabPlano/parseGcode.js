@@ -3,9 +3,14 @@
 export function parseGcodeForSim(text) {
     const moves = [];
     const events = []; // { moveIdx, type: 'tool'|'op'|'spindle', label }
+    const rawLines = text ? text.split('\n') : [];
+    // lineToMoveIdx[lineIdx] = primeiro moveIdx gerado nessa linha (para click-to-seek)
+    const lineToMoveIdx = {};
     let x = 0, y = 0, z = 0, mode = 'G0';
     let curTool = '', curOp = '', curFeed = 0;
-    for (const raw of text.split('\n')) {
+
+    for (let li = 0; li < rawLines.length; li++) {
+        const raw = rawLines[li];
         // Extrair comentários antes de removê-los
         const cmtMatch = raw.match(/[;(]\s*(.+?)\s*\)?$/);
         const comment = cmtMatch ? cmtMatch[1] : '';
@@ -37,7 +42,8 @@ export function parseGcodeForSim(text) {
         const xM = cmd.match(/X([+-]?[\d.]+)/i), yM = cmd.match(/Y([+-]?[\d.]+)/i), zM = cmd.match(/Z([+-]?[\d.]+)/i);
         const newX = xM ? parseFloat(xM[1]) : x, newY = yM ? parseFloat(yM[1]) : y, newZ = zM ? parseFloat(zM[1]) : z;
         if (xM || yM) {
-            moves.push({ type: mode, x1: x, y1: y, z1: z, x2: newX, y2: newY, z2: newZ, tool: curTool, op: curOp, feed: curFeed });
+            lineToMoveIdx[li] = moves.length; // primeira referência: linha → moveIdx
+            moves.push({ type: mode, x1: x, y1: y, z1: z, x2: newX, y2: newY, z2: newZ, tool: curTool, op: curOp, feed: curFeed, lineIdx: li });
         }
         x = newX; y = newY; z = newZ;
     }
@@ -45,7 +51,7 @@ export function parseGcodeForSim(text) {
     const feeds = moves.filter(m => m.type !== 'G0' && m.feed > 0).map(m => m.feed);
     const minFeed = feeds.length ? Math.min(...feeds) : 0;
     const maxFeed = feeds.length ? Math.max(...feeds) : 1;
-    return { moves, events, minFeed, maxFeed };
+    return { moves, events, minFeed, maxFeed, rawLines, lineToMoveIdx };
 }
 
 /** Retorna cor heatmap para um feed rate (azul=lento, verde=médio, vermelho=rápido) */
@@ -69,7 +75,7 @@ export function feedHeatColor(feed, minFeed, maxFeed) {
 }
 
 // ─── Categorias de operação CNC — paleta profissional ─────────────────────
-const OP_CATS = [
+export const OP_CATS = [
     { key: 'contorno', pat: /contorno/i,                    color: '#d48820', label: 'Contorno' },
     { key: 'rebaixo',  pat: /rebaixo/i,                     color: '#2878c0', label: 'Rebaixo' },
     { key: 'canal',    pat: /canal/i,                       color: '#8050a8', label: 'Canal' },

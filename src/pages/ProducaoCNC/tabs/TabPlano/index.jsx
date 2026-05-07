@@ -25,7 +25,7 @@ import { RelatorioDesperdicio } from '../_RelatorioDesperdicio.jsx';
 import { optimizeCutSequence, calcRapidDistance } from '../../shared/tspUtils.js';
 import { summarizePlanEconomics } from '../../shared/operationalMetrics.js';
 
-export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab }) {
+export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab, onAbrirPreCorte }) {
     const [plano, setPlano] = useState(null);
     const [loading, setLoading] = useState(false);
     const [otimizando, setOtimizando] = useState(false);
@@ -757,7 +757,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     }, [loteAtual?.id, plano?.chapas?.length]);
 
     // Machine color palette for border coding
-    const machineColors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+    const machineColors = ['var(--primary)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--info)', 'var(--accent)', '#14B8A6', '#6366F1'];
     const getMachineColor = (maquinaId) => {
         if (!maquinaId) return null;
         const idx = maquinas.findIndex(m => m.id === maquinaId);
@@ -1362,6 +1362,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     // ═══ Gerar G-Code por chapa ═══
     const [gcodeLoading, setGcodeLoading] = useState(null); // chapaIdx sendo gerado
     const [gcodePreview, setGcodePreview] = useState(null); // { gcode, filename, stats, alertas, chapaIdx, contorno_tool, ferramentas_faltando }
+    // Abre o pré-corte: se o shell forneceu onAbrirPreCorte (PR4), usa; caso contrário cai no modal local
+    const abrirGcodePreview = useCallback((data) => {
+        if (onAbrirPreCorte) { onAbrirPreCorte(data); } else { setGcodePreview(data); }
+    }, [onAbrirPreCorte]);
     const [inlineSimData, setInlineSimData] = useState(null); // { gcode, chapa } for inline simulator in Plano de Corte
     const [toolPanel, setToolPanel] = useState(null);
     const [toolPanelOpen, setToolPanelOpen] = useState(false);
@@ -1417,7 +1421,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 // Cache real stats from G-code generation
                 if (r.stats) setChapaRealStats(prev => ({ ...prev, [chapaIdx]: r.stats }));
                 // O modal GcodePreviewModal já tem aba "Simulador" embutida — não abre inline sim
-                setGcodePreview({
+                abrirGcodePreview({
                     gcode: r.gcode,
                     filename: r.filename || `chapa_${chapaIdx + 1}.nc`,
                     stats: r.stats || {},
@@ -1429,7 +1433,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 });
             } else if (r.ferramentas_faltando?.length > 0) {
                 // Mostrar detalhes de ferramentas faltantes no preview modal (sem G-code)
-                setGcodePreview({
+                abrirGcodePreview({
                     gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
                     contorno_tool: r.contorno_tool || null, chapa: null,
                     maquina: r.maquina || null,
@@ -1445,7 +1449,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 notify(`G-Code bloqueado: ${r.ferramentas_faltando.length} ferramenta(s) faltando`, 'error');
             } else {
                 // Show error in modal with details instead of just a toast
-                setGcodePreview({
+                abrirGcodePreview({
                     gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
                     contorno_tool: null, chapa: null,
                     maquina: r.maquina || null,
@@ -1457,7 +1461,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         } catch (err) {
             // Network/server error — show in modal too
             const errMsg = err.error || err.message || 'Erro de rede ou servidor indisponível';
-            setGcodePreview({
+            abrirGcodePreview({
                 gcode: '', filename: '', stats: {}, chapaIdx,
                 contorno_tool: null, chapa: null,
                 maquina: null,
@@ -1480,7 +1484,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             const body = maqId ? { maquina_id: maqId } : {};
             const r = await api.post(`/cnc/gcode/${loteAtual.id}/chapa/${chapaIdx}/peca/${pecaIdx}`, body);
             if (r.ok) {
-                setGcodePreview({
+                abrirGcodePreview({
                     gcode: r.gcode,
                     filename: r.filename || `peca_${pecaIdx + 1}.nc`,
                     stats: r.stats || {},
@@ -1492,7 +1496,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 });
                 notify(`G-Code gerado para peça ${pecaIdx + 1}`);
             } else {
-                setGcodePreview({
+                abrirGcodePreview({
                     gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
                     contorno_tool: null, chapa: null,
                     maquina: r.maquina || null,
@@ -1950,22 +1954,20 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 <Spinner text="Carregando plano..." />
             ) : (
                 <>
-                    {/* Config info bar — parâmetros vêm de Configurações > Parâmetros Otimizador */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: otimProgress || ultimaEstrategia || ultimoCusto ? 6 : 12,
-                        padding: '8px 14px', background: 'var(--bg-muted)', borderRadius: 8,
-                        border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                        <Settings size={13} />
-                        <span><b>{modo === 'guilhotina' ? 'Guilhotina' : modo === 'maxrects' ? 'MaxRects' : 'Shelf'}</b></span>
-                        <span>Espaço: {espacoPecas}mm</span>
-                        <span>Refilo: {refilo}mm</span>
-                        {(modo === 'guilhotina' || modo === 'shelf') && <span>Kerf: {kerf}mm</span>}
-                        {permitirRotacao && <span>Rotação 90°</span>}
-                        {usarRetalhos && <span>Retalhos</span>}
-                        {considerarSobra && <span>Sobras ≥{sobraMinW}×{sobraMinH}mm</span>}
-                        <span>Dir: {direcaoCorte}</span>
+                    {/* Config param bar — Linear-style compact */}
+                    <div className="param-bar" style={{ marginBottom: otimProgress || ultimaEstrategia || ultimoCusto ? 6 : 12 }}>
+                        <Settings size={12} style={{ flexShrink: 0, opacity: 0.5 }} />
+                        <span className="param-chip"><strong>{modo === 'guilhotina' ? 'Guilhotina' : modo === 'maxrects' ? 'MaxRects' : 'Shelf'}</strong></span>
+                        <span className="param-chip">Espaço <strong>{espacoPecas}mm</strong></span>
+                        <span className="param-chip">Refilo <strong>{refilo}mm</strong></span>
+                        {(modo === 'guilhotina' || modo === 'shelf') && <span className="param-chip">Kerf <strong>{kerf}mm</strong></span>}
+                        {permitirRotacao && <span className="param-chip">↺ Rotação</span>}
+                        {usarRetalhos && <span className="param-chip">◧ Retalhos</span>}
+                        {considerarSobra && <span className="param-chip">≥{sobraMinW}×{sobraMinH}mm</span>}
+                        <span className="param-chip">Dir <strong>{direcaoCorte}</strong></span>
 
                         {/* Seletor de qualidade */}
-                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, background: 'var(--bg-card)', borderRadius: 6, padding: 2, border: '1px solid var(--border)' }}>
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg-card)', borderRadius: 5, padding: 2, border: '1px solid var(--border)' }}>
                             {[
                                 { id: 'rapido', label: 'Rápido', title: 'BLF + MaxRects sem BRKGA/SA — resultado em segundos' },
                                 { id: 'balanceado', label: 'Balanceado', title: 'BRKGA genético + Simulated Annealing — padrão industrial' },
@@ -1973,7 +1975,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                             ].map(q => (
                                 <button key={q.id} onClick={() => setQualidade(q.id)} title={q.title}
                                     style={{
-                                        padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                                        padding: '3px 10px', borderRadius: 3, border: 'none', cursor: 'pointer',
                                         fontSize: 10, fontWeight: 700, transition: 'all .15s',
                                         background: qualidade === q.id ? 'var(--primary)' : 'transparent',
                                         color: qualidade === q.id ? '#fff' : 'var(--text-muted)',
@@ -2042,34 +2044,19 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                     )}
 
                     {plano?.chapas?.length > 0 && (
-                        <div style={{
-                            marginBottom: 12,
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                            gap: 8,
-                        }}>
+                        <div className="kpi-grid" style={{ marginBottom: 12 }}>
                             {[
-                                { lb: 'Score do plano', val: planOps.score, color: planOps.score >= 85 ? 'var(--success)' : planOps.score >= 70 ? '#d97706' : 'var(--danger)' },
-                                { lb: 'Aproveitamento', val: `${planOps.aproveitamento.toFixed(1)}%`, color: planOps.aproveitamento >= 82 ? 'var(--success)' : planOps.aproveitamento >= 70 ? '#d97706' : 'var(--danger)' },
-                                { lb: 'Chapas', val: planOps.totalChapas, color: '#2563eb' },
-                                { lb: 'Desperdício', val: `${planOps.desperdicioM2.toFixed(2)} m²`, color: planOps.desperdicioM2 > 2 ? '#d97706' : 'var(--text-secondary)' },
-                                { lb: 'Sobra painel', val: activeSheetOps ? `${activeSheetOps.wastePct.toFixed(1)}%` : '-', color: activeSheetOps?.wastePct > 25 ? '#d97706' : 'var(--text-secondary)' },
-                                { lb: 'Retalhos úteis', val: activeSheetOps?.usefulScraps ?? planOps.retalhosUteis, color: '#16a34a' },
-                                { lb: 'Peças pequenas', val: activeSheetOps?.smallCount ?? 0, color: (activeSheetOps?.smallCount || 0) > 0 ? '#d97706' : 'var(--success)' },
+                                { lb: 'Score', val: planOps.score, accent: planOps.score >= 85 ? 'var(--success)' : planOps.score >= 70 ? 'var(--warning)' : 'var(--danger)', col: planOps.score >= 85 ? 'var(--success)' : planOps.score >= 70 ? 'var(--warning)' : 'var(--danger)' },
+                                { lb: 'Aproveitamento', val: `${planOps.aproveitamento.toFixed(1)}%`, accent: planOps.aproveitamento >= 82 ? 'var(--success)' : 'var(--warning)', col: planOps.aproveitamento >= 82 ? 'var(--success)' : planOps.aproveitamento >= 70 ? 'var(--warning)' : 'var(--danger)' },
+                                { lb: 'Chapas', val: planOps.totalChapas, accent: 'var(--primary)', col: 'var(--primary)' },
+                                { lb: 'Desperdício', val: `${planOps.desperdicioM2.toFixed(2)} m²`, accent: planOps.desperdicioM2 > 2 ? 'var(--warning)' : 'var(--border)', col: planOps.desperdicioM2 > 2 ? 'var(--warning)' : 'var(--text-secondary)' },
+                                { lb: 'Sobra painel', val: activeSheetOps ? `${activeSheetOps.wastePct.toFixed(1)}%` : '—', accent: (activeSheetOps?.wastePct || 0) > 25 ? 'var(--warning)' : 'var(--border)', col: (activeSheetOps?.wastePct || 0) > 25 ? 'var(--warning)' : 'var(--text-secondary)' },
+                                { lb: 'Retalhos úteis', val: activeSheetOps?.usefulScraps ?? planOps.retalhosUteis, accent: 'var(--success)', col: 'var(--success)' },
+                                { lb: 'Pç pequenas', val: activeSheetOps?.smallCount ?? 0, accent: (activeSheetOps?.smallCount || 0) > 0 ? 'var(--warning)' : 'var(--border)', col: (activeSheetOps?.smallCount || 0) > 0 ? 'var(--warning)' : 'var(--text-secondary)' },
                             ].map(item => (
-                                <div key={item.lb} style={{
-                                    padding: '9px 10px',
-                                    borderRadius: 8,
-                                    border: '1px solid var(--border)',
-                                    background: 'var(--bg-card)',
-                                    minWidth: 0,
-                                }}>
-                                    <div style={{ fontSize: 17, lineHeight: 1, fontWeight: 900, color: item.color, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {item.val}
-                                    </div>
-                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 5 }}>
-                                        {item.lb}
-                                    </div>
+                                <div key={item.lb} className="kpi-card" style={{ '--kpi-accent': item.accent, '--kpi-color': item.col }}>
+                                    <div className="kpi-value">{item.val}</div>
+                                    <div className="kpi-label">{item.lb}</div>
                                 </div>
                             ))}
                         </div>
@@ -2278,7 +2265,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                             {/* ═══ LAYOUT UPMOBB: Sidebar Materiais + Diagrama + Carousel ═══ */}
                             {(() => {
                                 // Build material groups once for the whole layout
-                                const matColors = ['#2563eb', '#e67e22', '#7c3aed', '#16a34a', '#dc2626', '#0891b2', '#db2777', '#d97706'];
+                                // Paleta neutra por índice — cor transmite posição, não categoria
+                                const matColors = ['#3B82F6', '#10B981', '#F59E0B', '#6366F1', '#14B8A6', '#8B5CF6', '#F97316', '#06B6D4'];
+                                const matBgAlphas = ['rgba(59,130,246,0.10)', 'rgba(16,185,129,0.10)', 'rgba(245,158,11,0.10)', 'rgba(99,102,241,0.10)', 'rgba(20,184,166,0.10)', 'rgba(139,92,246,0.10)', 'rgba(249,115,22,0.10)', 'rgba(6,182,212,0.10)'];
+                                const matBorderAlphas = ['rgba(59,130,246,0.20)', 'rgba(16,185,129,0.20)', 'rgba(245,158,11,0.20)', 'rgba(99,102,241,0.20)', 'rgba(20,184,166,0.20)', 'rgba(139,92,246,0.20)', 'rgba(249,115,22,0.20)', 'rgba(6,182,212,0.20)'];
                                 const _matGroups = [];
                                 const _matKeysArr = [];
                                 plano.chapas.forEach((ch, ci) => {
@@ -2318,10 +2308,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                         <>
                                             {/* Header */}
                                             <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>Otimizações</span>
-                                                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--primary)', color: '#fff', fontWeight: 700 }}>
-                                                    Total de {_matGroups.length} materiais
-                                                </span>
+                                                <span style={{ fontSize: 12, fontWeight: 700, flex: 1, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Materiais</span>
+                                                <span className="badge badge-primary">{_matGroups.length} mat</span>
+                                                <span className="badge badge-muted">{plano.chapas.length} ch</span>
                                                 <button onClick={() => setSidebarOpen(false)}
                                                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex' }}>
                                                     <ChevronLeft size={14} />
@@ -2356,20 +2345,19 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                                 style={{
                                                                     padding: '10px 12px', cursor: 'pointer', userSelect: 'none',
                                                                     background: hasActiveChapa ? 'var(--bg-muted)' : 'transparent',
+                                                                    borderLeft: hasActiveChapa ? `2px solid ${grp.color}` : '2px solid transparent',
+                                                                    transition: 'background .15s, border-color .15s',
                                                                 }}>
-                                                                {/* Row 1: checkbox + name + action icons */}
+                                                                {/* Row 1: color dot + name + chevron */}
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                                                    <div style={{ width: 18, height: 18, borderRadius: 3, border: `2px solid ${grp.color}`, background: grp.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                                        <Check size={12} color="#fff" />
-                                                                    </div>
-                                                                    <span style={{ fontSize: 13, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: grp.color, flexShrink: 0, boxShadow: `0 0 6px ${grp.color}60` }} />
+                                                                    <span style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: hasActiveChapa ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                                                                         {grp.label}
                                                                     </span>
-                                                                    {/* Direção + Config indicators */}
-                                                                    <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                                    <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 700 }}>
                                                                         {grp.direcao === 'horizontal' ? '━' : grp.direcao === 'vertical' ? '┃' : grp.direcao === 'misto' ? '⊞' : '↺'}
                                                                     </span>
-                                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
+                                                                    <ChevronDown size={12} style={{ color: 'var(--text-muted)', transition: 'transform .15s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', flexShrink: 0 }} />
                                                                 </div>
 
                                                                 {/* Row 2: Action buttons grid (UPMOBB style — 2 rows of 4) */}
@@ -2407,16 +2395,19 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                                     </div>
                                                                 )}
 
-                                                                {/* Row 3: Badges */}
+                                                                {/* Row 3: Badges — outlined, não solid */}
                                                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: grp.color, color: '#fff', fontWeight: 700 }}>
+                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: `1px solid ${grp.color}40`, background: `${grp.color}14`, color: grp.color, fontWeight: 700, fontFamily: 'monospace' }}>
                                                                         {grpPecas} pç
                                                                     </span>
-                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: grp.color, color: '#fff', fontWeight: 700 }}>
-                                                                        {grp.chapas.length} chapa{grp.chapas.length > 1 ? 's' : ''}
+                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-muted)', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                                                        {grp.chapas.length}ch
                                                                     </span>
-                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: hasVeio ? '#7c3aed' : '#64748b', color: '#fff', fontWeight: 700 }}>
-                                                                        {hasVeio ? 'Com veio' : 'Sem veio'}
+                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: hasVeio ? 'var(--info-bg)' : 'transparent', color: hasVeio ? 'var(--info)' : 'var(--text-muted)', border: `1px solid ${hasVeio ? 'var(--info-border)' : 'var(--border)'}`, fontWeight: 600 }}>
+                                                                        {hasVeio ? '↕ veio' : 'livre'}
+                                                                    </span>
+                                                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: avgAprov >= 80 ? 'var(--success)' : avgAprov >= 65 ? 'var(--warning)' : 'var(--danger)', fontWeight: 700, fontFamily: 'monospace' }}>
+                                                                        {avgAprov.toFixed(0)}%
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -2458,9 +2449,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
 
                                                                     {/* ── REMOVER: Remover material da otimização ── */}
                                                                     {matAction.action === 'remover' && (
-                                                                        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: 10 }}>
-                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', marginBottom: 6 }}>Remover {grp.label}</div>
-                                                                            <div style={{ fontSize: 10, color: '#7f1d1d', marginBottom: 8 }}>
+                                                                        <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 6, padding: 10 }}>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)', marginBottom: 6 }}>Remover {grp.label}</div>
+                                                                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>
                                                                                 Isso removerá {grp.chapas.length} chapa(s) com {grpPecas} peça(s) do plano de corte. As peças voltarão para a área de transferência.
                                                                             </div>
                                                                             <div style={{ display: 'flex', gap: 6 }}>
@@ -3202,7 +3193,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                     </div>
                     {tempoCorteData && (
                         <div style={{ padding: '8px 12px', borderRadius: 6, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)', marginBottom: 10, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>⏱ Tempo estimado de corte</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>⏱ Tempo estimado de corte</span>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 Total: <b style={{ color: 'var(--text-primary)' }}>
                                     {Math.floor(tempoCorteData.tempo_total_min / 60) > 0
@@ -3244,7 +3235,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                             Mat: R${ch.custo_material.toFixed(2)} | Usin: R${ch.custo_usinagem.toFixed(2)} | Borda: R${ch.custo_bordas.toFixed(2)} | Desp: R${ch.custo_desperdicio.toFixed(2)}
                                         </span>
                                         {tempoCorteData?.chapas?.find(t => t.chapaIdx === ch.chapaIdx) && (
-                                            <span style={{ fontSize: 10, color: '#8b5cf6', fontWeight: 600 }}>
+                                            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
                                                 ⏱ {tempoCorteData.chapas.find(t => t.chapaIdx === ch.chapaIdx).tempo_estimado_min}min
                                             </span>
                                         )}
@@ -3413,7 +3404,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                 </div>
                                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11 }}>
                                     {diffResult.summary?.movido > 0 && <span style={{ color: '#3b82f6' }}>{diffResult.summary.movido} movida(s)</span>}
-                                    {diffResult.summary?.rotacionado > 0 && <span style={{ color: '#8b5cf6' }}>{diffResult.summary.rotacionado} rotacionada(s)</span>}
+                                    {diffResult.summary?.rotacionado > 0 && <span style={{ color: 'var(--info)' }}>{diffResult.summary.rotacionado} rotacionada(s)</span>}
                                     {diffResult.summary?.transferido > 0 && <span style={{ color: '#f59e0b' }}>{diffResult.summary.transferido} transferida(s)</span>}
                                     {diffResult.summary?.adicionado > 0 && <span style={{ color: '#22c55e' }}>{diffResult.summary.adicionado} adicionada(s)</span>}
                                     {diffResult.summary?.removido > 0 && <span style={{ color: '#ef4444' }}>{diffResult.summary.removido} removida(s)</span>}
@@ -3437,7 +3428,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                         </thead>
                                         <tbody>
                                             {diffResult.changes.map((c, i) => {
-                                                const typeColors = { movido: '#3b82f6', rotacionado: '#8b5cf6', transferido: '#f59e0b', adicionado: '#22c55e', removido: '#ef4444' };
+                                                const typeColors = { movido: 'var(--primary)', rotacionado: 'var(--info)', transferido: 'var(--warning)', adicionado: 'var(--success)', removido: 'var(--danger)' };
                                                 return (
                                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                                         <td style={{ padding: '4px 6px' }}>
@@ -3923,7 +3914,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         {[
                             { label: 'Material', val: custeioData.totais.material, color: '#3b82f6' },
                             { label: 'Máquina', val: custeioData.totais.maquina, color: '#f59e0b' },
-                            { label: 'Borda', val: custeioData.totais.borda, color: '#8b5cf6' },
+                            { label: 'Borda', val: custeioData.totais.borda, color: 'var(--info)' },
                             { label: 'Total', val: custeioData.totais.total, color: '#22c55e' },
                         ].map(t => (
                             <div key={t.label} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, background: `${t.color}08`, border: `1px solid ${t.color}30`, textAlign: 'center' }}>

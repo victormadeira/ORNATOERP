@@ -254,7 +254,7 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
 
     const STATUS_COR = {
         rascunho: 'var(--muted)', readiness: 'var(--info)', otimizando: 'var(--warning)',
-        otimizada: '#8b5cf6', etiquetas: '#06b6d4', gcode: '#ec4899', liberada: 'var(--success)'
+        otimizada: 'var(--info)', etiquetas: '#06b6d4', gcode: '#ec4899', liberada: 'var(--success)'
     };
 
     return (
@@ -398,7 +398,7 @@ function OPSelector({ ordens, projetos, opAtual, setOpAtual, criarOP, notify, on
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Módulos</div>
                                             </div>
                                             <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-muted)', textAlign: 'center' }}>
-                                                <div style={{ fontSize: 20, fontWeight: 800, color: '#8b5cf6' }}>{jsonPreview.materiais}</div>
+                                                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)' }}>{jsonPreview.materiais}</div>
                                                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Materiais</div>
                                             </div>
                                             <div style={{ padding: 10, borderRadius: 8, background: jsonPreview.hasMachining ? 'var(--success-bg)' : 'var(--warning-bg)', textAlign: 'center' }}>

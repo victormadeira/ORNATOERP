@@ -766,7 +766,7 @@ export default function GcodeSim3D({ gcode, chapa }) {
                         <_Metric label="Corte" value={`${stats.cutM.toFixed(1)}m`} tone="#15803d" />
                         <_Metric label="Rápido" value={`${stats.rapidM.toFixed(1)}m`} tone="#c2410c" />
                         <_Metric label="Mov." value={seek >= 0 ? `${seek + 1}/${moves.length}` : moves.length} tone="#2563eb" />
-                        <_Metric label="Etapas" value={operationBlocks.length} tone="#7c3aed" />
+                        <_Metric label="Etapas" value={operationBlocks.length} tone="var(--info)" />
                         <_Metric label="Esp." value={`${sheet.espessura.toFixed(1)}mm`} tone="#7a5425" />
                         <_Metric label="Z0" value={zOrigin === 'material' ? 'Topo' : 'Mesa'} tone="#4d6b8f" />
                     </div>

@@ -31,6 +31,7 @@ const TabUsinagens    = lazy(() => import('./ProducaoCNC/tabs/TabUsinagens.jsx')
 const TabCustos       = lazy(() => import('./ProducaoCNC/tabs/TabCustos.jsx').then(m => ({ default: m.TabCustos })));
 const TabFilaMaquinas = lazy(() => import('./ProducaoCNC/tabs/TabFilaMaquinas.jsx').then(m => ({ default: m.TabFilaMaquinas })));
 const TabConfig       = lazy(() => import('./ProducaoCNC/tabs/TabConfig/index.jsx').then(m => ({ default: m.TabConfig })));
+const PreCutWorkspace = lazy(() => import('./ProducaoCNC/tabs/TabPlano/PreCutWorkspace.jsx').then(m => ({ default: m.PreCutWorkspace })));
 const Piece3DModal = lazy(() => import('../modules/digital-twin/components/modals/Piece3DModal.jsx').then(m => ({ default: m.Piece3DModal })));
 const QRScanModal  = lazy(() => import('../modules/digital-twin/components/modals/QRScanModal.jsx').then(m => ({ default: m.QRScanModal })));
 
@@ -617,6 +618,7 @@ export default function ProducaoCNC({ notify }) {
     const [sugestoesOpen, setSugestoesOpen] = useState(false);
     const [modal3DPeca, setModal3DPeca] = useState(null);
     const [modalScanOpen, setModalScanOpen] = useState(false);
+    const [preCorteData, setPreCorteData] = useState(null);
 
     // Área ativa derivada do tab (não precisa de estado separado)
     const activeArea = AREA_GROUPS.find(g => g.tabs.some(t => t.id === tab))?.id || 'operacao';
@@ -669,9 +671,15 @@ export default function ProducaoCNC({ notify }) {
         setMaterialAlerts([]);
         setSugestoes([]);
         setSugestoesOpen(false);
+        setPreCorteData(null);
     }, []);
 
-    const isInsideLote = loteAtual && ['pecas', 'plano', 'etiquetas', 'gcode', 'usinagens', 'custos'].includes(tab);
+    const abrirPreCorte = useCallback((data) => {
+        setPreCorteData(data);
+        setTab('preCorte');
+    }, []);
+
+    const isInsideLote = loteAtual && ['pecas', 'plano', 'etiquetas', 'gcode', 'usinagens', 'custos', 'preCorte'].includes(tab);
 
     // ── Modo editor etiquetas ─────────────────────────────────
     if (editorMode) {
@@ -690,6 +698,20 @@ export default function ProducaoCNC({ notify }) {
 
     // ── Alertas globais de ferramenta (fora do workspace de lote, e não na overview que já mostra) ─
     const showGlobalToolAlert = toolAlerts.length > 0 && !isInsideLote && tab !== 'overview';
+
+    // ── Pré-corte: tela dedicada fullscreen (sem layout do shell) ──────────────
+    if (tab === 'preCorte' && loteAtual && preCorteData) {
+        return (
+            <Suspense fallback={<TabFallback />}>
+                <PreCutWorkspace
+                    data={preCorteData}
+                    loteAtual={loteAtual}
+                    onVoltar={() => setTab('plano')}
+                    notify={notify}
+                />
+            </Suspense>
+        );
+    }
 
     return (
         <div className="w-full page-enter" style={{ padding: '8px 12px 12px' }}>
@@ -872,7 +894,7 @@ export default function ProducaoCNC({ notify }) {
                     <TabPecas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} setTab={setTab} onOpen3DCSG={setModal3DPeca} />
                 )}
                 {tab === 'plano' && isInsideLote && (
-                    <TabPlano lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} loadLotes={loadLotes} setTab={setTab} />
+                    <TabPlano lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} loadLotes={loadLotes} setTab={setTab} onAbrirPreCorte={abrirPreCorte} />
                 )}
                 {tab === 'etiquetas' && isInsideLote && (
                     <TabEtiquetas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />

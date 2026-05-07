@@ -16,7 +16,7 @@ const MATERIAL_PRESETS = {
 
 // Cores por ambiente (mais vibrantes e distintas)
 const AMB_COLORS = [
-    'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', '#8b5cf6',
+    'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--info)',
     '#06b6d4', '#ec4899', '#f97316', '#14b8a6', '#6366f1',
     '#84cc16', '#a855f7', '#0ea5e9', '#f43f5e', '#d946ef',
 ];
@@ -64,7 +64,7 @@ const FITA_COLORS = [
     'var(--danger-hover)', // vermelho
     'var(--success-hover)', // verde
     'var(--warning-hover)', // amber
-    '#7c3aed', // violeta
+    'var(--info)', // violeta
     '#db2777', // pink
     '#0891b2', // cyan
     '#ea580c', // laranja
@@ -615,7 +615,7 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                 <StatCard icon={<Package size={16} />} label="Chapas" value={resumo.total_chapas} color="#22c55e" />
                 <StatCard icon={<BarChart3 size={16} />} label="Aproveitamento" value={`${resumo.aproveitamento}%`}
                     color={resumo.aproveitamento >= 80 ? 'var(--success)' : resumo.aproveitamento >= 60 ? 'var(--warning)' : 'var(--danger)'} />
-                <StatCard icon={<Scissors size={16} />} label="Custo Chapas" value={R(resumo.custo_chapas)} color="#8b5cf6" />
+                <StatCard icon={<Scissors size={16} />} label="Custo Chapas" value={R(resumo.custo_chapas)} color="var(--info)" />
                 <StatCard icon={<AlertTriangle size={16} />} label="Desperdício" value={`${N(resumo.desperdicio_m2)} m2`} color="#f59e0b" />
             </div>
 

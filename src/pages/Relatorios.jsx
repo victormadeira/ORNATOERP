@@ -57,7 +57,7 @@ const REPORTS = [
         id: 'orcamentos',
         label: 'Orçamentos',
         icon: <FileText size={20} />,
-        color: '#8b5cf6',
+        color: 'var(--info)',
         desc: 'Todos os orçamentos com status, valores e vendedores',
         usePeriodo: true,
     },
@@ -399,7 +399,7 @@ export default function Relatorios({ notify }) {
                             { label: 'Recebido', value: R$(data.resumo?.totalRecebido), color: 'var(--success)' },
                             { label: 'Total a Pagar', value: R$(data.resumo?.totalPagar), color: 'var(--warning)' },
                             { label: 'Pago', value: R$(data.resumo?.totalPago), color: 'var(--danger)' },
-                            { label: 'Despesas', value: R$(data.resumo?.totalDespesas), color: '#8b5cf6' },
+                            { label: 'Despesas', value: R$(data.resumo?.totalDespesas), color: 'var(--info)' },
                             { label: 'Saldo', value: R$(data.resumo?.saldo), color: data.resumo?.saldo >= 0 ? 'var(--success)' : 'var(--danger)' },
                         ].map((c, i) => (
                             <div key={i} className="glass-card report-summary-card p-3 text-center">

@@ -83,7 +83,7 @@ export default function Produtividade({ notify }) {
     const totalTarefas = data.reduce((s, r) => s + (r.tarefas || 0), 0);
 
     const ETAPA_COLORS = {
-        corte: 'var(--info)', usinagem: '#8b5cf6', colagem_borda: 'var(--warning)', furacao: 'var(--danger)',
+        corte: 'var(--info)', usinagem: 'var(--info)', colagem_borda: 'var(--warning)', furacao: 'var(--danger)',
         montagem: 'var(--success)', acabamento: '#06b6d4', embalagem: '#ec4899',
     };
 
@@ -115,7 +115,7 @@ export default function Produtividade({ notify }) {
                     <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 24 }}>
                         <KpiCard icon={Clock} label="Horas Trabalhadas" value={`${Math.round(totalHoras * 10) / 10}h`} accent="var(--info)" />
                         <KpiCard icon={Zap} label="Tarefas Concluídas" value={totalTarefas} accent="var(--success)" />
-                        <KpiCard icon={Users} label="Colaboradores" value={porColaborador.length} accent="#8b5cf6" />
+                        <KpiCard icon={Users} label="Colaboradores" value={porColaborador.length} accent="var(--info)" />
                         <KpiCard icon={Timer} label="Capacidade Mensal" value={capacidade ? `${capacidade.capacidadeMensal}h` : '--'} accent="var(--warning)" />
                     </div>
 
@@ -124,8 +124,8 @@ export default function Produtividade({ notify }) {
                         <div className="glass-card" style={{ overflow: 'hidden' }}>
                             <div className="section-card-header">
                                 <div className="section-card-header-title">
-                                    <div className="section-card-header-icon" style={{ background: '#8b5cf612' }}>
-                                        <Users size={15} style={{ color: '#8b5cf6' }} />
+                                    <div className="section-card-header-icon" style={{ background: 'var(--info-bg)' }}>
+                                        <Users size={15} style={{ color: 'var(--info)' }} />
                                     </div>
                                     Por Colaborador
                                 </div>
@@ -147,7 +147,7 @@ export default function Produtividade({ notify }) {
                                                 <strong style={{ color: 'var(--text-secondary)' }}>{Math.round(c.totalMin / 60)}h</strong> · {c.totalTarefas} tarefas
                                             </span>
                                         </div>
-                                        <ProgressBar value={c.totalMin} max={maxMinColab} color={i === 0 ? '#8b5cf6' : i === 1 ? 'var(--info)' : 'var(--muted)'} height={7} />
+                                        <ProgressBar value={c.totalMin} max={maxMinColab} color={i === 0 ? 'var(--info)' : i === 1 ? 'var(--info)' : 'var(--muted)'} height={7} />
                                     </div>
                                 ))}
                             </div>

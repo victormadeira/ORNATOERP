@@ -1678,7 +1678,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         <button onClick={jumpNextTool} style={CTRL.btn} title="Próxima ferramenta">⌖ Próx.</button>
                     </>}
                     <input type="range" min={0} max={Math.max(0, allMoves.length - 1)} value={curMove < 0 ? 0 : curMove}
-                        onChange={handleSlider} style={{ flex: '1 1 170px', minWidth: 140, height: 4, accentColor: playing ? '#16a34a' : '#c87020', cursor: 'pointer' }} />
+                        onChange={handleSlider} style={{ flex: '1 1 170px', minWidth: 140, height: 4, accentColor: playing ? 'var(--success)' : 'var(--primary)', cursor: 'pointer' }} />
                     <select value={speed} onChange={e => setSpeed(Number(e.target.value))}
                         style={{ ...CTRL.btn, padding: '2px 6px', fontSize: 10 }}>
                         {[0.5,1,2,5,10,20,50,100,200].map(v => <option key={v} value={v}>{v}x</option>)}
@@ -1754,7 +1754,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                 ...CTRL.btn, fontWeight: 700, fontSize: 10,
                                 background: heatmapMode ? 'linear-gradient(90deg,#c03020 0%,#d4a020 50%,#1890d0 100%)' : '#fffaf2',
                                 color: heatmapMode ? '#fff' : '#6b5f52',
-                                border: heatmapMode ? '1px solid #c87020' : undefined,
+                                border: heatmapMode ? '1px solid var(--primary)' : undefined,
                             }}
                             title="Colorir por velocidade de avanço">🌡 Feed</button>
                     </div>

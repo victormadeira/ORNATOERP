@@ -516,7 +516,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                             </span>
                                                         )}
                                                         {(o.versao > 1 || versaoCount[o.id] > 0) && (
-                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6', flexShrink: 0 }}>
+                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.12)', color: 'var(--info)', flexShrink: 0 }}>
                                                                 {o.versao > 1 ? `R${o.versao}` : `v1`}
                                                             </span>
                                                         )}
@@ -590,7 +590,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                 {versaoCount[o.id] > 0 && (
                                                     <div
                                                         className="text-[9px] font-semibold mt-0.5 cursor-pointer hover:underline"
-                                                        style={{ color: '#8b5cf6' }}
+                                                        style={{ color: 'var(--info)' }}
                                                         onClick={(e) => { e.stopPropagation(); setExpandedVersoes(expandedVersoes === o.id ? null : o.id); }}
                                                     >
                                                         {versaoCount[o.id]} revisão{versaoCount[o.id] > 1 ? 'es' : ''} anterior{versaoCount[o.id] > 1 ? 'es' : ''}
@@ -617,7 +617,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                                 <div key={v.id} className="flex items-start justify-between gap-2 py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
                                                                     <div className="flex flex-col gap-0.5">
                                                                         <div className="flex items-center gap-1.5">
-                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}>
+                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.12)', color: 'var(--info)' }}>
                                                                                 {v.versao > 1 ? `R${v.versao}` : 'v1'}
                                                                             </span>
                                                                             <span className="text-[10px] font-medium" style={tagStyle(kc2?.c)}>{kc2?.nm || 'Lead'}</span>
@@ -628,7 +628,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-xs font-bold whitespace-nowrap" style={{ color: '#8b5cf6' }}>
+                                                                        <span className="text-xs font-bold whitespace-nowrap" style={{ color: 'var(--info)' }}>
                                                                             {R$(v.valor_venda)}
                                                                         </span>
                                                                         <button
@@ -693,11 +693,11 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); duplicar(o); }}
                                                             className="p-1.5 rounded-md transition-colors hover:bg-violet-500/10"
-                                                            style={{ color: isLoadingThisDup ? 'var(--text-muted)' : '#8b5cf6' }}
+                                                            style={{ color: isLoadingThisDup ? 'var(--text-muted)' : 'var(--info)' }}
                                                             title="Duplicar orçamento"
                                                             disabled={isLoadingThisDup}>
                                                             {isLoadingThisDup ? (
-                                                                <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: '#8b5cf6', borderTopColor: 'transparent' }} />
+                                                                <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--info)', borderTopColor: 'transparent' }} />
                                                             ) : <Copy size={14} />}
                                                         </button>
                                                     </div>
@@ -786,7 +786,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                             const totalInteracoes = Object.values(linkModal.viewsData.eventos_resumo || {}).reduce((s, v) => s + v, 0);
                             const metrics = [
                                 { label: 'Visitas', value: linkModal.viewsData.new_visits || 0, color: 'var(--info)' },
-                                { label: 'Dispositivos', value: linkModal.viewsData.unique_devices || 0, color: '#8b5cf6' },
+                                { label: 'Dispositivos', value: linkModal.viewsData.unique_devices || 0, color: 'var(--info)' },
                                 { label: 'Tempo Max', value: `${Math.floor((linkModal.viewsData.max_tempo || 0) / 60)}min`, color: 'var(--warning)' },
                                 { label: 'Scroll Max', value: `${linkModal.viewsData.max_scroll || 0}%`, color: 'var(--success)' },
                             ];
@@ -922,7 +922,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                     )}
                                     {linkModal.viewsData.eventos_resumo.zoom > 0 && (
                                         <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-full"
-                                            style={{ background: '#a855f710', color: '#a855f7', border: '1px solid #a855f725' }}>
+                                            style={{ background: 'var(--info-bg)', color: 'var(--info)', border: '1px solid var(--info-border)' }}>
                                             <ZoomIn size={11} /> {linkModal.viewsData.eventos_resumo.zoom}× zoom/ampliação
                                         </span>
                                     )}
@@ -1065,15 +1065,15 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                         {timeline.events.map((ev, i) => {
                                             const ICON_MAP = {
                                                 file: { icon: <FileTextIcon size={10} />, color: 'var(--info)' },
-                                                link: { icon: <Link2 size={10} />, color: '#8b5cf6' },
+                                                link: { icon: <Link2 size={10} />, color: 'var(--info)' },
                                                 eye: { icon: <EyeIcon size={10} />, color: '#6366f1' },
                                                 refresh: { icon: <RefreshCw size={10} />, color: '#f97316' },
-                                                share: { icon: <Share2 size={10} />, color: '#8b5cf6' },
+                                                share: { icon: <Share2 size={10} />, color: 'var(--info)' },
                                                 printer: { icon: <Printer size={10} />, color: 'var(--success-hover)' },
                                                 check: { icon: <CheckCircle size={10} />, color: 'var(--success)' },
                                                 text: { icon: <Type size={10} />, color: '#0ea5e9' },
                                                 copy: { icon: <Copy size={10} />, color: '#14b8a6' },
-                                                zoom: { icon: <ZoomIn size={10} />, color: '#a855f7' },
+                                                zoom: { icon: <ZoomIn size={10} />, color: 'var(--info)' },
                                                 star: { icon: <Star size={10} />, color: '#eab308' },
                                             };
                                             const ic = ICON_MAP[ev.icone] || ICON_MAP.file;

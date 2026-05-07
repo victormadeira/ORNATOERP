@@ -283,7 +283,7 @@ function SaidaLoteModal({ materiais, projetos, onClose, onSave, notify }) {
                 {/* Botão Carregar do Orçamento */}
                 {projetoId && (
                     <button onClick={carregarDoOrcamento} disabled={loadingOrc} className={Z.btn}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', background: '#8b5cf6' }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', background: 'var(--info)' }}>
                         {loadingOrc ? <><RefreshCw size={13} className="animate-spin" /> Carregando...</> : <><Layers size={13} /> Carregar materiais do orçamento</>}
                     </button>
                 )}

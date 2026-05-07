@@ -60,7 +60,7 @@ function useRecentAndFavorites(pg, MENU_GROUPS) {
 const TYPE_CONFIG = {
     cliente:   { icon: User,          label: 'Cliente',    page: 'cli',  color: 'var(--info)' },
     orcamento: { icon: FileText,      label: 'Orcamento', page: 'orcs', color: 'var(--warning)' },
-    projeto:   { icon: FolderKanban,  label: 'Projeto',    page: 'proj', color: '#8b5cf6' },
+    projeto:   { icon: FolderKanban,  label: 'Projeto',    page: 'proj', color: 'var(--info)' },
     peca:      { icon: Box,           label: 'Peca',       page: 'cnc',  color: 'var(--success)' },
 };
 
