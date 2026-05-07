@@ -97,7 +97,7 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                 style={{
                     background: 'var(--accent-bg, rgba(201,169,110,0.08))',
                     border: '1px solid rgba(201,169,110,0.25)',
-                    color: 'var(--accent)',
+                    color: 'var(--primary)',
                 }}>
                 <Wrench size={10} />
                 <span className="truncate" style={{ maxWidth: 100 }}>{selected?.nome || 'Puxador'}</span>
@@ -125,14 +125,14 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                                     className="w-full text-left px-3 py-1.5 flex items-center justify-between cursor-pointer transition-colors"
                                     style={{
                                         background: isActive ? 'var(--accent-bg, rgba(201,169,110,0.10))' : 'transparent',
-                                        borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                                        borderLeft: isActive ? '2px solid var(--primary)' : '2px solid transparent',
                                     }}
                                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--accent-bg, rgba(201,169,110,0.05))'; }}
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}>
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-[11px] font-medium truncate" style={{ color: isActive ? 'var(--accent)' : 'var(--text-primary)' }}>{p.nome}</span>
+                                        <span className="text-[11px] font-medium truncate" style={{ color: isActive ? 'var(--primary)' : 'var(--text-primary)' }}>{p.nome}</span>
                                     </div>
-                                    <span className="text-[10px] font-semibold shrink-0 ml-2" style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>{R$(p.preco)}</span>
+                                    <span className="text-[10px] font-semibold shrink-0 ml-2" style={{ color: isActive ? 'var(--primary)' : 'var(--text-muted)' }}>{R$(p.preco)}</span>
                                 </button>
                             );
                         })}
@@ -167,16 +167,16 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
     return (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: ativo ? 'var(--accent-bg, rgba(201,169,110,0.06))' : 'var(--bg-muted)', border: `1px solid ${ativo ? 'rgba(201,169,110,0.3)' : 'var(--border)'}` }}>
             <button onClick={() => onChange(!ativo)} className="flex items-center gap-1.5 flex-1 cursor-pointer text-left min-w-0">
-                {ativo ? <ToggleRight size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} /> : <ToggleLeft size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+                {ativo ? <ToggleRight size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} /> : <ToggleLeft size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
                 <div className="flex flex-col min-w-0">
                     <span className="text-xs font-medium truncate" style={{ color: ativo ? 'var(--text-primary)' : 'var(--text-muted)' }}>{si.nome}</span>
-                    {fe && !isPuxador && <span className="text-[9px]" style={{ color: 'var(--accent)' }}>↳ {fe.nome}</span>}
+                    {fe && !isPuxador && <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>↳ {fe.nome}</span>}
                 </div>
             </button>
             {isPuxador && ativo && puxadores.length > 0 && (
                 <PuxadorSelect puxadores={puxadores} value={ferrOvr || si.ferrId} onChange={onFerrChange} />
             )}
-            {fe && <span className="text-[10px] font-semibold shrink-0" style={{ color: ativo ? 'var(--accent)' : 'var(--text-muted)' }}>{R$(fe.preco)}</span>}
+            {fe && <span className="text-[10px] font-semibold shrink-0" style={{ color: ativo ? 'var(--primary)' : 'var(--text-muted)' }}>{R$(fe.preco)}</span>}
         </div>
     );
 }
@@ -355,7 +355,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                         </span>
                     )}
                     {temMatsCustom && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--accent-bg, rgba(201,169,110,0.12))', color: 'var(--accent)' }}>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
                             mat. custom
                         </span>
                     )}
@@ -425,7 +425,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     {temMatsCustom || matExp ? (
                         <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'var(--accent-bg, rgba(201,169,110,0.04))', border: '1px solid var(--accent-border, rgba(201,169,110,0.18))' }}>
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>Material deste componente</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Material deste componente</span>
                                 <div className="flex gap-2">
                                     {temMatsCustom && (
                                         <button onClick={() => { onUpdate({ ...ci, matIntInst: '', matExtInst: '' }); setMatExp(false); }}
@@ -477,7 +477,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     ) : (
                         <button onClick={() => setMatExp(true)}
                             className="text-[10px] text-left cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
-                            style={{ color: 'var(--accent)' }}>
+                            style={{ color: 'var(--text-secondary)' }}>
                             + material específico deste componente
                         </button>
                     )}
@@ -509,7 +509,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     {/* Ferragens disponíveis */}
                     {(compDef.sub_itens || []).length > 0 && (
                         <div>
-                            <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--accent)' }}>Ferragens</div>
+                            <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>Ferragens</div>
                             <div className="flex flex-col gap-1">
                                 {(compDef.sub_itens || []).map(si => (
                                     <SubItemRow
@@ -3646,7 +3646,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     {/* Lista de Ferragens */}
                     {Object.keys(tot.fa).length > 0 && (
                         <div className={Z.card}>
-                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--accent)' }}>Lista de Ferragens</h3>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>Lista de Ferragens</h3>
                             <div style={{ overflowX: 'auto' }}>
                             <table className="w-full border-collapse text-left">
                                 <thead><tr>{['Item', 'Origem', 'Qtd', 'Unit.', 'Total'].map(h => <th key={h} className={Z.th}>{h}</th>)}</tr></thead>
@@ -4548,7 +4548,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             }} className={`${Z.btn2} w-full py-2 text-xs`} style={
                                 assinaturas.some(d => d.status === 'concluido')
                                     ? { background: 'var(--success-bg)', borderColor: 'var(--success)', color: 'var(--success-hover)', cursor: 'default' }
-                                    : { background: 'var(--accent-bg)', borderColor: 'var(--accent)' }
+                                    : { background: 'var(--primary-alpha, rgba(19,121,240,0.08))', borderColor: 'var(--primary)' }
                             } disabled={assinaturas.some(d => d.status === 'concluido')}>
                                 {assinaturas.some(d => d.status === 'concluido')
                                     ? <><CheckCircle size={13} /> Contrato Assinado</>

@@ -926,7 +926,7 @@ export default function Ponto({ notify }) {
                                 loadData();
                             } catch (e) { notify(e.error || 'Erro ao preencher', 'error'); }
                         }});
-                    }} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, background: 'var(--accent)', border: '1px solid var(--accent-hover)', color: '#fff', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,.18)' }}>
+                    }} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, background: 'var(--primary)', border: '1px solid var(--primary)', color: '#fff', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,.18)' }}>
                         <CalendarDays size={13} /> Preencher Mês
                     </button>
                     <button className={Z.btn2Sm} onClick={() => setShowRelatorio(true)} style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>

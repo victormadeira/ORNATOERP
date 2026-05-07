@@ -362,13 +362,13 @@ export default function GerenteRevisional() {
                         {rel.recomendacao && (
                             <div style={{
                                 padding: 14, borderRadius: 10,
-                                background: 'rgba(201,169,110,0.08)',
-                                border: '1px solid rgba(201,169,110,0.25)',
+                                background: 'rgba(19,121,240,0.06)',
+                                border: '1px solid rgba(19,121,240,0.20)',
                                 display: 'flex', gap: 10, alignItems: 'flex-start',
                             }}>
-                                <TrendingUp size={18} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }} />
+                                <TrendingUp size={18} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
                                 <div>
-                                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--accent)', marginBottom: 4 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--primary)', marginBottom: 4 }}>
                                         RECOMENDAÇÃO ESTRATÉGICA
                                     </div>
                                     <div style={{ fontSize: 14, lineHeight: 1.55 }}>{rel.recomendacao}</div>
@@ -385,7 +385,7 @@ export default function GerenteRevisional() {
                                     <div key={i} style={{
                                         fontSize: 13, lineHeight: 1.5, padding: '8px 12px',
                                         background: 'rgba(255,255,255,0.03)', borderRadius: 8, marginBottom: 6,
-                                        borderLeft: '3px solid var(--accent)',
+                                        borderLeft: '3px solid var(--border)',
                                     }}>
                                         {p}
                                     </div>

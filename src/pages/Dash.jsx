@@ -585,7 +585,7 @@ function PipelineVisual({ data, total, nav }) {
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Conversão</div>
                 </div>
                 <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
-                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.025em' }}>{R$(animTicket)}</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{R$(animTicket)}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Ticket médio</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>

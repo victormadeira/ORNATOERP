@@ -757,7 +757,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     }, [loteAtual?.id, plano?.chapas?.length]);
 
     // Machine color palette for border coding
-    const machineColors = ['var(--primary)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--info)', 'var(--accent)', '#14B8A6', '#6366F1'];
+    const machineColors = ['var(--primary)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--info)', '#0891b2', '#14B8A6', '#64748b'];
     const getMachineColor = (maquinaId) => {
         if (!maquinaId) return null;
         const idx = maquinas.findIndex(m => m.id === maquinaId);

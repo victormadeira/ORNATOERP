@@ -21,7 +21,7 @@ function gcodeLineColor(line) {
     if (/^G1\b/.test(s))  return 'var(--success)';
     if (/^G[23]\b/.test(s)) return '#89b4fa';
     if (/^T[A-Z0-9]/.test(s) || /M6\b/.test(s)) return 'var(--warning)';
-    if (/^[SM]\d/.test(s)) return 'var(--accent)';
+    if (/^[SM]\d/.test(s)) return 'var(--text-muted)';
     return 'inherit';
 }
 
