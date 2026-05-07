@@ -94,86 +94,27 @@ export default function Topbar({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            {/* Busca Global */}
+            {/* ⌘K Command Palette Trigger */}
             <div ref={buscaRef} style={{ position: 'relative' }} className="hidden md:block">
-                <div style={{ position: 'relative' }}>
-                    <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                    <input
-                        type="text"
-                        value={buscaQuery}
-                        onChange={e => setBuscaQuery(e.target.value)}
-                        onFocus={() => buscaResults && setBuscaOpen(true)}
-                        placeholder="Buscar... (Ctrl+K navegar)"
-                        style={{
-                            width: 260, padding: '7px 12px 7px 32px', borderRadius: 10,
-                            border: '1px solid var(--border)', background: 'var(--bg-muted)',
-                            fontSize: 12, color: 'var(--text-primary)', outline: 'none',
-                            transition: 'all 0.2s',
-                        }}
-                        onFocusCapture={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-ring)'; }}
-                        onBlurCapture={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
-                    />
-                </div>
-                {buscaOpen && buscaResults && (
-                    <div className="animate-scale-in" style={{
-                        position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                        width: 380, maxHeight: 420, overflowY: 'auto',
-                        background: 'var(--bg-card)', border: '1px solid var(--border)',
-                        borderRadius: 14, boxShadow: 'var(--shadow-xl)', zIndex: 50, padding: 8,
-                    }}>
-                        {buscaResults.clientes.length === 0 && buscaResults.orcamentos.length === 0 && buscaResults.projetos.length === 0 && (
-                            <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum resultado</div>
-                        )}
-                        {buscaResults.clientes.length > 0 && (
-                            <>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em' }}>Clientes</div>
-                                {buscaResults.clientes.map(c => (
-                                    <button key={`c${c.id}`} onClick={() => { (navToRecord || nav)({ tipo: 'cliente', id: c.id }); setBuscaOpen(false); setBuscaQuery(''); }}
-                                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
-                                        className="hover:bg-[var(--bg-hover)]">
-                                        <Ic.Usr style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
-                                        <div style={{ minWidth: 0 }}>
-                                            <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</div>
-                                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.tel || c.email || c.cidade || ''}</div>
-                                        </div>
-                                    </button>
-                                ))}
-                            </>
-                        )}
-                        {buscaResults.orcamentos.length > 0 && (
-                            <>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Orcamentos</div>
-                                {buscaResults.orcamentos.map(o => (
-                                    <button key={`o${o.id}`} onClick={() => { (navToRecord || nav)({ tipo: 'orcamento', id: o.id }); setBuscaOpen(false); setBuscaQuery(''); }}
-                                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
-                                        className="hover:bg-[var(--bg-hover)]">
-                                        <Ic.File style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
-                                        <div style={{ minWidth: 0 }}>
-                                            <div style={{ fontWeight: 600 }}>#{o.numero} — {o.cliente_nome}</div>
-                                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.ambiente || ''}</div>
-                                        </div>
-                                    </button>
-                                ))}
-                            </>
-                        )}
-                        {buscaResults.projetos.length > 0 && (
-                            <>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em', marginTop: 4 }}>Projetos</div>
-                                {buscaResults.projetos.map(p => (
-                                    <button key={`p${p.id}`} onClick={() => { (navToRecord || nav)({ tipo: 'projeto', id: p.id }); setBuscaOpen(false); setBuscaQuery(''); }}
-                                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 13, color: 'var(--text-primary)', transition: 'background 0.15s' }}
-                                        className="hover:bg-[var(--bg-hover)]">
-                                        <Ic.Briefcase style={{ flexShrink: 0, color: 'var(--text-muted)' }} size={14} />
-                                        <div style={{ minWidth: 0 }}>
-                                            <div style={{ fontWeight: 600 }}>{p.nome}</div>
-                                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.cliente_nome || ''}</div>
-                                        </div>
-                                    </button>
-                                ))}
-                            </>
-                        )}
-                    </div>
-                )}
+                <button
+                    onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        height: 34, padding: '0 10px 0 10px',
+                        borderRadius: 8, border: '1px solid var(--border)',
+                        background: 'var(--bg-muted)', color: 'var(--text-muted)',
+                        cursor: 'pointer', fontSize: 12, transition: 'all var(--transition-fast)',
+                        width: 220,
+                    }}
+                    className="hover:bg-[var(--bg-hover)] hover:!border-[var(--border-hover)]"
+                    title="Abrir busca global (⌘K)"
+                >
+                    <Search size={13} />
+                    <span style={{ flex: 1, textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Buscar ou ir para...</span>
+                    <span style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                        <kbd style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: 'var(--bg-subtle)', border: '1px solid var(--border-strong)', color: 'var(--text-muted)', lineHeight: 1.5 }}>⌘K</kbd>
+                    </span>
+                </button>
             </div>
             {/* Theme toggle */}
             <button

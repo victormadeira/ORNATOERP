@@ -707,6 +707,10 @@ tbody tr:nth-child(even):hover .td-glass {
   100% { background-position: 200% center; }
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ─── Animation Classes ─── */
 /* NOTE: use `backwards` (not `both`) for enter animations that animate `transform`.
    `both` keeps the final transform applied, which creates a transform context —
@@ -719,6 +723,7 @@ tbody tr:nth-child(even):hover .td-glass {
 .animate-slide-right { animation: slide-in-right 0.3s var(--ease-out) backwards; }
 .animate-slide-left { animation: slide-in-left 0.3s var(--ease-out) backwards; }
 .animate-slide-up { animation: slide-up 0.4s var(--ease-out) backwards; }
+.animate-spin { animation: spin 1s linear infinite; }
 
 /* Stagger children */
 .stagger-children > * { animation: stagger-in 0.35s var(--ease-out) backwards; }
@@ -1140,6 +1145,15 @@ aside.sidebar-dark::after {
 /* ─── Table improvements ─── */
 tr.tr-clickable { cursor: pointer; }
 tr.tr-clickable:hover .td-glass { background: var(--accent-alpha); }
+
+/* ─── Linear-style row left accent on hover ─── */
+/* Inset box-shadow cria borda esquerda sem afetar layout (sem reflow) */
+tr.group:hover .td-glass:first-child,
+tr.tr-clickable:hover .td-glass:first-child {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+/* Em tabelas densas */
+tr.group .td-glass { transition: background var(--transition-fast), box-shadow var(--transition-fast); }
 
 /* ─── Glass card with top accent ─── */
 .glass-card-accent {

@@ -1103,7 +1103,7 @@ export default function Cli({ clis, reload, notify, nav }) {
             {/* Table */}
             <div className={`${Z.card} !p-0 overflow-hidden`}>
                 <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left">
+                    <table className="w-full border-collapse text-left table-stagger">
                         <thead>
                             <tr>
                                 {['Nome / Empresa', 'Contato', 'Localização', 'Arq./Designer', 'Origem', 'Ações'].map(h => (

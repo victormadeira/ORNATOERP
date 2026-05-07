@@ -452,7 +452,7 @@ export default function Orcs({ orcs, nav, reload, notify }) {
             ) : (
                 <div className={`${Z.card} !p-0 overflow-hidden`}>
                     <div className="overflow-x-auto">
-                        <table className="w-full border-collapse text-left">
+                        <table className="w-full border-collapse text-left table-stagger">
                             <thead>
                                 <tr>
                                     {[

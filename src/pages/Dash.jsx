@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCountUp } from '../hooks/useCountUp';
 import api from '../api';
 import { Z, Ic, Badge, SectionHeader, TabBar, Sparkline, Skeleton, SkeletonCard } from '../ui';
 import { STATUS_PROJ, CAT_COLOR, CAT_LABEL } from '../theme';
@@ -28,6 +29,7 @@ function HeroCard({ user, headline, today, refreshing, onRefresh }) {
     const nome = (user?.nome || '').split(' ')[0] || '';
     const dateMain = today.split(',')[0];
     const dateRest = today.split(',').slice(1).join(',').trim();
+    const animFat = useCountUp(headline?.faturamento_mes || 0, { duration: 1100 });
 
     return (
         <div className="hero-card animate-fade-up" style={{ marginBottom: 24 }}>
@@ -58,7 +60,7 @@ function HeroCard({ user, headline, today, refreshing, onRefresh }) {
                         <div className="hero-stat-label">
                             Faturamento · {headline.mes_atual}
                         </div>
-                        <div className="hero-stat-value">{R$(headline.faturamento_mes)}</div>
+                        <div className="hero-stat-value">{R$(animFat)}</div>
                         <div className="hero-stat-meta" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
                             <span style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -127,7 +129,16 @@ function TrendChip({ value, suffix = '%' }) {
     );
 }
 
-function KpiProCard({ label, value, icon: Icon, sub, trend, spark, sparkColor = 'var(--primary)', onClick }) {
+// Formato animado de valor
+function AnimatedVal({ rawNum, numFmt }) {
+    const animated = useCountUp(rawNum ?? 0, { duration: 950 });
+    if (numFmt === 'currency') return <>{R$(animated)}</>;
+    if (numFmt === 'percent') return <>{animated}%</>;
+    return <>{animated}</>;
+}
+
+function KpiProCard({ label, value, rawNum, numFmt, icon: Icon, sub, trend, spark, sparkColor = 'var(--primary)', onClick }) {
+    const hasAnim = rawNum !== undefined && numFmt;
     return (
         <div
             className="kpi-pro animate-fade-up"
@@ -143,7 +154,9 @@ function KpiProCard({ label, value, icon: Icon, sub, trend, spark, sparkColor = 
                     <Icon size={15} strokeWidth={2.2} />
                 </span>
             </div>
-            <div className="kpi-pro-value">{value}</div>
+            <div className="kpi-pro-value">
+                {hasAnim ? <AnimatedVal rawNum={rawNum} numFmt={numFmt} /> : value}
+            </div>
             <div className="kpi-pro-foot">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     {trend !== undefined && trend !== null && <TrendChip value={trend} />}
@@ -174,14 +187,15 @@ function KpiStrip({ data, isVendedor, nav }) {
     const txConv = pipelineQtd > 0 ? Math.round((aprovados / pipelineQtd) * 100) : 0;
 
     const cards = isVendedor && data?.vendedor ? [
-        { label: 'Orçamentos no mês', value: String(data.vendedor.orcs_mes), icon: FileText, sub: R$(data.vendedor.orcs_valor_mes), onClick: () => nav('orcs') },
-        { label: 'Aprovados no mês', value: String(data.vendedor.aprovados_mes), icon: CheckCircle2, sub: R$(data.vendedor.aprovados_valor_mes), onClick: () => nav('orcs') },
-        { label: 'Conversão', value: `${data.vendedor.taxa_conversao}%`, icon: Target, sub: 'orçamentos → aprovados' },
-        { label: 'Novos clientes', value: String(data.vendedor.novos_clientes_mes), icon: Users, sub: 'neste mês', onClick: () => nav('cli') },
+        { label: 'Orçamentos no mês', value: String(data.vendedor.orcs_mes), rawNum: data.vendedor.orcs_mes, numFmt: 'integer', icon: FileText, sub: R$(data.vendedor.orcs_valor_mes), onClick: () => nav('orcs') },
+        { label: 'Aprovados no mês', value: String(data.vendedor.aprovados_mes), rawNum: data.vendedor.aprovados_mes, numFmt: 'integer', icon: CheckCircle2, sub: R$(data.vendedor.aprovados_valor_mes), onClick: () => nav('orcs') },
+        { label: 'Conversão', value: `${data.vendedor.taxa_conversao}%`, rawNum: data.vendedor.taxa_conversao, numFmt: 'percent', icon: Target, sub: 'orçamentos → aprovados' },
+        { label: 'Novos clientes', value: String(data.vendedor.novos_clientes_mes), rawNum: data.vendedor.novos_clientes_mes, numFmt: 'integer', icon: Users, sub: 'neste mês', onClick: () => nav('cli') },
     ] : [
         {
             label: 'Faturamento mês',
             value: R$(h?.faturamento_mes || 0),
+            rawNum: h?.faturamento_mes || 0, numFmt: 'currency',
             icon: Flame,
             trend: h?.pct_variacao,
             sub: `${h?.qtd_fechados || 0} fechados`,
@@ -192,6 +206,7 @@ function KpiStrip({ data, isVendedor, nav }) {
         {
             label: 'Pipeline ativo',
             value: R$(pipeTotal),
+            rawNum: pipeTotal, numFmt: 'currency',
             icon: Layers,
             sub: `${pipelineQtd} propostas`,
             onClick: () => nav('kb'),
@@ -199,6 +214,7 @@ function KpiStrip({ data, isVendedor, nav }) {
         {
             label: 'Conversão',
             value: `${txConv}%`,
+            rawNum: txConv, numFmt: 'percent',
             icon: Target,
             sub: `${aprovados} aprovados`,
             onClick: () => nav('kb'),
@@ -206,6 +222,7 @@ function KpiStrip({ data, isVendedor, nav }) {
         {
             label: 'Projetos ativos',
             value: String(projAtivos),
+            rawNum: projAtivos, numFmt: 'integer',
             icon: Briefcase,
             sub: data?.producao_resumo?.projetos_atrasados > 0
                 ? `${data.producao_resumo.projetos_atrasados} atrasado${data.producao_resumo.projetos_atrasados > 1 ? 's' : ''}`
@@ -486,6 +503,10 @@ function PipelineVisual({ data, total, nav }) {
     const aprovados = data.find(d => d.id === 'ok')?.qtd || 0;
     const txConv = totalQtd > 0 ? ((aprovados / totalQtd) * 100).toFixed(1) : '0';
     const ticketMedio = totalQtd > 0 ? total / totalQtd : 0;
+    const animTotal = useCountUp(total, { duration: 900 });
+    const animTicket = useCountUp(ticketMedio, { duration: 900 });
+    const animTxConv = useCountUp(parseFloat(txConv) || 0, { duration: 800 });
+    const animTotalQtd = useCountUp(totalQtd, { duration: 700 });
 
     return (
         <div className="chart-card-pro animate-fade-up">
@@ -496,7 +517,7 @@ function PipelineVisual({ data, total, nav }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>{totalQtd} propostas</span>
-                    <span className="font-display font-tabular" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{R$(total)}</span>
+                    <span className="font-display font-tabular" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{R$(animTotal)}</span>
                 </div>
             </div>
             <div className="chart-card-pro-body" style={{ paddingTop: 8 }}>
@@ -538,15 +559,15 @@ function PipelineVisual({ data, total, nav }) {
                 background: 'var(--bg-subtle)',
             }}>
                 <div style={{ textAlign: 'center' }}>
-                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{txConv}%</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{animTxConv}%</div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Conversão</div>
                 </div>
                 <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
-                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.025em' }}>{R$(ticketMedio)}</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.025em' }}>{R$(animTicket)}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Ticket médio</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{totalQtd}</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{animTotalQtd}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>Total</div>
                 </div>
             </div>

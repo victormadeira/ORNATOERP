@@ -205,6 +205,7 @@ export default function App() {
     const [cmdQuery, setCmdQuery] = useState('');
     const [cmdResults, setCmdResults] = useState(null);
     const [cmdLoading, setCmdLoading] = useState(false);
+    const [cmdSel, setCmdSel] = useState(0);
     const cmdInputRef = useRef(null);
     const cmdSearchTimer = useRef(null);
     // Keyboard shortcuts overlay
@@ -225,11 +226,12 @@ export default function App() {
                 setCmdQuery('');
                 setCmdResults(null);
                 setCmdLoading(false);
+                setCmdSel(0);
                 return;
             }
             if (e.key === 'Escape') {
                 if (shortcutsOpen) { setShortcutsOpen(false); return; }
-                if (cmdOpen) { setCmdOpen(false); setCmdResults(null); return; }
+                if (cmdOpen) { setCmdOpen(false); setCmdResults(null); setCmdSel(0); return; }
             }
             if (isInput()) return;
             // ? key shows shortcuts overlay
@@ -857,76 +859,130 @@ export default function App() {
                     if (r.tipo === 'projeto') return r.nome || `Projeto #${r.id}`;
                     return r.descricao || `#${r.id}`;
                 };
+
+                // Quick create actions (show when no query)
+                const quickActions = [
+                    { id: 'new-orc', label: 'Novo Orçamento', shortcut: 'N O', color: 'var(--primary)', ic: <Ic.Plus size={14} />, action: () => { nav('novo', null); setCmdOpen(false); setCmdQuery(''); } },
+                    { id: 'new-cli', label: 'Novo Cliente', shortcut: 'N C', color: 'var(--success)', ic: <Ic.Plus size={14} />, action: () => { nav('cli'); setCmdOpen(false); setCmdQuery(''); } },
+                    { id: 'go-dash', label: 'Dashboard', shortcut: 'G D', color: 'var(--text-muted)', ic: <LayoutDashboard size={14} />, action: () => { nav('dash'); setCmdOpen(false); } },
+                    { id: 'go-kb', label: 'Kanban', shortcut: 'G K', color: 'var(--text-muted)', ic: <FolderKanban size={14} />, action: () => { nav('kb'); setCmdOpen(false); } },
+                ];
+
                 const filteredPages = ALL_PAGES.filter(p =>
                     !cmdQuery || p.lb.toLowerCase().includes(cmdQuery.toLowerCase()) || p.id.toLowerCase().includes(cmdQuery.toLowerCase())
+                ).slice(0, 8);
+
+                // Build flat list of all items for keyboard nav
+                const allItems = [
+                    ...(cmdQuery.length < 2 ? quickActions.map(a => ({ type: 'action', ...a })) : []),
+                    ...(!cmdLoading && cmdResults ? cmdResults.slice(0, 6).map(r => ({ type: 'record', ...r })) : []),
+                    ...filteredPages.map(p => ({ type: 'page', ...p })),
+                ];
+
+                const handleSelect = (item) => {
+                    if (!item) return;
+                    if (item.type === 'action') { item.action(); return; }
+                    if (item.type === 'record') { navToRecord(item); setCmdOpen(false); setCmdResults(null); setCmdQuery(''); return; }
+                    if (item.type === 'page') { nav(item.id); setCmdOpen(false); setCmdResults(null); setCmdQuery(''); }
+                };
+
+                const Kbd = ({ children }) => (
+                    <kbd style={{
+                        fontSize: 9, padding: '2px 5px', borderRadius: 4, lineHeight: 1.4,
+                        background: 'var(--bg-muted)', border: '1px solid var(--border-strong)',
+                        color: 'var(--text-muted)', fontFamily: 'inherit', display: 'inline-block',
+                        letterSpacing: '0.02em',
+                    }}>{children}</kbd>
                 );
+
                 return (
-                <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={() => { setCmdOpen(false); setCmdResults(null); }}>
-                    <div className="fixed inset-0 modal-overlay" style={{ background: 'rgba(0,0,0,0.4)' }} />
+                <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4" onClick={() => { setCmdOpen(false); setCmdResults(null); setCmdQuery(''); }}>
+                    <div className="fixed inset-0 modal-overlay" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} />
                     <div className="relative animate-scale-in" style={{
-                        width: '100%', maxWidth: 500, background: 'var(--bg-card)',
-                        border: '1px solid var(--border)', borderRadius: 16,
-                        boxShadow: 'var(--shadow-xl)', overflow: 'hidden',
+                        width: '100%', maxWidth: 560,
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-strong)',
+                        borderRadius: 14,
+                        boxShadow: 'var(--shadow-xl)',
+                        overflow: 'hidden',
                     }} onClick={e => e.stopPropagation()}>
-                        {/* Input */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-                            <Search size={16} style={{ color: cmdLoading ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0, transition: 'color 0.2s' }} />
+
+                        {/* ─── Input ─────────────────────── */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                            <Search size={16} style={{
+                                color: cmdLoading ? 'var(--primary)' : 'var(--text-muted)',
+                                flexShrink: 0, transition: 'color 0.2s',
+                                animation: cmdLoading ? 'spin 1s linear infinite' : 'none',
+                            }} />
                             <input
                                 ref={cmdInputRef}
                                 type="text"
                                 value={cmdQuery}
-                                onChange={e => setCmdQuery(e.target.value)}
-                                placeholder="Buscar clientes, orçamentos, projetos ou ir para..."
+                                onChange={e => { setCmdQuery(e.target.value); setCmdSel(0); }}
+                                placeholder="Buscar ou ir para..."
                                 style={{
                                     flex: 1, background: 'none', border: 'none', outline: 'none',
-                                    fontSize: 14, color: 'var(--text-primary)',
+                                    fontSize: 15, color: 'var(--text-primary)', fontFamily: 'inherit',
                                 }}
                                 onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                        if (cmdResults && cmdResults.length > 0) {
-                                            navToRecord(cmdResults[0]);
-                                            setCmdOpen(false); setCmdResults(null); setCmdQuery('');
-                                            return;
-                                        }
-                                        if (filteredPages.length > 0) {
-                                            nav(filteredPages[0].id);
-                                            setCmdOpen(false); setCmdResults(null);
-                                        }
-                                    }
+                                    if (e.key === 'ArrowDown') { e.preventDefault(); setCmdSel(s => Math.min(s + 1, allItems.length - 1)); }
+                                    else if (e.key === 'ArrowUp') { e.preventDefault(); setCmdSel(s => Math.max(s - 1, 0)); }
+                                    else if (e.key === 'Enter') { e.preventDefault(); handleSelect(allItems[cmdSel]); }
                                 }}
                             />
-                            <kbd style={{
-                                fontSize: 10, padding: '2px 6px', borderRadius: 4,
-                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
-                                color: 'var(--text-muted)', fontFamily: 'inherit',
-                            }}>ESC</kbd>
+                            <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                                <Kbd>↑↓</Kbd>
+                                <Kbd>↵</Kbd>
+                                <Kbd>ESC</Kbd>
+                            </div>
                         </div>
 
-                        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                            {/* Entity results */}
+                        <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                            {/* Quick actions (empty state) */}
+                            {cmdQuery.length < 2 && (
+                                <div style={{ padding: '6px 8px' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em', color: 'var(--text-muted)', padding: '6px 8px 4px' }}>Ações rápidas</div>
+                                    {quickActions.map((a, i) => (
+                                        <button key={a.id} onClick={a.action}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                padding: '9px 10px', borderRadius: 8, border: 'none',
+                                                background: cmdSel === i ? 'var(--bg-hover)' : 'transparent',
+                                                cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s',
+                                            }}
+                                            onMouseEnter={() => setCmdSel(i)}
+                                        >
+                                            <span style={{ width: 28, height: 28, borderRadius: 8, background: `${a.color}18`, border: `1px solid ${a.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: a.color }}>{a.ic}</span>
+                                            <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{a.label}</span>
+                                            <Kbd>{a.shortcut}</Kbd>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Entity search results */}
                             {cmdQuery.length >= 2 && (
-                                <div style={{ borderBottom: '1px solid var(--border)' }}>
-                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '8px 12px 4px' }}>Registros</div>
-                                    {cmdLoading && (
-                                        <div style={{ padding: '8px 12px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Buscando...</div>
-                                    )}
-                                    {!cmdLoading && cmdResults && cmdResults.length === 0 && (
-                                        <div style={{ padding: '8px 12px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum registro encontrado</div>
-                                    )}
-                                    {!cmdLoading && cmdResults && cmdResults.slice(0, 6).map((r) => {
+                                <div style={{ borderBottom: !filteredPages.length ? 'none' : '1px solid var(--border)', padding: '6px 8px' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em', color: 'var(--text-muted)', padding: '6px 8px 4px' }}>
+                                        {cmdLoading ? 'Buscando...' : cmdResults?.length ? 'Registros' : 'Nenhum registro'}
+                                    </div>
+                                    {!cmdLoading && cmdResults?.map((r, ri) => {
                                         const rt = CMD_RTYPE[r.tipo] || { label: r.tipo, color: 'var(--text-muted)', ic: <Search size={14} /> };
+                                        const idx = quickActions.length + ri;
                                         return (
                                             <button key={`${r.tipo}-${r.id}`}
                                                 onClick={() => { navToRecord(r); setCmdOpen(false); setCmdResults(null); setCmdQuery(''); }}
                                                 style={{
                                                     display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                                    padding: '8px 12px', border: 'none', background: 'none',
-                                                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s',
+                                                    padding: '9px 10px', borderRadius: 8, border: 'none',
+                                                    background: cmdSel === idx ? 'var(--bg-hover)' : 'transparent',
+                                                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s',
                                                 }}
-                                                className="hover:bg-[var(--bg-hover)]">
-                                                <span style={{ color: rt.color, flexShrink: 0, display: 'flex' }}>{rt.ic}</span>
-                                                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getRecordTitle(r)}</span>
-                                                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'var(--bg-muted)', color: rt.color, flexShrink: 0, border: `1px solid ${rt.color}30` }}>{rt.label}</span>
+                                                onMouseEnter={() => setCmdSel(idx)}
+                                            >
+                                                <span style={{ width: 28, height: 28, borderRadius: 8, background: `${rt.color}18`, border: `1px solid ${rt.color}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: rt.color }}>{rt.ic}</span>
+                                                <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getRecordTitle(r)}</span>
+                                                <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: `${rt.color}14`, color: rt.color, flexShrink: 0, border: `1px solid ${rt.color}28` }}>{rt.label}</span>
                                             </button>
                                         );
                                     })}
@@ -934,31 +990,42 @@ export default function App() {
                             )}
 
                             {/* Pages */}
-                            <div style={{ padding: 6 }}>
-                                {cmdQuery.length >= 2 && (
-                                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '6px 6px 4px' }}>Páginas</div>
-                                )}
-                                {filteredPages.map(p => {
-                                    const I = p.ic;
-                                    const active = pg === p.id;
-                                    return (
-                                        <button key={p.id} onClick={() => { nav(p.id); setCmdOpen(false); setCmdResults(null); }}
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                                padding: '10px 12px', borderRadius: 10, border: 'none',
-                                                background: active ? 'var(--bg-hover)' : 'none',
-                                                cursor: 'pointer', textAlign: 'left', fontSize: 13,
-                                                color: active ? 'var(--primary)' : 'var(--text-primary)',
-                                                fontWeight: active ? 600 : 400, transition: 'background 0.15s',
-                                            }}
-                                            className="hover:bg-[var(--bg-hover)]">
-                                            <span style={{ color: active ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0 }}><I /></span>
-                                            <span>{p.lb}</span>
-                                            {active && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>atual</span>}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            {filteredPages.length > 0 && (
+                                <div style={{ padding: '6px 8px', borderTop: cmdQuery.length >= 2 ? '1px solid var(--border)' : 'none' }}>
+                                    {cmdQuery.length >= 2 && (
+                                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em', color: 'var(--text-muted)', padding: '6px 8px 4px' }}>Ir para</div>
+                                    )}
+                                    {filteredPages.map((p, pi) => {
+                                        const I = p.ic;
+                                        const active = pg === p.id;
+                                        const baseOffset = cmdQuery.length < 2 ? quickActions.length : (cmdResults?.length || 0);
+                                        const idx = baseOffset + pi;
+                                        return (
+                                            <button key={p.id} onClick={() => { nav(p.id); setCmdOpen(false); setCmdResults(null); setCmdQuery(''); }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                    padding: '9px 10px', borderRadius: 8, border: 'none',
+                                                    background: cmdSel === idx ? 'var(--bg-hover)' : active ? 'var(--bg-muted)' : 'transparent',
+                                                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s',
+                                                }}
+                                                onMouseEnter={() => setCmdSel(idx)}
+                                            >
+                                                <span style={{ width: 28, height: 28, borderRadius: 8, background: active ? 'var(--primary-alpha)' : 'var(--bg-muted)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: active ? 'var(--primary)' : 'var(--text-muted)' }}><I /></span>
+                                                <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 600 : 400, color: active ? 'var(--primary)' : 'var(--text-primary)' }}>{p.lb}</span>
+                                                {active && <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '1px 6px', borderRadius: 4, background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>atual</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ─── Footer hint ─────────────────── */}
+                        <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-muted)' }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Pressione <Kbd>?</Kbd> para ver todos os atalhos</span>
+                            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+                                <Kbd>G</Kbd> + letra para navegar direto
+                            </span>
                         </div>
                     </div>
                 </div>
