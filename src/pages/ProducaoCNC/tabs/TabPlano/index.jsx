@@ -24,6 +24,7 @@ import { isPanningCursor } from './_utils.js';
 import { RelatorioDesperdicio } from '../_RelatorioDesperdicio.jsx';
 import { optimizeCutSequence, calcRapidDistance } from '../../shared/tspUtils.js';
 import { summarizePlanEconomics } from '../../shared/operationalMetrics.js';
+import { PecaInspectPanel } from './PecaInspectPanel.jsx';
 
 export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab, onAbrirPreCorte }) {
     const [plano, setPlano] = useState(null);
@@ -87,8 +88,24 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     const [retalhosPreviewLoading, setRetalhosPreviewLoading] = useState(false);
 
     // 3D modal + label print from context menu
-    const [view3dPeca, setView3dPeca] = useState(null); // piece object for 3D modal
-    const [printLabelPeca, setPrintLabelPeca] = useState(null); // piece for label printing
+    const [view3dPeca, setView3dPeca] = useState(null); // piece object for 3D modal (legacy — kept for compat)
+    const [printLabelPeca, setPrintLabelPeca] = useState(null); // piece for label printing (legacy)
+
+    // Unified piece inspection panel
+    const [inspectPanel, setInspectPanel] = useState(null); // { piece, planPiece, chapaIdx, initialTab }
+    const openInspect = useCallback((piece, planPiece, chapaIdx, initialTab = 'resumo') => {
+        setInspectPanel({ piece, planPiece, chapaIdx, initialTab });
+    }, []);
+
+    // Print status map { persistent_id: { status, impressoes } }
+    const [printStatusMap, setPrintStatusMap] = useState({});
+    const loadPrintStatus = useCallback(() => {
+        if (!loteAtual?.id) return;
+        api.get(`/cnc/etiqueta-impressoes/${loteAtual.id}`)
+            .then(d => setPrintStatusMap(d || {}))
+            .catch(() => {});
+    }, [loteAtual?.id]);
+    useEffect(() => { loadPrintStatus(); }, [loadPrintStatus]);
 
     // Keyboard shortcuts help panel
     const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
@@ -2780,12 +2797,22 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                             onGerarGcode={handleGerarGcode}
                                             onGerarGcodePeca={handleGerarGcodePeca}
                                             gcodeLoading={gcodeLoading}
-                                            onView3D={(piece) => setView3dPeca(piece)}
+                                            onView3D={(piece) => {
+                                                const ch = plano.chapas[selectedChapa];
+                                                const pIdx = ch?.pecas?.findIndex(p => (p.pecaId === piece.id || p.pecaId === piece.pecaId));
+                                                const pp = pIdx >= 0 ? ch.pecas[pIdx] : null;
+                                                openInspect(piece, pp, selectedChapa, '3d');
+                                            }}
                                             onPrintLabel={(chapaIdx) => {
                                                 // Navigate to etiquetas tab with chapa filter
                                                 setTab('etiquetas');
                                             }}
-                                            onPrintSingleLabel={(piece) => setPrintLabelPeca(piece)}
+                                            onPrintSingleLabel={(piece) => {
+                                                const ch = plano.chapas[selectedChapa];
+                                                const pIdx = ch?.pecas?.findIndex(p => (p.pecaId === piece.id || p.pecaId === piece.pecaId));
+                                                const pp = pIdx >= 0 ? ch.pecas[pIdx] : null;
+                                                openInspect(piece, pp, selectedChapa, 'etiqueta');
+                                            }}
                                             sobraMinW={sobraMinW}
                                             sobraMinH={sobraMinH}
                                             bandejaPieces={(() => {
@@ -2817,6 +2844,8 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                             setTab={setTab}
                                             validationConflicts={validationResult?.conflicts || []}
                                             machineArea={selectedMachineArea}
+                                            onInspect={(piece, planPiece, chapaIdx) => openInspect(piece, planPiece, chapaIdx, 'resumo')}
+                                            printStatusMap={printStatusMap}
                                             timerInfo={null && {
                                                 elapsed: getTimerElapsed(selectedChapa),
                                                 running: chapaTimers[getTimerKey(selectedChapa)]?.running || false,
@@ -3511,8 +3540,20 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 onClose={() => { setToolpathOpen(false); setToolpathMoves([]); setToolpathChapa(null); }}
             />
 
-            {/* ══ Modal 3D flutuante ══ */}
-            {/* ══ 3D Viewer SlidePanel ══ */}
+            {/* ══ Painel unificado de inspeção de peça ══ */}
+            <PecaInspectPanel
+                isOpen={!!inspectPanel}
+                onClose={() => setInspectPanel(null)}
+                piece={inspectPanel?.piece}
+                planPiece={inspectPanel?.planPiece}
+                chapaIdx={inspectPanel?.chapaIdx}
+                chapa={plano?.chapas?.[inspectPanel?.chapaIdx]}
+                loteAtual={loteAtual}
+                initialTab={inspectPanel?.initialTab || 'resumo'}
+                setTab={setTab}
+            />
+
+            {/* ══ 3D Viewer SlidePanel (legacy — mantido para outros pontos de entrada) ══ */}
             <SlidePanel isOpen={!!view3dPeca} onClose={() => setView3dPeca(null)} title={view3dPeca?.descricao || 'Visualização 3D'} width={560}>
                 {view3dPeca && (<>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>

@@ -2131,6 +2131,19 @@ const migrations = [
     UNIQUE(user_id, material_code_importado)
   )`,
 
+  // ═══ Rastreio de impressão de etiquetas ═══
+  `CREATE TABLE IF NOT EXISTS cnc_etiqueta_impressoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    lote_id INTEGER,
+    persistent_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'impressa',
+    impressoes INTEGER NOT NULL DEFAULT 1,
+    impresso_por INTEGER,
+    impresso_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, lote_id, persistent_id)
+  )`,
+
   // ═══ WhatsApp: guardar remoteJid original (@lid ou @s.whatsapp.net) ═══
   "ALTER TABLE chat_conversas ADD COLUMN wa_jid TEXT DEFAULT ''",
 

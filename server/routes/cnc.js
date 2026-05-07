@@ -4223,6 +4223,45 @@ router.post('/etiqueta-templates/:id/duplicar', requireAuth, (req, res) => {
     res.json({ ok: true, id: result.lastInsertRowid });
 });
 
+// ─── Status de impressão de etiquetas ───────────────────
+// GET  /etiqueta-impressoes/:loteId   → mapa { persistent_id: { status, impressoes, impresso_em } }
+router.get('/etiqueta-impressoes/:loteId', requireAuth, (req, res) => {
+    const rows = db.prepare(
+        'SELECT persistent_id, status, impressoes, impresso_em FROM cnc_etiqueta_impressoes WHERE user_id = ? AND lote_id = ?'
+    ).all(req.user.id, req.params.loteId);
+    const map = {};
+    for (const r of rows) map[r.persistent_id] = { status: r.status, impressoes: r.impressoes, impresso_em: r.impresso_em };
+    res.json(map);
+});
+
+// POST /etiqueta-impressoes  → marca peça(s) como impressa/reimpressa
+// body: { lote_id, persistent_ids: string[], status?: 'impressa'|'reimpressa' }
+router.post('/etiqueta-impressoes', requireAuth, (req, res) => {
+    const { lote_id, persistent_ids, status = 'impressa' } = req.body;
+    if (!lote_id || !Array.isArray(persistent_ids) || persistent_ids.length === 0)
+        return res.status(400).json({ error: 'lote_id e persistent_ids obrigatórios' });
+    const upsert = db.prepare(`
+        INSERT INTO cnc_etiqueta_impressoes (user_id, lote_id, persistent_id, status, impressoes, impresso_por, impresso_em)
+        VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, lote_id, persistent_id) DO UPDATE SET
+            impressoes = impressoes + 1,
+            status = CASE WHEN impressoes >= 1 THEN 'reimpressa' ELSE 'impressa' END,
+            impresso_em = CURRENT_TIMESTAMP
+    `);
+    const tx = db.transaction(() => {
+        for (const pid of persistent_ids) upsert.run(req.user.id, lote_id, pid, status, req.user.id);
+    });
+    tx();
+    res.json({ ok: true, count: persistent_ids.length });
+});
+
+// DELETE /etiqueta-impressoes/:loteId/:persistentId → resetar status
+router.delete('/etiqueta-impressoes/:loteId/:persistentId', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM cnc_etiqueta_impressoes WHERE user_id = ? AND lote_id = ? AND persistent_id = ?')
+        .run(req.user.id, req.params.loteId, req.params.persistentId);
+    res.json({ ok: true });
+});
+
 // ═══════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════
 // GRUPO 5: Gerador G-code v2 — por chapa, contorno automático,

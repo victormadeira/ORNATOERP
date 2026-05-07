@@ -376,7 +376,7 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [], notify }) {
+export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [], notify, onInspect, printStatusMap = {} }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
@@ -876,7 +876,14 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
     // ─── Piece click (select) ───
     const handlePieceClick = (e, pecaIdx) => {
         if (dragging) return;
-        if (onSelectPiece) onSelectPiece(pecaIdx, e.ctrlKey || e.metaKey);
+        const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
+        if (onSelectPiece) onSelectPiece(pecaIdx, isMulti);
+        // Abrir painel de inspeção com single click (sem multi-select)
+        if (!isMulti && onInspect) {
+            const p = chapa.pecas[pecaIdx];
+            const piece = p && pecasMap?.[p.pecaId];
+            if (piece) onInspect(piece, p, idx);
+        }
     };
 
     // ─── Recalcular Sobras handler (extracted for reuse in viz toolbar) ───
@@ -1796,6 +1803,23 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                                 <rect width={cls === 'super_pequena' ? 16 : 12} height={11} fill={clsC} opacity={0.9} />
                                                 <text x={cls === 'super_pequena' ? 8 : 6} y={8} textAnchor="middle" fontSize={7} fill="#fff" fontWeight={800}>{label}</text>
                                             </g>
+                                        );
+                                    })()}
+
+                                    {/* Print status dot — canto superior esquerdo */}
+                                    {(() => {
+                                        const pid = piece?.persistent_id || piece?.upmcode;
+                                        if (!pid || pw < 16 || ph < 16) return null;
+                                        const ps = printStatusMap[pid];
+                                        if (!ps) return null;
+                                        const isRe = ps.status === 'reimpressa' || ps.impressoes > 1;
+                                        return (
+                                            <circle
+                                                cx={px + 5} cy={py + 5} r={3}
+                                                fill={isRe ? '#f59e0b' : '#22c55e'}
+                                                opacity={0.9}
+                                                style={{ pointerEvents: 'none' }}
+                                            />
                                         );
                                     })()}
 
