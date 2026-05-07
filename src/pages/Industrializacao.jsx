@@ -470,11 +470,11 @@ function StepBar({ steps, current, setCurrent }) {
                     <button key={s.id} onClick={() => setCurrent(i)} style={{
                         flex: 1, minWidth: 90, padding: '10px 8px', border: 'none', cursor: 'pointer',
                         borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        background: active ? 'var(--primary-gradient)' : done ? 'var(--primary-light)' : 'transparent',
+                        background: active ? 'var(--primary)' : done ? 'var(--primary-light)' : 'transparent',
                         color: active ? '#fff' : done ? 'var(--primary)' : 'var(--text-muted)',
                         fontWeight: active ? 700 : 500, fontSize: 12, transition: 'all 0.2s',
                         fontFamily: 'var(--font-sans)',
-                        boxShadow: active ? '0 2px 8px var(--primary-ring)' : 'none',
+                        boxShadow: active ? '0 1px 3px rgba(0,0,0,.22)' : 'none',
                     }}>
                         <span style={{
                             width: 22, height: 22, borderRadius: '50%', fontSize: 10, fontWeight: 700,

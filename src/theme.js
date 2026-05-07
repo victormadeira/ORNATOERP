@@ -127,21 +127,21 @@ export const STATUS_COLORS = {
     nao_iniciado:  { label: 'Não iniciado',  color: 'var(--muted)',   bg: 'var(--muted-bg)',   icon: 'circle' },
 
     // CNC específicos
-    em_corte:      { label: 'Em corte',      color: '#8b5cf6',        bg: '#f5f3ff',           icon: 'scissors' },
+    em_corte:      { label: 'Em corte',      color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'scissors' },
     cortada:       { label: 'Cortada',       color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
     conferida:     { label: 'Conferida',     color: 'var(--success)', bg: 'var(--success-bg)', icon: 'checkDouble' },
 
     // CNC Lote status
-    importado:     { label: 'Importado',     color: '#3b82f6',        bg: '#eff6ff',           icon: 'upload' },
-    otimizado:     { label: 'Otimizado',     color: '#22c55e',        bg: '#f0fdf4',           icon: 'check' },
-    produzindo:    { label: 'Produzindo',    color: '#f59e0b',        bg: '#fffbeb',           icon: 'play' },
+    importado:     { label: 'Importado',     color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'upload' },
+    otimizado:     { label: 'Otimizado',     color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'check' },
+    produzindo:    { label: 'Produzindo',    color: 'var(--success)', bg: 'var(--success-bg)', icon: 'play' },
 
     // Produção/Expedição
     em_producao:   { label: 'Em produção',   color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'factory' },
     aguardando:    { label: 'Aguardando',    color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'clock' },
     expedido:      { label: 'Expedido',      color: 'var(--info)',    bg: 'var(--info-bg)',    icon: 'truck' },
     entregue:      { label: 'Entregue',      color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },
-    instalando:    { label: 'Instalando',    color: '#8b5cf6',        bg: '#f5f3ff',           icon: 'wrench' },
+    instalando:    { label: 'Instalando',    color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'wrench' },
 
     // Financeiro
     pago:          { label: 'Pago',          color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check' },

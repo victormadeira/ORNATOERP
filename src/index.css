@@ -77,7 +77,7 @@
   --danger: #F87171;  --danger-bg: rgba(248, 113, 113, 0.10); --danger-border: rgba(248, 113, 113, 0.22); --danger-hover: #FCA5A5;
   --warning: #FBBF24; --warning-bg: rgba(251, 191, 36, 0.10); --warning-border: rgba(251, 191, 36, 0.22); --warning-hover: #FCD34D;
   --info: #60A5FA;    --info-bg: rgba(96, 165, 250, 0.10);    --info-border: rgba(96, 165, 250, 0.22);    --info-hover: #93C5FD;
-  --muted: #8C8C9E;   --muted-bg: rgba(140, 140, 158, 0.10);
+  --muted: #8C8C9E;   --muted-bg: rgba(140, 140, 158, 0.10);  --muted-border: rgba(140, 140, 158, 0.22);
 
   /* Operational surfaces — CNC / telas densas sem "glass" */
   --bg-operational: #131318;
@@ -184,7 +184,7 @@
   --danger: #DC2626;  --danger-bg: #FEF2F2;  --danger-border: #FCA5A5;  --danger-hover: #B91C1C;
   --warning: #D97706; --warning-bg: #FFFBEB; --warning-border: #FCD34D; --warning-hover: #B45309;
   --info: #2563EB;    --info-bg: #EFF6FF;    --info-border: #93C5FD;    --info-hover: #1D4ED8;
-  --muted: #6C6C7A;   --muted-bg: #EDEDF4;
+  --muted: #6C6C7A;   --muted-bg: #EDEDF4;  --muted-border: #C8C8D4;
 }
 
 /* Utility classes para níveis tipográficos semânticos */
@@ -343,18 +343,11 @@ h2, h3, h4 {
   /* sem blur */
 }
 
-/* Card com top accent gradient — cobre por padrão (identidade) */
+/* Card com top accent — cobre Ornato, borda sólida (sem gradiente) */
 .card-accent-top {
   position: relative;
   overflow: hidden;
-}
-.card-accent-top::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: var(--accent-gradient);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-top: 2px solid var(--accent) !important;
 }
 
 /* ─── Buttons — escala de interação consistente ─── */
@@ -1071,7 +1064,7 @@ aside.sidebar-dark::after {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
 }
 
 .col-header-count {
@@ -1103,7 +1096,7 @@ aside.sidebar-dark::after {
   font-weight: 700;
   font-size: 13px;
   color: var(--text-primary);
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
 }
 
 .section-card-header-icon {
@@ -1129,18 +1122,11 @@ tr.tr-clickable:hover .td-glass:first-child {
 /* Em tabelas densas */
 tr.group .td-glass { transition: background var(--transition-fast), box-shadow var(--transition-fast); }
 
-/* ─── Glass card with top accent ─── */
+/* ─── Glass card with top accent — sólido, sem gradiente ─── */
 .glass-card-accent {
   position: relative;
   overflow: hidden;
-}
-.glass-card-accent::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--accent-color, var(--accent-gradient));
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-top: 2px solid var(--accent-color, var(--accent)) !important;
 }
 
 /* ─── Step indicator ─── */
@@ -1289,47 +1275,20 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
 .cnc-next-action-btn:active { transform: scale(0.97); }
 
 /* ═══════════════════════════════════════════════════════════
-   HERO CARD — para Dashboard, encantador
+   HERO CARD — legacy (substituído por exec-bar no ERP).
+   Mantido apenas para páginas públicas / landing page.
+   Não usar em telas internas do ERP.
    ═══════════════════════════════════════════════════════════ */
 .hero-card {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, #1A1612 0%, #2A2218 50%, #1A1612 100%);
+  background: #1A1612;
   color: var(--text-on-dark);
   padding: 32px 36px;
   border: 1px solid rgba(184, 147, 90, 0.18);
   box-shadow: var(--shadow-lg);
 }
-
-/* Aurora orbe — luz cobre flutuando */
-.hero-card::before {
-  content: '';
-  position: absolute;
-  top: -120px;
-  right: -80px;
-  width: 380px; height: 380px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(201, 169, 110, 0.32) 0%, rgba(201, 169, 110, 0.08) 40%, transparent 70%);
-  animation: aurora 12s ease-in-out infinite;
-  pointer-events: none;
-  filter: blur(20px);
-}
-
-.hero-card::after {
-  content: '';
-  position: absolute;
-  bottom: -150px;
-  left: -100px;
-  width: 420px; height: 420px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(19, 121, 240, 0.22) 0%, transparent 60%);
-  animation: aurora 15s ease-in-out infinite reverse;
-  pointer-events: none;
-  filter: blur(30px);
-}
-
-.hero-card > * { position: relative; z-index: 1; }
 
 .hero-card-title {
   font-family: var(--font-display);
@@ -1349,16 +1308,14 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
   letter-spacing: 0.01em;
 }
 
+/* hero-stat-value: apenas em landing/público onde o gradiente de texto é aceitável */
 .hero-stat-value {
   font-family: var(--font-display);
   font-size: clamp(2.5rem, 5vw, 3.5rem);
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
-  background: linear-gradient(135deg, #F4ECDB 0%, #C9A96E 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1566,9 +1523,9 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
   display: flex; align-items: center; gap: 10px;
 }
 .chart-card-pro-title h3 {
-  font-family: var(--font-display);
-  font-size: 14px; font-weight: 700;
-  letter-spacing: -0.015em;
+  font-family: var(--font-sans);
+  font-size: 13px; font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
   margin: 0;
 }
@@ -1698,7 +1655,8 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
   opacity: 0.85;
 }
 
-/* Gradient text — reusable */
+/* Gradient text — apenas em landing page / páginas públicas.
+   NÃO usar em componentes internos do ERP. */
 .text-gradient-accent {
   background: linear-gradient(135deg, #E8D5A0 0%, #C9A96E 100%);
   -webkit-background-clip: text;

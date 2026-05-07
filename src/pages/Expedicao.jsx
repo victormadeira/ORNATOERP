@@ -738,9 +738,9 @@ export default function Expedicao() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 6, flexShrink: 0 }}>
                     <div style={{
                         width: 36, height: 36, borderRadius: 10,
-                        background: 'var(--primary-gradient)',
+                        background: 'var(--primary)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 2px 8px var(--primary-ring)',
+                        boxShadow: '0 1px 3px rgba(0,0,0,.22)',
                     }}>
                         <Truck size={18} color="#fff" />
                     </div>

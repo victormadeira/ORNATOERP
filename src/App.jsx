@@ -535,10 +535,10 @@ export default function App() {
         <div className="flex h-screen items-center justify-center" style={{ background: 'var(--bg-body)' }}>
             <div className="flex flex-col items-center gap-4">
                 <div style={{
-                    width: 48, height: 48, borderRadius: 16,
-                    background: 'var(--primary-gradient)',
+                    width: 48, height: 48, borderRadius: 12,
+                    background: 'var(--primary)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    animation: 'pulse-glow 2s ease-in-out infinite',
+                    boxShadow: '0 2px 8px rgba(19,121,240,.28)',
                 }}>
                     <LayoutDashboard size={24} style={{ color: '#fff' }} />
                 </div>
@@ -1167,14 +1167,14 @@ function PerfilModal({ user, onClose, notify, updateUser }) {
                 border: '1px solid var(--border)', margin: 16,
             }}>
                 {/* Header */}
-                <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, var(--bg-muted) 0%, transparent 100%)' }}>
+                <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-subtle)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div className="relative">
                             <div style={{
-                                width: 42, height: 42, borderRadius: '50%', background: 'var(--primary-gradient)',
+                                width: 42, height: 42, borderRadius: '50%', background: 'var(--primary)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 color: '#fff', fontSize: 16, fontWeight: 800,
-                                boxShadow: '0 2px 8px rgba(19,121,240,0.25)',
+                                boxShadow: '0 1px 3px rgba(0,0,0,.22)',
                             }}>{user.nome?.[0]?.toUpperCase()}</div>
                             <span className="status-online" />
                         </div>
