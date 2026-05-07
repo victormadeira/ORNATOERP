@@ -333,31 +333,53 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
         const sy = Math.min(0, minY) - 3, ey = Math.max(pieceH, maxY) + 3;
         const thick = chapa?.espessura || STOCK_THICKNESS;
 
-        // Stock — semi-transparent MDF
-        const stockGeom = new THREE.BoxGeometry(ex - sx, ey - sy, thick);
-        const stockMesh = new THREE.Mesh(stockGeom, new THREE.MeshStandardMaterial({
-            color: COL.stock, transparent: true, opacity: 0.30,
-            roughness: 0.85, metalness: 0,
-        }));
-        stockMesh.position.set((sx + ex) / 2, (sy + ey) / 2, -thick / 2);
-        stockGroup.add(stockMesh);
+        // Stock outline — only discrete dashed lines, no solid fill.
+        // Top face (Z=0, the cutting surface) is the most prominent.
+        // Bottom face and corner verticals are very subtle — just enough 3D cue.
+        const mkDashedRect = (z, color, opacity, dash = 14, gap = 8) => {
+            const pts = [
+                new THREE.Vector3(sx, sy, z),
+                new THREE.Vector3(ex, sy, z),
+                new THREE.Vector3(ex, ey, z),
+                new THREE.Vector3(sx, ey, z),
+                new THREE.Vector3(sx, sy, z), // close loop
+            ];
+            const geom = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat  = new THREE.LineDashedMaterial({
+                color, dashSize: dash, gapSize: gap,
+                transparent: true, opacity,
+            });
+            const line = new THREE.Line(geom, mat);
+            line.computeLineDistances();
+            return line;
+        };
 
-        const edges = new THREE.LineSegments(
-            new THREE.EdgesGeometry(stockGeom),
-            new THREE.LineBasicMaterial({ color: COL.stockEdge, transparent: true, opacity: 0.7 })
-        );
-        edges.position.copy(stockMesh.position);
-        stockGroup.add(edges);
+        // Top face — cutting plane, moderate visibility
+        stockGroup.add(mkDashedRect(0,      0x3d5a7a, 0.55));
+        // Bottom face — very subtle depth cue
+        stockGroup.add(mkDashedRect(-thick, 0x2a3a4a, 0.20, 10, 8));
 
-        // Grid at table surface
-        const tableSize = Math.max(ex - sx, ey - sy) * 1.5;
-        const grid = new THREE.GridHelper(
-            tableSize,
-            Math.min(80, Math.round(tableSize / 100)),
-            COL.grid, COL.grid
-        );
+        // Corner verticals — 4 short lines to convey thickness
+        for (const [cx, cy] of [[sx, sy], [ex, sy], [ex, ey], [sx, ey]]) {
+            const geom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(cx, cy, 0),
+                new THREE.Vector3(cx, cy, -thick),
+            ]);
+            const mat = new THREE.LineDashedMaterial({
+                color: 0x2a3a4a, dashSize: 4, gapSize: 4,
+                transparent: true, opacity: 0.22,
+            });
+            const line = new THREE.Line(geom, mat);
+            line.computeLineDistances();
+            stockGroup.add(line);
+        }
+
+        // Grid — below the stock, very few lines so it doesn't compete visually
+        const tableSize = Math.max(ex - sx, ey - sy) * 1.6;
+        const gridDivs  = Math.min(20, Math.max(8, Math.round(tableSize / 250)));
+        const grid = new THREE.GridHelper(tableSize, gridDivs, 0x1a2330, 0x1a2330);
         grid.rotation.x = Math.PI / 2;
-        grid.position.set((sx + ex) / 2, (sy + ey) / 2, -thick - 0.5);
+        grid.position.set((sx + ex) / 2, (sy + ey) / 2, -thick - 1);
         gridGroup.add(grid);
 
         // Colored axes at part origin
