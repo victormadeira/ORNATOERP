@@ -957,16 +957,16 @@ export default function Ponto({ notify }) {
                         style={{
                             fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6,
                             padding: '7px 14px', borderRadius: 10,
-                            background: 'linear-gradient(135deg, #1B1F26 0%, #0E1116 100%)',
-                            border: '1px solid rgba(201,169,110,0.45)',
-                            color: '#fff', fontWeight: 600, cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(14,17,22,0.25), inset 0 1px 0 rgba(201,169,110,0.15)',
+                            background: 'var(--bg-muted)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer',
+                            boxShadow: 'none',
                             transition: 'all 160ms var(--ease-out)',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-bright)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(201,169,110,0.35), inset 0 1px 0 rgba(201,169,110,0.25)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(201,169,110,0.45)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(14,17,22,0.25), inset 0 1px 0 rgba(201,169,110,0.15)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong, var(--border))'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
                     >
-                        <FileText size={13} style={{ color: '#C9A96E' }} /> Relatório PDF
+                        <FileText size={13} /> Relatório PDF
                     </button>
                     <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) importCSV(e.target.files[0]); }} />
                 </div>

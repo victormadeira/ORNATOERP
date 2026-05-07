@@ -206,7 +206,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
             } else if (/^M\d+/i.test(tok)) {
                 parts.push(<span key={i} style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{tok}</span>);
             } else if (/^T\d+/i.test(tok)) {
-                parts.push(<span key={i} style={{ color: '#C9A96E', fontWeight: 700 }}>{tok}</span>);
+                parts.push(<span key={i} style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{tok}</span>);
             } else if (/^[XYZIJKR]-?[\d.]+/i.test(tok)) {
                 parts.push(<span key={i} style={{ color: '#93C5FD' }}>{tok}</span>);
             } else if (/^[FS]-?[\d.]+/i.test(tok)) {

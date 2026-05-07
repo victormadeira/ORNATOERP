@@ -4708,8 +4708,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 <div className="max-w-4xl">
                     <div className={Z.card}>
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.25)' }}>
-                                <Bell size={20} style={{ color: '#C9A96E' }} />
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(19,121,240,0.10)', border: '1px solid rgba(19,121,240,0.20)' }}>
+                                <Bell size={20} style={{ color: 'var(--primary)' }} />
                             </div>
                             <div>
                                 <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Follow-ups automáticos</h3>

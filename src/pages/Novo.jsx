@@ -95,8 +95,8 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                 onClick={toggle}
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium cursor-pointer transition-colors"
                 style={{
-                    background: 'var(--accent-bg, rgba(201,169,110,0.08))',
-                    border: '1px solid rgba(201,169,110,0.25)',
+                    background: 'var(--primary-alpha, rgba(19,121,240,0.08))',
+                    border: '1px solid rgba(19,121,240,0.20)',
                     color: 'var(--primary)',
                 }}>
                 <Wrench size={10} />
@@ -124,10 +124,10 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                                 <button key={p.id} onClick={() => pick(p.id)}
                                     className="w-full text-left px-3 py-1.5 flex items-center justify-between cursor-pointer transition-colors"
                                     style={{
-                                        background: isActive ? 'var(--accent-bg, rgba(201,169,110,0.10))' : 'transparent',
+                                        background: isActive ? 'var(--primary-alpha, rgba(19,121,240,0.08))' : 'transparent',
                                         borderLeft: isActive ? '2px solid var(--primary)' : '2px solid transparent',
                                     }}
-                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--accent-bg, rgba(201,169,110,0.05))'; }}
+                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(19,121,240,0.04)'; }}
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}>
                                     <div className="flex flex-col min-w-0">
                                         <span className="text-[11px] font-medium truncate" style={{ color: isActive ? 'var(--primary)' : 'var(--text-primary)' }}>{p.nome}</span>
@@ -165,7 +165,7 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
     const puxadores = isPuxador ? ferragensDB.filter(f => f.categoria?.toLowerCase() === 'puxador') : [];
 
     return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: ativo ? 'var(--accent-bg, rgba(201,169,110,0.06))' : 'var(--bg-muted)', border: `1px solid ${ativo ? 'rgba(201,169,110,0.3)' : 'var(--border)'}` }}>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: ativo ? 'var(--primary-alpha, rgba(19,121,240,0.06))' : 'var(--bg-muted)', border: `1px solid ${ativo ? 'rgba(19,121,240,0.25)' : 'var(--border)'}` }}>
             <button onClick={() => onChange(!ativo)} className="flex items-center gap-1.5 flex-1 cursor-pointer text-left min-w-0">
                 {ativo ? <ToggleRight size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} /> : <ToggleLeft size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
                 <div className="flex flex-col min-w-0">
@@ -423,7 +423,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
 
                     {/* ── Materiais da instância ── colapsável */}
                     {temMatsCustom || matExp ? (
-                        <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'var(--accent-bg, rgba(201,169,110,0.04))', border: '1px solid var(--accent-border, rgba(201,169,110,0.18))' }}>
+                        <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.04))', border: '1px solid rgba(19,121,240,0.15)' }}>
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Material deste componente</span>
                                 <div className="flex gap-2">
@@ -452,7 +452,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                                         inheritOption={`↩ Herdar: ${autoMatIntNome}`}
                                         placeholder="Buscar material..."
                                         className={Z.inp}
-                                        style={ci.matIntInst ? { borderColor: 'var(--accent-mid, rgba(201,169,110,0.5))', background: 'var(--accent-bg, rgba(201,169,110,0.04))' } : {}}
+                                        style={ci.matIntInst ? { borderColor: 'rgba(19,121,240,0.40)', background: 'rgba(19,121,240,0.04)' } : {}}
                                     />
                                 </div>
                                 <div>

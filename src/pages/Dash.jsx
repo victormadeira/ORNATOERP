@@ -1275,17 +1275,13 @@ function OrigemTrafegoWidget() {
         direto: '#94A3B8', google: '#4285F4', facebook: '#1877F2', instagram: '#E1306C',
         fb: '#1877F2', ig: '#E1306C', whatsapp: '#25D366', email: '#F59E0B',
     };
-    const corDe = (o) => ORIGEM_COR[String(o).toLowerCase()] || '#C9A96E';
+    const corDe = (o) => ORIGEM_COR[String(o).toLowerCase()] || '#64748b';
 
     return (
         <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
             <div className="chart-card-pro-head">
                 <div className="chart-card-pro-title">
-                    <span className="kpi-pro-icon" style={{
-                        background: 'rgba(201, 169, 110, 0.10)',
-                        borderColor: 'rgba(201, 169, 110, 0.25)',
-                        color: '#C9A96E',
-                    }}>
+                    <span className="kpi-pro-icon">
                         <BarChart3 size={15} strokeWidth={2.2} />
                     </span>
                     <h3>Origem do tráfego</h3>
@@ -1327,7 +1323,7 @@ function OrigemTrafegoWidget() {
                 </div>
                 <div style={{ padding: '14px 18px', background: 'var(--bg-card)' }}>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Faturamento</div>
-                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: '#C9A96E', letterSpacing: '-0.02em', marginTop: 2 }}>{R$(totais.faturamento)}</div>
+                    <div className="font-display font-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginTop: 2 }}>{R$(totais.faturamento)}</div>
                 </div>
             </div>
 
@@ -1353,7 +1349,7 @@ function OrigemTrafegoWidget() {
                                     <span>{N(o.visitas)} visitas</span>
                                     <span>{N(o.leads_unicos)} leads</span>
                                     <span>{N(o.fechados)} fechados</span>
-                                    <span style={{ color: '#C9A96E', fontWeight: 700 }}>{R$(o.faturamento)}</span>
+                                    <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{R$(o.faturamento)}</span>
                                 </div>
                             </div>
                             <div style={{ position: 'relative', height: 6, background: 'var(--bg-muted)', borderRadius: 99, overflow: 'hidden' }}>
@@ -1448,11 +1444,7 @@ function FollowUpsWidget({ nav, notify }) {
         <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
             <div className="chart-card-pro-head">
                 <div className="chart-card-pro-title">
-                    <span className="kpi-pro-icon" style={{
-                        background: 'rgba(201, 169, 110, 0.10)',
-                        borderColor: 'rgba(201, 169, 110, 0.25)',
-                        color: '#C9A96E',
-                    }}>
+                    <span className="kpi-pro-icon">
                         <Bell size={15} strokeWidth={2.2} />
                     </span>
                     <h3>Follow-ups</h3>

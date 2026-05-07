@@ -2109,8 +2109,8 @@ function OficinaTVMode() {
                 onClick={() => { setView('kanban'); setAutoRotate(false); }}
                 style={{
                   padding: '6px 12px', border: 0, borderRadius: 6, cursor: 'pointer',
-                  background: view === 'kanban' ? '#C9A96E' : 'transparent',
-                  color: view === 'kanban' ? '#0b0e13' : '#94a3b8',
+                  background: view === 'kanban' ? 'var(--primary)' : 'transparent',
+                  color: view === 'kanban' ? '#fff' : '#94a3b8',
                   fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
                   display: 'flex', alignItems: 'center', gap: 5,
                 }}
@@ -2122,8 +2122,8 @@ function OficinaTVMode() {
                 onClick={() => { setView('team'); setAutoRotate(false); }}
                 style={{
                   padding: '6px 12px', border: 0, borderRadius: 6, cursor: 'pointer',
-                  background: view === 'team' ? '#C9A96E' : 'transparent',
-                  color: view === 'team' ? '#0b0e13' : '#94a3b8',
+                  background: view === 'team' ? 'var(--primary)' : 'transparent',
+                  color: view === 'team' ? '#fff' : '#94a3b8',
                   fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
                   display: 'flex', alignItems: 'center', gap: 5,
                 }}

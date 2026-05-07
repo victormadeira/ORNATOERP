@@ -32,7 +32,7 @@ function formatDateTime(s) {
 
 function TipoAcaoBadge({ tipo }) {
     const map = {
-        followup_audio: { label: 'Follow-up áudio', bg: 'rgba(201,169,110,0.15)', color: '#C9A96E' },
+        followup_audio: { label: 'Follow-up áudio', bg: 'rgba(59,130,246,0.10)', color: '#60A5FA' },
         followup_texto: { label: 'Follow-up texto', bg: 'rgba(59,130,246,0.15)', color: '#60A5FA' },
         followup_objecao: { label: 'Follow-up objeção', bg: 'rgba(239,68,68,0.15)', color: '#F87171' },
         ligar: { label: 'Ligar', bg: 'rgba(16,185,129,0.15)', color: '#34D399' },
@@ -146,7 +146,7 @@ function AcaoCard({ acao, onResolver, onOpenConversa }) {
                             {expanded && (
                                 <div style={{
                                     marginTop: 6, padding: 12, borderRadius: 8,
-                                    background: 'rgba(201,169,110,0.08)', border: '1px solid rgba(201,169,110,0.20)',
+                                    background: 'rgba(19,121,240,0.06)', border: '1px solid rgba(19,121,240,0.15)',
                                     fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap', fontFamily: 'Inter',
                                 }}>
                                     {acao.mensagem_sugerida}
@@ -472,7 +472,7 @@ export default function GerenteRevisional() {
                                         onClick={() => loadRelatorio(h.id)}
                                         style={{
                                             display: 'flex', width: '100%', padding: '8px 10px', marginBottom: 4,
-                                            background: rel?.id === h.id ? 'rgba(201,169,110,0.10)' : 'transparent',
+                                            background: rel?.id === h.id ? 'rgba(19,121,240,0.08)' : 'transparent',
                                             border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8,
                                             cursor: 'pointer', fontSize: 13, alignItems: 'center', gap: 10,
                                             color: 'inherit', textAlign: 'left',
