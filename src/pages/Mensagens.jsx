@@ -21,7 +21,7 @@ import {
 const STATUS_LABELS = { ia: 'IA', humano: 'Humano', fechado: 'Fechado' };
 const STATUS_ICONS = { ia: <Bot size={12} />, humano: <User size={12} />, fechado: <Lock size={12} /> };
 const STATUS_COLORS = {
-    ia: { bg: colorBg('#8b5cf6'), color: '#8b5cf6', border: colorBorder('#8b5cf6') },
+    ia: { bg: colorBg('var(--accent)'), color: 'var(--accent)', border: colorBorder('var(--accent)') },
     humano: { bg: colorBg('var(--success)'), color: 'var(--success)', border: colorBorder('var(--success)') },
     fechado: { bg: colorBg('var(--muted)'), color: 'var(--muted)', border: colorBorder('var(--muted)') },
 };
@@ -37,7 +37,7 @@ const LEAD_COLORS = {
 const CATEGORIAS = [
     { v: '', l: 'Sem categoria', c: 'var(--muted)' },
     { v: 'comercial', l: 'Comercial', c: 'var(--info)' },
-    { v: 'medicao', l: 'Medição', c: '#8b5cf6' },
+    { v: 'medicao', l: 'Medição', c: 'var(--info)' },
     { v: 'pos_venda', l: 'Pós-venda', c: 'var(--success)' },
     { v: 'financeiro', l: 'Financeiro', c: 'var(--warning)' },
     { v: 'suporte', l: 'Suporte', c: '#ec4899' },
@@ -107,7 +107,7 @@ function initials(name) {
 // Gera cor estável pra avatar baseada no nome
 function avatarColor(name) {
     if (!name) return 'var(--muted)';
-    const palette = ['#0ea5e9', 'var(--success)', 'var(--warning)', 'var(--danger)', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
+    const palette = ['#0ea5e9', 'var(--success)', 'var(--warning)', 'var(--danger)', '#06b6d4', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
     let hash = 0;
     for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return palette[Math.abs(hash) % palette.length];
@@ -631,9 +631,9 @@ export default function Mensagens({ notify }) {
                                                     title="Puxar histórico já conhecido pela Evolution (rápido)"
                                                     style={{
                                                         ...btnBase,
-                                                        border: `1px solid ${colorBorder('#8b5cf6')}`,
-                                                        background: colorBg('#8b5cf6'),
-                                                        color: '#8b5cf6',
+                                                        border: `1px solid ${colorBorder('var(--info)')}`,
+                                                        background: colorBg('var(--info)'),
+                                                        color: 'var(--info)',
                                                         opacity: backfilling ? 0.6 : 1,
                                                     }}
                                                 >
@@ -1120,7 +1120,7 @@ export default function Mensagens({ notify }) {
                                         indicator = <Lock size={10} style={{ opacity: 0.7 }} />;
                                         metaColor = 'rgba(120,53,15,0.6)';
                                     } else if (isIA) {
-                                        bubbleBg = 'linear-gradient(135deg, #8b5cf6, #6366f1)';
+                                        bubbleBg = 'linear-gradient(135deg, var(--primary), #0891b2)';
                                         bubbleColor = '#fff';
                                         align = 'flex-end';
                                         indicator = <Bot size={10} />;
@@ -1300,8 +1300,8 @@ export default function Mensagens({ notify }) {
                                             disabled={suggesting}
                                             style={{
                                                 fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: suggesting ? 'wait' : 'pointer',
-                                                background: colorBg('#8b5cf6'), color: '#8b5cf6',
-                                                border: `1px solid ${colorBorder('#8b5cf6')}`, fontWeight: 600,
+                                                background: colorBg('var(--info)'), color: 'var(--info)',
+                                                border: `1px solid ${colorBorder('var(--info)')}`, fontWeight: 600,
                                                 marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
                                                 opacity: suggesting ? 0.6 : 1,
                                             }}

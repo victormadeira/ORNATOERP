@@ -173,7 +173,7 @@ export default function OrdemProducao({ nav, editProjeto }) {
                     { label: 'Peças', value: resumo.total_pecas, icon: <Layers size={16} />, color: 'var(--info)' },
                     { label: 'Chapas', value: resumo.total_chapas, icon: <Package size={16} />, color: 'var(--success)' },
                     { label: 'Ferragens', value: resumo.total_ferragens, icon: <ClipboardList size={16} />, color: 'var(--warning)' },
-                    { label: 'Fita (m)', value: N(resumo.total_fita_m, 1), icon: <Ruler size={16} />, color: '#8b5cf6' },
+                    { label: 'Fita (m)', value: N(resumo.total_fita_m, 1), icon: <Ruler size={16} />, color: 'var(--info)' },
                     { label: 'Custo Material', value: R$(resumo.custo_total), icon: <ShoppingCart size={16} />, color: 'var(--danger)' },
                 ].map(kpi => (
                     <div key={kpi.label} className={Z.card} style={{ padding: 14, textAlign: 'center' }}>
@@ -416,8 +416,8 @@ export default function OrdemProducao({ nav, editProjeto }) {
                                                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                                                     <span style={{
                                                         fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                        background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
-                                                        color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
+                                                        background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : 'var(--info-bg)',
+                                                        color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : 'var(--info)',
                                                     }}>
                                                         {b.tipo}
                                                     </span>

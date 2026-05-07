@@ -368,7 +368,7 @@
 .dt-op-furo_cego,
 .dt-op-furo_passante  { border-left-color: var(--primary); }
 .dt-op-rasgo          { border-left-color: var(--accent); }
-.dt-op-rebaixo        { border-left-color: #8b5cf6; }
+.dt-op-rebaixo        { border-left-color: var(--info); }
 .dt-op-freza_circular { border-left-color: var(--success); }
 .dt-op-chanfro        { border-left-color: var(--warning); }
 

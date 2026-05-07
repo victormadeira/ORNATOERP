@@ -10,7 +10,7 @@ import { PageHeader, Spinner, EmptyState, ProgressBar as PBar, ToolbarButton, To
 const ETAPAS = [
     { id: 'aguardando', label: 'Aguardando', color: 'var(--muted)', icon: Clock },
     { id: 'corte', label: 'Corte', color: 'var(--info)', icon: Factory },
-    { id: 'usinagem', label: 'Usinagem', color: '#8b5cf6', icon: Factory },
+    { id: 'usinagem', label: 'Usinagem', color: 'var(--info)', icon: Factory },
     { id: 'colagem_borda', label: 'Borda', color: 'var(--warning)', icon: Factory },
     { id: 'furacao', label: 'Furação', color: '#06b6d4', icon: Factory },
     { id: 'montagem', label: 'Montagem', color: '#ec4899', icon: Factory },

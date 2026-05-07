@@ -34,7 +34,7 @@ function useDebounce(value, delay) {
 const WORKER_CATEGORIES = [
     { value: 'transfer_hole', label: 'Furo passante', icon: '●', color: 'var(--danger-hover)', desc: 'Atravessa a peça' },
     { value: 'transfer_hole_blind', label: 'Furo cego', icon: '◐', color: '#f97316', desc: 'Não atravessa' },
-    { value: 'transfer_pocket', label: 'Rebaixo / Pocket', icon: '▬', color: '#a855f7', desc: 'Depressão retangular' },
+    { value: 'transfer_pocket', label: 'Rebaixo / Pocket', icon: '▬', color: 'var(--info)', desc: 'Depressão retangular' },
     { value: 'Transfer_vertical_saw_cut', label: 'Rasgo / Canal', icon: '━', color: '#eab308', desc: 'Corte linear' },
     { value: 'transfer_slot', label: 'Fresa / Slot', icon: '◆', color: '#06b6d4', desc: 'Fresamento' },
 ];
