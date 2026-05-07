@@ -2133,7 +2133,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                                 onMouseDown={e => e.stopPropagation()}
                                                 style={{ cursor: 'pointer' }}>
                                                     <circle cx={rx + rw - 5} cy={ry + 5} r={6}
-                                                        fill="#7c3aed" opacity={0.9} />
+                                                        fill="#0891b2" opacity={0.9} />
                                                     <text x={rx + rw - 5} y={ry + 8} textAnchor="middle"
                                                         fontSize={7} fill="#fff" fontWeight={800}>R</text>
                                                 </g>
@@ -2295,7 +2295,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                     : machTip.tipo?.includes('Rasgo') ? '#eab308'
                                     : machTip.tipo?.includes('Rebaixo') ? '#f97316'
                                     : machTip.tipo?.includes('Fresa') ? '#06b6d4'
-                                    : machTip.face === 'Fundo' ? '#7c3aed'
+                                    : machTip.face === 'Fundo' ? '#0891b2'
                                     : machTip.face?.includes('Lateral') ? '#2563eb'
                                     : '#e11d48',
                                 border: machTip.ghost ? '1.5px dashed #94a3b8' : 'none',
@@ -2379,7 +2379,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
 
                             {/* Ações rápidas */}
                             {!hasVeio && !isLocked && (
-                                <MI icon={RotateCw} label="Rotacionar 90°" color="#8b5cf6" onClick={() => handleRotate(ctxMenu.pecaIdx)} />
+                                <MI icon={RotateCw} label="Rotacionar 90°" color="var(--info)" onClick={() => handleRotate(ctxMenu.pecaIdx)} />
                             )}
                             {!isLocked && (
                                 <MI icon={FlipVertical2} label={`Inverter → Lado ${(p.lado_ativo === 'B') ? 'A' : 'B'}`} color="#0ea5e9"
@@ -2517,7 +2517,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                 {(chapa.retalhos?.length || 0) > 0 && <span style={{ color: '#22c55e' }}>{chapa.retalhos.length} retalho(s)</span>}
                 {chapa.kerf > 0 && <span>Kerf: {chapa.kerf}mm</span>}
                 {refiloVal > 0 && <span>Refilo: {refiloVal}mm</span>}
-                {hasVeio && <span style={{ color: '#8b5cf6', fontWeight: 600 }}>━ Com Veio</span>}
+                {hasVeio && <span style={{ color: 'var(--info)', fontWeight: 600 }}>━ Com Veio</span>}
                 {/* Per-sheet classification counts */}
                 {classifyLocal && (() => {
                     const sheetCls = { normal: 0, pequena: 0, super_pequena: 0 };

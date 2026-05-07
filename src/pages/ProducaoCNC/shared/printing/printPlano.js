@@ -60,7 +60,7 @@ export function printPlano(plano, pecasMap, loteAtual, getModColor) {
                                 pecasSvg += `<line x1="${px + sx2}" y1="${py + sy2}" x2="${px + ex2}" y2="${py + ey2}" stroke="#e11d48" stroke-width="${Math.max(0.8, (w.width_line || 3) * sY)}" opacity="0.45"/>`;
                             } else if (w.diameter && (w.quadrant === 'top' || w.quadrant === 'bottom')) {
                                 const r2 = Math.max(1, (w.diameter / 2) * Math.min(sX, sY));
-                                pecasSvg += `<circle cx="${px + wx}" cy="${py + wy}" r="${r2}" fill="${w.quadrant === 'top' ? '#e11d48' : '#7c3aed'}" opacity="0.5" stroke="${w.quadrant === 'top' ? '#be123c' : '#6d28d9'}" stroke-width="0.4"/>`;
+                                pecasSvg += `<circle cx="${px + wx}" cy="${py + wy}" r="${r2}" fill="${w.quadrant === 'top' ? '#e11d48' : '#0891b2'}" opacity="0.5" stroke="${w.quadrant === 'top' ? '#be123c' : '#0e7490'}" stroke-width="0.4"/>`;
                             }
                         }
                         pecasSvg += '</g>';
@@ -115,7 +115,7 @@ export function printPlano(plano, pecasMap, loteAtual, getModColor) {
                     <span><b>Aproveitamento:</b> ${ch.aproveitamento.toFixed(1)}%</span>
                     <span><b>Peças:</b> ${ch.pecas.length}</span>
                     <span><b>Retalhos:</b> ${(ch.retalhos?.length || 0)}</span>
-                    ${ch.veio && ch.veio !== 'sem_veio' ? `<span style="color:#8b5cf6"><b>Veio:</b> ━ Com veio</span>` : ''}
+                    ${ch.veio && ch.veio !== 'sem_veio' ? `<span style="color:var(--info, #0891b2)"><b>Veio:</b> ━ Com veio</span>` : ''}
                     ${ch.preco > 0 ? `<span><b>Preço:</b> R$${ch.preco.toFixed(2)}</span>` : ''}
                 </div>
                 <svg width="${sw + 4}" height="${sh + 4}" viewBox="-2 -2 ${sw + 4} ${sh + 4}" style="border:1px solid #ddd;border-radius:4px;background:#fafafa">

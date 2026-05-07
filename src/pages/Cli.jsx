@@ -60,14 +60,14 @@ const KB_LABELS = {
     arq: 'Arquivo', perdido: 'Perdido'
 };
 const KB_COLORS = {
-    lead: 'var(--muted)', orc: 'var(--info)', env: '#8b5cf6', neg: 'var(--warning)',
+    lead: 'var(--muted)', orc: 'var(--info)', env: 'var(--info)', neg: 'var(--warning)',
     ok: 'var(--success)', prod: '#06b6d4', mont: '#ec4899',
     arq: 'var(--muted)', perdido: 'var(--danger)'
 };
 
 const TIMELINE_ICONS = {
     orcamento: { icon: <FileText size={14} />, color: 'var(--info)', label: 'Orçamento' },
-    projeto: { icon: <Briefcase size={14} />, color: '#8b5cf6', label: 'Projeto' },
+    projeto: { icon: <Briefcase size={14} />, color: 'var(--info)', label: 'Projeto' },
     nota: { icon: <Edit size={14} />, color: 'var(--warning)', label: 'Nota' },
     whatsapp: { icon: <MessageCircle size={14} />, color: 'var(--success)', label: 'WhatsApp' },
     followup: { icon: <Sparkles size={14} />, color: '#ec4899', label: 'Follow-up' },
@@ -87,7 +87,7 @@ const ORIGENS = {
 };
 
 const NOTE_COLORS = [
-    'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', '#8b5cf6',
+    'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--info)',
     '#ec4899', '#06b6d4', '#f97316', '#14b8a6', 'var(--muted)'
 ];
 
@@ -259,7 +259,7 @@ function ClienteDetalhe({ clienteId, onBack, notify, nav }) {
                     <div className="flex items-center gap-3 flex-wrap">
                         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{cli.nome}</h1>
                         {cli.tipo_pessoa === 'juridica' && (
-                            <span className={tagClass} style={tagStyle('#8b5cf6')}>
+                            <span className={tagClass} style={tagStyle('var(--info)')}>
                                 PJ
                             </span>
                         )}
@@ -1062,7 +1062,7 @@ export default function Cli({ clis, reload, notify, nav }) {
                         const cnt = clis.filter(c => (c.origem || 'manual') === k).length;
                         if (!cnt) return null;
                         const isActive = origemFilter === k;
-                        const ORIGEM_COLORS = { instagram: '#e1306c', facebook: '#1877f2', whatsapp: '#25d366', indicacao: '#f59e0b', landing_page: '#8b5cf6' };
+                        const ORIGEM_COLORS = { instagram: '#e1306c', facebook: '#1877f2', whatsapp: '#25d366', indicacao: '#f59e0b', landing_page: 'var(--info)' };
                         const col = ORIGEM_COLORS[k] || 'var(--primary)';
                         return (
                             <button key={k}

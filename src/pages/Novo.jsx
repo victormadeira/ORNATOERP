@@ -95,9 +95,9 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                 onClick={toggle}
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium cursor-pointer transition-colors"
                 style={{
-                    background: 'rgba(168,85,247,0.08)',
-                    border: '1px solid rgba(168,85,247,0.25)',
-                    color: '#a855f7',
+                    background: 'var(--accent-bg, rgba(201,169,110,0.08))',
+                    border: '1px solid rgba(201,169,110,0.25)',
+                    color: 'var(--accent)',
                 }}>
                 <Wrench size={10} />
                 <span className="truncate" style={{ maxWidth: 100 }}>{selected?.nome || 'Puxador'}</span>
@@ -124,15 +124,15 @@ function PuxadorSelect({ puxadores, value, onChange }) {
                                 <button key={p.id} onClick={() => pick(p.id)}
                                     className="w-full text-left px-3 py-1.5 flex items-center justify-between cursor-pointer transition-colors"
                                     style={{
-                                        background: isActive ? 'rgba(168,85,247,0.1)' : 'transparent',
+                                        background: isActive ? 'var(--accent-bg, rgba(201,169,110,0.10))' : 'transparent',
                                         borderLeft: isActive ? '2px solid #a855f7' : '2px solid transparent',
                                     }}
-                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(168,85,247,0.05)'; }}
+                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--accent-bg, rgba(201,169,110,0.05))'; }}
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}>
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-[11px] font-medium truncate" style={{ color: isActive ? '#a855f7' : 'var(--text-primary)' }}>{p.nome}</span>
+                                        <span className="text-[11px] font-medium truncate" style={{ color: isActive ? 'var(--accent)' : 'var(--text-primary)' }}>{p.nome}</span>
                                     </div>
-                                    <span className="text-[10px] font-semibold shrink-0 ml-2" style={{ color: isActive ? '#a855f7' : 'var(--text-muted)' }}>{R$(p.preco)}</span>
+                                    <span className="text-[10px] font-semibold shrink-0 ml-2" style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>{R$(p.preco)}</span>
                                 </button>
                             );
                         })}
@@ -165,18 +165,18 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
     const puxadores = isPuxador ? ferragensDB.filter(f => f.categoria?.toLowerCase() === 'puxador') : [];
 
     return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: ativo ? 'rgba(168,85,247,0.06)' : 'var(--bg-muted)', border: `1px solid ${ativo ? 'rgba(168,85,247,0.3)' : 'var(--border)'}` }}>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: ativo ? 'var(--accent-bg, rgba(201,169,110,0.06))' : 'var(--bg-muted)', border: `1px solid ${ativo ? 'rgba(201,169,110,0.3)' : 'var(--border)'}` }}>
             <button onClick={() => onChange(!ativo)} className="flex items-center gap-1.5 flex-1 cursor-pointer text-left min-w-0">
-                {ativo ? <ToggleRight size={16} style={{ color: '#a855f7', flexShrink: 0 }} /> : <ToggleLeft size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+                {ativo ? <ToggleRight size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} /> : <ToggleLeft size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
                 <div className="flex flex-col min-w-0">
                     <span className="text-xs font-medium truncate" style={{ color: ativo ? 'var(--text-primary)' : 'var(--text-muted)' }}>{si.nome}</span>
-                    {fe && !isPuxador && <span className="text-[9px]" style={{ color: '#a855f7' }}>↳ {fe.nome}</span>}
+                    {fe && !isPuxador && <span className="text-[9px]" style={{ color: 'var(--accent)' }}>↳ {fe.nome}</span>}
                 </div>
             </button>
             {isPuxador && ativo && puxadores.length > 0 && (
                 <PuxadorSelect puxadores={puxadores} value={ferrOvr || si.ferrId} onChange={onFerrChange} />
             )}
-            {fe && <span className="text-[10px] font-semibold shrink-0" style={{ color: ativo ? '#a855f7' : 'var(--text-muted)' }}>{R$(fe.preco)}</span>}
+            {fe && <span className="text-[10px] font-semibold shrink-0" style={{ color: ativo ? 'var(--accent)' : 'var(--text-muted)' }}>{R$(fe.preco)}</span>}
         </div>
     );
 }
@@ -355,7 +355,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                         </span>
                     )}
                     {temMatsCustom && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(168,85,247,0.12)', color: '#a855f7' }}>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--accent-bg, rgba(201,169,110,0.12))', color: 'var(--accent)' }}>
                             mat. custom
                         </span>
                     )}
@@ -423,9 +423,9 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
 
                     {/* ── Materiais da instância ── colapsável */}
                     {temMatsCustom || matExp ? (
-                        <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.18)' }}>
+                        <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'var(--accent-bg, rgba(201,169,110,0.04))', border: '1px solid var(--accent-border, rgba(201,169,110,0.18))' }}>
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#a855f7' }}>Material deste componente</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>Material deste componente</span>
                                 <div className="flex gap-2">
                                     {temMatsCustom && (
                                         <button onClick={() => { onUpdate({ ...ci, matIntInst: '', matExtInst: '' }); setMatExp(false); }}
@@ -452,7 +452,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                                         inheritOption={`↩ Herdar: ${autoMatIntNome}`}
                                         placeholder="Buscar material..."
                                         className={Z.inp}
-                                        style={ci.matIntInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
+                                        style={ci.matIntInst ? { borderColor: 'var(--accent-mid, rgba(201,169,110,0.5))', background: 'var(--accent-bg, rgba(201,169,110,0.04))' } : {}}
                                     />
                                 </div>
                                 <div>
@@ -469,7 +469,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                                         inheritOption={`↩ Herdar: ${autoMatExtNome}`}
                                         placeholder="Buscar material..."
                                         className={Z.inp}
-                                        style={ci.matExtInst ? { borderColor: 'rgba(168,85,247,0.5)', background: 'rgba(168,85,247,0.04)' } : {}}
+                                        style={ci.matExtInst ? { borderColor: 'var(--accent-mid, rgba(201,169,110,0.5))', background: 'var(--accent-bg, rgba(201,169,110,0.04))' } : {}}
                                     />
                                 </div>
                             </div>
@@ -477,7 +477,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     ) : (
                         <button onClick={() => setMatExp(true)}
                             className="text-[10px] text-left cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
-                            style={{ color: '#a855f7' }}>
+                            style={{ color: 'var(--accent)' }}>
                             + material específico deste componente
                         </button>
                     )}
@@ -509,7 +509,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     {/* Ferragens disponíveis */}
                     {(compDef.sub_itens || []).length > 0 && (
                         <div>
-                            <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#a855f7' }}>Ferragens</div>
+                            <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--accent)' }}>Ferragens</div>
                             <div className="flex flex-col gap-1">
                                 {(compDef.sub_itens || []).map(si => (
                                     <SubItemRow
@@ -2490,7 +2490,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const ativa = versoes.find(v => v.versao_ativa === 1 || v.versao_ativa === true);
                             return ativa ? (
                                 <button onClick={() => abrirComparacao(editOrc.id, ativa.id)}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}>
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
                                     <ArrowUpDown size={12} className="inline mr-1" /> Comparar com ativa
                                 </button>
                             ) : null;
@@ -2532,7 +2532,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     })}
                     {!isSubstituida && !isLocked && !isAditivo && editOrc?.id && (
                         <button onClick={() => { setMotivoVersao(''); setShowVersaoModal(true); }}
-                            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg cursor-pointer" style={{ background: 'rgba(139,92,246,0.08)', color: '#8b5cf6', border: '1px dashed rgba(139,92,246,0.3)' }}>
+                            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg cursor-pointer" style={{ background: 'var(--info-bg)', color: 'var(--info)', border: '1px dashed rgba(14,116,144,0.3)' }}>
                             <Plus size={10} className="inline mr-0.5" /> Nova Versão
                         </button>
                     )}
@@ -2543,7 +2543,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     {editOrc?.id && !isSubstituida && !isLocked && !isAditivo && !temVersoes && (
                         <button onClick={() => { setMotivoVersao(''); setShowVersaoModal(true); }}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all"
-                            style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.25)' }}>
+                            style={{ background: 'var(--info-bg)', color: 'var(--info)', border: '1px solid rgba(14,116,144,0.25)' }}>
                             <GitBranch size={14} /> Nova Versão
                         </button>
                     )}
@@ -2754,7 +2754,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 )}
                                                 <button onClick={() => { setShowImportModal(true); setImportResult(null); setMoreActionsOpen(false); }}
                                                     className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] cursor-pointer"
-                                                    style={{ color: '#8b5cf6' }}>
+                                                    style={{ color: 'var(--info)' }}>
                                                     <Sparkles size={13} /> Importar JSON IA
                                                 </button>
                                             </div>
@@ -2897,7 +2897,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         const margemIt = precoItemFinal - custoIt;
                                                         const margemPct = precoItemFinal > 0 ? (margemIt / precoItemFinal * 100) : 0;
                                                         return (
-                                                            <span className="text-[8px] leading-none" style={{ color: margemPct > 50 ? '#8b5cf6' : margemPct > 35 ? 'var(--success)' : margemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>
+                                                            <span className="text-[8px] leading-none" style={{ color: margemPct > 50 ? 'var(--info)' : margemPct > 35 ? 'var(--success)' : margemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>
                                                                 {N(margemPct, 0)}% margem
                                                             </span>
                                                         );
@@ -3646,7 +3646,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     {/* Lista de Ferragens */}
                     {Object.keys(tot.fa).length > 0 && (
                         <div className={Z.card}>
-                            <h3 className="font-semibold text-sm mb-3" style={{ color: '#a855f7' }}>Lista de Ferragens</h3>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--accent)' }}>Lista de Ferragens</h3>
                             <div style={{ overflowX: 'auto' }}>
                             <table className="w-full border-collapse text-left">
                                 <thead><tr>{['Item', 'Origem', 'Qtd', 'Unit.', 'Total'].map(h => <th key={h} className={Z.th}>{h}</th>)}</tr></thead>
@@ -3691,7 +3691,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div key={a.id} className="flex justify-between text-[11px] items-center">
                                                 <span className="truncate pr-2" style={{ color: 'var(--text-muted)' }}>{a.nome}</span>
                                                 <div className="flex items-center gap-1.5 shrink-0">
-                                                    {ambMargemPct > 0 && <span className="text-[8px]" title={`Margem ${N(ambMargemPct, 1)}%`} style={{ color: ambMargemPct > 50 ? '#8b5cf6' : ambMargemPct > 35 ? 'var(--success)' : ambMargemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>{N(ambMargemPct, 0)}%</span>}
+                                                    {ambMargemPct > 0 && <span className="text-[8px]" title={`Margem ${N(ambMargemPct, 1)}%`} style={{ color: ambMargemPct > 50 ? 'var(--info)' : ambMargemPct > 35 ? 'var(--success)' : ambMargemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>{N(ambMargemPct, 0)}%</span>}
                                                     <span style={{ color: 'var(--text-secondary)' }}>{R$(ambPvVal)}</span>
                                                 </div>
                                             </div>
@@ -5182,7 +5182,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         onClick={e => e.stopPropagation()}>
                         <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
                             <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                <Sparkles size={16} style={{ color: '#8b5cf6' }} /> Importar JSON da IA
+                                <Sparkles size={16} style={{ color: 'var(--info)' }} /> Importar JSON da IA
                             </h3>
                             <button onClick={() => setShowImportModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
                         </div>
@@ -5232,7 +5232,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
                             <div className="flex justify-end gap-2 mt-4">
                                 <button onClick={() => setShowImportModal(false)} className={Z.btn2}>Cancelar</button>
-                                <button onClick={importarJsonIA} disabled={importLoading || !importJson.trim()} className={Z.btn} style={{ background: '#8b5cf6' }}>
+                                <button onClick={importarJsonIA} disabled={importLoading || !importJson.trim()} className={Z.btn} style={{ background: 'var(--info)' }}>
                                     {importLoading
                                         ? <><RefreshCw size={13} className="animate-spin" /> Processando...</>
                                         : <><Upload size={13} /> Importar</>
@@ -5282,11 +5282,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {empresa?.upmobb_ativo ? (
                                     <button disabled
                                         className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 opacity-50 cursor-not-allowed"
-                                        style={{ borderColor: '#8b5cf640', background: '#8b5cf608' }}>
-                                        <div style={{ width: 44, height: 44, borderRadius: 12, background: '#8b5cf6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        style={{ borderColor: 'rgba(14,116,144,0.25)', background: 'rgba(14,116,144,0.05)' }}>
+                                        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--info)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <FolderOpen size={22} />
                                         </div>
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>UpMobb</span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--info)' }}>UpMobb</span>
                                         <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>Importar JSON (em breve)</span>
                                     </button>
                                 ) : null}
@@ -5730,7 +5730,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     onClick={() => setShowVersaoModal(false)}>
                     <div className={`${Z.card} w-full max-w-md`} onClick={e => e.stopPropagation()}>
                         <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#8b5cf6' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--info)' }}>
                                 <GitBranch size={16} /> Criar Nova Versão
                             </h3>
                             <button onClick={() => setShowVersaoModal(false)} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
@@ -5750,7 +5750,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 onClick={() => criarNovaVersao(motivoVersao)}
                                 disabled={criandoVersao}
                                 className={`${Z.btn} w-full py-2.5`}
-                                style={{ background: '#8b5cf6', opacity: criandoVersao ? 0.4 : 1 }}>
+                                style={{ background: 'var(--info)', opacity: criandoVersao ? 0.4 : 1 }}>
                                 <GitBranch size={14} className="inline mr-1" /> {criandoVersao ? 'Criando...' : 'Criar Revisão'}
                             </button>
                         </div>
@@ -5766,7 +5766,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
                         onClick={e => e.stopPropagation()}>
                         <div className="p-4 flex items-center justify-between sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: '#8b5cf6' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--info)' }}>
                                 <ArrowUpDown size={16} /> Comparar Versões
                             </h3>
                             <div className="flex items-center gap-2">
@@ -5793,7 +5793,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 return (
                                     <div className="flex flex-col gap-4">
                                         {/* Resumo */}
-                                        <div className="p-3 rounded-lg flex items-center justify-between" style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)' }}>
+                                        <div className="p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--info-bg)', border: '1px solid rgba(14,116,144,0.15)' }}>
                                             <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                                                 <strong>{v1.versao === 1 ? 'v1' : `R${v1.versao}`}</strong> {R$(v1.valor_venda)} → <strong>{v2.versao === 1 ? 'v1' : `R${v2.versao}`}</strong> {R$(v2.valor_venda)}
                                             </div>

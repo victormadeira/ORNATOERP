@@ -29,7 +29,7 @@ const METHOD_LABELS = {
 };
 
 const CATEGORIA_ICON = { hole: Circle, pocket: Square, groove: Minus, generic: Settings };
-const CATEGORIA_COLOR = { hole: '#7c3aed', pocket: '#2563eb', groove: '#d97706', generic: '#6b7280' };
+const CATEGORIA_COLOR = { hole: 'var(--danger)', pocket: 'var(--primary)', groove: '#d97706', generic: 'var(--text-muted)' };
 
 export function ToolPanelModal({ data, loteId, onClose, onSave }) {
     const { operacoes = [], overrides: savedOverrides = {}, overrides_peca: savedOverridesPeca = {}, ferramentas_compativeis = {}, maquina, total_operacoes = 0, total_grupos = 0 } = data;
@@ -132,12 +132,12 @@ export function ToolPanelModal({ data, loteId, onClose, onSave }) {
         select: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, color: 'var(--text)', cursor: 'pointer' },
         methodBtn: (active) => ({
             padding: '3px 8px', fontSize: 10, borderRadius: 4, border: '1px solid',
-            borderColor: active ? '#7c3aed' : 'var(--border)',
-            background: active ? '#7c3aed' : 'transparent',
+            borderColor: active ? 'var(--primary)' : 'var(--border)',
+            background: active ? 'var(--primary)' : 'transparent',
             color: active ? '#fff' : 'var(--text-muted)',
             cursor: 'pointer', transition: 'all .15s', fontWeight: active ? 600 : 400,
         }),
-        toggleOn: { width: 32, height: 18, borderRadius: 9, background: '#7c3aed', position: 'relative', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 },
+        toggleOn: { width: 32, height: 18, borderRadius: 9, background: 'var(--primary)', position: 'relative', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 },
         toggleOff: { width: 32, height: 18, borderRadius: 9, background: '#4a4a5a', position: 'relative', cursor: 'pointer', transition: 'background .15s', flexShrink: 0 },
         toggleKnob: (on) => ({ width: 14, height: 14, borderRadius: 7, background: '#fff', position: 'absolute', top: 2, left: on ? 16 : 2, transition: 'left .15s' }),
     };
@@ -146,7 +146,7 @@ export function ToolPanelModal({ data, loteId, onClose, onSave }) {
         <Modal title={`Painel de Ferramentas — Lote #${loteId}`} close={onClose} w={880}>
             {/* Header stats */}
             <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: '#7c3aed22', borderRadius: 6, fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'rgba(19,121,240,0.12)', borderRadius: 6, fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>
                     <Wrench size={12} /> {total_operacoes} operações em {total_grupos} grupos
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--bg-muted)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted)' }}>
@@ -387,7 +387,7 @@ export function ToolPanelModal({ data, loteId, onClose, onSave }) {
                     <button
                         onClick={handleSave} disabled={saving || !dirty}
                         className={Z.btn} style={{
-                            padding: '8px 20px', fontSize: 12, background: '#7c3aed', color: '#fff', border: 'none',
+                            padding: '8px 20px', fontSize: 12, background: 'var(--primary)', color: '#fff', border: 'none',
                             opacity: (saving || !dirty) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6,
                         }}
                     >

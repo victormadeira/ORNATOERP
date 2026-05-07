@@ -146,7 +146,7 @@ export function TabDashboard({ notify }) {
                         label="Peças / Dia"
                         value={stats.pecasPorDia}
                         icon={Gauge}
-                        accent="#8b5cf6"
+                        accent="var(--info)"
                         sub={stats.diasAtivos ? `${stats.diasAtivos} dias ativos no período` : null}
                     />
                 )}
@@ -319,7 +319,7 @@ export function TabDashboard({ notify }) {
                     <SectionHeader
                         icon={TrendingUp}
                         title="Histórico e Aprendizado"
-                        accent="#8b5cf6"
+                        accent="var(--info)"
                     />
                     <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -343,7 +343,7 @@ export function TabDashboard({ notify }) {
                                 <div style={{ fontSize: 11, fontWeight: 850, color: 'var(--text-secondary)', marginBottom: 8 }}>Sinais detectados</div>
                                 {(aprendizado.insights || []).map((insight, i) => (
                                     <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.45, marginTop: i ? 7 : 0 }}>
-                                        <span style={{ width: 6, height: 6, borderRadius: 99, background: '#8b5cf6', marginTop: 5, flexShrink: 0 }} />
+                                        <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--info)', marginTop: 5, flexShrink: 0 }} />
                                         <span>{insight}</span>
                                     </div>
                                 ))}

@@ -130,7 +130,7 @@ function ChapaRow({ ch, time, expanded, onToggle }) {
                                 { v: ch.custo_desperdicio, c: 'var(--danger)', l: 'Desperdício' },
                                 { v: ch.custo_usinagem, c: '#f59e0b', l: 'Usinagem' },
                                 { v: ch.custo_bordas, c: '#22c55e', l: 'Bordas' },
-                                { v: ch.custo_trocas || 0, c: '#8b5cf6', l: 'Trocas' },
+                                { v: ch.custo_trocas || 0, c: 'var(--info)', l: 'Trocas' },
                             ].map(({ v, c, l }) => v > 0 ? (
                                 <div key={l} title={`${l}: ${fmt(v)}`} style={{
                                     height: '100%', borderRadius: 2,
@@ -145,7 +145,7 @@ function ChapaRow({ ch, time, expanded, onToggle }) {
                                 { v: ch.custo_desperdicio, c: 'var(--danger)', l: 'Desperdício' },
                                 { v: ch.custo_usinagem, c: '#f59e0b', l: 'Usinagem' },
                                 { v: ch.custo_bordas, c: '#22c55e', l: 'Bordas' },
-                                { v: ch.custo_trocas || 0, c: '#8b5cf6', l: ch.trocas_ferramenta ? `Trocas (${ch.trocas_ferramenta}×)` : 'Trocas' },
+                                { v: ch.custo_trocas || 0, c: 'var(--info)', l: ch.trocas_ferramenta ? `Trocas (${ch.trocas_ferramenta}×)` : 'Trocas' },
                             ].filter(({ v }) => v > 0).map(({ v, c, l }) => (
                                 <span key={l} style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <span style={{ width: 8, height: 8, borderRadius: 2, background: c, display: 'inline-block' }} />

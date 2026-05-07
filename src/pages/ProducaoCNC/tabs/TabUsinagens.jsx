@@ -14,7 +14,7 @@ import {
 // ── Constantes ────────────────────────────────────────────────────
 const USIN_LABELS = {
     transfer_vertical_saw_cut: { label: 'Rasgo / Canal',   color: '#eab308', bg: '#fef9c3', icon: '━' },
-    transfer_pocket:           { label: 'Rebaixo',         color: '#a855f7', bg: '#f3e8ff', icon: '▬' },
+    transfer_pocket:           { label: 'Rebaixo',         color: 'var(--info)', bg: 'var(--info-bg)', icon: '▬' },
     transfer_slot:             { label: 'Fresa / Slot',    color: '#06b6d4', bg: '#e0f7fa', icon: '◆' },
     transfer_hole_blind:       { label: 'Furo cego',       color: '#f97316', bg: '#fff4ed', icon: '◐' },
     transfer_hole:             { label: 'Furo passante',   color: '#dc2626', bg: '#fee2e2', icon: '●' },
@@ -22,7 +22,7 @@ const USIN_LABELS = {
 const FACE_LABELS = { top: 'Face A', bottom: 'Face B', front: 'Frontal', back: 'Traseira', left: 'Esq.', right: 'Dir.' };
 const CAT_INFO = {
     hole:    { label: 'Furos',      color: '#dc2626', bg: '#fee2e2', icon: '●' },
-    pocket:  { label: 'Rebaixos',  color: '#a855f7', bg: '#f3e8ff', icon: '▬' },
+    pocket:  { label: 'Rebaixos',  color: 'var(--info)', bg: 'var(--info-bg)', icon: '▬' },
     groove:  { label: 'Rasgos',    color: '#eab308', bg: '#fef9c3', icon: '━' },
     generic: { label: 'Usinagens', color: '#6366f1', bg: '#eef2ff', icon: <Settings size={11} /> },
 };
@@ -209,7 +209,7 @@ function WorkerRow({ w, idx, disabled, onToggle, saving, warn }) {
             </div>
 
             {/* Tempo */}
-            <div style={{ fontSize: 10, color: '#8b5cf6', textAlign: 'right', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
                 ⏱ {fmtSeg(tempoSeg)}
             </div>
 
@@ -320,7 +320,7 @@ function PecaCard({ peca, overrides, warnings, faceCNC, onToggleWorker, onToggle
                         {totalAtivas}/{workers.length}
                         <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 3 }}>ops</span>
                     </div>
-                    <div style={{ fontSize: 10, color: '#8b5cf6' }}>⏱ {fmtSeg(totalTime)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>⏱ {fmtSeg(totalTime)}</div>
                 </div>
 
                 <div style={{ color: 'var(--text-muted)' }}>

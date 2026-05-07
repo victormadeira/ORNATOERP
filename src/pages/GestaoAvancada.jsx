@@ -329,7 +329,7 @@ function TabPrevisaoCaixa() {
                 <KPI icon={Landmark} label="Saldo Atual" value={R$(saldoAtual)} color={saldoAtual >= 0 ? 'var(--success)' : 'var(--danger)'} />
                 <KPI icon={ArrowUpCircle} label="A Receber (30d)" value={R$(aReceber)} color="var(--info)" />
                 <KPI icon={ArrowDownCircle} label="A Pagar (30d)" value={R$(aPagar)} color="var(--warning)" />
-                <KPI icon={Target} label="Saldo Projetado (30d)" value={R$(saldoProjetado)} color={saldoProjetado >= 0 ? '#a855f7' : 'var(--danger)'} />
+                <KPI icon={Target} label="Saldo Projetado (30d)" value={R$(saldoProjetado)} color={saldoProjetado >= 0 ? 'var(--success)' : 'var(--danger)'} />
             </div>
 
             <div className={Z.card}>
@@ -418,7 +418,7 @@ function TabEntregas() {
     const statusColors = {
         pendente: { bg: 'var(--warning-bg)', color: 'var(--warning-hover)', label: 'Pendente' },
         agendada: { bg: 'var(--info-bg)', color: 'var(--info-hover)', label: 'Agendada' },
-        em_transito: { bg: '#e0e7ff', color: '#7c3aed', label: 'Em transito' },
+        em_transito: { bg: 'var(--info-bg)', color: 'var(--info)', label: 'Em transito' },
         entregue: { bg: 'var(--success-bg)', color: 'var(--success-hover)', label: 'Entregue' },
         cancelada: { bg: 'var(--danger-bg)', color: 'var(--danger-hover)', label: 'Cancelada' },
     };
@@ -954,7 +954,7 @@ function TabManutencao() {
     const tipoMap = {
         preventiva: { color: 'var(--info)', label: 'Preventiva' },
         corretiva: { color: 'var(--danger)', label: 'Corretiva' },
-        preditiva: { color: '#a855f7', label: 'Preditiva' },
+        preditiva: { color: 'var(--success)', label: 'Preditiva' },
     };
 
     const pendentes = data.filter(m => { const s = getStatus(m); return s === 'pendente' || s === 'em_andamento' || s === 'atrasada'; });

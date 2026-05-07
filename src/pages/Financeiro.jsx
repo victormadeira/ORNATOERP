@@ -458,7 +458,7 @@ function SecaoPagar({ notify, projetos, user }) {
                                                 <div style={{ fontWeight: isPago ? 400 : 600, textDecoration: isPago ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                                     {cp.descricao}
                                                     {cp.parcela_total > 0 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: 'var(--info-bg)', color: 'var(--info-hover)', fontWeight: 600 }}>{cp.parcela_num}/{cp.parcela_total}</span>}
-                                                    {cp.recorrente === 1 && <Repeat size={11} style={{ color: '#8b5cf6' }} />}
+                                                    {cp.recorrente === 1 && <Repeat size={11} style={{ color: 'var(--info)' }} />}
                                                     {(cp.anexos_count || 0) > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 9, color: 'var(--text-muted)' }}><Paperclip size={9} />{cp.anexos_count}</span>}
                                                 </div>
                                                 {cp.nf_numero && <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>NF: {cp.nf_numero}</div>}
@@ -492,7 +492,7 @@ function SecaoPagar({ notify, projetos, user }) {
                                                     </button>
                                                     {canViewHistory && (
                                                         <button onClick={() => setHistoricoId(cp.id)} title="Histórico"
-                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: 'var(--info)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
                                                             <History size={14} />
@@ -761,7 +761,7 @@ function SecaoReceber({ notify, projetos, user }) {
                     <KpiCard label="A Receber"      value={R$(resumo.pendente)}      color="var(--primary)" />
                     <KpiCard label="Vencido"        value={R$(resumo.vencido)}       color="var(--primary)" sub={resumo.qtd_vencidas > 0 ? `${resumo.qtd_vencidas} conta(s)` : null} />
                     <KpiCard label="Recebido (mês)" value={R$(resumo.recebido_mes || 0)} color="var(--primary)" />
-                    <KpiCard label="Total Recebido" value={R$(resumo.recebido || 0)} color="#8b5cf6" />
+                    <KpiCard label="Total Recebido" value={R$(resumo.recebido || 0)} color="var(--success)" />
                 </div>
             )}
 
@@ -926,7 +926,7 @@ function SecaoReceber({ notify, projetos, user }) {
                                                 <div style={{ fontWeight: isRecebido ? 400 : 600, textDecoration: isRecebido ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     {cr.descricao}
                                                     {cr.parcela_total > 0 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)', fontWeight: 600 }}>{cr.parcela_num}/{cr.parcela_total}</span>}
-                                                    {cr.auto_gerada === 1 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed', fontWeight: 500 }}>Auto</span>}
+                                                    {cr.auto_gerada === 1 && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 4, background: 'var(--info-bg)', color: 'var(--info)', fontWeight: 500 }}>Auto</span>}
                                                 </div>
                                                 {cr.nf_numero && <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>NF: {cr.nf_numero}</div>}
                                                 {cr.codigo_barras && (
@@ -951,7 +951,7 @@ function SecaoReceber({ notify, projetos, user }) {
                                                     </button>
                                                     {canViewHistory && (
                                                         <button onClick={() => setHistoricoId(cr.id)} title="Histórico"
-                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: '#8b5cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
+                                                            style={{ width: 26, height: 26, borderRadius: 5, border: 'none', background: 'transparent', color: 'var(--info)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}
                                                             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                                             onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}>
                                                             <History size={14} />
@@ -1614,7 +1614,7 @@ export default function Financeiro({ notify, user, nav }) {
         { id: 'pagar',   label: 'A Pagar',        icon: ArrowUpCircle,   color: 'var(--primary)' },
         { id: 'receber', label: 'A Receber',       icon: ArrowDownCircle, color: 'var(--primary)' },
         { id: 'nfs',     label: 'Arquivo NF',      icon: Receipt,         color: 'var(--primary)' },
-        { id: 'fluxo',   label: 'Fluxo de Caixa',  icon: BarChart2,       color: '#8b5cf6' },
+        { id: 'fluxo',   label: 'Fluxo de Caixa',  icon: BarChart2,       color: 'var(--info)' },
         ...(user?.role === 'admin' ? [{ id: 'lixeira', label: 'Lixeira', icon: Trash2, color: 'var(--muted)' }] : []),
     ];
 
