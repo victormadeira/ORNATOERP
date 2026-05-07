@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Play, Pause, Square, ChevronLeft, ChevronRight, Wrench } from 'lucide-react';
 
 // ─── Gcode parser with arc interpolation + helicoidal hole detection ──────────
 export function parseGcodeForSim(text) {
@@ -201,34 +202,34 @@ function getEventIcon(ev) {
     return '•';
 }
 
-// ─── Shared control bar styles — light professional CAM ─────────────────────
+// ─── Shared control bar styles — neutral graphite CAM ───────────────────────
 const CTRL = {
     bar: {
         display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap',
-        padding: '7px 12px', background: '#f2eee7',
-        borderLeft: '1px solid #ded6ca', borderRight: '1px solid #ded6ca',
+        padding: '7px 12px', background: 'var(--bg-card)',
+        borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)',
     },
     bar2: {
         display: 'flex', alignItems: 'center', gap: 5,
-        padding: '6px 12px', background: '#ebe4d8',
-        borderLeft: '1px solid #ded6ca', borderRight: '1px solid #ded6ca',
-        borderTop: '1px solid rgba(120,100,75,0.16)', flexWrap: 'wrap',
+        padding: '6px 12px', background: 'var(--bg-elevated)',
+        borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)',
+        borderTop: '1px solid var(--border)', flexWrap: 'wrap',
     },
     btn: {
-        padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-        borderRadius: 6, border: '1px solid #d7cbbb',
-        background: '#fffaf2', color: '#3f3426',
+        padding: '5px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+        borderRadius: 6, border: '1px solid var(--border)',
+        background: 'var(--bg-muted)', color: 'var(--text-secondary)',
         display: 'flex', alignItems: 'center', gap: 3,
         transition: 'all 0.15s', lineHeight: 1, whiteSpace: 'nowrap',
     },
     btnAct: {
-        padding: '5px 9px', fontSize: 11, fontWeight: 800, cursor: 'pointer',
-        borderRadius: 6, border: '1px solid #2563eb',
-        background: '#2563eb', color: '#fff',
+        padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+        borderRadius: 6, border: '1px solid var(--primary)',
+        background: 'var(--primary)', color: '#fff',
         display: 'flex', alignItems: 'center', gap: 3,
         transition: 'all 0.15s', lineHeight: 1, whiteSpace: 'nowrap',
     },
-    sep: { width: 1, height: 18, background: 'rgba(100,80,55,0.20)', flexShrink: 0, alignSelf: 'center' },
+    sep: { width: 1, height: 18, background: 'var(--border)', flexShrink: 0, alignSelf: 'center' },
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1274,14 +1275,14 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
         <div style={{
             padding: '8px 10px',
             borderRadius: 7,
-            background: '#fffaf2',
-            border: '1px solid #ded6ca',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
             minWidth: 0,
         }}>
             <div style={{ color: tone, fontSize: 15, lineHeight: 1, fontWeight: 850, fontFamily: 'JetBrains Mono, Consolas, monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {value}
             </div>
-            <div style={{ color: '#8a8176', fontSize: 8, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 5 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 8, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 5 }}>
                 {label}
             </div>
         </div>
@@ -1297,8 +1298,8 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                 width: '100%',
                 padding: '7px 9px',
                 borderRadius: 7,
-                border: `1px solid ${active ? '#d7cbbb' : '#eadfce'}`,
-                background: active ? '#fffaf2' : '#f7f1e8',
+                border: `1px solid ${active ? 'var(--border)' : 'var(--bg-muted)'}`,
+                background: active ? 'var(--bg-card)' : 'var(--bg-muted)',
                 color: active ? '#2f2a24' : '#9a8f83',
                 cursor: 'pointer',
                 textAlign: 'left',
@@ -1333,10 +1334,10 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     display: 'grid',
                     gridTemplateColumns: `minmax(0, 1fr) ${sideW}px`,
                     minHeight: 0,
-                    borderTop: isFS ? 'none' : '1px solid #ded6ca',
-                    borderRight: isFS ? 'none' : '1px solid #ded6ca',
+                    borderTop: isFS ? 'none' : '1px solid var(--border)',
+                    borderRight: isFS ? 'none' : '1px solid var(--border)',
                     borderBottom: 'none',
-                    borderLeft: isFS ? 'none' : '1px solid #ded6ca',
+                    borderLeft: isFS ? 'none' : '1px solid var(--border)',
                     borderRadius: isFS ? 0 : '8px 8px 0 0',
                     overflow: 'hidden',
                     background: '#f4f1ea',
@@ -1358,14 +1359,14 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             <div style={{
                                 position: 'absolute', top: 0, right: 0,
                                 height: '100%', width: 240, zIndex: 10,
-                                overflowY: 'auto', background: 'rgba(255,250,242,0.96)',
-                                borderLeft: '1px solid #ded6ca',
+                                overflowY: 'auto', background: 'var(--bg-card)',
+                                borderLeft: '1px solid var(--border)',
                                 backdropFilter: 'blur(6px)',
                             }}>
-                                <div style={{ padding: '10px 12px 6px', fontSize: 10, fontWeight: 850, color: '#6b5f52', letterSpacing: 1, borderBottom: '1px solid #ded6ca', position: 'sticky', top: 0, background: 'rgba(255,250,242,0.99)', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ padding: '10px 12px 6px', fontSize: 10, fontWeight: 850, color: 'var(--text-muted)', letterSpacing: 1, borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <span>EVENTOS</span>
                                     <button onClick={() => setShowTimeline(false)}
-                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#8a8176', padding: '0 2px', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center' }}
+                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 2px', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center' }}
                                         title="Fechar">x</button>
                                 </div>
                                 {allEvents.map((ev, idx) => {
@@ -1377,7 +1378,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                             onClick={() => { setPlaying(false); setCurMove(ev.moveIdx); }}
                                             style={{
                                                 padding: '7px 10px', fontSize: 10,
-                                                borderBottom: '1px solid rgba(120,100,75,0.12)',
+                                                borderBottom: '1px solid var(--border)',
                                                 cursor: 'pointer',
                                                 background: isActive ? 'rgba(37,99,235,0.10)' : 'transparent',
                                                 borderLeft: isActive ? '3px solid #2563eb' : '3px solid transparent',
@@ -1386,7 +1387,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                             }}>
                                             <span style={{ fontSize: 11, flexShrink: 0 }}>{getEventIcon(ev)}</span>
                                             <span style={{ color: evColor, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.label}</span>
-                                            <span style={{ color: '#8a8176', fontSize: 9, flexShrink: 0 }}>{pct}%</span>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: 9, flexShrink: 0 }}>{pct}%</span>
                                         </div>
                                     );
                                 })}
@@ -1398,7 +1399,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             <div style={{
                                 position: 'absolute', left: hoverInfo.x, top: hoverInfo.y,
                                 pointerEvents: 'none', zIndex: 50,
-                                background: 'rgba(255,250,242,0.96)', border: '1px solid rgba(120,100,75,0.25)',
+                                background: 'var(--bg-card)', border: '1px solid rgba(120,120,120,0.20)',
                                 borderRadius: 6, padding: '6px 10px', maxWidth: 220,
                                 boxShadow: '0 4px 16px rgba(70,50,25,0.18)',
                             }}>
@@ -1410,7 +1411,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
 
                     <aside style={{
                         minWidth: 0,
-                        borderLeft: '1px solid #ded6ca',
+                        borderLeft: '1px solid var(--border)',
                         background: '#fbf8f2',
                         color: '#2f2a24',
                         padding: 12,
@@ -1423,7 +1424,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                             <div>
                                 <div style={{ color: '#2f2a24', fontSize: 13, fontWeight: 850 }}>Painel técnico</div>
-                                <div style={{ color: '#8a8176', fontSize: 10, marginTop: 2 }}>Simulação 2D CAM</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>Simulação 2D CAM</div>
                             </div>
                             <span style={{
                                 padding: '4px 8px',
@@ -1438,35 +1439,35 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             </span>
                         </div>
 
-                        <div style={{ height: 7, borderRadius: 999, overflow: 'hidden', background: '#eee6da', border: '1px solid #ded6ca' }}>
+                        <div style={{ height: 7, borderRadius: 999, overflow: 'hidden', background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
                             <div style={{ width: `${progressPct}%`, height: '100%', background: playing ? '#22c55e' : '#2563eb' }} />
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
                             {renderMiniMetric({ label: 'Mov.', value: curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : allMoves.length, tone: '#2563eb' })}
                             {renderMiniMetric({ label: 'Zoom', value: `${(zoom * 100).toFixed(0)}%`, tone: '#2f2a24' })}
-                            {renderMiniMetric({ label: 'Feed', value: activeFeed ? `${activeFeed.toFixed(0)}` : '—', tone: '#9a5b13' })}
+                            {renderMiniMetric({ label: 'Feed', value: activeFeed ? `${activeFeed.toFixed(0)}` : '—', tone: 'var(--accent)' })}
                             {renderMiniMetric({ label: 'Z atual', value: activeZ != null ? activeZ.toFixed(2) : '—', tone: activeZ != null && activeZ < 0 ? '#b91c1c' : '#2f2a24' })}
                         </div>
 
-                        <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
-                            <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Ferramenta atual</div>
-                            <div style={{ color: activeTool ? '#9a5b13' : '#8a8176', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
+                        <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Ferramenta atual</div>
+                            <div style={{ color: activeTool ? 'var(--accent)' : 'var(--text-muted)', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
                                 {activeTool || 'Aguardando início'}
                             </div>
                             {nextTool && (
-                                <div style={{ color: '#8a8176', fontSize: 10, marginTop: 7 }}>
+                                <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 7 }}>
                                     Próxima: <span style={{ color: '#2f2a24' }}>{nextTool.label}</span>
                                 </div>
                             )}
                         </div>
 
-                        <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
-                            <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Operação</div>
+                        <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Operação</div>
                             <div style={{ color: activeCat?.glow || '#2f2a24', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
                                 {activeOp || (curMove >= 0 ? 'Sem metadado de operação' : 'Visão geral')}
                             </div>
-                            <div style={{ color: '#8a8176', fontSize: 10, marginTop: 7, fontFamily: 'JetBrains Mono, Consolas, monospace' }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 7, fontFamily: 'JetBrains Mono, Consolas, monospace' }}>
                                 {activeLineLabel}
                             </div>
                             {activePiece && (
@@ -1476,7 +1477,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             )}
                             {activeOperationBlock && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-                                    <span style={{ flex: 1, height: 5, borderRadius: 999, background: '#eee6da', overflow: 'hidden' }}>
+                                    <span style={{ flex: 1, height: 5, borderRadius: 999, background: 'var(--bg-muted)', overflow: 'hidden' }}>
                                         <span style={{
                                             display: 'block',
                                             width: `${Math.max(3, Math.min(100, ((curMove - activeOperationBlock.start + 1) / Math.max(1, activeOperationBlock.end - activeOperationBlock.start + 1)) * 100))}%`,
@@ -1501,12 +1502,12 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         </div>
 
                         {operationBlocks.length > 0 && (
-                            <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
+                            <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                         Sequência operacional
                                     </div>
-                                    <span style={{ fontSize: 9, color: '#8a8176', fontWeight: 750 }}>
+                                    <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 750 }}>
                                         {operationBlocks.length} etapas
                                     </span>
                                 </div>
@@ -1528,7 +1529,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                                     alignItems: 'center',
                                                     padding: '6px 7px 6px 0',
                                                     borderRadius: 7,
-                                                    border: `1px solid ${isActive ? op.cat.glow : '#eadfce'}`,
+                                                    border: `1px solid ${isActive ? op.cat.glow : 'var(--bg-muted)'}`,
                                                     background: isActive ? `color-mix(in srgb, ${op.cat.glow} 10%, #fbf8f2)` : '#fbf8f2',
                                                     color: '#2f2a24',
                                                     cursor: 'pointer',
@@ -1550,7 +1551,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                                 <span style={{
                                                     width: 16, height: 16, borderRadius: 999,
                                                     background: isActive ? op.cat.glow : '#e5ddd2',
-                                                    color: isActive ? '#fff' : '#8a8176',
+                                                    color: isActive ? '#fff' : 'var(--text-muted)',
                                                     display: 'grid', placeItems: 'center',
                                                     fontSize: 8, fontWeight: 900, flexShrink: 0,
                                                     transition: 'background 0.2s',
@@ -1561,16 +1562,16 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                                     <span style={{ display: 'block', fontSize: 10, fontWeight: isActive ? 900 : 750, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isActive ? '#1a1614' : '#2f2a24' }}>
                                                         {op.label}
                                                     </span>
-                                                    <span style={{ display: 'block', fontSize: 9, color: '#8a8176', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {op.tool || op.cat.label}
                                                     </span>
                                                     {isActive && (
-                                                        <span style={{ display: 'block', height: 2, borderRadius: 999, background: '#eee6da', marginTop: 3, overflow: 'hidden' }}>
+                                                        <span style={{ display: 'block', height: 2, borderRadius: 999, background: 'var(--bg-muted)', marginTop: 3, overflow: 'hidden' }}>
                                                             <span style={{ display: 'block', height: '100%', width: `${opProgress}%`, background: op.cat.glow, transition: 'width 0.15s' }} />
                                                         </span>
                                                     )}
                                                 </span>
-                                                <span style={{ fontSize: 9, color: isActive ? op.cat.glow : '#6b5f52', fontFamily: 'JetBrains Mono, Consolas, monospace', whiteSpace: 'nowrap', fontWeight: isActive ? 800 : 400, paddingRight: 4 }}>
+                                                <span style={{ fontSize: 9, color: isActive ? op.cat.glow : 'var(--text-muted)', fontFamily: 'JetBrains Mono, Consolas, monospace', whiteSpace: 'nowrap', fontWeight: isActive ? 800 : 400, paddingRight: 4 }}>
                                                     {op.cutM.toFixed(1)}m
                                                 </span>
                                             </button>
@@ -1580,8 +1581,8 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             </div>
                         )}
 
-                        <div style={{ padding: 10, borderRadius: 8, background: '#fffaf2', border: '1px solid #ded6ca' }}>
-                            <div style={{ fontSize: 9, color: '#8a8176', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Camadas</div>
+                        <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Camadas</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {renderLayerButton({ active: showRapids, label: 'Movimentos rápidos', color: '#8a7050', dashed: true, onClick: () => setShowRapids(r => !r) })}
                                 {foundOps.map(cat => (
@@ -1595,7 +1596,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                         padding: '7px 9px',
                                         borderRadius: 7,
                                         border: '1px solid #d7cbbb',
-                                        background: '#fffaf2',
+                                        background: 'var(--bg-card)',
                                         color: '#2563eb',
                                         cursor: 'pointer',
                                         fontSize: 11,
@@ -1611,7 +1612,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
 
                 {/* ── Stats panel (collapsible) ── */}
                 {showStats && (
-                    <div style={{ background: '#fbf8f2', border: '1px solid #ded6ca', borderTop: 'none', padding: '7px 10px' }}>
+                    <div style={{ background: '#fbf8f2', border: '1px solid var(--border)', borderTop: 'none', padding: '7px 10px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                             {[
                                 { label: 'Movimentos', value: stats.total },
@@ -1624,9 +1625,9 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                     return { label: cat.label, value: count, color: cat.glow };
                                 }),
                             ].map((tile, i) => (
-                                <div key={i} style={{ background: '#fffaf2', border: '1px solid #ded6ca', borderRadius: 5, padding: '4px 10px', minWidth: 68, textAlign: 'center' }}>
-                                    <div style={{ fontSize: 14, fontWeight: 700, color: tile.color || '#6b5f52', fontFamily: 'monospace' }}>{tile.value}</div>
-                                    <div style={{ fontSize: 9, color: '#8a8176', marginTop: 1 }}>{tile.label}</div>
+                                <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 10px', minWidth: 68, textAlign: 'center' }}>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: tile.color || 'var(--text-muted)', fontFamily: 'monospace' }}>{tile.value}</div>
+                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>{tile.label}</div>
                                 </div>
                             ))}
                         </div>
@@ -1637,10 +1638,10 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             const cAB = chapa.pecas.filter(p => p.has_b).length;
                             return (cA + cB > 0) ? (
                                 <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                                    <span style={{ fontSize: 9, color: '#8a8176', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lados:</span>
+                                    <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lados:</span>
                                     {cA > 0 && <span style={{ fontSize: 10, background: '#dcfce7', border: '1px solid #166534', color: '#166534', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>A: {cA} peças</span>}
                                     {cB > 0 && <span style={{ fontSize: 10, background: '#dbeafe', border: '1px solid #3b52c4', color: '#3b52c4', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>B: {cB} peças</span>}
-                                    {cAB > 0 && <span style={{ fontSize: 9, color: '#8a8176' }}>· {cAB} peça(s) com 2 lados</span>}
+                                    {cAB > 0 && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>· {cAB} peça(s) com 2 lados</span>}
                                 </div>
                             ) : null;
                         })()}
@@ -1653,29 +1654,38 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     {!playing
                         ? <button onClick={handlePlay} style={{
                             ...CTRL.btnAct,
-                            padding: '6px 14px', fontSize: 12, fontWeight: 900, gap: 5,
-                            background: '#16a34a', borderColor: '#15803d',
-                            boxShadow: '0 0 0 0 rgba(22,163,74,0)',
+                            padding: '6px 14px', fontSize: 11, fontWeight: 700, gap: 6,
+                            background: 'var(--success, #16a34a)', borderColor: 'var(--success, #15803d)',
                           }} title="Reproduzir simulação (Espaço)">
-                            ▶ {curMove >= allMoves.length - 1 && curMove >= 0 ? 'Reiniciar' : 'Reproduzir'}
+                            <Play size={12} /> {curMove >= allMoves.length - 1 && curMove >= 0 ? 'Reiniciar' : 'Reproduzir'}
                           </button>
                         : <button onClick={handlePause} style={{
                             ...CTRL.btnAct,
-                            padding: '6px 14px', fontSize: 12, fontWeight: 900, gap: 5,
-                            background: '#dc7000', borderColor: '#b35a00',
+                            padding: '6px 14px', fontSize: 11, fontWeight: 700, gap: 6,
+                            background: 'var(--warning)', borderColor: 'var(--warning)',
                             animation: 'simPulse 1.4s ease-in-out infinite',
                           }} title="Pausar simulação (Espaço)">
-                            ⏸ Pausar
+                            <Pause size={12} /> Pausar
                           </button>
                     }
-                    <button onClick={handleStop} style={{ ...CTRL.btn, fontSize: 11 }} title="Parar e voltar para visão geral (Esc)">⏹</button>
+                    <button onClick={handleStop} style={{ ...CTRL.btn }} title="Parar (Esc)">
+                        <Square size={11} />
+                    </button>
                     <div style={CTRL.sep} />
-                    <button onClick={() => handleStep(-1)} style={CTRL.btn} title="Movimento anterior (←)">‹ Ant</button>
-                    <button onClick={() => handleStep(1)} style={CTRL.btn} title="Próximo movimento (→)">Próx ›</button>
+                    <button onClick={() => handleStep(-1)} style={CTRL.btn} title="Movimento anterior (←)">
+                        <ChevronLeft size={13} /> Ant
+                    </button>
+                    <button onClick={() => handleStep(1)} style={CTRL.btn} title="Próximo movimento (→)">
+                        Próx <ChevronRight size={13} />
+                    </button>
                     {toolEvents.length > 0 && <>
                         <div style={CTRL.sep} />
-                        <button onClick={jumpPrevTool} style={CTRL.btn} title="Ferramenta anterior">⌖ Ant.</button>
-                        <button onClick={jumpNextTool} style={CTRL.btn} title="Próxima ferramenta">⌖ Próx.</button>
+                        <button onClick={jumpPrevTool} style={CTRL.btn} title="Ferramenta anterior">
+                            <Wrench size={11} /> <ChevronLeft size={11} />
+                        </button>
+                        <button onClick={jumpNextTool} style={CTRL.btn} title="Próxima ferramenta">
+                            <Wrench size={11} /> <ChevronRight size={11} />
+                        </button>
                     </>}
                     <input type="range" min={0} max={Math.max(0, allMoves.length - 1)} value={curMove < 0 ? 0 : curMove}
                         onChange={handleSlider} style={{ flex: '1 1 170px', minWidth: 140, height: 4, accentColor: playing ? 'var(--success)' : 'var(--primary)', cursor: 'pointer' }} />
@@ -1683,18 +1693,18 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         style={{ ...CTRL.btn, padding: '2px 6px', fontSize: 10 }}>
                         {[0.5,1,2,5,10,20,50,100,200].map(v => <option key={v} value={v}>{v}x</option>)}
                     </select>
-                    <span style={{ fontSize: 10, color: '#6b5f52', whiteSpace: 'nowrap', minWidth: 76, textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 76, textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>
                         {curMove >= 0 ? `${curMove + 1}/${allMoves.length}` : `${allMoves.length} mov`}
                     </span>
-                    <style>{`@keyframes simPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,112,0,0.45); } 50% { box-shadow: 0 0 0 5px rgba(220,112,0,0); } }`}</style>
+                    <style>{`@keyframes simPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,112,0,0.35); } 50% { box-shadow: 0 0 0 5px rgba(220,112,0,0); } }`}</style>
                 </div>
 
                 {/* ── Row 2: View controls — 3 zones: Visualização | Filtros | Painéis ── */}
                 <div style={{
                     ...CTRL.bar2,
-                    borderLeft: '1px solid #ded6ca',
-                    borderRight: '1px solid #ded6ca',
-                    borderBottom: '1px solid #ded6ca',
+                    borderLeft: '1px solid var(--border)',
+                    borderRight: '1px solid var(--border)',
+                    borderBottom: '1px solid var(--border)',
                     borderTop: 'none',
                     borderRadius: hasToolRow ? 0 : br,
                     justifyContent: 'space-between',
@@ -1702,7 +1712,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     {/* Zone 1: Visualização */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                         <button onClick={() => setZoom(z => Math.max(0.3, z - 0.3))} style={CTRL.btn} title="Diminuir zoom">−</button>
-                        <span style={{ fontSize: 10, color: '#3f3426', minWidth: 32, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace' }}>{(zoom * 100).toFixed(0)}%</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-primary)', minWidth: 32, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace' }}>{(zoom * 100).toFixed(0)}%</span>
                         <button onClick={() => setZoom(z => Math.min(8, z + 0.3))} style={CTRL.btn} title="Aumentar zoom">+</button>
                         <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); }} style={CTRL.btn} title="Encaixar na tela (F)">Encaixar</button>
                         <div style={CTRL.sep} />
@@ -1711,8 +1721,8 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             {[['usinagem', 'CAM'], ['trajetoria', 'Percurso']].map(([m, lbl]) => (
                                 <button key={m} onClick={() => setSimMode(m)} style={{
                                     padding: '4px 9px', fontSize: 10, fontWeight: 800, cursor: 'pointer', border: 'none',
-                                    background: simMode === m ? '#2563eb' : '#fffaf2',
-                                    color: simMode === m ? '#fff' : '#6b5f52', transition: 'all 0.15s',
+                                    background: simMode === m ? '#2563eb' : 'var(--bg-card)',
+                                    color: simMode === m ? '#fff' : 'var(--text-muted)', transition: 'all 0.15s',
                                 }}>{lbl}</button>
                             ))}
                         </div>
@@ -1735,13 +1745,13 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             const countB = chapa.pecas.filter(p => p.lado_ativo === 'B').length;
                             return countB > 0 ? (
                                 <>
-                                    <span style={{ fontSize: 10, color: '#8a8176', flexShrink: 0 }}>Lado:</span>
+                                    <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>Lado:</span>
                                     <div style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', border: '1px solid #d7cbbb' }}>
                                         {[['all', 'A+B'], ['A', `A(${countA})`], ['B', `B(${countB})`]].map(([v, lbl]) => (
                                             <button key={v} onClick={() => setSideFilter(v)} style={{
                                                 padding: '3px 7px', fontSize: 10, fontWeight: 700, cursor: 'pointer', border: 'none',
-                                                background: sideFilter === v ? (v === 'B' ? '#3b52c4' : v === 'A' ? '#166534' : '#2563eb') : '#fffaf2',
-                                                color: sideFilter === v ? '#fff' : '#6b5f52', transition: 'all 0.15s',
+                                                background: sideFilter === v ? (v === 'B' ? '#3b52c4' : v === 'A' ? '#166534' : '#2563eb') : 'var(--bg-card)',
+                                                color: sideFilter === v ? '#fff' : 'var(--text-muted)', transition: 'all 0.15s',
                                             }}>{lbl}</button>
                                         ))}
                                     </div>
@@ -1752,8 +1762,8 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         <button onClick={() => setHeatmapMode(h => !h)}
                             style={{
                                 ...CTRL.btn, fontWeight: 700, fontSize: 10,
-                                background: heatmapMode ? 'linear-gradient(90deg,#c03020 0%,#d4a020 50%,#1890d0 100%)' : '#fffaf2',
-                                color: heatmapMode ? '#fff' : '#6b5f52',
+                                background: heatmapMode ? 'linear-gradient(90deg,#c03020 0%,#d4a020 50%,#1890d0 100%)' : 'var(--bg-card)',
+                                color: heatmapMode ? '#fff' : 'var(--text-muted)',
                                 border: heatmapMode ? '1px solid var(--primary)' : undefined,
                             }}
                             title="Colorir por velocidade de avanço">🌡 Feed</button>
@@ -1772,8 +1782,8 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         <button onClick={() => setFullscreen(f => !f)}
                             style={{
                                 ...CTRL.btn, padding: '4px 9px', fontWeight: 800,
-                                background: isFS ? '#2563eb' : '#fffaf2',
-                                color: isFS ? '#fff' : '#3f3426',
+                                background: isFS ? '#2563eb' : 'var(--bg-card)',
+                                color: isFS ? '#fff' : 'var(--text-primary)',
                                 border: isFS ? '1px solid #2563eb' : undefined,
                             }}
                             title={isFS ? 'Sair tela cheia (ESC)' : 'Tela cheia'}>
@@ -1787,13 +1797,13 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
                     padding: '4px 12px', background: '#f7f4ef',
-                    borderLeft: '1px solid #ded6ca', borderRight: '1px solid #ded6ca',
-                    borderBottom: hasToolRow ? 'none' : '1px solid #ded6ca',
+                    borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)',
+                    borderBottom: hasToolRow ? 'none' : '1px solid var(--border)',
                     borderTop: 'none',
                     borderRadius: hasToolRow ? 0 : br,
                     minHeight: 28,
                 }}>
-                    <span style={{ fontSize: 9, fontWeight: 800, color: '#8a8176', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Camadas:</span>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Camadas:</span>
                     <span onClick={() => setShowRapids(r => !r)}
                         style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
                             color: '#8a7050', opacity: showRapids ? 0.8 : 0.35,
@@ -1809,7 +1819,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         return (
                             <span key={cat.key} onClick={() => toggleCat(cat.key)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
-                                    color: isActive ? cat.glow : '#6b5f52',
+                                    color: isActive ? cat.glow : 'var(--text-muted)',
                                     fontWeight: isActive ? 800 : 500, transition: 'all 0.15s',
                                     opacity: isHidden ? 0.3 : 1,
                                     textDecoration: isHidden ? 'line-through' : 'none',
@@ -1830,7 +1840,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     {hasActiveFilters && (
                         <button onClick={() => { setHiddenCats(new Set()); setShowRapids(true); }}
                             style={{ fontSize: 9, padding: '2px 7px', cursor: 'pointer',
-                                borderRadius: 4, border: '1px solid #d7cbbb', background: '#fffaf2',
+                                borderRadius: 4, border: '1px solid #d7cbbb', background: 'var(--bg-card)',
                                 color: '#2563eb', lineHeight: 1.4, fontWeight: 700 }}>
                             Restaurar
                         </button>
@@ -1844,7 +1854,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         </span>
                     )}
                     {activeTool && (
-                        <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9a5b13', fontWeight: 700, flexShrink: 0 }}>
+                        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>
                             ◈ {activeTool}
                         </span>
                     )}
@@ -1856,10 +1866,10 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 0,
                         padding: '6px 14px', background: '#fbf8f2',
-                        border: '1px solid #ded6ca', borderTop: 'none',
+                        border: '1px solid var(--border)', borderTop: 'none',
                         borderRadius: br, overflowX: 'auto',
                     }}>
-                        <span style={{ fontSize: 9, color: '#8a8176', flexShrink: 0, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 10 }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 10 }}>
                             Sequência
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 0, flex: 1 }}>
@@ -1867,9 +1877,9 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                 const isActiveTool = i === activeToolIdx;
                                 const isPast = i < activeToolIdx;
                                 const isLast = i === toolEvents.length - 1;
-                                const circleColor = isActiveTool ? '#9a5b13' : isPast ? '#7c6a58' : '#c4bdb5';
+                                const circleColor = isActiveTool ? 'var(--accent)' : isPast ? '#7c6a58' : '#c4bdb5';
                                 const circleBg = isActiveTool ? '#ffe4b8' : isPast ? '#f0ebe5' : '#fbf8f2';
-                                const circleBorder = isActiveTool ? '#9a5b13' : isPast ? '#b5a898' : '#ded6ca';
+                                const circleBorder = isActiveTool ? 'var(--accent)' : isPast ? '#b5a898' : 'var(--border)';
                                 return (
                                     <div key={i} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                                         <button
@@ -1904,7 +1914,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                         {!isLast && (
                                             <div style={{
                                                 width: 18, height: 2,
-                                                background: isPast ? '#b5a898' : '#ded6ca',
+                                                background: isPast ? '#b5a898' : 'var(--border)',
                                                 flexShrink: 0, margin: '0 0 10px',
                                             }} />
                                         )}
