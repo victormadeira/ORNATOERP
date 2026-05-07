@@ -252,6 +252,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [kbLoading, setKbLoading] = useState(false);
     const [kbCopied, setKbCopied] = useState(false);
     const [activeSection, setActiveSection] = useState('empresa');
+    const [cfgSearch, setCfgSearch] = useState('');
     const [driveStatus, setDriveStatus] = useState(null);
     const [driveAuthCode, setDriveAuthCode] = useState('');
     const [driveAuthorizing, setDriveAuthorizing] = useState(false);
@@ -869,10 +870,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         {
             label: 'Integrações',
             items: [
-                { id: 'drive', label: 'Google Drive', icon: <Ic.Folder /> },
-                { id: 'whatsapp', label: 'WhatsApp', icon: <Ic.WhatsApp /> },
-                { id: 'ia', label: 'Inteligência Artificial', icon: <Ic.Sparkles /> },
-                { id: 'automacoes', label: 'Automações n8n', icon: <Zap size={14} /> },
+                { id: 'drive', label: 'Google Drive', icon: <Ic.Folder />, status: driveStatus?.ok ? 'ok' : driveStatus?.error ? 'error' : null },
+                { id: 'whatsapp', label: 'WhatsApp', icon: <Ic.WhatsApp />, status: waStatus?.connected ? 'ok' : waStatus ? 'error' : null },
+                { id: 'ia', label: 'Inteligência Artificial', icon: <Ic.Sparkles />, status: (emp.ia_api_key_anthropic || emp.ia_api_key || emp.ia_api_key_openai || emp.ia_api_key_gemini) ? 'ok' : null },
+                { id: 'automacoes', label: 'Automações n8n', icon: <Zap size={14} />, status: emp.n8n_webhook_url ? 'ok' : null },
             ],
         },
         {
@@ -917,7 +918,32 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                     borderRadius: 'var(--radius-lg)', padding: '8px 0',
                     position: 'sticky', top: 72, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto',
                 }}>
-                    {CFG_GROUPS.map((group, gi) => (
+                    {/* Search */}
+                    <div style={{ padding: '6px 10px 8px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={11} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                            <input
+                                value={cfgSearch}
+                                onChange={e => setCfgSearch(e.target.value)}
+                                placeholder="Buscar seção…"
+                                style={{
+                                    width: '100%', boxSizing: 'border-box',
+                                    padding: '5px 8px 5px 24px', fontSize: 11.5,
+                                    border: '1px solid var(--border)', borderRadius: 5,
+                                    background: 'var(--bg-body)', color: 'var(--text-primary)',
+                                    outline: 'none',
+                                }}
+                                onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                            />
+                        </div>
+                    </div>
+                    {CFG_GROUPS.map((group, gi) => {
+                        const filteredItems = cfgSearch.trim()
+                            ? group.items.filter(it => it.label.toLowerCase().includes(cfgSearch.toLowerCase()))
+                            : group.items;
+                        if (filteredItems.length === 0) return null;
+                        return (
                         <div key={group.label} style={{ marginBottom: gi < CFG_GROUPS.length - 1 ? 2 : 0 }}>
                             <div style={{
                                 padding: '8px 14px 4px',
@@ -927,12 +953,12 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             }}>
                                 {group.label}
                             </div>
-                            {group.items.map(item => {
+                            {filteredItems.map(item => {
                                 const isActive = activeSection === item.id;
                                 return (
                                     <button
                                         key={item.id}
-                                        onClick={() => setActiveSection(item.id)}
+                                        onClick={() => { setActiveSection(item.id); setCfgSearch(''); }}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: 8,
                                             width: 'calc(100% - 12px)', margin: '1px 6px',
@@ -948,7 +974,15 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                     >
                                         <span style={{ flexShrink: 0, opacity: isActive ? 1 : 0.65, display: 'flex' }}>{item.icon}</span>
-                                        {item.label}
+                                        <span style={{ flex: 1 }}>{item.label}</span>
+                                        {item.status && (
+                                            <span style={{
+                                                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                                                background: item.status === 'ok' ? 'var(--success)' : 'var(--danger)',
+                                                opacity: isActive ? 0.9 : 0.8,
+                                                boxShadow: item.status === 'ok' ? '0 0 5px var(--success)' : '0 0 5px var(--danger)',
+                                            }} />
+                                        )}
                                     </button>
                                 );
                             })}
@@ -956,7 +990,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div style={{ height: 1, background: 'var(--border)', margin: '6px 14px' }} />
                             )}
                         </div>
-                    ))}
+                        );
+                    })}
                 </nav>
 
                 {/* ─── Content area ─────────────────────────────── */}
@@ -998,7 +1033,42 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
 
                             {/* Cor do Sistema (white-label) */}
                             <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                                <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, fontSize: 13 }}>Cor do Sistema</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13 }}>Cor do Sistema</span>
+                                    {isGerente && (
+                                        <button
+                                            onClick={() => {
+                                                setEmp({ ...emp, sistema_cor_primaria: '#1379F0' });
+                                                applyPrimaryColor('#1379F0');
+                                            }}
+                                            className="btn-ghost"
+                                            style={{ fontSize: 11, padding: '2px 8px', minHeight: 0, color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                                            title="Restaurar cor padrão Ornato"
+                                        >
+                                            ↺ Restaurar padrão
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Live preview strip */}
+                                <div style={{
+                                    marginBottom: 10, padding: '10px 14px', borderRadius: 8,
+                                    background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                }}>
+                                    <button style={{
+                                        background: emp.sistema_cor_primaria || '#1379F0',
+                                        color: '#fff', border: 'none', borderRadius: 6,
+                                        padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'default',
+                                    }}>Botão primário</button>
+                                    <span style={{ fontSize: 12, color: emp.sistema_cor_primaria || '#1379F0', fontWeight: 600 }}>Link de ação</span>
+                                    <div style={{
+                                        width: 20, height: 20, borderRadius: 6,
+                                        background: emp.sistema_cor_primaria || '#1379F0', opacity: 0.15, border: `2px solid ${emp.sistema_cor_primaria || '#1379F0'}`,
+                                    }} />
+                                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>Preview em tempo real</span>
+                                </div>
+
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                                     <div style={{ position: 'relative' }}>
                                         <input type="color" value={emp.sistema_cor_primaria || '#1379F0'}
@@ -1012,25 +1082,31 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     </div>
                                     <input value={emp.sistema_cor_primaria || '#1379F0'}
                                         onChange={e => {
-                                            setEmp({ ...emp, sistema_cor_primaria: e.target.value });
-                                            if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) applyPrimaryColor(e.target.value);
+                                            const v = e.target.value;
+                                            setEmp({ ...emp, sistema_cor_primaria: v });
+                                            if (/^#[0-9a-fA-F]{6}$/.test(v)) applyPrimaryColor(v);
                                         }}
                                         className={Z.inp} style={{ width: 110, fontSize: 13, fontFamily: 'monospace' }}
                                         disabled={!isGerente} placeholder="#1379F0"
                                     />
                                     <div style={{ display: 'flex', gap: 6 }}>
-                                        {['#1379F0', '#8B5CF6', '#059669', '#EA580C', 'var(--danger-hover)', '#0891B2', '#4F46E5', '#D946EF'].map(c => (
+                                        {['#1379F0', '#8B5CF6', '#059669', '#EA580C', '#DC2626', '#0891B2', '#4F46E5', '#D946EF'].map(c => (
                                             <button key={c} onClick={() => { setEmp({ ...emp, sistema_cor_primaria: c }); applyPrimaryColor(c); }}
                                                 disabled={!isGerente}
                                                 style={{
-                                                    width: 28, height: 28, borderRadius: 8, background: c, border: emp.sistema_cor_primaria === c ? '2px solid var(--text-primary)' : '2px solid transparent',
-                                                    cursor: 'pointer', transition: 'all .15s',
+                                                    width: 28, height: 28, borderRadius: 8, background: c,
+                                                    border: emp.sistema_cor_primaria === c ? '2px solid var(--text-primary)' : '2px solid transparent',
+                                                    cursor: isGerente ? 'pointer' : 'default', transition: 'all .15s',
+                                                    outline: emp.sistema_cor_primaria === c ? `2px solid ${c}40` : 'none',
+                                                    outlineOffset: 2,
                                                 }}
                                                 title={c}
                                             />
                                         ))}
                                     </div>
-                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Define a cor de botões, links e destaques em todo o sistema</span>
+                                </div>
+                                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                                    Define a cor de botões, links e destaques em todo o sistema · Salvo na próxima vez que clicar em Salvar
                                 </div>
                             </div>
                         </div>

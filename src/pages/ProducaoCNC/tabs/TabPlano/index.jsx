@@ -2191,7 +2191,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         </>)}
 
                         {loteAtual.status === 'otimizado' && (
-                            <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
+                            <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
                                 <CheckCircle2 size={14} style={{ display: 'inline', verticalAlign: -2, marginRight: 4 }} />
                                 Otimizado
                             </span>
@@ -2214,7 +2214,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                     <Redo2 size={14} />
                                 </button>
                                 {pendingChanges > 0 && (
-                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: colorBg('#f59e0b'), color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--warning-bg)', color: 'var(--warning)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
                                         title={`${pendingChanges} alteração(ões) salvas automaticamente`}>
                                         <Edit size={10} /> {pendingChanges}
                                     </span>
@@ -2252,9 +2252,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
 
                     {/* Validation conflicts modal */}
                     {showValidation && validationResult?.conflicts?.length > 0 && (
-                        <div className="glass-card p-4" style={{ marginBottom: 16, borderLeft: '3px solid #ef4444' }}>
+                        <div className="glass-card p-4" style={{ marginBottom: 16, borderLeft: '3px solid var(--danger)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <AlertTriangle size={15} /> Conflitos de Usinagem ({validationResult.conflicts.length})
                                 </h3>
                                 <button onClick={() => setShowValidation(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
@@ -2265,10 +2265,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                 {validationResult.conflicts.map((c, i) => (
                                     <div key={i} style={{
                                         display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '4px 8px',
-                                        background: c.severidade === 'erro' ? '#fef2f210' : '#fefce810',
-                                        borderRadius: 4, border: `1px solid ${c.severidade === 'erro' ? '#ef444430' : '#eab30830'}`,
+                                        background: c.severidade === 'erro' ? 'var(--danger-bg)' : 'var(--warning-bg)',
+                                        borderRadius: 4, border: `1px solid ${c.severidade === 'erro' ? 'var(--danger-border)' : 'var(--warning-border)'}`,
                                     }}>
-                                        <AlertTriangle size={12} style={{ color: c.severidade === 'erro' ? '#ef4444' : '#eab308', flexShrink: 0 }} />
+                                        <AlertTriangle size={12} style={{ color: c.severidade === 'erro' ? 'var(--danger)' : 'var(--warning)', flexShrink: 0 }} />
                                         <span style={{ fontWeight: 600, color: 'var(--text-primary)', minWidth: 100 }}>
                                             Ch{c.chapaIdx + 1} P{c.pecaIdx + 1} - {c.pecaDesc}
                                         </span>
@@ -2384,14 +2384,14 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                                 {isExpanded && (
                                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, marginBottom: 6 }} onClick={e => e.stopPropagation()}>
                                                                         {[
-                                                                            { id: 'atualizar', icon: <RefreshCw size={14} />, label: 'Atualizar', color: '#2563eb' },
-                                                                            { id: 'remover', icon: <Trash2 size={14} />, label: 'Remover', color: '#dc2626' },
-                                                                            { id: 'estatisticas', icon: <BarChart3 size={14} />, label: 'Estatísticas', color: '#2563eb' },
-                                                                            { id: 'pecas', icon: <Layers size={14} />, label: 'Peças', color: '#2563eb' },
-                                                                            { id: 'sobras', icon: <Package size={14} />, label: 'Sobras', color: '#16a34a' },
-                                                                            { id: 'mapa', icon: <Printer size={14} />, label: 'Mapa', color: '#16a34a' },
-                                                                            { id: 'etiqueta', icon: <TagIcon size={14} />, label: 'Etiqueta', color: '#16a34a' },
-                                                                            { id: 'exportar', icon: <FileDown size={14} />, label: 'Exportar', color: '#64748b' },
+                                                                            { id: 'atualizar', icon: <RefreshCw size={14} />, label: 'Atualizar', color: 'var(--primary)' },
+                                                                            { id: 'remover', icon: <Trash2 size={14} />, label: 'Remover', color: 'var(--danger)' },
+                                                                            { id: 'estatisticas', icon: <BarChart3 size={14} />, label: 'Estatísticas', color: 'var(--primary)' },
+                                                                            { id: 'pecas', icon: <Layers size={14} />, label: 'Peças', color: 'var(--primary)' },
+                                                                            { id: 'sobras', icon: <Package size={14} />, label: 'Sobras', color: 'var(--success)' },
+                                                                            { id: 'mapa', icon: <Printer size={14} />, label: 'Mapa', color: 'var(--success)' },
+                                                                            { id: 'etiqueta', icon: <TagIcon size={14} />, label: 'Etiqueta', color: 'var(--success)' },
+                                                                            { id: 'exportar', icon: <FileDown size={14} />, label: 'Exportar', color: 'var(--text-muted)' },
                                                                         ].map(btn => {
                                                                             const isActionActive = matAction?.grpKey === grp.key && matAction?.action === btn.id;
                                                                             return (
@@ -2439,7 +2439,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                                     {/* ── ATUALIZAR: Re-otimizar este material ── */}
                                                                     {matAction.action === 'atualizar' && (
                                                                         <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border)', borderRadius: 6, padding: 10 }}>
-                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', marginBottom: 8 }}>Re-otimizar {grp.label}</div>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', marginBottom: 8 }}>Re-otimizar {grp.label}</div>
                                                                             <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
                                                                                 <select value={grp.direcao}
                                                                                     onChange={e => { grp.chapas.forEach(({ ch }) => { ch.direcao_corte = e.target.value; }); grp.direcao = e.target.value; setPlano({ ...plano }); }}

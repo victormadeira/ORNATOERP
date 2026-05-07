@@ -1392,7 +1392,7 @@ aside.sidebar-dark::after {
 
 /* ─── Table improvements ─── */
 tr.tr-clickable { cursor: pointer; }
-tr.tr-clickable:hover .td-glass { background: var(--accent-alpha); }
+tr.tr-clickable:hover .td-glass { background: var(--bg-hover); }
 
 /* ─── Linear-style row left accent on hover ─── */
 /* Inset box-shadow cria borda esquerda sem afetar layout (sem reflow) */

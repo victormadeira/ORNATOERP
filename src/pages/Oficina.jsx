@@ -43,10 +43,10 @@ const japi = (path, opts = {}) => api(path, opts).then(r => r.json());
 function prazoClass(prazo) {
   if (!prazo) return null;
   const days = Math.floor((new Date(prazo + 'T12:00:00') - new Date()) / 86400000);
-  if (days < 0)  return { label: `${Math.abs(days)}d atraso`, color: '#EF4444', bg: '#FEF2F2' };
-  if (days === 0) return { label: 'Hoje',                      color: '#F97316', bg: '#FFF7ED' };
-  if (days <= 2)  return { label: `${days}d`,                  color: '#F59E0B', bg: '#FFFBEB' };
-  return { label: `${days}d`,                                  color: '#64748b', bg: '#F8FAFC' };
+  if (days < 0)  return { label: `${Math.abs(days)}d atraso`, color: 'var(--danger)', bg: 'var(--danger-bg)' };
+  if (days === 0) return { label: 'Hoje',                      color: 'var(--warning)', bg: 'var(--warning-bg)' };
+  if (days <= 2)  return { label: `${days}d`,                  color: 'var(--warning)', bg: 'var(--warning-bg)' };
+  return { label: `${days}d`,                                  color: 'var(--text-muted)', bg: 'var(--bg-muted)' };
 }
 
 function ageDot(iso) {
@@ -93,10 +93,10 @@ function CardContent({ card, onOpen }) {
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && onOpen(card.id)}
       style={{
-        background: '#fff',
+        background: 'var(--bg-card)',
         borderRadius: 10,
-        border: '1px solid #E2E8F0',
-        borderLeft: `4px solid ${card.cor || '#C9A96E'}`,
+        border: '1px solid var(--border)',
+        borderLeft: `4px solid ${card.cor || 'var(--primary)'}`,
         padding: '12px 12px 10px',
         marginBottom: 8,
         boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
@@ -108,15 +108,15 @@ function CardContent({ card, onOpen }) {
       onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
     >
       {/* Ambiente */}
-      <div style={{ fontWeight: 700, fontSize: 13.5, color: '#0F172A', marginBottom: 4, lineHeight: 1.3 }}>
+      <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--text-primary)', marginBottom: 4, lineHeight: 1.3 }}>
         {card.ambiente}
       </div>
 
       {/* Projeto + cliente */}
       {(card.projeto_nome || card.cliente_nome) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: card.cor || '#C9A96E', flexShrink: 0 }} />
-          <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: card.cor || 'var(--primary)', flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {card.projeto_nome}{card.cliente_nome ? ` · ${card.cliente_nome}` : ''}
           </span>
         </div>
@@ -126,7 +126,7 @@ function CardContent({ card, onOpen }) {
       {(card.marceneiro_id || card.responsavel) && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          padding: '4px 8px 4px 4px', background: '#F1F5F9', borderRadius: 99,
+          padding: '4px 8px 4px 4px', background: 'var(--bg-muted)', borderRadius: 99,
           marginBottom: 6, width: 'fit-content', maxWidth: '100%',
         }}>
           {card.marceneiro_id ? (
@@ -136,7 +136,7 @@ function CardContent({ card, onOpen }) {
               <User size={11} />
             </div>
           )}
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {card.marceneiro_nome || card.responsavel}
           </span>
         </div>
@@ -155,11 +155,11 @@ function CardContent({ card, onOpen }) {
       {pct !== null && (
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-            <span style={{ fontSize: 10, color: '#94a3b8' }}>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
               <CheckSquare size={9} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />
               {card.checklist_done}/{card.checklist_total}
             </span>
-            <span style={{ fontSize: 10, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
           </div>
           <div style={{ height: 3, borderRadius: 99, background: '#E2E8F0', overflow: 'hidden' }}>
             <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? '#10B981' : (card.cor || '#C9A96E'), borderRadius: 99, transition: 'width 0.4s' }} />
@@ -362,7 +362,7 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
   const checkDone  = data.checklist?.filter(c => c.feito).length || 0;
 
   const inputStyle = {
-    width: '100%', padding: '8px 10px', border: '1px solid #E2E8F0',
+    width: '100%', padding: '8px 10px', border: '1px solid var(--border)',
     borderRadius: 7, fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box',
   };
 
@@ -376,7 +376,7 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: '#fff', borderRadius: '16px 16px 0 0', width: '100%', maxWidth: 680,
+          background: 'var(--bg-card)', borderRadius: '16px 16px 0 0', width: '100%', maxWidth: 680,
           maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
           boxShadow: '0 -4px 40px rgba(0,0,0,0.2)',
         }}
@@ -424,14 +424,14 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
           <div style={{ display: 'flex', gap: 6 }}>
             {edit ? (
               <>
-                <button onClick={() => setEdit(false)} style={{ padding: '6px 12px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#64748b' }}>Cancelar</button>
+                <button onClick={() => setEdit(false)} style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--bg-card)', fontSize: 12, cursor: 'pointer', color: '#64748b' }}>Cancelar</button>
                 <button onClick={save} disabled={saving} style={{ padding: '6px 14px', border: 0, borderRadius: 7, background: '#0E1116', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? '…' : 'Salvar'}</button>
               </>
             ) : (
               <>
-                <button onClick={() => setEdit(true)} title="Editar" style={{ padding: 7, border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#64748b', display: 'flex' }}><Edit2 size={14} /></button>
-                <button onClick={del} title="Excluir" style={{ padding: 7, border: '1px solid #FEE2E2', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#EF4444', display: 'flex' }}><Trash2 size={14} /></button>
-                <button onClick={onClose} title="Fechar" aria-label="Fechar" style={{ padding: 7, border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#64748b', display: 'flex' }}><X size={14} /></button>
+                <button onClick={() => setEdit(true)} title="Editar" style={{ padding: 7, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--bg-card)', cursor: 'pointer', color: '#64748b', display: 'flex' }}><Edit2 size={14} /></button>
+                <button onClick={del} title="Excluir" style={{ padding: 7, border: '1px solid #FEE2E2', borderRadius: 7, background: 'var(--bg-card)', cursor: 'pointer', color: '#EF4444', display: 'flex' }}><Trash2 size={14} /></button>
+                <button onClick={onClose} title="Fechar" aria-label="Fechar" style={{ padding: 7, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--bg-card)', cursor: 'pointer', color: '#64748b', display: 'flex' }}><X size={14} /></button>
               </>
             )}
           </div>
@@ -480,12 +480,12 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {data.marceneiro_id ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F1F5F9', padding: '4px 10px 4px 4px', borderRadius: 99 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-muted)', padding: '4px 10px 4px 4px', borderRadius: 99 }}>
                   <MarcenaroAvatar marceneiro={{ nome: data.marceneiro_nome, cor: data.marceneiro_cor, foto: data.marceneiro_foto }} size={24} />
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{data.marceneiro_nome}</span>
                 </div>
               ) : data.responsavel ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', background: '#F1F5F9', padding: '5px 10px', borderRadius: 99 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', background: 'var(--bg-muted)', padding: '5px 10px', borderRadius: 99 }}>
                   <User size={12} /><span>{data.responsavel}</span>
                 </div>
               ) : null}
@@ -545,7 +545,7 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {data.comentarios?.map(c => (
                 <div key={c.id} style={{ background: '#F8FAFC', borderRadius: 8, padding: '8px 12px', border: '1px solid #F1F5F9', position: 'relative' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0E1116', marginBottom: 3 }}>{c.autor} <span style={{ fontWeight: 400, color: '#94a3b8' }}>· {timeFmt(c.criado_em)}</span></div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0E1116', marginBottom: 3 }}>{c.autor} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>· {timeFmt(c.criado_em)}</span></div>
                   <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{c.conteudo}</div>
                   <button onClick={() => delComment(c.id)} style={{ position: 'absolute', top: 6, right: 6, border: 0, background: 'none', cursor: 'pointer', color: '#CBD5E1', padding: 2, display: 'flex' }}>
                     <X size={12} />
@@ -569,7 +569,7 @@ function CardModal({ cardId, cards, onClose, onUpdate, onDelete, notify, team })
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {data.anexos?.map(a => (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff' }}>
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)' }}>
                   <Link size={13} style={{ color: '#C9A96E', flexShrink: 0 }} />
                   <a href={a.url} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 12, color: '#3B82F6', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {a.nome}
@@ -660,7 +660,7 @@ function MarcenaroPicker({ value, onChange, team, placeholder = 'Atribuir marcen
       <button type="button" onClick={() => setOpen(o => !o)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-          padding: '7px 10px', border: '1px solid #E2E8F0', borderRadius: 8,
+          padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8,
           background: '#FAFAFA', cursor: 'pointer', textAlign: 'left',
         }}>
         <MarcenaroAvatar marceneiro={selected} size={26} />
@@ -677,18 +677,18 @@ function MarcenaroPicker({ value, onChange, team, placeholder = 'Atribuir marcen
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-          background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10,
+          background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
           boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 1000,
           maxHeight: 260, overflowY: 'auto', padding: 4,
         }}>
           {team.length === 0 ? (
-            <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: '#94a3b8' }}>
+            <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
               Nenhum marceneiro cadastrado.<br/>Use "Equipe" para cadastrar.
             </div>
           ) : (
             <>
               <button type="button" onClick={() => { onChange(null); setOpen(false); }}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '7px 9px', border: 0, background: 'transparent', cursor: 'pointer', borderRadius: 6, fontSize: 12, color: '#94a3b8' }}>
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '7px 9px', border: 0, background: 'transparent', cursor: 'pointer', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
                 <div style={{ width: 26, height: 26 }} />— sem atribuição —
               </button>
               {team.map(m => (
@@ -702,7 +702,7 @@ function MarcenaroPicker({ value, onChange, team, placeholder = 'Atribuir marcen
                   onMouseLeave={e => e.currentTarget.style.background = value === m.id ? '#F1F5F9' : 'transparent'}>
                   <MarcenaroAvatar marceneiro={m} size={26} />
                   <span style={{ flex: 1, fontSize: 13, color: '#0F172A', fontWeight: value === m.id ? 700 : 500 }}>{m.nome}</span>
-                  {m.especialidade && <span style={{ fontSize: 10, color: '#94a3b8' }}>{m.especialidade}</span>}
+                  {m.especialidade && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{m.especialidade}</span>}
                   {value === m.id && <Check size={13} style={{ color: '#10B981' }} />}
                 </button>
               ))}
@@ -759,13 +759,13 @@ function TeamModal({ onClose, onSaved, notify }) {
     }});
   };
 
-  const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
+  const inp = { border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Equipe da oficina"
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Equipe da Oficina</h3>
@@ -778,7 +778,7 @@ function TeamModal({ onClose, onSaved, notify }) {
           {loading ? (
             <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8', fontSize: 13 }}>Carregando…</div>
           ) : team.length === 0 && !editing ? (
-            <div style={{ textAlign: 'center', padding: '32px 16px', color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
               <User size={36} style={{ opacity: 0.3, margin: '0 auto 10px' }} />
               <div style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Sem marceneiros cadastrados</div>
               <div style={{ fontSize: 12 }}>Adicione sua equipe pra atribuir cards no kanban</div>
@@ -791,7 +791,7 @@ function TeamModal({ onClose, onSaved, notify }) {
                 ) : (
                   <div key={m.id} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: 10,
+                    padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10,
                     background: m.ativo ? '#fff' : '#F8FAFC', opacity: m.ativo ? 1 : 0.6,
                   }}>
                     <MarcenaroAvatar marceneiro={m} size={36} />
@@ -799,17 +799,17 @@ function TeamModal({ onClose, onSaved, notify }) {
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>
                         {m.nome}{!m.ativo && <span style={{ fontSize: 10, marginLeft: 6, color: '#94a3b8', fontWeight: 500 }}>(inativo)</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {m.especialidade || 'Marceneiro'}
                         {m.total_cards > 0 && <span style={{ marginLeft: 8 }}>· {m.total_cards} card{m.total_cards > 1 ? 's' : ''}</span>}
                       </div>
                     </div>
                     <button onClick={() => setEditing(m)} title="Editar"
-                      style={{ padding: 7, border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
+                      style={{ padding: 7, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--bg-card)', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
                       <Edit2 size={13} />
                     </button>
                     <button onClick={() => delOne(m)} title="Remover"
-                      style={{ padding: 7, border: '1px solid #FEE2E2', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#EF4444', display: 'flex' }}>
+                      style={{ padding: 7, border: '1px solid #FEE2E2', borderRadius: 7, background: 'var(--bg-card)', cursor: 'pointer', color: '#EF4444', display: 'flex' }}>
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -826,7 +826,7 @@ function TeamModal({ onClose, onSaved, notify }) {
             <button onClick={() => setEditing({ nome: '', cor: PROJ_COLORS[team.length % PROJ_COLORS.length], foto: '', especialidade: '', ativo: 1 })}
               style={{
                 marginTop: 10, width: '100%', padding: '10px', border: '1px dashed #CBD5E1', borderRadius: 10,
-                background: '#fff', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                background: 'var(--bg-card)', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
               <Plus size={14} /> Adicionar marceneiro
@@ -846,9 +846,9 @@ function TeamModal({ onClose, onSaved, notify }) {
 
 function TeamRowForm({ initial, onCancel, onSave }) {
   const [form, setForm] = useState({ ...initial });
-  const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
+  const inp = { border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
   return (
-    <div style={{ padding: 12, border: `2px solid ${form.cor || '#C9A96E'}`, borderRadius: 10, background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ padding: 12, border: `2px solid ${form.cor || '#C9A96E'}`, borderRadius: 10, background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <MarcenaroAvatar marceneiro={form} size={44} />
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
@@ -877,7 +877,7 @@ function TeamRowForm({ initial, onCancel, onSave }) {
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           <button type="button" onClick={onCancel}
-            style={{ padding: '7px 12px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#64748b' }}>Cancelar</button>
+            style={{ padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--bg-card)', fontSize: 12, cursor: 'pointer', color: '#64748b' }}>Cancelar</button>
           <button type="button" onClick={() => onSave(form)}
             style={{ padding: '7px 14px', border: 0, borderRadius: 7, background: '#0E1116', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             {initial.id ? 'Salvar' : 'Adicionar'}
@@ -915,11 +915,11 @@ function NewCardModal({ initialEtapa, onClose, onCreate, notify, team }) {
     } finally { setSaving(false); }
   };
 
-  const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '9px 11px', fontSize: 13, outline: 'none', width: '100%', background: '#FAFAFA', boxSizing: 'border-box' };
+  const inp = { border: '1px solid var(--border)', borderRadius: 7, padding: '9px 11px', fontSize: 13, outline: 'none', width: '100%', background: '#FAFAFA', boxSizing: 'border-box' };
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Novo card" className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0F172A' }}>Novo card na Oficina</h3>
@@ -1079,7 +1079,7 @@ function TVCardActions({ card, onClose, onUpdate, onMove }) {
                   }}>
                     {(card.marceneiro_nome || '').split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('')}
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8' }}>{card.marceneiro_nome}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>{card.marceneiro_nome}</span>
                 </div>
               )}
             </div>
@@ -1223,13 +1223,13 @@ function TemplatesModal({ onClose, notify }) {
     load();
   };
 
-  const inp = { border: '1px solid #E2E8F0', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
+  const inp = { border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', fontSize: 13, outline: 'none', background: '#FAFAFA', boxSizing: 'border-box' };
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Templates de Checklist"
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
           <div>
@@ -1268,7 +1268,7 @@ function TemplatesModal({ onClose, notify }) {
         {/* Lista de itens */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {byEtapa.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 16px', color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
               <CheckSquare size={32} style={{ opacity: 0.3, margin: '0 auto 10px' }} />
               <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>Sem itens para esta etapa</div>
               <div style={{ fontSize: 12, marginTop: 4 }}>Adicione abaixo. Serão aplicados automaticamente em novos cards.</div>
@@ -1394,9 +1394,9 @@ function OficinaDesktop({ notify }) {
   const atrasados   = cards.filter(c => c.prazo && new Date(c.prazo + 'T12:00:00') < new Date()).length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F1F5F9' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-muted)' }}>
       {/* ── Header ──────────────────────────────────────────── */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '14px 20px', flexShrink: 0 }}>
+      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid #E2E8F0', padding: '14px 20px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0E1116', display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -1424,17 +1424,17 @@ function OficinaDesktop({ notify }) {
           {/* Filtros */}
           {(projetos.length > 0 || team.length > 0) && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Filter size={13} style={{ color: '#94a3b8' }} aria-hidden="true" />
+              <Filter size={13} style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
               {projetos.length > 0 && (
                 <select value={filterProj} onChange={e => setFilterProj(e.target.value)}
-                  style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#FAFAFA', outline: 'none', color: '#334155' }}>
+                  style={{ fontSize: 12, padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 7, background: '#FAFAFA', outline: 'none', color: '#334155' }}>
                   <option value="">Todos os projetos</option>
                   {projetos.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               )}
               {team.length > 0 && (
                 <select value={filterResp} onChange={e => setFilterResp(e.target.value)}
-                  style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #E2E8F0', borderRadius: 7, background: '#FAFAFA', outline: 'none', color: '#334155' }}>
+                  style={{ fontSize: 12, padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 7, background: '#FAFAFA', outline: 'none', color: '#334155' }}>
                   <option value="">Todos os marceneiros</option>
                   {team.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </select>
@@ -1443,22 +1443,22 @@ function OficinaDesktop({ notify }) {
           )}
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={load} title="Atualizar" style={{ padding: '8px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
+            <button onClick={load} title="Atualizar" style={{ padding: '8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
               <RefreshCw size={14} />
             </button>
             <button onClick={() => setShowTemplates(true)} title="Templates de checklist por etapa"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
               <Settings size={14} /> Templates
             </button>
             <button onClick={() => setShowTeam(true)} title="Gerenciar equipe"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
               <User size={14} /> Equipe
               {team.length > 0 && (
                 <span style={{ background: '#C9A96E22', color: '#8B6F47', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 99, fontVariantNumeric: 'tabular-nums' }}>{team.length}</span>
               )}
             </button>
             <button onClick={openTV}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#334155' }}>
               <Monitor size={14} /> Modo TV
             </button>
             <button onClick={() => setNewCardEtapa('corte')}
@@ -1955,7 +1955,7 @@ function TVMarceneirosPanel({ team, cards, onCardClick }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {proximos.slice(0, 2).map(c => (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#94a3b8' }}>
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-muted)' }}>
                       <span style={{ width: 4, height: 4, borderRadius: '50%', background: c.cor || '#C9A96E', flexShrink: 0 }} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{c.ambiente}</span>
                       <span style={{ fontSize: 8, color: ETAPA_MAP[c.etapa]?.col, fontWeight: 700 }}>{ETAPA_MAP[c.etapa]?.short}</span>

@@ -306,8 +306,8 @@ function AtencaoStrip({ data, nav }) {
     const hasBoth = data.total_parados > 0 && data.total_vencidas > 0;
     const critical = data.total_vencidas > 0;
     const color = critical ? 'var(--danger)' : 'var(--warning)';
-    const bg = critical ? 'rgba(220,38,38,0.07)' : 'rgba(176,120,32,0.07)';
-    const border = critical ? 'rgba(220,38,38,0.20)' : 'rgba(176,120,32,0.20)';
+    const bg = critical ? 'var(--danger-bg)' : 'var(--warning-bg)';
+    const border = critical ? 'var(--danger-border)' : 'var(--warning-border)';
     return (
         <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -343,8 +343,8 @@ function FilaAtencao({ data, nav }) {
             <div className="chart-card-pro-head">
                 <div className="chart-card-pro-title">
                     <span className="kpi-pro-icon" style={{
-                        background: 'rgba(176, 120, 32, 0.10)',
-                        borderColor: 'rgba(176, 120, 32, 0.25)',
+                        background: 'var(--warning-bg)',
+                        borderColor: 'var(--warning-border)',
                         color: 'var(--warning)',
                     }}>
                         <AlertTriangle size={15} strokeWidth={2.2} />
@@ -1124,7 +1124,7 @@ function FluxoProjetado({ data }) {
                             marginBottom: i < data.length - 1 ? 14 : 0,
                             padding: 14, borderRadius: 12,
                             background: 'var(--bg-subtle)',
-                            border: `1px solid ${positive ? 'rgba(92,123,67,0.22)' : 'rgba(160,71,58,0.22)'}`,
+                            border: `1px solid ${positive ? 'var(--success-border)' : 'var(--danger-border)'}`,
                             animation: `stagger-in 0.35s ease ${i * 80}ms both`,
                         }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -1453,15 +1453,15 @@ function FollowUpsWidget({ nav, notify }) {
                     {cont.atrasados > 0 && (
                         <span style={{
                             fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
-                            background: 'rgba(160,71,58,0.12)', color: 'var(--danger)',
-                            border: '1px solid rgba(160,71,58,0.28)', fontVariantNumeric: 'tabular-nums',
+                            background: 'var(--danger-bg)', color: 'var(--danger)',
+                            border: '1px solid var(--danger-border)', fontVariantNumeric: 'tabular-nums',
                         }}>{cont.atrasados} atrasado{cont.atrasados > 1 ? 's' : ''}</span>
                     )}
                     {cont.hoje > 0 && (
                         <span style={{
                             fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
-                            background: 'rgba(176,120,32,0.12)', color: 'var(--warning)',
-                            border: '1px solid rgba(176,120,32,0.28)', fontVariantNumeric: 'tabular-nums',
+                            background: 'var(--warning-bg)', color: 'var(--warning)',
+                            border: '1px solid var(--warning-border)', fontVariantNumeric: 'tabular-nums',
                         }}>{cont.hoje} hoje</span>
                     )}
                     <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>
@@ -1524,8 +1524,8 @@ function FollowUpsWidget({ nav, notify }) {
                                         style={{
                                             display: 'inline-flex', alignItems: 'center', gap: 4,
                                             padding: '6px 10px', fontSize: 11, fontWeight: 600,
-                                            borderRadius: 8, border: '1px solid rgba(131,165,98,0.3)',
-                                            background: 'rgba(131,165,98,0.10)', color: 'var(--success)',
+                                            borderRadius: 8, border: '1px solid var(--success-border)',
+                                            background: 'var(--success-bg)', color: 'var(--success)',
                                             cursor: busyId === f.id ? 'not-allowed' : 'pointer',
                                             opacity: busyId === f.id ? 0.5 : 1,
                                         }}
@@ -1659,7 +1659,7 @@ function EquipeTab({ equipe }) {
                                         <span style={{
                                             display: 'inline-flex', alignItems: 'center', gap: 3,
                                             padding: '2px 8px', borderRadius: 99, fontSize: 11.5, fontWeight: 700,
-                                            background: v.taxa_conversao >= 50 ? 'rgba(159,191,126,0.15)' : v.taxa_conversao >= 25 ? 'rgba(176,120,32,0.15)' : 'rgba(100,116,139,0.12)',
+                                            background: v.taxa_conversao >= 50 ? 'var(--success-bg)' : v.taxa_conversao >= 25 ? 'var(--warning-bg)' : 'var(--bg-muted)',
                                             color: v.taxa_conversao >= 50 ? 'var(--success)' : v.taxa_conversao >= 25 ? 'var(--warning)' : 'var(--text-muted)',
                                         }}>{v.taxa_conversao}%</span>
                                     </td>

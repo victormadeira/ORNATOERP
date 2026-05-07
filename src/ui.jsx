@@ -126,7 +126,8 @@ export const Z = {
 
 // ─── PageHeader — cabecalho padronizado de pagina ─────────
 // Editorial v3: chip com acent cobre, typography com Space Grotesk
-export function PageHeader({ icon: Icon, title, subtitle, children, accent = 'primary' }) {
+// breadcrumbs: [{ label, onClick? }] — trail acima do título
+export function PageHeader({ icon: Icon, title, subtitle, children, accent = 'primary', breadcrumbs }) {
     const isAccent = accent === 'accent';
     const chipBg = isAccent ? 'var(--accent)' : 'var(--primary)';
     return (
@@ -147,6 +148,32 @@ export function PageHeader({ icon: Icon, title, subtitle, children, accent = 'pr
                     </div>
                 )}
                 <div style={{ minWidth: 0, flex: 1 }}>
+                    {breadcrumbs && breadcrumbs.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                            {breadcrumbs.map((crumb, i) => (
+                                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    {crumb.onClick ? (
+                                        <button onClick={crumb.onClick} style={{
+                                            background: 'none', border: 'none', padding: 0,
+                                            fontSize: 11, fontWeight: 500, color: 'var(--primary)',
+                                            cursor: 'pointer', textDecoration: 'none',
+                                            letterSpacing: '0.01em',
+                                        }}
+                                        onMouseEnter={e => e.target.style.textDecoration = 'underline'}
+                                        onMouseLeave={e => e.target.style.textDecoration = 'none'}
+                                        >
+                                            {crumb.label}
+                                        </button>
+                                    ) : (
+                                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{crumb.label}</span>
+                                    )}
+                                    {i < breadcrumbs.length - 1 && (
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.5 }}>›</span>
+                                    )}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                     <h1 className="page-header-title" style={{
                         fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em',
                         margin: 0, lineHeight: 1.15,
@@ -601,7 +628,7 @@ export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Con
             <div className="glass-card shadow-xl modal-content" style={{ maxWidth: 400, width: '100%' }} onClick={e => e.stopPropagation()}>
                 <div className="p-5">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: danger ? 'rgba(220,38,38,0.1)' : 'rgba(19,121,240,0.1)', flexShrink: 0 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: danger ? 'var(--danger-bg)' : 'var(--primary-light)', flexShrink: 0 }}>
                             {danger
                                 ? <AlertCircle size={18} style={{ color: 'var(--danger)' }} />
                                 : <AlertCircle size={18} style={{ color: 'var(--primary)' }} />
@@ -612,8 +639,7 @@ export function ConfirmModal({ title = 'Confirmar', message, confirmLabel = 'Con
                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20, paddingLeft: 46 }}>{message}</p>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button onClick={onCancel} className="btn-secondary" style={{ fontSize: 13, padding: '8px 16px' }}>{cancelLabel}</button>
-                        <button onClick={onConfirm} autoFocus className={danger ? 'btn-danger' : 'btn-primary'}
-                            style={{ fontSize: 13, padding: '8px 16px', ...(danger ? { background: 'var(--danger)', color: '#fff', fontWeight: 600 } : {}) }}>
+                        <button onClick={onConfirm} autoFocus className={danger ? 'btn-danger' : 'btn-primary'} style={{ fontSize: 13, padding: '8px 16px' }}>
                             {confirmLabel}
                         </button>
                     </div>

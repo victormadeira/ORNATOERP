@@ -1749,14 +1749,14 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                     {p.lado_ativo === 'B' && pw > 18 && ph > 18 && (
                                         <g style={{ pointerEvents: 'none' }}>
                                             <rect x={px + pw - 18} y={py + ph - 15} width={16} height={13}
-                                                fill="rgba(14,165,233,0.85)" rx={2} />
+                                                fill="#0891b2" fillOpacity={0.9} rx={2} />
                                             <text x={px + pw - 10} y={py + ph - 5} textAnchor="middle" fontSize={9} fill="#fff" fontWeight={800}>B</text>
                                         </g>
                                     )}
                                     {/* Side B overlay tint */}
                                     {p.lado_ativo === 'B' && (
                                         <rect x={px} y={py} width={pw} height={ph}
-                                            fill="#0ea5e9" fillOpacity={0.08}
+                                            fill="#0891b2" fillOpacity={0.07}
                                             style={{ pointerEvents: 'none' }} />
                                     )}
 
@@ -1766,7 +1766,8 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                     {pw > 30 && ph > 22 && piece?.machining_json && piece.machining_json !== '{}' && (() => {
                                         const lado = p.lado_ativo || 'A';
                                         const isManual = p.lado_manual;
-                                        const bgColor = lado === 'B' ? '#f59e0b' : '#2563eb';
+                                        // Face A = primary blue; Face B = teal (cnc-face-b)
+                                        const bgColor = lado === 'B' ? '#0891b2' : '#1379F0';
                                         return (
                                             <g style={{ pointerEvents: 'none' }}
                                                 transform={`translate(${px + pw - 20}, ${py + 2})`}>
@@ -2295,17 +2296,17 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                         <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-primary)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{
                                 width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
-                                background: machTip.ghost ? '#64748b'
-                                    : machTip.tipo?.includes('Rasgo') ? '#eab308'
-                                    : machTip.tipo?.includes('Rebaixo') ? '#f97316'
-                                    : machTip.tipo?.includes('Fresa') ? '#06b6d4'
-                                    : machTip.face === 'Fundo' ? '#0891b2'
-                                    : machTip.face?.includes('Lateral') ? '#2563eb'
-                                    : '#e11d48',
-                                border: machTip.ghost ? '1.5px dashed #94a3b8' : 'none',
+                                background: machTip.ghost ? 'var(--text-muted)'
+                                    : machTip.tipo?.includes('Rasgo') ? 'var(--warning)'
+                                    : machTip.tipo?.includes('Rebaixo') ? 'var(--warning)'
+                                    : machTip.tipo?.includes('Fresa') ? 'var(--info)'
+                                    : machTip.face === 'Fundo' ? 'var(--cnc-face-b, #0891b2)'
+                                    : machTip.face?.includes('Lateral') ? 'var(--primary)'
+                                    : 'var(--danger)',
+                                border: machTip.ghost ? '1.5px dashed var(--border)' : 'none',
                             }} />
                             {machTip.tipo || 'Usinagem'}
-                            {machTip.ghost && <span style={{ fontSize: 9, color: '#94a3b8', fontStyle: 'italic' }}>(lado oposto)</span>}
+                            {machTip.ghost && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic' }}>(lado oposto)</span>}
                         </div>
                         <div style={{ color: 'var(--text-muted)' }}>
                             <b>Face:</b> {machTip.face}<br />
@@ -2376,7 +2377,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{piece?.descricao || `Peça #${p.pecaId}`}</div>
                                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                                         {Math.round(p.w)} × {Math.round(p.h)} mm{p.rotated ? ' (R)' : ''}
-                                        {p.lado_ativo === 'B' ? <span style={{ color: '#0ea5e9', fontWeight: 700, marginLeft: 4 }}>Lado B</span> : ' Lado A'}
+                                        {p.lado_ativo === 'B' ? <span style={{ color: 'var(--cnc-face-b, #0891b2)', fontWeight: 700, marginLeft: 4 }}>Lado B</span> : ' Lado A'}
                                     </div>
                                 </div>
                             </div>
@@ -2386,12 +2387,12 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                 <MI icon={RotateCw} label="Rotacionar 90°" color="var(--info)" onClick={() => handleRotate(ctxMenu.pecaIdx)} />
                             )}
                             {!isLocked && (
-                                <MI icon={FlipVertical2} label={`Inverter → Lado ${(p.lado_ativo === 'B') ? 'A' : 'B'}`} color="#0ea5e9"
+                                <MI icon={FlipVertical2} label={`Inverter → Lado ${(p.lado_ativo === 'B') ? 'A' : 'B'}`} color="var(--cnc-face-b, #0891b2)"
                                     onClick={() => onAdjust({ action: 'flip', chapaIdx: idx, pecaIdx: ctxMenu.pecaIdx })} />
                             )}
-                            <MI icon={Eye} label="Ver Peça 3D" color="#3b82f6" onClick={() => onView3D && onView3D(piece)} />
-                            <MI icon={Printer} label="Imprimir Etiqueta" color="#d97706" onClick={() => onPrintSingleLabel && onPrintSingleLabel(piece)} />
-                            <MI icon={Cpu} label="G-Code desta Peça" color="#1e40af" onClick={() => onGerarGcodePeca && onGerarGcodePeca(idx, ctxMenu.pecaIdx)} />
+                            <MI icon={Eye} label="Ver Peça 3D" color="var(--info)" onClick={() => onView3D && onView3D(piece)} />
+                            <MI icon={Printer} label="Imprimir Etiqueta" color="var(--warning)" onClick={() => onPrintSingleLabel && onPrintSingleLabel(piece)} />
+                            <MI icon={Cpu} label="G-Code desta Peça" color="var(--primary)" onClick={() => onGerarGcodePeca && onGerarGcodePeca(idx, ctxMenu.pecaIdx)} />
 
                             <Sep label="Organização" />
                             <MI icon={isLocked ? Unlock : Lock} label={isLocked ? 'Desbloquear posição' : 'Bloquear posição'} color="#fbbf24"

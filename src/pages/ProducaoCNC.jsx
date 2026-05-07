@@ -715,7 +715,15 @@ export default function ProducaoCNC({ notify }) {
 
     return (
         <div className="w-full page-enter" style={{ padding: '8px 12px 12px' }}>
-            <PageHeader icon={Cpu} title="Produção CNC" subtitle="Importar, otimizar, G-code e rastrear">
+            <PageHeader
+                icon={Cpu}
+                title={isInsideLote && loteAtual ? (loteAtual.nome || `Lote #${loteAtual.id}`) : 'Produção CNC'}
+                subtitle={isInsideLote ? ({ plano: 'Plano de corte', pecas: 'Lista de peças', etiquetas: 'Etiquetas', gcode: 'G-Code', usinagens: 'Usinagens', custos: 'Análise de custos' }[tab] || tab) : 'Importar, otimizar, G-code e rastrear'}
+                breadcrumbs={isInsideLote && loteAtual ? [
+                    { label: 'Produção CNC', onClick: () => { setLoteAtual(null); setTab('overview'); } },
+                    { label: loteAtual.nome || `Lote #${loteAtual.id}` },
+                ] : undefined}
+            >
                 <button
                     onClick={() => setModalScanOpen(true)}
                     title="Escanear QR de uma peça"
