@@ -144,7 +144,7 @@
 [data-theme="light"] {
   /* Backgrounds */
   --bg-body: #F2F2F6;
-  --bg-sidebar: #141210;          /* sidebar sempre dark */
+  --bg-sidebar: #111318;          /* sidebar sempre dark neutral */
   --bg-card: #FFFFFF;
   --bg-input: #FFFFFF;
   --bg-hover: #E8E8EF;
@@ -1562,7 +1562,7 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-xl);
-  background: #1A1612;
+  background: #111318;
   color: var(--text-on-dark);
   padding: 32px 36px;
   border: 1px solid rgba(184, 147, 90, 0.18);
