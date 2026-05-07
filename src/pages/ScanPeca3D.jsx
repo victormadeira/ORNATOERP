@@ -256,7 +256,7 @@ function classifyPiece(desc) {
 
 const PIECE_COLORS = {
     lateral_dir: 'var(--info)', lateral_esq: 'var(--info)',
-    base: 'var(--success)', tampo: '#a855f7',
+    base: 'var(--success)', tampo: 'var(--accent)',
     traseira: 'var(--muted)', prateleira: '#06b6d4',
     porta: 'var(--warning)', gaveta: 'var(--warning)',
     divisoria: '#ec4899', other: 'var(--muted)',
@@ -732,7 +732,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
             }}>
                 <div style={{
                     width: 40, height: 40, borderRadius: 10,
-                    background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                    background: 'linear-gradient(135deg, var(--primary), #0891b2)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
                 }}>
@@ -1101,7 +1101,7 @@ export default function ScanPeca3D({ codigo: initialCodigo }) {
                                             const cat = (w.category || '').replace(/_/g, ' ');
                                             const isHole = /hole|furo/i.test(cat);
                                             const isGroove = /groove|rasgo|canal|saw/i.test(cat);
-                                            const color = isHole ? '#e11d48' : isGroove ? 'var(--warning)' : '#8b5cf6';
+                                            const color = isHole ? '#e11d48' : isGroove ? 'var(--warning)' : 'var(--info)';
                                             return (
                                                 <div key={i} style={{
                                                     display: 'flex', alignItems: 'center', gap: 8,

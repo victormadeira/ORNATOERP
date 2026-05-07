@@ -559,7 +559,7 @@ export default function RelatorioMateriais({ empresa, orcamento, ambientes, tot,
             {/* Lista de Ferragens */}
             {Object.keys(tot.fa).length > 0 && (
                 <div className="mb-5">
-                    <div className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: '#a855f7' }}>
+                    <div className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
                         <Package size={13} /> LISTA DE FERRAGENS
                     </div>
                     <TabelaFerragens fa={tot.fa} />
