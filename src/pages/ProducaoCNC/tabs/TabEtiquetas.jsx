@@ -35,6 +35,17 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     const [loading, setLoading] = useState(false);
     const [cfg, setCfg] = useState(null);
     const [cfgLoading, setCfgLoading] = useState(true);
+
+    // Print status map { persistent_id: { status, impressoes } }
+    const [printStatusMap, setPrintStatusMap] = useState({});
+    const [markingAll, setMarkingAll] = useState(null); // chapaIdx being bulk-marked
+    const loadPrintStatus = useCallback(() => {
+        if (!loteAtual?.id) return;
+        api.get(`/cnc/etiqueta-impressoes/${loteAtual.id}`)
+            .then(d => setPrintStatusMap(d || {}))
+            .catch(() => {});
+    }, [loteAtual?.id]);
+    useEffect(() => { loadPrintStatus(); }, [loadPrintStatus]);
     const [filtroModulo, setFiltroModulo] = useState(() => localStorage.getItem('etiq_filtroModulo') || '');
     const [filtroMaterial, setFiltroMaterial] = useState(() => localStorage.getItem('etiq_filtroMaterial') || '');
     const [templatePadrao, setTemplatePadrao] = useState(null);
@@ -334,6 +345,28 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
         }
     };
 
+    // Marcar todas as etiquetas de uma chapa como impressas
+    const marcarTodasImpressas = useCallback(async (chapaEtiquetas, chapaIdx) => {
+        if (!loteAtual?.id) return;
+        setMarkingAll(chapaIdx);
+        try {
+            const pids = chapaEtiquetas.map(e => e.persistent_id || e.upmcode).filter(Boolean);
+            await Promise.all(pids.map(pid =>
+                api.post('/cnc/etiqueta-impressoes', {
+                    lote_id: loteAtual.id,
+                    persistent_id: pid,
+                    status: 'impressa',
+                })
+            ));
+            loadPrintStatus();
+            notify(`${pids.length} etiqueta(s) marcadas como impressas`, 'success');
+        } catch {
+            notify('Erro ao marcar etiquetas');
+        } finally {
+            setMarkingAll(null);
+        }
+    }, [loteAtual?.id, loadPrintStatus, notify]);
+
     if (cfgLoading) return <Spinner text="Carregando configurações..." />;
 
     const fontes = FONTES_TAMANHO[cfg?.fonte_tamanho] || FONTES_TAMANHO.medio;
@@ -469,6 +502,12 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                         const chapaH = group.chapa?.h || 0;
                         const printClass = `print-chapa-${group.chapa_idx}`;
 
+                        // Print status para esta chapa
+                        const pidsChapa = group.etiquetas.map(e => e.persistent_id || e.upmcode).filter(Boolean);
+                        const impressasNaChapa = pidsChapa.filter(pid => printStatusMap[pid]).length;
+                        const todasImpressas = pidsChapa.length > 0 && impressasNaChapa === pidsChapa.length;
+                        const algumasImpressas = impressasNaChapa > 0 && impressasNaChapa < pidsChapa.length;
+
                         return (
                             <div key={group.chapa_idx} style={{ marginBottom: 20 }}>
                                 {/* Cabeçalho da chapa */}
@@ -501,6 +540,21 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                                     }}>
                                         {group.etiquetas.length} peça(s)
                                     </span>
+                                    {/* Print status badge */}
+                                    {pidsChapa.length > 0 && (
+                                        <span style={{
+                                            fontSize: 11, fontWeight: 700,
+                                            color: todasImpressas ? (isNoChapa ? 'var(--success)' : '#fff') : algumasImpressas ? (isNoChapa ? 'var(--warning)' : '#fde68a') : (isNoChapa ? 'var(--text-muted)' : 'rgba(255,255,255,0.5)'),
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                        }}>
+                                            {todasImpressas
+                                                ? <><CheckCircle2 size={12} /> {impressasNaChapa}/{pidsChapa.length} impressas</>
+                                                : algumasImpressas
+                                                    ? <><AlertTriangle size={12} /> {impressasNaChapa}/{pidsChapa.length} impressas</>
+                                                    : <><Circle size={12} /> Nenhuma impressa</>
+                                            }
+                                        </span>
+                                    )}
                                     <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                                         <button onClick={() => imprimirChapa(group.chapa_idx)}
                                             style={{
@@ -522,6 +576,24 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                                                 <Download size={12} /> ZPL
                                             </button>
                                         )}
+                                        {pidsChapa.length > 0 && !todasImpressas && (
+                                            <button
+                                                onClick={() => marcarTodasImpressas(group.etiquetas, group.chapa_idx)}
+                                                disabled={markingAll === group.chapa_idx}
+                                                title="Marcar todas as peças desta chapa como impressas"
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
+                                                    fontSize: 11, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer',
+                                                    background: isNoChapa ? 'var(--success-bg)' : 'rgba(255,255,255,0.15)',
+                                                    color: isNoChapa ? 'var(--success)' : '#fff',
+                                                    opacity: markingAll === group.chapa_idx ? 0.6 : 1,
+                                                }}>
+                                                {markingAll === group.chapa_idx
+                                                    ? <RefreshCw size={12} className="animate-spin" />
+                                                    : <Check size={12} />
+                                                } Marcar impressas
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -535,18 +607,36 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
                                         : `repeat(auto-fill, minmax(${Math.max(280, 320)}px, 1fr))`,
                                     gap: (usarTemplate && templatePadrao ? templatePadrao.gap_etiquetas : cfg?.gap_etiquetas || 4) * 2 + 'px',
                                 }}>
-                                    {group.etiquetas.map((et, i) => (
-                                        usarTemplate && templatePadrao ? (
+                                    {group.etiquetas.map((et, i) => {
+                                        const etPid = et.persistent_id || et.upmcode;
+                                        const etPs = etPid ? printStatusMap[etPid] : null;
+                                        const etImpressaColor = etPs ? (etPs.impressoes > 1 ? 'var(--warning)' : 'var(--success)') : null;
+                                        const etStatusIcon = etPs ? (etPs.impressoes > 1 ? <RotateCw size={9} /> : <Check size={9} />) : null;
+                                        return usarTemplate && templatePadrao ? (
                                             <div key={i} className="etiqueta-svg-wrap" style={{
-                                                background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb',
+                                                position: 'relative',
+                                                background: '#fff', borderRadius: 6,
+                                                border: etPs ? `1.5px solid ${etImpressaColor}` : '1px solid #e5e7eb',
                                                 overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
                                             }}>
                                                 <EtiquetaSVG template={templatePadrao} etiqueta={et} cfg={cfg} />
+                                                {etPs && (
+                                                    <div style={{
+                                                        position: 'absolute', top: 4, right: 4,
+                                                        display: 'flex', alignItems: 'center', gap: 3,
+                                                        padding: '2px 6px', borderRadius: 4, fontSize: 9.5, fontWeight: 700,
+                                                        background: etImpressaColor, color: '#fff',
+                                                        pointerEvents: 'none', lineHeight: 1,
+                                                    }}>
+                                                        {etStatusIcon}
+                                                        {etPs.impressoes > 1 ? `${etPs.impressoes}×` : 'OK'}
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
-                                            <EtiquetaCard key={i} et={et} cfg={cfg} fontes={fontes} corFita={corFita} corCtrl={corCtrl} />
-                                        )
-                                    ))}
+                                            <EtiquetaCard key={i} et={et} cfg={cfg} fontes={fontes} corFita={corFita} corCtrl={corCtrl} printStatus={etPs} />
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );
@@ -563,18 +653,32 @@ export function TabEtiquetas({ lotes, loteAtual, setLoteAtual, notify }) {
     );
 }
 
-function EtiquetaCard({ et, cfg, fontes, corFita, corCtrl }) {
+function EtiquetaCard({ et, cfg, fontes, corFita, corCtrl, printStatus }) {
     const sh = (key) => cfg?.[key] !== 0; // mostrar campo (default = true exceto produto_final)
     const borderColor = (has) => has ? corFita : '#d1d5db';
     const fs = fontes || FONTES_TAMANHO.medio;
+    const psColor = printStatus ? (printStatus.impressoes > 1 ? 'var(--warning)' : 'var(--success)') : null;
 
     return (
         <div className="etiqueta-card-print" style={{
             padding: '10px 12px', fontSize: fs.body, lineHeight: 1.5,
             pageBreakInside: 'avoid', breakInside: 'avoid',
-            border: '1px solid var(--border)', borderRadius: 8,
+            border: printStatus ? `1.5px solid ${psColor}` : '1px solid var(--border)',
+            borderRadius: 8,
             background: 'var(--bg-card)',
+            position: 'relative',
         }}>
+            {/* Print status badge */}
+            {printStatus && (
+                <div className="no-print" style={{
+                    position: 'absolute', top: 6, right: 6,
+                    display: 'flex', alignItems: 'center', gap: 3,
+                    padding: '2px 7px', borderRadius: 4, fontSize: 9.5, fontWeight: 700,
+                    background: psColor, color: '#fff', lineHeight: 1,
+                }}>
+                    {printStatus.impressoes > 1 ? <><RotateCw size={9} /> {printStatus.impressoes}× reimp.</> : <><Check size={9} /> Impressa</>}
+                </div>
+            )}
             {/* Empresa + Controle header */}
             {(cfg?.empresa_nome || sh('mostrar_controle')) && (
                 <div style={{

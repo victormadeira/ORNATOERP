@@ -10,6 +10,7 @@ import {
     AlertTriangle, CheckCircle2, Circle, X, ChevronDown, ChevronUp,
     FileText, Package, Wrench, FlipVertical2, Layers, Shield,
     Clock, BarChart2, ZapOff, Zap, Box, Maximize2, Minimize2,
+    Tag as TagIcon,
 } from 'lucide-react';
 import { Spinner } from '../../../../ui';
 import { GcodeSimCanvas } from './GcodeSimCanvas.jsx';
@@ -84,6 +85,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         gcode = '', filename, stats = {}, alertas = [],
         chapaIdx = 0, contorno_tool, maquina: maquinaInfo = null,
         chapa: chapaData = null,
+        printStatusMap = {}, pecasPersistentIds = [],
     } = data || {};
 
     const [simPlaying, setSimPlaying] = useState(false);
@@ -126,6 +128,11 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         return t.includes('erro') || t.includes('critico');
     });
 
+    // Etiqueta status para esta chapa
+    const totalPecasChapa = pecasPersistentIds.length;
+    const impressasCount = pecasPersistentIds.filter(pid => printStatusMap[pid]).length;
+    const etiquetasOk = totalPecasChapa === 0 || impressasCount === totalPecasChapa;
+
     const checklist = [
         { label: 'G-code gerado',          ok: Boolean(gcode),               detail: filename || 'Arquivo pendente' },
         { label: 'Máquina selecionada',     ok: Boolean(maquinaInfo?.nome),   detail: maquinaInfo?.nome || 'Padrão do servidor' },
@@ -133,6 +140,13 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         { label: 'Alertas críticos',        ok: criticalAlerts.length === 0,  detail: criticalAlerts.length ? `${criticalAlerts.length} pendência(s)` : 'Sem bloqueios' },
         { label: 'Validação operacional',   ok: operational.critical.length === 0, detail: operational.warning.length ? `${operational.warning.length} atenção(ões)` : 'Sem risco crítico' },
         { label: 'Movimentos de corte',     ok: gcodeCutMoves > 0,            detail: `${gcodeCutMoves} movimento(s)` },
+        ...(totalPecasChapa > 0 ? [{
+            label: 'Etiquetas impressas',
+            ok: etiquetasOk,
+            detail: etiquetasOk
+                ? `${impressasCount}/${totalPecasChapa} etiqueta(s) confirmadas`
+                : `${impressasCount}/${totalPecasChapa} — imprima todas antes de cortar`,
+        }] : []),
     ];
 
     const hasBlocking = operational.critical.length > 0 || !gcode || gcodeCutMoves === 0;

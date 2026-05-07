@@ -1458,6 +1458,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 // Cache real stats from G-code generation
                 if (r.stats) setChapaRealStats(prev => ({ ...prev, [chapaIdx]: r.stats }));
                 // O modal GcodePreviewModal já tem aba "Simulador" embutida — não abre inline sim
+                // Collect persistent_ids for pieces in this chapa (for etiqueta status check)
+                const pecasPersistentIds = (plano?.chapas?.[chapaIdx]?.pecas || [])
+                    .map(p => { const pObj = pecasMap[p.pecaId]; return pObj?.persistent_id || pObj?.upmcode; })
+                    .filter(Boolean);
                 abrirGcodePreview({
                     gcode: r.gcode,
                     filename: r.filename || `chapa_${chapaIdx + 1}.nc`,
@@ -1467,6 +1471,8 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                     contorno_tool: r.contorno_tool || null,
                     maquina: r.maquina || null,
                     chapa: chapaSimData,
+                    printStatusMap,
+                    pecasPersistentIds,
                 });
             } else if (r.ferramentas_faltando?.length > 0) {
                 // Mostrar detalhes de ferramentas faltantes no preview modal (sem G-code)
