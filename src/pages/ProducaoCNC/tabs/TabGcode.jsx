@@ -187,6 +187,22 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+            {/* ── Banner de fluxo arquivado ──────────────────────────────── */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 14px', borderRadius: 8,
+                background: 'rgba(19,121,240,0.06)',
+                border: '1px solid rgba(19,121,240,0.18)',
+                fontSize: 12, color: 'var(--text-secondary)',
+            }}>
+                <Monitor size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <span>
+                    O fluxo principal de revisão usa o{' '}
+                    <b style={{ color: 'var(--text-primary)' }}>Plano de Corte → Revisar Pré-corte</b>.
+                    {' '}Esta aba mantém o histórico de G-codes e permite geração em lote para exportação.
+                </span>
+            </div>
+
             {/* ── Sub-tabs Etiquetas ─────────────────────────────────────── */}
             <div style={{ marginBottom: -4 }}>
                 <TabBar

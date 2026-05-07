@@ -1556,6 +1556,14 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
 .cnc-next-action-btn:active { transform: scale(0.97); }
 
 /* ═══════════════════════════════════════════════════════════
+   CNC COCKPIT FULLSCREEN — oculta topbar + bottom-nav do ERP
+   enquanto o PreCutWorkspace está aberto.
+   Ativado via useCockpitFullscreen() hook.
+   ═══════════════════════════════════════════════════════════ */
+.cnc-cockpit-fullscreen .topbar-fixed       { display: none !important; }
+.cnc-cockpit-fullscreen .mobile-bottom-nav  { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════
    HERO CARD — legacy (substituído por exec-bar no ERP).
    Mantido apenas para páginas públicas / landing page.
    Não usar em telas internas do ERP.

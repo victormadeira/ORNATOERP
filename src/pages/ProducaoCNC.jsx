@@ -74,11 +74,11 @@ const AREA_GROUPS = [
 
 // Nível 2 — etapas do workspace de lote (com status computável)
 const TABS_LOTE = [
-    { id: 'pecas',     lb: 'Peças',          ic: Layers,     step: 1 },
-    { id: 'plano',     lb: 'Plano de Corte', ic: Scissors,   step: 2 },
-    { id: 'usinagens', lb: 'Usinagens',       ic: Wrench,     step: 3 },
-    { id: 'gcode',     lb: 'G-code / CNC',   ic: Cpu,        step: 4 },
-    { id: 'custos',    lb: 'Custos',          ic: DollarSign, step: 5 },
+    { id: 'pecas',     lb: 'Peças',              ic: Layers,        step: 1 },
+    { id: 'plano',     lb: 'Plano de Corte',     ic: Scissors,      step: 2 },
+    { id: 'usinagens', lb: 'Usinagens',           ic: Wrench,        step: 3 },
+    { id: 'gcode',     lb: 'Revisar Pré-corte',  ic: Zap,           step: 4 },
+    { id: 'custos',    lb: 'Custos',              ic: DollarSign,    step: 5 },
 ];
 
 // ── Stepper status real por etapa (item #4) ──────────────────
@@ -370,10 +370,11 @@ function getPrimaryAction(lote) {
         return { label: 'Adicionar peças', tab: 'pecas', color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' };
     if (!lote.aproveitamento || lote.aproveitamento === 0)
         return { label: 'Gerar plano', tab: 'plano', color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' };
+    // Plano gerado → fluxo principal é Revisar Pré-corte via TabPlano → ChapaViz
     if (lote.status === 'criado' || lote.status === 'em_processo')
-        return { label: 'Gerar G-code', tab: 'gcode', color: 'var(--info)', bg: 'var(--info-bg, rgba(19,121,240,.08))', border: 'var(--info-border, rgba(19,121,240,.25))' };
+        return { label: 'Revisar Pré-corte', tab: 'plano', color: 'var(--info)', bg: 'var(--info-bg, rgba(19,121,240,.08))', border: 'var(--info-border, rgba(19,121,240,.25))' };
     if (lote.status === 'otimizado')
-        return { label: 'Enviar para CNC', tab: 'gcode', color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)' };
+        return { label: 'Revisar Pré-corte', tab: 'plano', color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)' };
     if (lote.status === 'produzindo')
         return { label: 'Acompanhar', tab: 'pecas', color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)' };
     return { label: 'Revisar', tab: 'pecas', color: 'var(--text-muted)', bg: 'var(--bg-muted)', border: 'var(--border)' };

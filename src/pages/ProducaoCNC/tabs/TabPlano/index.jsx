@@ -2920,8 +2920,8 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                     )}
                                 </div>
 
-                                {/* ═══ SIMULADOR INLINE ═══ */}
-                                {inlineSimData && inlineSimData.chapaIdx === selectedChapa && (
+                                {/* ═══ SIMULADOR INLINE (legado — desativado; fluxo oficial: botão "Revisar Pré-corte") ═══ */}
+                                {false && inlineSimData && inlineSimData.chapaIdx === selectedChapa && (
                                     <div style={{
                                         position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 30,
                                         height: 280, background: 'var(--bg-card)', borderTop: '2px solid var(--primary)',

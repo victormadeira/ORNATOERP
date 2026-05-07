@@ -10,24 +10,25 @@ import {
     Wrench, FlipVertical2, Shield, BarChart2,
     ZapOff, Zap, Maximize2, Tag as TagIcon,
     SkipBack, SkipForward, ChevronLeft, ChevronRight as ChevronRightIcon,
-    Activity,
+    Activity, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
 } from 'lucide-react';
 import { Spinner } from '../../../../ui';
 import { GcodeSimCanvas } from './GcodeSimCanvas.jsx';
 import { parseGcodeForSim, getOpCat, OP_CATS } from './parseGcode.js';
 import { analyzeGcodeOperational, formatMeters, formatMinutes } from '../../shared/operationalMetrics.js';
+import { useCockpitFullscreen } from '../../shared/useCockpitFullscreen.js';
 import api from '../../../../api';
 
-// ─── Cockpit design tokens (CSS vars might not apply to all elements) ───────
+// ─── Cockpit design tokens — Sprint 3 premium palette ────────────────────────
 const C = {
-    bg:       '#0B0F14',
-    panel:    '#11161D',
-    panel2:   '#151B23',
-    border:   '#1E2733',
-    text:     '#E6EDF3',
-    muted:    '#7D8794',
-    blue:     '#2F81F7',
-    blueHi:   '#58A6FF',
+    bg:       '#070A0F',   // main background — deep navy-black
+    panel:    '#0D1117',   // sidebars & header panels
+    panel2:   '#111820',   // inner panel elements
+    border:   '#1E2733',   // all borders
+    text:     '#E6EDF3',   // primary text
+    muted:    '#7D8794',   // secondary text
+    blue:     '#2F81F7',   // primary action / active
+    blueHi:   '#58A6FF',   // highlights & active text
     success:  '#2EA043',
     warning:  '#D29922',
     danger:   '#F85149',
@@ -163,6 +164,9 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         printStatusMap = {}, pecasPersistentIds = [],
     } = data || {};
 
+    // ── Fullscreen cockpit: hide ERP topbar + bottom-nav ─────────────────────
+    useCockpitFullscreen(true);
+
     // ── Playback state (single source of truth) ──────────────────────────────
     const [simPlaying, setSimPlaying]   = useState(false);
     const [simSpeed,   setSimSpeed]     = useState(1);
@@ -171,10 +175,12 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const [curSimTime,  setCurSimTime]  = useState(0);
 
     // ── UI state ──────────────────────────────────────────────────────────────
-    const [faceAtiva,    setFaceAtiva]    = useState('A');
-    const [sending,      setSending]      = useState(false);
-    const [sidebarTab,   setSidebarTab]   = useState('gcode'); // default: G-code highlight visível
+    const [faceAtiva,      setFaceAtiva]      = useState('A');
+    const [sending,        setSending]        = useState(false);
+    const [sidebarTab,     setSidebarTab]     = useState('gcode'); // default: G-code highlight visível
     const [currentLineIdx, setCurrentLineIdx] = useState(-1);
+    const [leftCollapsed,  setLeftCollapsed]  = useState(false); // checklist sidebar
+    const [rightCollapsed, setRightCollapsed] = useState(false); // HUD sidebar
 
     // ── G-code filter ─────────────────────────────────────────────────────────
     const [filterType, setFilterType] = useState('all');
@@ -441,7 +447,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
             if (!tok) return;
             if (/^\s+$/.test(tok)) { parts.push(<span key={i}>{tok}</span>); return; }
             if (/^G0+0?\b/i.test(tok) || /^G0(?!\d)/i.test(tok)) {
-                parts.push(<span key={i} style={{ color: '#D29922', fontWeight: 700 }}>{tok}</span>);
+                parts.push(<span key={i} style={{ color: '#64748B', fontWeight: 700 }}>{tok}</span>);  // Sprint 3 slate G0
             } else if (/^G0*1\b/i.test(tok)) {
                 parts.push(<span key={i} style={{ color: '#2EA043', fontWeight: 700 }}>{tok}</span>);
             } else if (/^G\d+/i.test(tok)) {
@@ -472,7 +478,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     return (
         <div style={{
             display: 'flex', flexDirection: 'column',
-            height: 'calc(100vh - 56px)',
+            height: '100vh',        // Fullscreen: topbar hidden via useCockpitFullscreen
             background: C.bg,
             overflow: 'hidden',
             fontFamily: 'var(--font-sans)',
@@ -480,8 +486,8 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
 
             {/* ══ TOPBAR ════════════════════════════════════════════════════ */}
             <div style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '0 16px', height: 50, flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '0 12px', height: 46, flexShrink: 0,
                 background: C.panel,
                 borderBottom: `1px solid ${C.border}`,
             }}>
@@ -492,45 +498,99 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         padding: '5px 10px 5px 8px', borderRadius: 6,
                         background: C.panel2, border: `1px solid ${C.border}`,
                         color: C.muted, cursor: 'pointer',
-                        fontSize: 11.5, fontWeight: 600, fontFamily: 'var(--font-sans)',
+                        fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-sans)',
+                        flexShrink: 0,
                     }}
                     onMouseEnter={e => { e.currentTarget.style.color = C.text; }}
                     onMouseLeave={e => { e.currentTarget.style.color = C.muted; }}
                 >
-                    <ArrowLeft size={13} strokeWidth={2.5} /> Plano de Corte
+                    <ArrowLeft size={12} strokeWidth={2.5} /> Plano
                 </button>
 
-                <div style={{ width: 1, height: 22, background: C.border }} />
+                <div style={{ width: 1, height: 20, background: C.border, flexShrink: 0 }} />
 
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                {/* Lote + Chapa identity */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
                     <div style={{
-                        width: 26, height: 26, borderRadius: 6, flexShrink: 0,
-                        background: hasBlocking ? 'rgba(248,81,73,0.15)' : C.blue,
-                        border: hasBlocking ? '1px solid rgba(248,81,73,0.4)' : 'none',
+                        width: 24, height: 24, borderRadius: 5, flexShrink: 0,
+                        background: hasBlocking ? 'rgba(248,81,73,0.15)' : 'rgba(47,129,247,0.18)',
+                        border: `1px solid ${hasBlocking ? 'rgba(248,81,73,0.4)' : 'rgba(47,129,247,0.35)'}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: hasBlocking ? C.danger : '#fff',
+                        color: hasBlocking ? C.danger : C.blueHi,
                     }}>
-                        <Cpu size={13} />
+                        <Cpu size={12} />
                     </div>
-                    <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {loteAtual?.nome || `Lote #${loteAtual?.id}`}
                         </div>
-                        <div style={{ fontSize: 10, color: C.muted, lineHeight: 1, fontFamily: '"JetBrains Mono", monospace' }}>
+                    </div>
+
+                    {/* Status chips */}
+                    <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                            background: 'rgba(30,39,51,0.8)', border: `1px solid ${C.border}`,
+                            color: C.muted, fontFamily: '"JetBrains Mono", monospace',
+                            whiteSpace: 'nowrap',
+                        }}>
                             Chapa {chapaIdx + 1}
-                            {chapaData && ` · ${chapaData.comprimento || 2750}×${chapaData.largura || 1850}mm`}
-                            {maquinaInfo?.nome && ` · ${maquinaInfo.nome}`}
-                        </div>
+                            {chapaData && ` · ${chapaData.comprimento || 2750}×${chapaData.largura || 1850}`}
+                        </span>
+                        {maquinaInfo?.nome && (
+                            <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                                background: 'rgba(47,129,247,0.10)', border: '1px solid rgba(47,129,247,0.25)',
+                                color: C.blueHi, fontFamily: '"JetBrains Mono", monospace',
+                                whiteSpace: 'nowrap',
+                            }}>
+                                {maquinaInfo.nome}
+                            </span>
+                        )}
                     </div>
                 </div>
 
                 <StatusPill hasBlocking={hasBlocking} />
+
+                {/* Collapse buttons */}
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 4 }}>
+                    <button
+                        onClick={() => setLeftCollapsed(v => !v)}
+                        title={leftCollapsed ? 'Mostrar checklist' : 'Ocultar checklist'}
+                        style={{
+                            width: 28, height: 28, borderRadius: 5, cursor: 'pointer',
+                            background: leftCollapsed ? 'rgba(47,129,247,0.14)' : C.panel2,
+                            border: `1px solid ${leftCollapsed ? 'rgba(47,129,247,0.35)' : C.border}`,
+                            color: leftCollapsed ? C.blueHi : C.muted,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                    >
+                        {leftCollapsed ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+                    </button>
+                    <button
+                        onClick={() => setRightCollapsed(v => !v)}
+                        title={rightCollapsed ? 'Mostrar HUD técnico' : 'Ocultar HUD técnico'}
+                        style={{
+                            width: 28, height: 28, borderRadius: 5, cursor: 'pointer',
+                            background: rightCollapsed ? 'rgba(47,129,247,0.14)' : C.panel2,
+                            border: `1px solid ${rightCollapsed ? 'rgba(47,129,247,0.35)' : C.border}`,
+                            color: rightCollapsed ? C.blueHi : C.muted,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                    >
+                        {rightCollapsed ? <PanelRightOpen size={13} /> : <PanelRightClose size={13} />}
+                    </button>
+                </div>
             </div>
 
-            {/* ══ CORPO: 3 COLUNAS ══════════════════════════════════════════ */}
-            <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+            {/* ══ CORPO: 3 COLUNAS + TRANSPORT FULL-WIDTH ══════════════ */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+
+                {/* ── Row: 3 colunas ─────────────────────────────────────── */}
+                <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
 
                 {/* ── Coluna esquerda: Checklist ──────────────────────────── */}
+                {!leftCollapsed && (
                 <div style={{
                     width: 228, flexShrink: 0,
                     display: 'flex', flexDirection: 'column',
@@ -588,6 +648,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         </div>
                     </div>
                 </div>
+                )} {/* end leftCollapsed */}
 
                 {/* ── Centro: Simulador ───────────────────────────────────── */}
                 <div style={{
@@ -637,85 +698,10 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         )}
                     </div>
 
-                    {/* ── TRANSPORT BAR ──────────────────────────────────── */}
-                    {gcode && (
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '0 12px', height: 50, flexShrink: 0,
-                            background: C.panel,
-                            borderTop: `1px solid ${C.border}`,
-                        }}>
-                            {/* Transport buttons */}
-                            <TBtn onClick={handleSeekFirst} title="Início (Home)">
-                                <SkipBack size={13} />
-                            </TBtn>
-                            <TBtn onClick={() => handleStep(-1)} title="Recuar (←)">
-                                <ChevronLeft size={14} />
-                            </TBtn>
-
-                            {simPlaying
-                                ? <TBtn onClick={handlePause} primary wide title="Pausar (Espaço)">
-                                    <Pause size={13} /> Pausar
-                                  </TBtn>
-                                : <TBtn onClick={handlePlay} primary wide title="Simular (Espaço)">
-                                    <Play size={13} /> Simular
-                                  </TBtn>
-                            }
-
-                            <TBtn onClick={() => handleStep(1)} title="Avançar (→)">
-                                <ChevronRightIcon size={14} />
-                            </TBtn>
-                            <TBtn onClick={handleSeekLast} title="Fim (End)">
-                                <SkipForward size={13} />
-                            </TBtn>
-                            <TBtn onClick={handleReset} title="Reiniciar">
-                                <RotateCcw size={12} />
-                            </TBtn>
-
-                            {/* Slider */}
-                            <input
-                                type="range"
-                                min={0}
-                                max={Math.max(0, displayTotal - 1)}
-                                value={curMove < 0 ? 0 : curMove}
-                                onChange={handleSlider}
-                                style={{ flex: 1, height: 4, accentColor: C.blue, cursor: 'pointer', minWidth: 60 }}
-                            />
-
-                            {/* Speed chips — 0.25× to 200× */}
-                            <div style={{ display: 'flex', gap: 2 }}>
-                                {[0.25, 0.5, 1, 2, 5, 10, 50, 200].map(s => (
-                                    <button
-                                        key={s}
-                                        onClick={() => setSimSpeed(s)}
-                                        style={{
-                                            padding: '3px 6px', borderRadius: 4,
-                                            border: `1px solid ${simSpeed === s ? C.blue : C.border}`,
-                                            background: simSpeed === s ? 'rgba(47,129,247,0.14)' : C.bg,
-                                            color: simSpeed === s ? C.blueHi : C.muted,
-                                            fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                                            fontFamily: '"JetBrains Mono", monospace',
-                                        }}
-                                    >{s}×</button>
-                                ))}
-                            </div>
-
-                            {/* Time display  0:32.1 / 1:45.0 */}
-                            <span style={{
-                                fontSize: 11,
-                                color: curSimTime > 0 ? C.blueHi : C.muted,
-                                fontFamily: '"JetBrains Mono", monospace',
-                                fontVariantNumeric: 'tabular-nums',
-                                minWidth: 108, textAlign: 'right',
-                                whiteSpace: 'nowrap',
-                            }}>
-                                {fmtSimTime(curSimTime)} / {fmtSimTime(totalSimTime)}
-                            </span>
-                        </div>
-                    )}
                 </div>
 
                 {/* ── Coluna direita: Sidebar técnica ─────────────────────── */}
+                {!rightCollapsed && (
                 <div style={{
                     width: 272, flexShrink: 0,
                     display: 'flex', flexDirection: 'column',
@@ -768,11 +754,11 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                             }}>
                                 {[
                                     { id: 'all',      label: 'Todos',    color: C.muted   },
-                                    { id: 'rapid',    label: 'G0',       color: '#D29922' },
-                                    { id: 'cut',      label: 'Corte',    color: '#38bdf8' },
-                                    { id: 'furo',     label: 'Furos',    color: '#c03020' },
-                                    { id: 'contorno', label: 'Contorno', color: '#d48820' },
-                                    { id: 'rebaixo',  label: 'Rebaixo',  color: '#2878c0' },
+                                    { id: 'rapid',    label: 'G0',       color: '#64748B' },  // Sprint 3 slate
+                                    { id: 'cut',      label: 'Corte',    color: '#E5E7EB' },  // Sprint 3 white-gray
+                                    { id: 'furo',     label: 'Furos',    color: '#F59E0B' },  // Sprint 3 warning amber
+                                    { id: 'contorno', label: 'Contorno', color: '#BFE7FF' },  // Sprint 3 active blue
+                                    { id: 'rebaixo',  label: 'Rebaixo',  color: '#94A3B8' },  // Sprint 3 slate-400
                                 ].map(fc => {
                                     const active = filterType === fc.id;
                                     return (
@@ -1008,7 +994,93 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         </div>
                     )}
                 </div>
-            </div>
+                )} {/* end rightCollapsed */}
+
+                </div> {/* end 3-column row */}
+
+                {/* ══ TRANSPORT BAR — full-width row ═══════════════════════ */}
+                {gcode && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '0 16px', height: 48, flexShrink: 0,
+                        background: C.panel,
+                        borderTop: `1px solid ${C.border}`,
+                    }}>
+                        {/* Transport buttons */}
+                        <TBtn onClick={handleSeekFirst} title="Início (Home)">
+                            <SkipBack size={13} />
+                        </TBtn>
+                        <TBtn onClick={() => handleStep(-1)} title="Recuar (←)">
+                            <ChevronLeft size={14} />
+                        </TBtn>
+
+                        {simPlaying
+                            ? <TBtn onClick={handlePause} primary wide title="Pausar (Espaço)">
+                                <Pause size={13} /> Pausar
+                              </TBtn>
+                            : <TBtn onClick={handlePlay} primary wide title="Simular (Espaço)">
+                                <Play size={13} /> Simular
+                              </TBtn>
+                        }
+
+                        <TBtn onClick={() => handleStep(1)} title="Avançar (→)">
+                            <ChevronRightIcon size={14} />
+                        </TBtn>
+                        <TBtn onClick={handleSeekLast} title="Fim (End)">
+                            <SkipForward size={13} />
+                        </TBtn>
+                        <TBtn onClick={handleReset} title="Reiniciar">
+                            <RotateCcw size={12} />
+                        </TBtn>
+
+                        {/* Divider */}
+                        <div style={{ width: 1, height: 20, background: C.border, marginLeft: 4 }} />
+
+                        {/* Slider — takes all available space */}
+                        <input
+                            type="range"
+                            min={0}
+                            max={Math.max(0, displayTotal - 1)}
+                            value={curMove < 0 ? 0 : curMove}
+                            onChange={handleSlider}
+                            style={{ flex: 1, height: 3, accentColor: C.blue, cursor: 'pointer', minWidth: 80 }}
+                        />
+
+                        {/* Time display */}
+                        <span style={{
+                            fontSize: 11,
+                            color: curSimTime > 0 ? C.blueHi : C.muted,
+                            fontFamily: '"JetBrains Mono", monospace',
+                            fontVariantNumeric: 'tabular-nums',
+                            minWidth: 110, textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                        }}>
+                            {fmtSimTime(curSimTime)} / {fmtSimTime(totalSimTime)}
+                        </span>
+
+                        <div style={{ width: 1, height: 20, background: C.border }} />
+
+                        {/* Speed chips */}
+                        <div style={{ display: 'flex', gap: 2 }}>
+                            {[0.25, 0.5, 1, 2, 5, 10, 50, 200].map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setSimSpeed(s)}
+                                    style={{
+                                        padding: '3px 6px', borderRadius: 4,
+                                        border: `1px solid ${simSpeed === s ? C.blue : C.border}`,
+                                        background: simSpeed === s ? 'rgba(47,129,247,0.14)' : C.bg,
+                                        color: simSpeed === s ? C.blueHi : C.muted,
+                                        fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                                        fontFamily: '"JetBrains Mono", monospace',
+                                    }}
+                                >{s}×</button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+            </div> {/* end body flex column */}
 
             {/* ══ FOOTER FIXO ═══════════════════════════════════════════════ */}
             <div style={{

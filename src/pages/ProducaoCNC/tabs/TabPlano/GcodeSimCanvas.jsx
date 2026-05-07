@@ -1,7 +1,7 @@
 // GcodeSimCanvas — CNC 3D Toolpath Simulator
 // Sprint 1: paleta técnica, 3 camadas de linha, sem flicker.
 // Sprint 2: modos Operador/Técnico/Inspeção, câmera com limites, fit + duplo clique.
-// Sprint 3: HUD premium por seção, G0 sem dashes, grid off por padrão.
+// Sprint 3: paleta premium, stock mesh 3D, G0 dashed, tool glow PointLight.
 // Sprint 4: stale-closure corrigido via ref, React updates throttled a 20fps.
 import {
     useEffect, useRef, useState, useMemo, forwardRef,
@@ -18,31 +18,33 @@ import { parseGcodeForSim } from './parseGcode.js';
 const RAPID_FEED_MM_MIN = 20000;
 const STOCK_THICKNESS   = 15.5;
 
-// Professional CAM palette — one semantic role per color.
-// No orange, no brown, no beige. Technical cyan + slate gray.
+// Sprint 3 CAM palette — premium dark industrial look.
 const COL = {
-    // Pending — barely visible. Functional ghost, not decoration.
-    cutPending:    0x0c1929,  // near-black blue
-    rapidPending:  0x111820,  // near-black gray
-    abovePending:  0x0c1a11,  // near-black green-gray
+    // Pending — barely visible ghost. Functional, not decoration.
+    cutPending:    0x0a1525,  // deep navy-black
+    rapidPending:  0x0f1520,  // near-invisible gray
+    abovePending:  0x0a1510,  // near-invisible green-gray
 
     // Executed — calm, readable, not saturated.
-    cutExec:       0x38bdf8,  // sky-400  — technical cyan
-    rapidExec:     0x475569,  // slate-600 — neutral gray (removed orange)
-    aboveExec:     0x34d399,  // emerald-400
+    cutExec:       0xE5E7EB,  // gray-200 — white-gray executed cuts
+    rapidExec:     0x64748B,  // slate-500 — neutral G0
+    aboveExec:     0x94A3B8,  // slate-400 — above-zero
 
-    // Active progress line — brighter variant of executed color.
-    cutActive:     0x7dd3fc,  // sky-300
-    aboveActive:   0x6ee7b7,  // emerald-300
+    // Active progress — bright highlight on current segment.
+    cutActive:     0xBFE7FF,  // sky-200 — active cut line
+    aboveActive:   0x93C5FD,  // blue-300
 
     // Tool
-    toolBody:      0xe2e8f0,  // slate-200
-    toolTip:       0x38bdf8,  // cyan (matches cutExec)
+    toolBody:      0xD1D5DB,  // gray-300 — stainless look
+    toolTip:       0x60A5FA,  // blue-400 — active glow tip
 
-    // Grid / axes / stock
+    // Stock mesh
+    stockFace:     0x1E2933,  // dark graphite sheet surface
+    stockEdge:     0x9CA3AF,  // gray-400 edge highlight
+    stockSide:     0x111820,  // near-invisible sides
+
+    // Grid / axes
     axisX: 0xef4444, axisY: 0x22c55e, axisZ: 0x3b82f6,
-    stockTop: 0x1e3a5f,  // dark-blue outline — subtle but present
-    stockBot: 0x111827,  // near-invisible bottom
 };
 
 // Pending opacity per view mode
@@ -127,7 +129,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0x0d1117, 1);
+        renderer.setClearColor(0x070A0F, 1); // Sprint 3: deep navy-black background
         renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
         el.appendChild(renderer.domElement);
 
@@ -164,12 +166,12 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
         const gridGroup  = new THREE.Group();
         scene.add(gridGroup, stockGroup, pathGroup, toolGroup);
 
-        // Tool mesh — white/cyan (matches technical palette)
+        // Tool mesh — stainless body + glowing blue tip (Sprint 3)
         const toolBodyMesh = new THREE.Mesh(
             new THREE.CylinderGeometry(6, 6, 60, 32),
             new THREE.MeshStandardMaterial({
-                color: COL.toolBody, metalness: 0.8, roughness: 0.2,
-                emissive: 0x112233, emissiveIntensity: 0.3,
+                color: COL.toolBody, metalness: 0.85, roughness: 0.15,
+                emissive: 0x1a2a3a, emissiveIntensity: 0.4,
             })
         );
         toolBodyMesh.rotation.x = Math.PI / 2;
@@ -180,11 +182,16 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
             new THREE.SphereGeometry(5, 32, 16),
             new THREE.MeshStandardMaterial({
                 color: COL.toolTip,
-                emissive: 0x003355, emissiveIntensity: 0.8,
-                metalness: 0.9, roughness: 0.1,
+                emissive: 0x1a5aba, emissiveIntensity: 2.0,  // Sprint 3: bright glow
+                metalness: 0.9, roughness: 0.05,
             })
         );
         toolGroup.add(toolTipMesh);
+
+        // PointLight contact glow — follows tool tip (Sprint 3)
+        const toolGlow = new THREE.PointLight(0x60A5FA, 80, 200);
+        toolGlow.position.set(0, 0, 0);
+        toolGroup.add(toolGlow);
 
         // Active progress line — persistent (not in pathGroup, survives rebuilds)
         const progressGeom = new LineGeometry();
@@ -405,29 +412,36 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
         const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 200);
         t.bbox = { cx, cy, cz, span };
 
-        // ── Stock outline — continuous line, no aggressive dashes, minimal opacity
-        const mkLine = (pts, color, opacity) => {
-            const line = new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints(pts),
-                new THREE.LineBasicMaterial({ color, transparent: true, opacity })
-            );
-            return line;
-        };
-        const rect = (z, color, opacity) => mkLine([
-            new THREE.Vector3(sx, sy, z), new THREE.Vector3(ex, sy, z),
-            new THREE.Vector3(ex, ey, z), new THREE.Vector3(sx, ey, z),
-            new THREE.Vector3(sx, sy, z),
-        ], color, opacity);
+        // ── Stock mesh (Sprint 3) — BoxGeometry with opaque face + edge highlight
+        const sheetW = ex - sx, sheetH = ey - sy;
+        const sheetMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(sheetW, sheetH, thick),
+            new THREE.MeshStandardMaterial({
+                color: COL.stockFace,
+                roughness: 0.7, metalness: 0.1,
+                transparent: true, opacity: 0.55,
+                depthWrite: false,   // avoid z-fighting with toolpath at z=0
+            })
+        );
+        sheetMesh.position.set(
+            (sx + ex) / 2,
+            (sy + ey) / 2,
+            -thick / 2  // bottom of sheet at z=-thick, top at z=0
+        );
+        sheetMesh.renderOrder = 0;
+        stockGroup.add(sheetMesh);
 
-        stockGroup.add(rect(0,      COL.stockTop, 0.18));  // top face (cutting plane)
-        stockGroup.add(rect(-thick, COL.stockBot, 0.06));  // bottom — barely visible
+        // Edge highlight — top face outline only
+        const edgeGeom = new THREE.EdgesGeometry(new THREE.BoxGeometry(sheetW, sheetH, thick));
+        const edgeMesh = new THREE.LineSegments(
+            edgeGeom,
+            new THREE.LineBasicMaterial({ color: COL.stockEdge, transparent: true, opacity: 0.35 })
+        );
+        edgeMesh.position.copy(sheetMesh.position);
+        edgeMesh.renderOrder = 1;
+        stockGroup.add(edgeMesh);
 
-        for (const [vcx, vcy] of [[sx, sy], [ex, sy], [ex, ey], [sx, ey]]) {
-            stockGroup.add(mkLine([
-                new THREE.Vector3(vcx, vcy, 0),
-                new THREE.Vector3(vcx, vcy, -thick),
-            ], COL.stockBot, 0.08));
-        }
+        // (mkLine removed — stock now uses BoxGeometry; axes use mkAxis below)
 
         // ── Grid — off by default; shows in technical/inspection when toggled
         const tableSize = Math.max(ex - sx, ey - sy) * 1.6;
@@ -465,16 +479,20 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
 
             let line;
             if (isRapid) {
-                // G0: thin LineBasicMaterial — continuous (no dashes = cleaner at distance)
+                // G0: dashed LineDashedMaterial — discrete visual language from cuts (Sprint 3)
+                const geomG0 = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(m.x1, m.y1, m.z1),
+                    new THREE.Vector3(m.x2, m.y2, m.z2),
+                ]);
+                geomG0.computeBoundingSphere();
                 line = new THREE.Line(
-                    new THREE.BufferGeometry().setFromPoints([
-                        new THREE.Vector3(m.x1, m.y1, m.z1),
-                        new THREE.Vector3(m.x2, m.y2, m.z2),
-                    ]),
-                    new THREE.LineBasicMaterial({
-                        color: pendingColor, transparent: true, opacity: 0.05,
+                    geomG0,
+                    new THREE.LineDashedMaterial({
+                        color: pendingColor, transparent: true, opacity: 0.08,
+                        dashSize: 12, gapSize: 8, scale: 1,
                     })
                 );
+                line.computeLineDistances(); // required for dashes to render
             } else {
                 // G1: Line2 for pixel-width thickness
                 const geom = new LineGeometry();
@@ -770,15 +788,16 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
                 fontFamily: mono, fontSize: 10,
             }}>
                 {[
-                    { color: '#475569', label: 'G0 — Rápido',   thick: false },
-                    { color: '#34d399', label: 'G1 — Acima Z0', thick: true  },
-                    { color: '#38bdf8', label: 'G1 — Corte',    thick: true  },
-                    { color: '#7dd3fc', label: 'Ativo agora',   thick: true  },
+                    { color: '#64748B', label: 'G0 — Rápido',   thick: false, dashed: true },
+                    { color: '#94A3B8', label: 'G1 — Acima Z0', thick: true  },
+                    { color: '#E5E7EB', label: 'G1 — Corte',    thick: true  },
+                    { color: '#BFE7FF', label: 'Ativo agora',   thick: true  },
                 ].map(l => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, color: l.color }}>
                         <svg width={18} height={5} style={{ flexShrink: 0 }}>
                             <line x1={0} y1={2.5} x2={18} y2={2.5} stroke={l.color}
-                                strokeWidth={l.thick ? 3 : 1.5} />
+                                strokeWidth={l.thick ? 3 : 1.5}
+                                strokeDasharray={l.dashed ? '4 3' : undefined} />
                         </svg>
                         <span>{l.label}</span>
                     </div>
