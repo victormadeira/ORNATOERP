@@ -169,6 +169,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const [curMove,    setCurMove]      = useState(-1);
     const [totalMoves, setTotalMoves]   = useState(0);
     const [heatmapMode, setHeatmapMode] = useState(false);
+    const [curSimTime,  setCurSimTime]  = useState(0);
 
     // ── UI state ──────────────────────────────────────────────────────────────
     const [faceAtiva,    setFaceAtiva]    = useState('A');
@@ -187,9 +188,10 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     }, [gcode]);
 
     // ── Move change callback (canvas → parent) ───────────────────────────────
-    const handleMoveChange = useCallback((moveIdx, lineIdx) => {
+    const handleMoveChange = useCallback((moveIdx, lineIdx, time) => {
         setCurMove(moveIdx);
         setCurrentLineIdx(lineIdx ?? -1);
+        if (time !== undefined) setCurSimTime(time);
         // Update total lazily
         setTotalMoves(prev => {
             const t = simRef.current?.getTotalMoves?.() ?? prev;
@@ -216,6 +218,25 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
 
     const lines  = (gcode || '').split('\n');
     const sizeKB = new Blob([gcode]).size / 1024;
+
+    // ── Estimated total simulation time (mirrors parse3D logic) ──────────────
+    const totalSimTime = useMemo(() => {
+        const RAPID = 20000;
+        let acc = 0;
+        for (const m of parsedPreview.moves) {
+            const dist = Math.hypot(m.x2 - m.x1, m.y2 - m.y1, m.z2 - m.z1);
+            const f = m.type === 'G0' ? RAPID : (m.feed || 1000);
+            acc += dist / (f / 60);
+        }
+        return acc;
+    }, [parsedPreview.moves]);
+
+    const fmtSimTime = (s) => {
+        if (!s || s <= 0) return '0:00.0';
+        const m = Math.floor(s / 60);
+        const sec = (s - m * 60).toFixed(1).padStart(4, '0');
+        return `${m}:${sec}`;
+    };
 
     const criticalAlerts = alertas.filter(a => {
         const t = String(a?.tipo || '').toLowerCase();
@@ -616,9 +637,9 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                 style={{ flex: 1, height: 4, accentColor: C.blue, cursor: 'pointer', minWidth: 60 }}
                             />
 
-                            {/* Speed chips */}
+                            {/* Speed chips — 0.25× to 200× */}
                             <div style={{ display: 'flex', gap: 2 }}>
-                                {[0.5, 1, 2, 5, 10, 20].map(s => (
+                                {[0.25, 0.5, 1, 2, 5, 10, 50, 200].map(s => (
                                     <button
                                         key={s}
                                         onClick={() => setSimSpeed(s)}
@@ -634,14 +655,16 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                 ))}
                             </div>
 
-                            {/* Counter */}
+                            {/* Time display  0:32.1 / 1:45.0 */}
                             <span style={{
-                                fontSize: 11, color: curMove >= 0 ? C.blueHi : C.muted,
+                                fontSize: 11,
+                                color: curSimTime > 0 ? C.blueHi : C.muted,
                                 fontFamily: '"JetBrains Mono", monospace',
                                 fontVariantNumeric: 'tabular-nums',
-                                minWidth: 80, textAlign: 'right',
+                                minWidth: 108, textAlign: 'right',
+                                whiteSpace: 'nowrap',
                             }}>
-                                {curMove >= 0 ? `${curMove + 1} / ${displayTotal}` : `${displayTotal} mov`}
+                                {fmtSimTime(curSimTime)} / {fmtSimTime(totalSimTime)}
                             </span>
                         </div>
                     )}
