@@ -10,9 +10,9 @@ import { PageHeader, Spinner } from '../ui';
 import {
     Upload, Package, BarChart3, Box, Settings, Layers, Scissors, Cpu,
     ArrowLeft, AlertTriangle, GitCompare, ChevronDown, X, QrCode,
-    Calendar, Clock, User, MessageSquare, Workflow, Wrench, DollarSign,
+    Calendar, Clock, User, Workflow, Wrench, DollarSign,
     ShieldAlert, CheckCircle2, Circle, AlertCircle, ChevronRight,
-    Play, Zap,
+    Zap, LayoutDashboard, ChevronUp, ArrowRight,
 } from 'lucide-react';
 import useWebSocket from '../hooks/useWebSocket';
 import EditorEtiquetas from '../components/EditorEtiquetas';
@@ -40,13 +40,14 @@ const TabFallback = () => (
     </div>
 );
 
-// ── Áreas de trabalho (item #2 do plano) ─────────────────────
+// ── Áreas de trabalho ────────────────────────────────────────
 const AREA_GROUPS = [
     {
         id: 'operacao', label: 'Operação',
         tabs: [
-            { id: 'importar', lb: 'Importar', ic: Upload },
+            { id: 'overview', lb: 'Central',  ic: LayoutDashboard },
             { id: 'lotes',    lb: 'Lotes',    ic: Package },
+            { id: 'importar', lb: 'Importar', ic: Upload },
         ],
     },
     {
@@ -63,9 +64,9 @@ const AREA_GROUPS = [
         ],
     },
     {
-        id: 'admin', label: 'Administração',
+        id: 'admin', label: 'Admin CNC',
         tabs: [
-            { id: 'config', lb: 'Configurações CNC', ic: Settings },
+            { id: 'config', lb: 'Configurações', ic: Settings },
         ],
     },
 ];
@@ -287,7 +288,7 @@ function LoteWorkspaceHeader({ lote, tab, setTab, onVoltar, materialAlerts, tool
                             background: lote.prioridade === 2 ? 'var(--danger-bg)' : 'var(--warning-bg)',
                             border: `1px solid ${lote.prioridade === 2 ? 'var(--danger-border)' : 'var(--warning-border)'}`,
                         }}>
-                            {lote.prioridade === 2 ? '🔴 URGENTE' : '⚡ ALTA PRIORIDADE'}
+                            {lote.prioridade === 2 ? 'URGENTE' : 'ALTA PRIORIDADE'}
                         </span>
                     )}
                     {totalAlerts > 0 && (
@@ -362,9 +363,248 @@ function LoteWorkspaceHeader({ lote, tab, setTab, onVoltar, materialAlerts, tool
     );
 }
 
+// ── Helpers de ação primária ─────────────────────────────────
+function getPrimaryAction(lote) {
+    if (!lote.total_pecas || lote.total_pecas === 0)
+        return { label: 'Adicionar peças', tab: 'pecas', color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' };
+    if (!lote.aproveitamento || lote.aproveitamento === 0)
+        return { label: 'Gerar plano', tab: 'plano', color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' };
+    if (lote.status === 'criado' || lote.status === 'em_processo')
+        return { label: 'Gerar G-code', tab: 'gcode', color: 'var(--info)', bg: 'var(--info-bg, rgba(19,121,240,.08))', border: 'var(--info-border, rgba(19,121,240,.25))' };
+    if (lote.status === 'otimizado')
+        return { label: 'Enviar para CNC', tab: 'gcode', color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)' };
+    if (lote.status === 'produzindo')
+        return { label: 'Acompanhar', tab: 'pecas', color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)' };
+    return { label: 'Revisar', tab: 'pecas', color: 'var(--text-muted)', bg: 'var(--bg-muted)', border: 'var(--border)' };
+}
+
+const STATUS_META = {
+    criado:     { label: 'Criado',     color: 'var(--text-muted)',   bg: 'var(--bg-muted)',    strip: '#94a3b8' },
+    em_processo:{ label: 'Em processo',color: 'var(--info)',         bg: 'var(--info-bg, rgba(19,121,240,.08))',   strip: '#1379F0' },
+    otimizado:  { label: 'Otimizado',  color: 'var(--warning)',      bg: 'var(--warning-bg)',  strip: '#f59e0b' },
+    produzindo: { label: 'Produzindo', color: 'var(--success)',      bg: 'var(--success-bg)',  strip: '#22c55e' },
+    concluido:  { label: 'Concluído',  color: 'var(--success)',      bg: 'var(--success-bg)',  strip: '#16a34a' },
+};
+
+// ── Central Operacional ───────────────────────────────────────
+function WorkbenchOverview({ lotes, toolAlerts, abrirLote, setTab }) {
+    const today = new Date();
+    const lotesAtivos = lotes.filter(l => l.status !== 'concluido');
+
+    const counts = {
+        criado:      lotes.filter(l => l.status === 'criado').length,
+        em_processo: lotes.filter(l => l.status === 'em_processo').length,
+        otimizado:   lotes.filter(l => l.status === 'otimizado').length,
+        produzindo:  lotes.filter(l => l.status === 'produzindo').length,
+        concluido:   lotes.filter(l => l.status === 'concluido').length,
+    };
+
+    const sorted = [...lotesAtivos].sort((a, b) => {
+        if ((b.prioridade || 0) !== (a.prioridade || 0)) return (b.prioridade || 0) - (a.prioridade || 0);
+        if (a.data_entrega && b.data_entrega) return new Date(a.data_entrega) - new Date(b.data_entrega);
+        if (a.data_entrega) return -1;
+        if (b.data_entrega) return 1;
+        return b.id - a.id;
+    });
+
+    if (lotes.length === 0) {
+        return (
+            <div style={{ padding: '48px 0', textAlign: 'center' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 10, background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: 'var(--text-muted)' }}>
+                    <Package size={22} />
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Nenhum lote encontrado</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Importe um arquivo CNC para começar a produção</div>
+                <button className="btn-primary" style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 8 }} onClick={() => setTab('importar')}>
+                    <Upload size={14} /> Importar arquivo
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* ── Barra de status ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                {[
+                    { key: 'criado',      label: 'Criados',      color: '#94a3b8' },
+                    { key: 'em_processo', label: 'Em processo',  color: '#1379F0' },
+                    { key: 'otimizado',   label: 'Otimizados',   color: '#f59e0b' },
+                    { key: 'produzindo',  label: 'Na máquina',   color: '#22c55e' },
+                    { key: 'concluido',   label: 'Concluídos',   color: '#16a34a' },
+                ].map(s => (
+                    <div key={s.key} style={{
+                        background: 'var(--bg-card)', border: '1px solid var(--border)',
+                        borderRadius: 8, padding: '10px 12px',
+                        borderTop: `3px solid ${s.color}`,
+                        cursor: 'pointer', transition: 'background var(--transition-fast)',
+                    }}
+                        onClick={() => setTab('lotes')}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
+                    >
+                        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                            {counts[s.key]}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 3, fontWeight: 500 }}>{s.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* ── Alerta de ferramentas ── */}
+            {toolAlerts.length > 0 && (
+                <div className="alert-banner alert-banner-warning">
+                    <ShieldAlert size={14} style={{ flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: 12 }}>
+                        <b>{toolAlerts.length} ferramenta(s)</b> com desgaste acima de 80%.{' '}
+                        {toolAlerts.slice(0, 2).map(t => `${t.nome} (${t.percentage}%)`).join(', ')}
+                        {toolAlerts.length > 2 && ` e mais ${toolAlerts.length - 2}...`}
+                    </span>
+                    <button onClick={() => setTab('config')} className="btn-secondary" style={{ fontSize: 11, padding: '3px 10px', minHeight: 0 }}>
+                        Ver ferramentas
+                    </button>
+                </div>
+            )}
+
+            {/* ── Tabela "Precisa de ação" ── */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{
+                    padding: '11px 16px', borderBottom: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: 'var(--bg-subtle)',
+                }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>Precisa de ação</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {sorted.length} lote{sorted.length !== 1 ? 's' : ''} ativo{sorted.length !== 1 ? 's' : ''}
+                    </span>
+                </div>
+
+                {sorted.length === 0 ? (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                        Todos os lotes estão concluídos
+                    </div>
+                ) : sorted.map((lote, idx) => {
+                    const action = getPrimaryAction(lote);
+                    const sm = STATUS_META[lote.status] || STATUS_META.criado;
+                    const diasRestantes = lote.data_entrega
+                        ? Math.ceil((new Date(lote.data_entrega + 'T12:00:00') - today) / 86400000)
+                        : null;
+                    const prazoColor = diasRestantes === null ? 'var(--text-muted)'
+                        : diasRestantes < 0 ? 'var(--danger)'
+                        : diasRestantes <= 3 ? 'var(--warning)'
+                        : 'var(--text-muted)';
+                    const isUrgente = lote.prioridade === 2;
+                    const isAlta    = lote.prioridade === 1;
+
+                    return (
+                        <div key={lote.id}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 0,
+                                borderTop: idx > 0 ? '1px solid var(--border)' : 'none',
+                                transition: 'background var(--transition-fast)',
+                                cursor: 'pointer',
+                                background: 'transparent',
+                            }}
+                            onClick={() => abrirLote(lote, action.tab)}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                            {/* Left status strip */}
+                            <div style={{ width: 4, alignSelf: 'stretch', background: sm.strip, flexShrink: 0 }} />
+
+                            {/* Content */}
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', minWidth: 0 }}>
+                                {/* Lote info */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {lote.nome || `Lote #${lote.id}`}
+                                        </span>
+                                        {isUrgente && (
+                                            <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)', whiteSpace: 'nowrap' }}>
+                                                URGENTE
+                                            </span>
+                                        )}
+                                        {isAlta && !isUrgente && (
+                                            <span style={{ fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)', whiteSpace: 'nowrap' }}>
+                                                ALTA
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                                        {lote.cliente && (
+                                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{lote.cliente}</span>
+                                        )}
+                                        {lote.total_pecas > 0 && (
+                                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{lote.total_pecas} peças</span>
+                                        )}
+                                        {diasRestantes !== null && (
+                                            <span style={{ fontSize: 11, color: prazoColor, fontWeight: diasRestantes <= 3 ? 700 : 400, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                <Calendar size={10} />
+                                                {diasRestantes < 0
+                                                    ? `${Math.abs(diasRestantes)}d atrasado`
+                                                    : diasRestantes === 0 ? 'Hoje'
+                                                    : `${diasRestantes}d`}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Status badge */}
+                                <span style={{
+                                    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                                    background: sm.bg, color: sm.color, whiteSpace: 'nowrap', flexShrink: 0,
+                                    border: `1px solid ${sm.color}33`,
+                                }}>
+                                    {sm.label}
+                                </span>
+
+                                {/* CTA */}
+                                <button
+                                    onClick={e => { e.stopPropagation(); abrirLote(lote, action.tab); }}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 5,
+                                        padding: '5px 10px', borderRadius: 6, flexShrink: 0,
+                                        fontSize: 11.5, fontWeight: 700,
+                                        background: action.bg, color: action.color,
+                                        border: `1px solid ${action.border}`,
+                                        cursor: 'pointer', whiteSpace: 'nowrap',
+                                        fontFamily: 'var(--font-sans)',
+                                        transition: 'opacity var(--transition-fast)',
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                                >
+                                    {action.label} <ArrowRight size={11} />
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* ── Importar novo lote ── */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 16px', background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)', borderRadius: 8,
+            }}>
+                <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)' }}>Novo lote de produção</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>Importe um arquivo XML/CSV para criar e otimizar um novo lote CNC</div>
+                </div>
+                <button className="btn-secondary" style={{ fontSize: 12, gap: 7, flexShrink: 0 }} onClick={() => setTab('importar')}>
+                    <Upload size={13} /> Importar
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ── Shell principal ──────────────────────────────────────────
 export default function ProducaoCNC({ notify }) {
-    const [tab, setTab] = useState('lotes');
+    const [tab, setTab] = useState('overview');
     const [lotes, setLotes] = useState([]);
     const [loteAtual, setLoteAtual] = useState(null);
     const [editorMode, setEditorMode] = useState(false);
@@ -425,7 +665,7 @@ export default function ProducaoCNC({ notify }) {
 
     const voltarLotes = useCallback(() => {
         setLoteAtual(null);
-        setTab('lotes');
+        setTab('overview');
         setMaterialAlerts([]);
         setSugestoes([]);
         setSugestoesOpen(false);
@@ -448,8 +688,8 @@ export default function ProducaoCNC({ notify }) {
         );
     }
 
-    // ── Alertas globais de ferramenta (fora do workspace de lote) ─
-    const showGlobalToolAlert = toolAlerts.length > 0 && !isInsideLote;
+    // ── Alertas globais de ferramenta (fora do workspace de lote, e não na overview que já mostra) ─
+    const showGlobalToolAlert = toolAlerts.length > 0 && !isInsideLote && tab !== 'overview';
 
     return (
         <div className="w-full page-enter" style={{ padding: '8px 12px 12px' }}>
@@ -613,6 +853,9 @@ export default function ProducaoCNC({ notify }) {
 
             {/* ═══ Conteúdo das tabs ═══ */}
             <Suspense fallback={<TabFallback />}>
+                {tab === 'overview' && !isInsideLote && (
+                    <WorkbenchOverview lotes={lotes} toolAlerts={toolAlerts} abrirLote={abrirLote} setTab={setTab} />
+                )}
                 {tab === 'importar' && !isInsideLote && (
                     <TabImportar lotes={lotes} loadLotes={loadLotes} notify={notify} setLoteAtual={abrirLote} setTab={setTab} />
                 )}

@@ -111,7 +111,7 @@ const getNextAction = (l) => {
     if (status === 'produzindo') return { label: 'Acompanhar produção', color: 'var(--warning)', tab: 'gcode' };
     if (status === 'otimizado') return { label: 'Abrir G-code', color: 'var(--primary)', tab: 'gcode' };
     if (l.aproveitamento > 0 && status === 'importado') return { label: 'Ver plano de corte', color: 'var(--info)', tab: 'plano' };
-    if (l.total_pecas > 0 && !l.aproveitamento) return { label: 'Otimizar corte', color: '#8B5CF6', tab: 'plano' };
+    if (l.total_pecas > 0 && !l.aproveitamento) return { label: 'Otimizar corte', color: 'var(--info)', tab: 'plano' };
     return { label: 'Ver peças', color: 'var(--text-muted)', tab: 'pecas' };
 };
 
