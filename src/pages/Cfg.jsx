@@ -3160,15 +3160,15 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                     <>
                                                         <div className="flex items-center justify-between">
                                                             <div className="text-2xl font-bold" style={{
-                                                                color: simScore.score >= 80 ? '#8b5cf6'
+                                                                color: simScore.score >= 80 ? 'var(--primary)'
                                                                     : simScore.score >= 60 ? 'var(--success)'
                                                                         : simScore.score >= 30 ? 'var(--warning)' : 'var(--muted)',
                                                             }}>{simScore.score}</div>
                                                             <div className="text-[10px] font-semibold uppercase px-2 py-1 rounded" style={{
-                                                                background: simScore.score >= 80 ? '#8b5cf620'
+                                                                background: simScore.score >= 80 ? 'var(--primary-alpha, rgba(19,121,240,0.10))'
                                                                     : simScore.score >= 60 ? 'var(--success-bg)'
                                                                         : simScore.score >= 30 ? 'var(--warning-bg)' : 'var(--muted-bg)',
-                                                                color: simScore.score >= 80 ? '#8b5cf6'
+                                                                color: simScore.score >= 80 ? 'var(--primary)'
                                                                     : simScore.score >= 60 ? 'var(--success)'
                                                                         : simScore.score >= 30 ? 'var(--warning)' : 'var(--muted)',
                                                             }}>{(simScore.classificacao || 'frio').replace('_', ' ')}</div>
@@ -3446,7 +3446,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <div className="mt-3 flex gap-2 flex-wrap">
                                     {[
                                         { label: 'Caixas', val: kbStats.caixas, color: 'var(--info)' },
-                                        { label: 'Componentes', val: kbStats.componentes, color: '#8b5cf6' },
+                                        { label: 'Componentes', val: kbStats.componentes, color: 'var(--info)' },
                                         { label: 'Materiais', val: kbStats.materiais, color: 'var(--success)' },
                                     ].map(s => (
                                         <span key={s.label} className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: s.color + '15', color: s.color, border: `1px solid ${s.color}30` }}>

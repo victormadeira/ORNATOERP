@@ -1817,7 +1817,7 @@ export default function Expedicao() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <div style={{
                                     width: 32, height: 32, borderRadius: 8,
-                                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                                    background: 'linear-gradient(135deg, var(--success), #059669)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
                                     <BarChart2 size={16} color="#fff" />
@@ -1878,7 +1878,7 @@ export default function Expedicao() {
                                         {[
                                             { label: 'Peças processadas', value: dashData.resumo?.total_pecas_processadas || 0, icon: Package, color: 'var(--info)' },
                                             { label: 'Média peças/hora', value: dashData.resumo?.media_pecas_hora || 0, icon: Clock, color: 'var(--success)' },
-                                            { label: 'Lotes concluídos', value: dashData.resumo?.lotes_concluidos || 0, icon: CheckCircle, color: '#8b5cf6' },
+                                            { label: 'Lotes concluídos', value: dashData.resumo?.lotes_concluidos || 0, icon: CheckCircle, color: 'var(--success)' },
                                             { label: 'Operadores ativos', value: dashData.operadores?.length || 0, icon: User, color: 'var(--warning)' },
                                         ].map((card, i) => (
                                             <div key={i} style={{
@@ -1920,7 +1920,7 @@ export default function Expedicao() {
                                                             }}>{d.total}</div>
                                                             <div style={{
                                                                 width: '100%', maxWidth: 28, borderRadius: 3,
-                                                                background: 'linear-gradient(180deg, #6366f1, #8b5cf6)',
+                                                                background: 'linear-gradient(180deg, var(--success), #059669)',
                                                                 height: `${Math.max(2, (d.total / maxVal) * 80)}px`,
                                                                 transition: 'height .3s',
                                                             }} title={`${d.data}: ${d.total} peças`} />

@@ -19,11 +19,11 @@ const TIPOS = [
     { id: 'ferias', lb: 'Férias', c: 'var(--info)', short: 'Fe' },
     { id: 'feriado', lb: 'Feriado', c: 'var(--muted)', short: 'Fr' },
     { id: 'folga', lb: 'Folga', c: 'var(--muted)', short: 'Fg' },
-    { id: 'compensacao', lb: 'Compensação', c: '#a855f7', short: 'C' },
+    { id: 'compensacao', lb: 'Compensação', c: 'var(--info)', short: 'C' },
 ];
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.id, t]));
 
-const COR = { normal: 'var(--success)', atraso: 'var(--warning)', falta: 'var(--danger)', atestado: 'var(--info)', ferias: 'var(--info)', feriado: 'var(--muted)', folga: 'var(--muted)', compensacao: '#a855f7' };
+const COR = { normal: 'var(--success)', atraso: 'var(--warning)', falta: 'var(--danger)', atestado: 'var(--info)', ferias: 'var(--info)', feriado: 'var(--muted)', folga: 'var(--muted)', compensacao: 'var(--info)' };
 
 const FERIADOS_NACIONAIS = [
     { data: '-01-01', descricao: 'Confraternização Universal' },
@@ -212,7 +212,7 @@ function PlanilhaModal({ funcionario, mesKey, ano, mes, jornada, feriados, regis
         <Modal title={`${funcionario.nome} — ${MESES[mes]} ${ano}`} close={onClose} w={920}>
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button className={Z.btnSm} onClick={preencherPadrao} style={{ fontSize: 10, background: '#7c3aed', borderColor: '#7c3aed', color: '#fff' }}>
+                <button className={Z.btnSm} onClick={preencherPadrao} style={{ fontSize: 10, background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' }}>
                     Preencher Horário Padrão
                 </button>
                 <div style={{ flex: 1 }} />
@@ -1017,7 +1017,7 @@ export default function Ponto({ notify }) {
                         { c: 'var(--danger)', l: 'Falta' },
                         { c: 'var(--info)', l: 'Atestado / Férias' },
                         { c: 'var(--muted)', l: 'Folga / Feriado' },
-                        { c: '#a855f7', l: 'Compensação' },
+                        { c: 'var(--info)', l: 'Compensação' },
                     ].map(x => (
                         <div key={x.l} style={{
                             display: 'inline-flex', alignItems: 'center', gap: 6,

@@ -907,7 +907,7 @@ function TabCronograma({ data, load, notify, users }) {
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                                             {e.data_inicio && <span>{dtFmt(e.data_inicio)} → {dtFmt(e.data_vencimento)}</span>}
                                             {e.responsavel_nome && <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><UserIcon size={10} /> {e.responsavel_nome}</span>}
-                                            {depEtapa && <span style={{ color: '#8b5cf6', fontWeight: 600 }}>Depende de: {depEtapa.nome}</span>}
+                                            {depEtapa && <span style={{ color: 'var(--info)', fontWeight: 600 }}>Depende de: {depEtapa.nome}</span>}
                                             {isOverdue && <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Atrasada</span>}
                                         </div>
                                     </div>
@@ -1955,7 +1955,7 @@ function TabArquivos({ data, notify }) {
                                     </div>
                                     <div style={{ padding: '8px 10px' }}>
                                         {foto.nome_montador && <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>{foto.nome_montador}</div>}
-                                        {foto.ambiente && <span style={{ fontSize: 10, background: '#8b5cf615', color: '#8b5cf6', padding: '1px 7px', borderRadius: 8, fontWeight: 600 }}>{foto.ambiente}</span>}
+                                        {foto.ambiente && <span style={{ fontSize: 10, background: 'var(--info-bg)', color: 'var(--info)', padding: '1px 7px', borderRadius: 8, fontWeight: 600 }}>{foto.ambiente}</span>}
                                         {foto.criado_em && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(foto.criado_em).toLocaleString('pt-BR')}</div>}
                                     </div>
                                 </div>
@@ -2116,7 +2116,7 @@ function TabProducao({ data, notify, nav }) {
 
     const STATUS_LOTE = {
         importado: { label: 'Importado', color: 'var(--info)', bg: 'var(--info-bg)' },
-        otimizado: { label: 'Otimizado', color: '#8b5cf6', bg: '#f5f3ff' },
+        otimizado: { label: 'Otimizado', color: 'var(--info)', bg: 'var(--info-bg)' },
         cortado: { label: 'Cortado', color: 'var(--warning)', bg: 'var(--warning-bg)' },
         pronto: { label: 'Pronto', color: 'var(--success)', bg: 'var(--success-bg)' },
     };
@@ -2203,7 +2203,7 @@ function TabProducao({ data, notify, nav }) {
                     { label: 'Peças', value: resumo.total_pecas, icon: <Layers size={16} />, color: 'var(--info)' },
                     { label: 'Chapas', value: resumo.total_chapas, icon: <Package size={16} />, color: 'var(--success)' },
                     { label: 'Ferragens', value: resumo.total_ferragens, icon: <ClipboardList size={16} />, color: 'var(--warning)' },
-                    { label: 'Fita (m)', value: N(resumo.total_fita_m, 1), icon: <Ruler size={16} />, color: '#8b5cf6' },
+                    { label: 'Fita (m)', value: N(resumo.total_fita_m, 1), icon: <Ruler size={16} />, color: 'var(--info)' },
                     { label: 'Custo Material', value: R$(resumo.custo_total), icon: <ShoppingCart size={16} />, color: 'var(--danger)' },
                 ].map(kpi => (
                     <div key={kpi.label} className={Z.card} style={{ padding: 14, textAlign: 'center' }}>
@@ -2446,8 +2446,8 @@ function TabProducao({ data, notify, nav }) {
                                                         <td style={{ ...prodTdStyle, textAlign: 'center' }}>
                                                             <span style={{
                                                                 fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                                background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
-                                                                color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
+                                                                background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : 'var(--info-bg)',
+                                                                color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : 'var(--info)',
                                                             }}>{b.tipo}</span>
                                                         </td>
                                                         <td style={{ ...prodTdStyle, textAlign: 'center' }}>{b.necessario} {b.un}</td>
@@ -2491,8 +2491,8 @@ function TabProducao({ data, notify, nav }) {
                                                 <td style={{ ...prodTdStyle, textAlign: 'center' }}>
                                                     <span style={{
                                                         fontSize: 10, padding: '2px 6px', borderRadius: 99, fontWeight: 700,
-                                                        background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : '#8b5cf620',
-                                                        color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : '#8b5cf6',
+                                                        background: b.tipo === 'chapa' ? 'var(--info-bg)' : b.tipo === 'ferragem' ? 'var(--warning-bg)' : 'var(--info-bg)',
+                                                        color: b.tipo === 'chapa' ? 'var(--info)' : b.tipo === 'ferragem' ? 'var(--warning)' : 'var(--info)',
                                                     }}>{b.tipo}</span>
                                                 </td>
                                                 <td style={{ ...prodTdStyle, textAlign: 'center', fontWeight: 600 }}>{b.necessario} {b.un}</td>
@@ -3345,7 +3345,7 @@ const AMB_STATUS = [
     { key: 'aguardando', label: 'Aguardando', color: 'var(--muted)', icon: Clock },
     { key: 'producao', label: 'Produção', color: '#f97316', icon: Factory },
     { key: 'expedicao', label: 'Expedição', color: 'var(--info)', icon: Truck },
-    { key: 'instalacao', label: 'Instalação', color: '#8b5cf6', icon: Wrench },
+    { key: 'instalacao', label: 'Instalação', color: 'var(--info)', icon: Wrench },
     { key: 'concluido', label: 'Concluído', color: 'var(--success)', icon: CheckCircle2 },
 ];
 // Compatibilidade: mapear status antigos para novos
