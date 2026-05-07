@@ -29,25 +29,29 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
     return (
         <div
             ref={setNodeRef}
-            style={style}
-            className="bg-[var(--bg-muted)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--border-hover)] hover:bg-[var(--bg-muted)] transition-all cursor-grab group"
+            style={{
+                ...style,
+                borderLeft: `3px solid ${col.c}`,
+            }}
+            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-2.5 hover:border-[var(--border-hover)] hover:shadow-md transition-all cursor-grab group"
         >
             {/* Drag handle + título */}
             <div className="flex items-start gap-1.5">
-                <div {...listeners} {...attributes} className="mt-0.5 cursor-grab active:cursor-grabbing text-[var(--text-muted)] opacity-60 md:opacity-0 md:group-hover:opacity-60 transition-opacity flex-shrink-0">
-                    <GripVertical size={14} />
+                <div {...listeners} {...attributes} className="mt-0.5 cursor-grab active:cursor-grabbing text-[var(--text-muted)] opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0">
+                    <GripVertical size={13} />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-sm text-[var(--text-primary)] font-semibold mb-0.5 flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 mb-0.5">
                         {o.tipo === 'aditivo' && (
-                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', flexShrink: 0 }}>
+                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)' }}>
                                 {o.numero?.match(/-A\d+$/)?.[0]?.replace('-', '') || 'ADT'}
                             </span>
                         )}
-                        {o.cliente_nome}
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono truncate">{o.numero}</span>
                     </div>
-                    <div className="text-[10px] text-[var(--text-primary)]">{o.ambiente}</div>
-                    <div className="text-sm font-bold mt-2" style={{ color: 'var(--primary)' }}>{R$(o.valor_venda)}</div>
+                    <div className="text-[13px] text-[var(--text-primary)] font-semibold leading-tight mb-0.5 truncate">{o.cliente_nome}</div>
+                    {o.ambiente && <div className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{o.ambiente}</div>}
+                    <div className="text-[13px] font-bold mt-1.5" style={{ color: col.c }}>{R$(o.valor_venda)}</div>
                 </div>
             </div>
 
@@ -139,6 +143,7 @@ export default function Kb({ orcs, reload, notify, nav }) {
     const [tab, setTab] = useState('pipeline'); // 'pipeline' | 'arquivo'
     const [filtroArquivo, setFiltroArquivo] = useState('todos'); // 'todos' | 'arquivo' | 'perdido'
     const [busca, setBusca] = useState('');
+    const [buscaPipeline, setBuscaPipeline] = useState('');
     const [activeId, setActiveId] = useState(null);
 
     const sensors = useSensors(
@@ -166,7 +171,14 @@ export default function Kb({ orcs, reload, notify, nav }) {
     };
 
     // Separar orcs ativos vs arquivados
-    const orcsAtivos = orcs.filter(o => !['arquivo', 'perdido'].includes(o.kb_col));
+    const orcsAtivos = orcs.filter(o => {
+        if (['arquivo', 'perdido'].includes(o.kb_col)) return false;
+        if (!buscaPipeline) return true;
+        const b = buscaPipeline.toLowerCase();
+        return (o.cliente_nome || '').toLowerCase().includes(b) ||
+               (o.ambiente || '').toLowerCase().includes(b) ||
+               (o.numero || '').toLowerCase().includes(b);
+    });
     const orcsArquivados = orcs.filter(o => ['arquivo', 'perdido'].includes(o.kb_col));
 
     // Filtro do arquivo
@@ -226,6 +238,36 @@ export default function Kb({ orcs, reload, notify, nav }) {
 
             {/* PIPELINE TAB */}
             {tab === 'pipeline' && (
+                <>
+                {/* Pipeline search bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <div style={{ position: 'relative', maxWidth: 300 }}>
+                        <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                        <input
+                            type="text" placeholder="Filtrar pipeline..."
+                            value={buscaPipeline} onChange={e => setBuscaPipeline(e.target.value)}
+                            style={{
+                                width: '100%', height: 34, paddingLeft: 32, paddingRight: 10,
+                                background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                                borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
+                                outline: 'none', fontFamily: 'inherit',
+                                transition: 'border-color var(--transition-fast)',
+                            }}
+                            onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                        />
+                    </div>
+                    {buscaPipeline && (
+                        <button onClick={() => setBuscaPipeline('')}
+                            style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <XCircle size={13} /> Limpar
+                        </button>
+                    )}
+                    <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+                        {orcsAtivos.length} de {orcs.filter(o => !['arquivo','perdido'].includes(o.kb_col)).length} orçamentos
+                    </span>
+                </div>
+
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -236,15 +278,23 @@ export default function Kb({ orcs, reload, notify, nav }) {
                     <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-none">
                         {KCOLS.map(col => {
                             const items = orcsAtivos.filter(o => (o.kb_col || "lead") === col.id);
+                            const totalVal = items.reduce((s, o) => s + (o.valor_venda || 0), 0);
                             return (
                                 <div key={col.id} className="min-w-[200px] flex-1 glass-card !rounded-xl overflow-hidden">
                                     {/* Column Header */}
-                                    <div className="px-4 py-3 flex justify-between items-center border-b" style={{ borderColor: `${col.c}30` }}>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: col.c }}></div>
-                                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: col.c }}>{col.nm}</span>
+                                    <div className="px-3 py-2.5 border-b" style={{ borderColor: `${col.c}25`, background: `${col.c}06` }}>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: col.c }}></div>
+                                                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: col.c }}>{col.nm}</span>
+                                            </div>
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${col.c}18`, color: col.c }}>{items.length}</span>
                                         </div>
-                                        <span className="text-[10px] text-[var(--text-primary)] bg-[var(--bg-muted)] px-2 py-0.5 rounded-full font-semibold">{items.length}</span>
+                                        {totalVal > 0 && (
+                                            <div className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(totalVal)}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Column Body (Droppable) */}
@@ -253,7 +303,9 @@ export default function Kb({ orcs, reload, notify, nav }) {
                                             <DraggableCard key={o.id} o={o} col={col} move={move} nav={nav} KCOLS={KCOLS} />
                                         ))}
                                         {items.length === 0 && (
-                                            <div className="flex-1 flex items-center justify-center text-[var(--text-muted)] text-xs py-8">Vazio</div>
+                                            <div className="flex-1 flex items-center justify-center py-8" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                                                {buscaPipeline ? 'Nenhum resultado' : 'Arraste aqui'}
+                                            </div>
                                         )}
                                     </DroppableColumn>
                                 </div>
@@ -265,6 +317,7 @@ export default function Kb({ orcs, reload, notify, nav }) {
                         <DragOverlayCard o={activeOrc} />
                     </DragOverlay>
                 </DndContext>
+                </>
             )}
 
             {/* ARQUIVO TAB */}

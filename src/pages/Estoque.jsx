@@ -682,7 +682,7 @@ export default function Estoque({ notify }) {
                         <EmptyState icon={Package} title={materiais.length === 0 ? 'Nenhum material cadastrado na biblioteca' : 'Nenhum resultado para os filtros selecionados'} />
                     ) : (
                         <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto', WebkitOverflowScrolling: 'touch', position: 'relative' }}>
-                            <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
+                            <table className="table-stagger" style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
                                         {['Material', 'Tipo', 'Estoque', 'Mínimo', 'Status', 'Localização', 'Valor Unit.', ''].map((h, idx) => (
@@ -691,12 +691,10 @@ export default function Estoque({ notify }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredPaged.map((m, i) => {
+                                    {filteredPaged.map((m) => {
                                         const st = STATUS_COR(m.quantidade, m.quantidade_minima);
                                         return (
-                                            <tr key={m.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}
-                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = ''}>
+                                            <tr key={m.id} className="group transition-colors" style={{ borderTop: '1px solid var(--border)' }}>
                                                 <td style={{ padding: '10px 14px', position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 2 }}>
                                                     <div style={{ fontWeight: 600, fontSize: 14 }}>{m.nome}</div>
                                                     {m.cod && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{m.cod}</div>}
@@ -725,11 +723,14 @@ export default function Estoque({ notify }) {
                                                     {m.preco ? R$(m.preco) : '—'}
                                                 </td>
                                                 <td style={{ padding: '10px 14px' }}>
-                                                    <button onClick={() => setConfigModal(m)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6 }}
-                                                        title="Configurar mínimo e localização">
-                                                        <Sliders size={14} />
-                                                    </button>
+                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                                        <button onClick={() => setConfigModal(m)}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 6 }}
+                                                            className="hover:bg-[var(--bg-hover)] hover:!text-[var(--primary)]"
+                                                            title="Configurar mínimo e localização">
+                                                            <Sliders size={14} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );

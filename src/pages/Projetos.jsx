@@ -3838,12 +3838,29 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
                 ))}
             </div>
 
-            <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}><Ic.Search /></span>
-                    <input className={Z.inp} style={{ paddingLeft: 34 }} placeholder="Buscar projeto ou cliente..." value={search} onChange={e => setSearch(e.target.value)} />
+            {/* FilterBar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: 200, maxWidth: 340 }}>
+                    <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                    <input
+                        style={{
+                            width: '100%', height: 34, paddingLeft: 32, paddingRight: 10,
+                            background: 'var(--bg-muted)', border: '1px solid var(--border)',
+                            borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
+                            outline: 'none', fontFamily: 'inherit',
+                            transition: 'border-color var(--transition-fast)',
+                        }}
+                        onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                        onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                        placeholder="Buscar projeto ou cliente..." value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
-                {filterStatus && <button onClick={() => setFilterStatus('')} className={Z.btn2} style={{ fontSize: 12, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 5 }}><Ic.X /> Limpar filtro</button>}
+                {(filterStatus || search) && (
+                    <button onClick={() => { setFilterStatus(''); setSearch(''); }}
+                        style={{ height: 34, padding: '0 12px', fontSize: 11, fontWeight: 600, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-muted)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <XIcon size={12} /> Limpar
+                    </button>
+                )}
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{filtered.length} projeto{filtered.length !== 1 ? 's' : ''}</span>
             </div>
 
             {loading ? (
@@ -3855,37 +3872,50 @@ export default function Projetos({ orcs, notify, user, openProjectId, onProjectO
                 </div>
             ) : (
                 <div className="glass-card" style={{ overflow: 'hidden', overflowX: 'auto' }}>
-                    <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
+                    <table className="table-stagger" style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                         <thead><tr>{['Projeto', 'Cliente', 'Status', 'Progresso', 'Valor', 'Entrega', ''].map(h => <th key={h} className={Z.th}>{h}</th>)}</tr></thead>
                         <tbody>
-                            {filtered.map((p, i) => {
+                            {filtered.map((p) => {
                                 const pct = p.total_etapas > 0 ? Math.round(p.etapas_concluidas / p.total_etapas * 100) : 0;
+                                const sp = STATUS_PROJ[p.status];
                                 return (
-                                    <tr key={p.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
-                                        onClick={() => setSelected(p)}
-                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                                        onMouseLeave={e => e.currentTarget.style.background = ''}>
-                                        <td style={{ padding: '12px 16px' }}>
-                                            <div style={{ fontWeight: 600, fontSize: 14 }}>{p.nome}</div>
-                                            {p.ocorrencias_abertas > 0 && <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={11} /> {p.ocorrencias_abertas} aberta{p.ocorrencias_abertas > 1 ? 's' : ''}</div>}
-                                            {p.contas_vencidas > 0 && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><DollarSign size={11} /> {p.contas_vencidas} vencida{p.contas_vencidas > 1 ? 's' : ''}</div>}
-                                        </td>
-                                        <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>{p.cliente_nome || '—'}</td>
-                                        <td style={{ padding: '12px 16px' }}><Badge label={STATUS_PROJ[p.status]?.label || p.status} color={STATUS_PROJ[p.status]?.color || 'var(--muted)'} /></td>
-                                        <td style={{ padding: '12px 16px', minWidth: 120 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <div style={{ flex: 1, background: 'var(--bg-muted)', borderRadius: 99, height: 6 }}>
-                                                    <div style={{ width: `${pct}%`, height: '100%', background: 'var(--primary)', borderRadius: 99 }} />
-                                                </div>
-                                                <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 30 }}>{pct}%</span>
+                                    <tr key={p.id} className="group transition-colors cursor-pointer"
+                                        style={{ borderTop: '1px solid var(--border)' }}
+                                        onClick={() => setSelected(p)}>
+                                        <td className="td-glass td-stack" style={{ maxWidth: 240 }}>
+                                            <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</div>
+                                            <div style={{ display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                                                {p.ocorrencias_abertas > 0 && <span style={{ fontSize: 10, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={10} /> {p.ocorrencias_abertas} ocorrência{p.ocorrencias_abertas > 1 ? 's' : ''}</span>}
+                                                {p.contas_vencidas > 0 && <span style={{ fontSize: 10, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 3 }}><DollarSign size={10} /> {p.contas_vencidas} vencida{p.contas_vencidas > 1 ? 's' : ''}</span>}
                                             </div>
                                         </td>
-                                        <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--primary)', fontSize: 13 }}>{p.valor_venda ? R$(p.valor_venda) : '—'}</td>
-                                        <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 13 }}>{dtFmt(p.data_vencimento)}</td>
-                                        <td style={{ padding: '12px 16px', display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
-                                            <button onClick={() => { const n = prompt('Nome do novo projeto:', `${p.nome} (cópia)`); if (n) api.post(`/projetos/${p.id}/duplicar`, { nome: n }).then(() => load()).catch(() => notify('Erro ao duplicar')); }}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Duplicar"><Ic.Copy /></button>
-                                            <button onClick={() => setConfirmDel({ id: p.id, nome: p.nome })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 6, borderRadius: 6, opacity: 0.6 }} title="Excluir"><Ic.Trash /></button>
+                                        <td className="td-glass" style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{p.cliente_nome || '—'}</td>
+                                        <td className="td-glass">
+                                            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: sp ? `${sp.color}18` : 'var(--bg-muted)', color: sp?.color || 'var(--text-muted)', border: `1px solid ${sp?.color || 'var(--border)'}28` }}>
+                                                {sp?.label || p.status}
+                                            </span>
+                                        </td>
+                                        <td className="td-glass" style={{ minWidth: 120 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <div style={{ flex: 1, background: 'var(--bg-muted)', borderRadius: 99, height: 5 }}>
+                                                    <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? 'var(--success)' : 'var(--primary)', borderRadius: 99, transition: 'width 0.3s' }} />
+                                                </div>
+                                                <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 28, textAlign: 'right' }}>{pct}%</span>
+                                            </div>
+                                        </td>
+                                        <td className="td-glass" style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{p.valor_venda ? R$(p.valor_venda) : '—'}</td>
+                                        <td className="td-glass" style={{ color: 'var(--text-muted)', fontSize: 12 }}>{dtFmt(p.data_vencimento)}</td>
+                                        <td className="td-glass" onClick={e => e.stopPropagation()}>
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                                <button onClick={() => { const n = prompt('Nome do novo projeto:', `${p.nome} (cópia)`); if (n) api.post(`/projetos/${p.id}/duplicar`, { nome: n }).then(() => load()).catch(() => notify('Erro ao duplicar')); }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 5, borderRadius: 6 }}
+                                                    className="hover:bg-[var(--bg-hover)] hover:!text-[var(--primary)]"
+                                                    title="Duplicar"><Ic.Copy /></button>
+                                                <button onClick={() => setConfirmDel({ id: p.id, nome: p.nome })}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 5, borderRadius: 6 }}
+                                                    className="hover:bg-[var(--bg-hover)] hover:!text-[var(--danger)]"
+                                                    title="Excluir"><Ic.Trash /></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
