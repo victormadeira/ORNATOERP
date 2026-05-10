@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ornato Plugin · Simulador SketchUp</title>
+<style>
+  /* ─── Tokens (espelham styles.css mas isolados pro chrome do simulador) ─── */
+  :root {
+    --bg-app:    #eef2f6;
+    --bg:        #ffffff;
+    --bg-soft:   #fafbfc;
+    --bg-sunken: #f3f5f8;
+    --border:    #e4e7eb;
+    --border-2:  #d8dde4;
+    --text:      #1a1f29;
+    --text-2:    #4b5565;
+    --text-mute: #64748b;
+    --text-faint:#94a3b8;
+    --accent:    #d95f18;
+    --accent-h:  #c24c14;
+    --accent-soft:#fff1e8;
+    --accent-text:#a24510;
+    --r:    6px;
+    --r-md: 8px;
+    --r-lg: 12px;
+    --shadow-lg: 0 12px 36px rgba(15,23,42,0.18);
+    --topbar-h: 52px;
+    --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    font-size: 13px;
+    background: var(--bg-app);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  button { cursor: pointer; border: none; background: none; color: inherit; font: inherit; }
+  kbd {
+    background: var(--bg-sunken);
+    color: var(--text-mute);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  /* ─── Top bar do simulador ─── */
+  .sim-bar {
+    height: var(--topbar-h);
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .sim-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    padding-right: 4px;
+    border-right: 1px solid var(--border);
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+  .sim-group { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+  .sim-btn {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    border-radius: var(--r);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    transition: all 0.12s ease;
+  }
+  .sim-btn:hover { background: var(--bg-sunken); }
+  .sim-btn.active {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    border-color: var(--accent);
+  }
+  .sim-btn.preset {
+    font-variant-numeric: tabular-nums;
+    padding: 0 8px;
+  }
+
+  .sim-slider {
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0;
+  }
+  .sim-slider span.key {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 600;
+  }
+  .sim-slider input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    width: 110px;
+    background: var(--bg-sunken);
+    border-radius: 2px;
+    outline: none;
+  }
+  .sim-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .sim-slider input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid white;
+    cursor: pointer;
+  }
+  .sim-slider .val {
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-2);
+    min-width: 38px;
+    text-align: right;
+  }
+
+  .sim-meta {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px;
+    color: var(--text-mute);
+    flex-shrink: 0;
+  }
+  .sim-meta .pill {
+    background: var(--bg-sunken);
+    border-radius: var(--r);
+    padding: 3px 8px;
+    color: var(--text-2);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ─── Canvas (centro) ─── */
+  .sim-canvas {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background:
+      linear-gradient(transparent 0%, transparent calc(100% - 1px), rgba(0,0,0,0.04) 100%) repeat-y,
+      var(--bg-app);
+    background-size: 16px 16px;
+  }
+
+  .sim-frame {
+    background: var(--bg);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    transition: width 0.18s ease, height 0.18s ease;
+  }
+  .sim-frame.fullscreen { width: 100% !important; height: calc(100vh - var(--topbar-h) - 40px) !important; max-width: none; }
+
+  .sim-chrome {
+    height: 26px;
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 10px;
+    background: var(--bg-sunken);
+    border-bottom: 1px solid var(--border);
+  }
+  .sim-chrome .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .sim-chrome .dot.r { background: #ff6058; }
+  .sim-chrome .dot.y { background: #fec02e; }
+  .sim-chrome .dot.g { background: #27c83f; }
+  .sim-chrome .title {
+    margin-left: 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+
+  .sim-iframe {
+    flex: 1;
+    border: none;
+    width: 100%;
+    background: white;
+  }
+
+  /* ─── Bottom hint ─── */
+  .sim-hint {
+    position: fixed;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 12px; align-items: center;
+    background: rgba(26,31,41,0.92);
+    color: white;
+    padding: 8px 14px;
+    border-radius: var(--r-md);
+    font-size: 11px;
+    box-shadow: var(--shadow-lg);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .sim-hint.show { opacity: 1; }
+  .sim-hint kbd {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 1px 5px;
+    font-size: 10px;
+  }
+</style>
+</head>
+<body>
+  <!-- ═══════ TOPBAR DO SIMULADOR ═══════ -->
+  <header class="sim-bar">
+    <span class="sim-label">Simulador SketchUp</span>
+
+    <!-- Modo: Janela vs Tela cheia -->
+    <div class="sim-group">
+      <button class="sim-btn active" data-mode="window" id="modeWindow">Janela</button>
+      <button class="sim-btn" data-mode="fullscreen" id="modeFull">Tela cheia</button>
+    </div>
+
+    <!-- Presets de tamanho -->
+    <div class="sim-group" id="presets">
+      <button class="sim-btn preset" data-w="360" data-h="720">360 × 720</button>
+      <button class="sim-btn preset active" data-w="420" data-h="760">420 × 760</button>
+      <button class="sim-btn preset" data-w="520" data-h="820">520 × 820</button>
+      <button class="sim-btn preset" data-w="720" data-h="900">720 × 900</button>
+      <button class="sim-btn preset" data-w="900" data-h="900">900 × 900</button>
+    </div>
+
+    <!-- Slider largura -->
+    <div class="sim-slider">
+      <span class="key">L</span>
+      <input type="range" id="sliderW" min="320" max="1100" value="420">
+      <span class="val" id="valW">420</span>
+    </div>
+
+    <!-- Slider altura -->
+    <div class="sim-slider">
+      <span class="key">A</span>
+      <input type="range" id="sliderH" min="500" max="1000" value="760">
+      <span class="val" id="valH">760</span>
+    </div>
+
+    <!-- Meta direito: tema, atalho, etc -->
+    <div class="sim-meta">
+      <button class="sim-btn" id="btnReload" title="Recarregar plugin">Reload</button>
+      <button class="sim-btn" id="btnTheme" title="Toggle tema (passa pro iframe)">🌓 Tema</button>
+      <span class="pill" id="dimPill">420 × 760</span>
+    </div>
+  </header>
+
+  <!-- ═══════ CANVAS COM IFRAME ═══════ -->
+  <main class="sim-canvas" id="canvas">
+    <div class="sim-frame" id="frame" style="width: 420px; height: 760px;">
+      <div class="sim-chrome">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+        <span class="title">Ornato · Plugin SketchUp</span>
+      </div>
+      <iframe class="sim-iframe" id="iframe" src="panel.html"></iframe>
+    </div>
+  </main>
+
+  <!-- ═══════ HINT FLUTUANTE ═══════ -->
+  <div class="sim-hint" id="hint">
+    <span><kbd>1-5</kbd> presets</span>
+    <span><kbd>F</kbd> tela cheia</span>
+    <span><kbd>R</kbd> reload</span>
+    <span><kbd>?</kbd> ajuda</span>
+  </div>
+
+  <script>
+    /* ─── State do simulador ─── */
+    const state = {
+      mode: 'window',          // window | fullscreen
+      w: 420,
+      h: 760,
+      theme: 'light',
+    };
+    const presets = [
+      { label: '360 × 720', w: 360, h: 720 },
+      { label: '420 × 760', w: 420, h: 760 },
+      { label: '520 × 820', w: 520, h: 820 },
+      { label: '720 × 900', w: 720, h: 900 },
+      { label: '900 × 900', w: 900, h: 900 },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const frame = $('frame');
+    const iframe = $('iframe');
+    const sliderW = $('sliderW');
+    const sliderH = $('sliderH');
+    const valW = $('valW');
+    const valH = $('valH');
+    const dimPill = $('dimPill');
+    const hint = $('hint');
+
+    function applyMode() {
+      $('modeWindow').classList.toggle('active', state.mode === 'window');
+      $('modeFull').classList.toggle('active', state.mode === 'fullscreen');
+      frame.classList.toggle('fullscreen', state.mode === 'fullscreen');
+      if (state.mode === 'window') {
+        frame.style.width = state.w + 'px';
+        frame.style.height = state.h + 'px';
+      }
+      dimPill.textContent = state.mode === 'fullscreen' ? 'tela cheia' : `${state.w} × ${state.h}`;
+    }
+
+    function applySize() {
+      sliderW.value = state.w;
+      sliderH.value = state.h;
+      valW.textContent = state.w;
+      valH.textContent = state.h;
+      if (state.mode === 'window') {
+        frame.style.width = state.w + 'px';
+        frame.style.height = state.h + 'px';
+      }
+      dimPill.textContent = state.mode === 'fullscreen' ? 'tela cheia' : `${state.w} × ${state.h}`;
+      // Highlight preset that matches
+      document.querySelectorAll('#presets .sim-btn').forEach(b => {
+        b.classList.toggle('active',
+          state.mode === 'window' &&
+          parseInt(b.dataset.w) === state.w &&
+          parseInt(b.dataset.h) === state.h);
+      });
+    }
+
+    function setMode(m) {
+      state.mode = m;
+      applyMode();
+      applySize();
+    }
+    function setSize(w, h) {
+      state.w = w;
+      state.h = h;
+      state.mode = 'window';
+      applyMode();
+      applySize();
+    }
+    function setW(w) { state.w = w; applySize(); }
+    function setH(h) { state.h = h; applySize(); }
+
+    /* Bind UI */
+    $('modeWindow').addEventListener('click', () => setMode('window'));
+    $('modeFull').addEventListener('click', () => setMode('fullscreen'));
+    document.querySelectorAll('#presets .sim-btn').forEach(btn => {
+      btn.addEventListener('click', () => setSize(+btn.dataset.w, +btn.dataset.h));
+    });
+    sliderW.addEventListener('input', e => setW(+e.target.value));
+    sliderH.addEventListener('input', e => setH(+e.target.value));
+
+    $('btnReload').addEventListener('click', () => {
+      iframe.contentWindow.location.reload();
+      flashHint('Plugin recarregado');
+    });
+    $('btnTheme').addEventListener('click', () => {
+      // tenta togglar via comunicação com iframe
+      try {
+        const win = iframe.contentWindow;
+        const doc = iframe.contentDocument;
+        const cur = doc.documentElement.getAttribute('data-theme');
+        const next = cur === 'dark' ? 'light' : 'dark';
+        doc.documentElement.setAttribute('data-theme', next);
+        win.localStorage.setItem('ornato.theme', next);
+        state.theme = next;
+        flashHint(`Tema: ${next}`);
+      } catch (e) {
+        flashHint('Não foi possível trocar tema (iframe pode estar carregando)');
+      }
+    });
+
+    /* Atalhos do simulador (não conflita com atalhos do plugin pq as teclas são diferentes) */
+    let hintTimer = null;
+    function flashHint(msg) {
+      hint.textContent = msg;
+      hint.classList.add('show');
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => hint.classList.remove('show'), 1800);
+    }
+    document.addEventListener('keydown', (e) => {
+      // Não interceptar quando foco está no iframe
+      if (document.activeElement === iframe) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key;
+      if (k >= '1' && k <= '5') {
+        const p = presets[+k - 1];
+        if (p) { setSize(p.w, p.h); flashHint(`${p.label}`); }
+      } else if (k.toLowerCase() === 'f') {
+        setMode(state.mode === 'fullscreen' ? 'window' : 'fullscreen');
+        flashHint(state.mode === 'fullscreen' ? 'Tela cheia' : 'Janela');
+      } else if (k.toLowerCase() === 'r') {
+        iframe.contentWindow.location.reload();
+        flashHint('Reload');
+      } else if (k === '?') {
+        flashHint('Atalhos: 1-5 presets · F tela cheia · R reload');
+      }
+    });
+
+    /* Inicialização */
+    applyMode();
+    applySize();
+    /* Mostrar hint na primeira vez */
+    setTimeout(() => flashHint('Pressione 1-5 para presets · F para tela cheia · R para reload'), 800);
+  </script>
+</body>
+</html>
