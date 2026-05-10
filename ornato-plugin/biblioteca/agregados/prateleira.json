@@ -1,0 +1,64 @@
+{
+  "id": "prateleira",
+  "tipo": "agregado",
+  "nome": "Prateleira",
+  "descricao": "Prateleira simples inserida em vão interno detectado.",
+  "bay_target": "interior_bay",
+  "min_bay": { "largura": 200, "altura": 80, "profundidade": 200 },
+  "parametros": {
+    "espessura": {
+      "label": "Espessura",
+      "type": "number",
+      "default": "{shop.espessura}",
+      "min": 12,
+      "max": 25,
+      "step": 1,
+      "unit": "mm"
+    },
+    "recuo_frente": {
+      "label": "Recuo frontal",
+      "type": "number",
+      "default": 5,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "mm"
+    },
+    "material": {
+      "label": "Material",
+      "type": "select",
+      "default": "{shop.material_carcaca_padrao}",
+      "options": ["MDF18_BrancoTX", "MDF18_Branco", "MDF18_Cinza"]
+    }
+  },
+  "pecas": [
+    {
+      "nome": "Prateleira",
+      "role": "shelf",
+      "orientacao": "horizontal",
+      "largura": "{bay.largura}",
+      "altura": "{bay.profundidade} - {recuo_frente}",
+      "espessura": "{espessura}",
+      "material_param": "material",
+      "posicao_relativa_bay": {
+        "x": 0,
+        "y": 0,
+        "z": "{bay.altura} / 2"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    }
+  ],
+  "ferragens_auto": [
+    {
+      "regra": "pino_prateleira",
+      "anchor_role": "lateral",
+      "qtd": 4,
+      "componente_3d": "ferragens/suporte_pino_metalico.skp"
+    }
+  ]
+}

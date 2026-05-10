@@ -1,0 +1,78 @@
+{
+  "id": "gaveteiro_simples",
+  "tipo": "agregado",
+  "nome": "Gaveteiro 3 gavetas",
+  "descricao": "Gaveteiro simples com N frentes de gaveta divididas igualmente no vão.",
+  "bay_target": "interior_bay",
+  "min_bay": { "largura": 250, "altura": 200, "profundidade": 350 },
+  "parametros": {
+    "n_gavetas": {
+      "label": "Nº de gavetas",
+      "type": "number",
+      "default": 3,
+      "min": 1,
+      "max": 6,
+      "step": 1
+    },
+    "espessura_corpo": {
+      "label": "Espessura corpo",
+      "type": "number",
+      "default": "{shop.espessura}",
+      "min": 12,
+      "max": 25,
+      "step": 1,
+      "unit": "mm"
+    },
+    "folga_entre_gavetas": {
+      "label": "Folga entre gavetas",
+      "type": "number",
+      "default": "{shop.folga_gaveta}",
+      "min": 1,
+      "max": 6,
+      "step": 0.5,
+      "unit": "mm"
+    },
+    "altura_frente": {
+      "label": "Altura frente",
+      "type": "number",
+      "default": "({bay.altura} - {folga_entre_gavetas} * ({n_gavetas} - 1)) / {n_gavetas}",
+      "unit": "mm"
+    },
+    "material_frente": {
+      "label": "Material frente",
+      "type": "select",
+      "default": "{shop.material_frente_padrao}",
+      "options": ["MDF18_BrancoTX", "MDF18_Branco", "MDF18_Cinza", "MDF18_Lacado"]
+    }
+  },
+  "pecas": [
+    {
+      "repeat": { "axis": "z", "count": "{n_gavetas}", "offset": "{altura_frente} + {folga_entre_gavetas}" },
+      "nome": "Frente Gaveta {i}",
+      "role": "drawer_front",
+      "largura": "{bay.largura} - 4",
+      "altura": "{altura_frente}",
+      "espessura": "{espessura_corpo}",
+      "material_param": "material_frente",
+      "posicao_relativa_bay": {
+        "x": 2,
+        "y": "0 - {espessura_corpo} - 2",
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    }
+  ],
+  "ferragens_auto": [
+    {
+      "regra": "corredica",
+      "anchor_role": "lateral",
+      "componente_3d": "ferragens/corredica_telescopica_com_amortecedor.skp",
+      "qtd": "{n_gavetas}"
+    }
+  ]
+}

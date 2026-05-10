@@ -1,0 +1,59 @@
+{
+  "id": "divisoria",
+  "tipo": "agregado",
+  "nome": "Divisória vertical",
+  "descricao": "Divisória vertical inserida no vão; subdivide em duas partes.",
+  "bay_target": "interior_bay",
+  "min_bay": { "largura": 100, "altura": 200, "profundidade": 200 },
+  "parametros": {
+    "espessura": {
+      "label": "Espessura",
+      "type": "number",
+      "default": "{shop.espessura}",
+      "min": 12,
+      "max": 25,
+      "step": 1,
+      "unit": "mm"
+    },
+    "posicao_x": {
+      "label": "Posição X (mm)",
+      "type": "number",
+      "default": "{bay.largura} / 2",
+      "min": 0,
+      "step": 1,
+      "unit": "mm"
+    },
+    "material": {
+      "label": "Material",
+      "type": "select",
+      "default": "{shop.material_carcaca_padrao}",
+      "options": ["MDF18_BrancoTX", "MDF18_Branco", "MDF18_Cinza"]
+    }
+  },
+  "pecas": [
+    {
+      "nome": "Divisória",
+      "role": "divider",
+      "orientacao": "lateral",
+      "largura": "{espessura}",
+      "altura": "{bay.altura}",
+      "espessura": "{bay.profundidade}",
+      "material_param": "material",
+      "posicao_relativa_bay": {
+        "x": "{posicao_x} - {espessura} / 2",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    }
+  ],
+  "ferragens_auto": [
+    { "regra": "minifix", "juncao": "divider × top" },
+    { "regra": "minifix", "juncao": "divider × base" }
+  ]
+}
