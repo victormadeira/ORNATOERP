@@ -5,6 +5,7 @@
 # de marcenaria (armarios, gaveteiros, nichos etc).
 # ═══════════════════════════════════════════════════════
 
+require_relative '../core/logger'
 require_relative 'module_base'
 require_relative 'json_module_builder'
 require_relative 'modules/armario_base'
@@ -94,7 +95,7 @@ module Ornato
 
           rescue => e
             model.abort_operation
-            puts "Ornato ParametricEngine ERRO: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+            Ornato::Logger.error("ParametricEngine: erro ao criar modulo", context: { error: e.message, backtrace: e.backtrace.first(5) })
             UI.messagebox("Erro ao criar modulo: #{e.message}")
             nil
           end
@@ -109,7 +110,7 @@ module Ornato
 
           JsonModuleBuilder.create_from_json(type, params, position)
         rescue => e
-          puts "Ornato: JsonModuleBuilder falhou para '#{type}': #{e.message}"
+          Ornato::Logger.warn("ParametricEngine: JsonModuleBuilder falhou", context: { type: type, error: e.message })
           nil
         end
 
@@ -245,7 +246,7 @@ module Ornato
               create_module(type_str, params)
               dialog.close
             rescue => e
-              puts "Ornato configure_dialog ERRO: #{e.message}"
+              Ornato::Logger.error("ParametricEngine: configure_dialog erro", context: { error: e.message })
             end
           end
 

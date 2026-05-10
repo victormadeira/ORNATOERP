@@ -19,6 +19,9 @@ module Ornato
 
     # Arquivos na ordem correta de carregamento
     LOAD_ORDER = [
+      # Versão (primeiro — define Ornato::Version + PLUGIN_VERSION)
+      'core/version.rb',
+
       'config.rb',
 
       # Core
@@ -51,12 +54,25 @@ module Ornato
       # Machining
       'machining/machining_json.rb',
       'machining/machining_interpreter.rb',
+      'machining/skp_feature_extractor.rb',
+      'machining/drilling_collision_detector.rb',
+      'machining/ferragem_drilling_collector.rb',
 
       # Export
       'export/json_exporter.rb',
 
       # Validation
       'validation/validator.rb',
+      'validation/rules/base_rule.rb',
+      'validation/rules/piece_without_material.rb',
+      'validation/rules/edge_role_invalid.rb',
+      'validation/rules/drilling_hitting_banding.rb',
+      'validation/rules/collision_drillings.rb',
+      'validation/rules/hardware_outside_standard.rb',
+      'validation/rules/aggregate_without_hardware.rb',
+      'validation/rules/offline_unavailable_module.rb',
+      'validation/rules/expression_unresolved.rb',
+      'validation/validation_runner.rb',
 
       # Catalog
       'catalog/hardware_catalog.rb',

@@ -188,7 +188,7 @@ module Ornato
       def apply_headers(request, token)
         request['Content-Type'] = 'application/json'
         request['Accept'] = 'application/json'
-        request['User-Agent'] = "Ornato-SketchUp-Plugin/#{PLUGIN_VERSION rescue '1.0'}"
+        request['User-Agent'] = "Ornato-SketchUp-Plugin/#{::Ornato::Version.current[:version]}"
         request['Authorization'] = "Bearer #{token}" if token && !token.empty?
       end
 

@@ -4,9 +4,14 @@
 
 require 'json'
 require 'base64'
+
+# ─── Versão (carregada antes de tudo — define Ornato::Version + PLUGIN_VERSION) ─
+require_relative 'core/version'
+
 require_relative 'config'
 
 # ─── Core modules ─────────────────────────────────────
+require_relative 'core/logger'
 require_relative 'core/role_normalizer'
 require_relative 'core/model_analyzer'
 require_relative 'core/piece_detector'
@@ -36,12 +41,17 @@ require_relative 'hardware/rules_engine'
 # ─── Machining ────────────────────────────────────────
 require_relative 'machining/machining_json'
 require_relative 'machining/machining_interpreter'
+require_relative 'machining/skp_feature_extractor'
+require_relative 'machining/drilling_collision_detector'
+require_relative 'machining/ferragem_drilling_collector'
 
 # ─── Export ───────────────────────────────────────────
 require_relative 'export/json_exporter'
+require_relative 'export/dxf_exporter'
 
 # ─── Validation (Fase 4A) ────────────────────────────
 require_relative 'validation/validator'
+require_relative 'validation/validation_runner'
 
 # ─── Hardware Catalog (Fase 4B) ──────────────────────
 require_relative 'catalog/hardware_catalog'
@@ -49,6 +59,15 @@ require_relative 'catalog/hardware_catalog'
 # ─── Library ──────────────────────────────────────────
 require_relative 'library/parametric_engine'
 require_relative 'library/countertop_builder'
+
+# ─── LibrarySync (sync remoto da biblioteca com ERP) ─
+begin
+  require_relative 'library/library_sync'
+  LIBRARY_SYNC_LOADED = true
+rescue LoadError => e
+  puts "Ornato: LibrarySync nao disponivel (#{e.message})"
+  LIBRARY_SYNC_LOADED = false
+end
 
 # ─── Constructor (Construtor + Agregador + Troca + Acabamentos) ──
 require_relative 'constructor/box_builder'
@@ -119,6 +138,7 @@ begin
   require_relative 'tools/ambiente_tool'
   require_relative 'tools/edit_tool'
   require_relative 'tools/copy_array_tool'
+  require_relative 'tools/aim_placement_tool'
   TOOLS_LOADED = true
 rescue LoadError => e
   puts "Ornato: Ferramentas interativas nao disponiveis (#{e.message})"
@@ -188,6 +208,18 @@ module Ornato
       @dialog_controller ||= UI::DialogController.new
     end
 
+    # Gate: aborta operações pesadas se o plugin está em min_compat violation
+    def self.compat_blocked?
+      blocked = defined?(::Ornato::COMPAT_VIOLATED) && ::Ornato::COMPAT_VIOLATED
+      if blocked
+        ::UI.messagebox(
+          "Ornato CNC bloqueado: versão incompatível com o servidor.\n\n" \
+          "Atualize o plugin para continuar (Plugins → Ornato CNC → Verificar atualizações)."
+        ) rescue nil
+      end
+      blocked
+    end
+
     # ─── Menu Setup ─────────────────────────────────
     def self.setup_menu
       menu = ::UI.menu('Plugins').add_submenu('Ornato CNC')
@@ -211,6 +243,11 @@ module Ornato
         menu.add_separator
         menu.add_item('Gerar Tampo sobre Selecionados') { generate_countertop_for_selection }
         menu.add_item('Gerar Tampos (Modelo Inteiro)') { generate_all_countertops }
+        menu.add_separator
+        agg_menu = menu.add_submenu('Inserir agregado (mira)')
+        agg_menu.add_item('Prateleira')         { activate_aim_placement('prateleira') }
+        agg_menu.add_item('Divisória')          { activate_aim_placement('divisoria') }
+        agg_menu.add_item('Gaveteiro Simples')  { activate_aim_placement('gaveteiro_simples') }
         menu.add_separator
       end
       menu.add_item('Analisar Modelo') { analyze_model }
@@ -415,6 +452,7 @@ module Ornato
     end
 
     def self.process_selected_module
+      return if compat_blocked?
       model = Sketchup.active_model
       selection = model.selection
 
@@ -456,6 +494,7 @@ module Ornato
     end
 
     def self.export_json
+      return if compat_blocked?
       model = Sketchup.active_model
       unless model
         ::UI.messagebox('Nenhum modelo aberto.')
@@ -503,8 +542,60 @@ module Ornato
       end
     end
 
+    # ─── DXF Export (1 arquivo por peça) ────────────
+    # Emite um .dxf por peça-chapa em um diretório escolhido pelo usuário,
+    # com camadas CNC convencionais (OUTLINE, DRILL_TOPSIDE, DRILL_EDGE_*,
+    # POCKET_*, GROOVE_*, EDGE_BANDING, LABEL). Profundidade/tool/feed
+    # embarcados via XDATA com app id ORNATO + fallback MTEXT.
+    #
+    # Reusa o pipeline analyzer + RulesEngine; NÃO modifica o JsonExporter.
+    def self.export_dxf
+      return if compat_blocked?
+      model = Sketchup.active_model
+      unless model
+        ::UI.messagebox('Nenhum modelo aberto.')
+        return
+      end
+
+      analyzer = Core::ModelAnalyzer.new(model)
+      analysis = analyzer.analyze
+      @last_analysis = analysis
+
+      config = Config.load
+      engine = Hardware::RulesEngine.new(config)
+
+      all_machining = {}
+      analysis[:modules].each do |mod|
+        machining = engine.process_module(mod[:group])
+        all_machining.merge!(machining)
+      end
+      @last_machining = all_machining
+
+      out_dir = ::UI.select_directory(
+        title: 'Pasta de saída para arquivos DXF',
+        select_multiple: false,
+      ) rescue nil
+
+      return unless out_dir
+
+      data = {
+        pieces:    analysis[:pieces] || [],
+        machining: all_machining,
+        project:   { name: model.title, code: "PRJ_#{Time.now.strftime('%Y%m%d_%H%M')}" },
+      }
+
+      result = Export::DxfExporter.new(data).export_to_dir(out_dir)
+
+      msg = "DXF exportado!\n\n" \
+            "#{result[:stats][:pieces]} arquivos em:\n#{out_dir}\n\n" \
+            "#{result[:stats][:drillings]} furos serializados"
+      msg += "\n\nErros:\n" + result[:errors].first(5).join("\n") unless result[:errors].empty?
+      ::UI.messagebox(msg)
+    end
+
     # ─── Batch Processing (Modelo Inteiro) ──────────
     def self.process_all_modules
+      return if compat_blocked?
       model = Sketchup.active_model
       unless model
         ::UI.messagebox('Nenhum modelo aberto.')
@@ -756,6 +847,17 @@ module Ornato
       Sketchup.active_model.select_tool(Tools::HoleEditTool.new)
     end
 
+    # ─── Aim Placement (agregados em vão de módulo) ─
+    def self.activate_aim_placement(aggregate_id)
+      return unless TOOLS_LOADED
+      unless defined?(Tools::AimPlacementTool)
+        ::UI.messagebox('AimPlacementTool indisponivel.')
+        return
+      end
+      tool = Tools::AimPlacementTool.new(aggregate_id.to_s)
+      Sketchup.active_model.select_tool(tool)
+    end
+
     # ─── Ambiente (Room Builder) ────────────────────
     def self.show_ambiente_tool(wall_height: 2700.0)
       return unless TOOLS_LOADED
@@ -853,13 +955,81 @@ module Ornato
   # Bootstrap — Register everything on load
   # ══════════════════════════════════════════════════════
 
+  # ── min_compat enforcement gate (Sprint A3 / C2) ──────────────
+  # Se o servidor sinalizou em check anterior que a versão atual é
+  # incompatível, bloqueia features pesadas até que o usuário atualize.
+  COMPAT_VIOLATED = begin
+    if UPDATER_LOADED && defined?(::Ornato::AutoUpdater)
+      cv = ::Ornato::AutoUpdater.compat_violation
+      if cv && Gem::Version.new(::Ornato::Version.current[:version].to_s) <
+              Gem::Version.new(cv['min_required'].to_s)
+        ::Ornato::Logger.error("Plugin disabled: min_compat violation #{cv.inspect}") rescue nil
+        if defined?(::UI) && ::UI.respond_to?(:start_timer)
+          ::UI.start_timer(0.5, false) do
+            ::UI.messagebox("Ornato CNC: atualização obrigatória.\n\nVersão atual #{cv['current']} é incompatível com o servidor (mínima: #{cv['min_required']}).\n\nUse o menu Plugins → Ornato CNC para atualizar.") rescue nil
+            ::Ornato::AutoUpdater.check_for_updates(silent: false) rescue nil
+          end
+        end
+        true
+      else
+        false
+      end
+    else
+      false
+    end
+  rescue => _e
+    false
+  end
+
   Main.setup_menu
   Main.setup_toolbar
   Main.setup_shortcuts
-  Main.setup_observers
+  Main.setup_observers unless COMPAT_VIOLATED
 
   # Verificar atualizações em background (silencioso)
   AutoUpdater.check_on_startup if UPDATER_LOADED
+
+  # Primeiro uso: pergunta sobre telemetria (default OFF até decisão explícita).
+  # Só aparece uma vez — mark_telemetry_decided persiste a resposta.
+  if UPDATER_LOADED && defined?(::Ornato::AutoUpdater) &&
+     !::Ornato::AutoUpdater.telemetry_decided?
+    if defined?(::UI) && ::UI.respond_to?(:start_timer)
+      ::UI.start_timer(2.0, false) do
+        begin
+          answer = ::UI.messagebox(
+            "Ornato pode enviar telemetria anônima (versão, OS, SketchUp version) " \
+            "para ajudar a melhorar o plugin?\n\n" \
+            "Nada de informação pessoal ou de projetos é enviado. " \
+            "Você pode mudar isso depois em Configurações.",
+            MB_YESNO
+          )
+          ::Ornato::AutoUpdater.mark_telemetry_decided(answer == IDYES)
+        rescue => e
+          ::Ornato::Logger.warn("telemetry first-run prompt falhou: #{e.message}") rescue nil
+        end
+      end
+    end
+  end
+
+  # Sync incremental do manifest da biblioteca (não bloqueante).
+  if LIBRARY_SYNC_LOADED
+    Thread.new do
+      begin
+        ::Ornato::Library::LibrarySync.instance.sync_manifest
+      rescue => e
+        ::Ornato::Logger.warn("LibrarySync startup falhou: #{e.message}") rescue nil
+      end
+    end
+  end
+
+  # Sync ShopConfig do ERP (perfil global da marcenaria) — não bloqueante.
+  Thread.new do
+    begin
+      ::Ornato::Hardware::ShopConfig.sync_from_cloud
+    rescue => e
+      ::Ornato::Logger.warn("ShopConfig startup sync failed: #{e.message}") rescue nil
+    end
+  end
 
   puts "Ornato CNC v#{PLUGIN_VERSION} carregado — #{Catalog::HardwareCatalog.all.length} ferragens no catalogo"
 end

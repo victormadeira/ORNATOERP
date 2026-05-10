@@ -126,7 +126,7 @@ module Ornato
         # Push version + model summary + library after load
         ::UI.start_timer(0.5, false) do
           next unless @main_panel && @main_panel.visible?
-          version = defined?(PLUGIN_VERSION) ? PLUGIN_VERSION : '0.1.0'
+          version = ::Ornato::Version.current[:version]
           @main_panel.execute_script("typeof setVersion==='function'&&setVersion('#{version}')")
           push_model_summary_to_panel
           push_library_to_panel
@@ -274,6 +274,18 @@ module Ornato
           end
         end
 
+        # MIRA-B: ativa AimPlacementTool pra inserir agregado em vão.
+        # UI v2 chama: window.sketchup.start_aim_placement('prateleira')
+        @main_panel.add_action_callback('start_aim_placement') do |_ctx, aggregate_id|
+          if defined?(TOOLS_LOADED) && TOOLS_LOADED && defined?(Tools::AimPlacementTool)
+            tool = Tools::AimPlacementTool.new(aggregate_id.to_s)
+            Sketchup.active_model.select_tool(tool)
+            panel_status("Mire o cursor no vão para inserir #{aggregate_id} | ESC cancela")
+          else
+            panel_status('AimPlacementTool indisponível')
+          end
+        end
+
         # Analyze model — refreshes module/piece counts
         @main_panel.add_action_callback('analyze') do |_ctx|
           Main.analyze_model
@@ -302,6 +314,11 @@ module Ornato
         # Export full JSON to file
         @main_panel.add_action_callback('export_json') do |_ctx|
           Main.export_json
+        end
+
+        # Export DXF (1 arquivo por peça-chapa, camadas CNC convencionais)
+        @main_panel.add_action_callback('export_dxf') do |_ctx|
+          Main.export_dxf
         end
 
         # Export CSV (piece list) — uses BomExporter if available
@@ -641,6 +658,200 @@ module Ornato
           panel_status('Config resetada para padrão')
         end
 
+        # ── Shop Config: cloud sync (Sprint SHOP-3) ───────────
+        @main_panel.add_action_callback('sync_shop_config') do |_ctx|
+          begin
+            payload = Hardware::ShopConfig.sync_from_cloud(force: true)
+            ok = !payload.nil?
+            status = Hardware::ShopConfig.cloud_status.merge('ok' => ok)
+            @main_panel.execute_script(
+              "window.onShopConfigSync && window.onShopConfigSync(#{JSON.generate(status)})"
+            )
+            panel_status(ok ? "Shop config sincronizada (#{status['profile']} v#{status['version']})" : 'Sync falhou — verifique conexão')
+          rescue => e
+            puts "Ornato sync_shop_config ERRO: #{e.message}"
+            @main_panel.execute_script(
+              "window.onShopConfigSync && window.onShopConfigSync(#{JSON.generate({ ok: false, error: e.message })})"
+            )
+          end
+        end
+
+        @main_panel.add_action_callback('get_shop_config_status') do |_ctx|
+          begin
+            status = Hardware::ShopConfig.cloud_status
+            @main_panel.execute_script(
+              "window.onShopConfigStatus && window.onShopConfigStatus(#{JSON.generate(status)})"
+            )
+          rescue => e
+            puts "Ornato get_shop_config_status ERRO: #{e.message}"
+          end
+        end
+
+        # ── Shop Config: local overrides (Sprint SHOP-5) ──────
+        @main_panel.add_action_callback('get_shop_overrides') do |_ctx|
+          begin
+            overrides = Hardware::ShopConfig.read_overrides
+            @main_panel.execute_script(
+              "window.onShopOverrides && window.onShopOverrides(#{JSON.generate(overrides)})"
+            )
+          rescue => e
+            puts "Ornato get_shop_overrides ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('set_shop_config_override') do |_ctx, payload_json|
+          begin
+            payload = JSON.parse(payload_json.to_s)
+            key   = payload['key'].to_s
+            value = payload['value']
+            next if key.empty?
+            Hardware::ShopConfig.set_override(key, value)
+            overrides = Hardware::ShopConfig.read_overrides
+            @main_panel.execute_script(
+              "window.onShopOverrides && window.onShopOverrides(#{JSON.generate(overrides)})"
+            )
+            panel_status("Override local aplicado: #{key} = #{value}")
+          rescue => e
+            puts "Ornato set_shop_config_override ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('clear_shop_config_override') do |_ctx, key|
+          begin
+            Hardware::ShopConfig.clear_override(key.to_s)
+            overrides = Hardware::ShopConfig.read_overrides
+            @main_panel.execute_script(
+              "window.onShopOverrides && window.onShopOverrides(#{JSON.generate(overrides)})"
+            )
+            panel_status("Override local removido: #{key}")
+          rescue => e
+            puts "Ornato clear_shop_config_override ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('clear_all_shop_overrides') do |_ctx|
+          begin
+            Hardware::ShopConfig.clear_all_overrides!
+            @main_panel.execute_script(
+              "window.onShopOverrides && window.onShopOverrides(#{JSON.generate({})})"
+            )
+            panel_status('Todos os overrides locais removidos')
+          rescue => e
+            puts "Ornato clear_all_shop_overrides ERRO: #{e.message}"
+          end
+        end
+
+        # ── Reflow: rebuild com novos params, preservando agregados (Sprint REFLOW)
+        @main_panel.add_action_callback('rebuild_module') do |_ctx, entity_id, params_json|
+          begin
+            group = find_group_by_id(entity_id.to_i)
+            unless group
+              @main_panel.execute_script(
+                "window.onModuleRebuild && window.onModuleRebuild(#{JSON.generate({ ok: false, error: 'modulo_nao_encontrado' })})"
+              )
+              next
+            end
+            params_override = JSON.parse(params_json.to_s) rescue {}
+            ok = Library::JsonModuleBuilder.rebuild(group, params_override)
+            stats_raw = group.get_attribute('Ornato', 'reflow_stats', '{}')
+            stats = (JSON.parse(stats_raw) rescue {}) || {}
+            payload = {
+              ok:        ok,
+              entity_id: entity_id.to_i,
+              rebuilt:   stats['rebuilt'] || 0,
+              dropped:   stats['dropped'] || 0,
+            }
+            @main_panel.execute_script(
+              "window.onModuleRebuild && window.onModuleRebuild(#{JSON.generate(payload)})"
+            )
+            msg = ok ? "Módulo recalculado (#{payload[:rebuilt]} agregados, #{payload[:dropped]} descartados)" : 'Falha no rebuild'
+            panel_status(msg)
+          rescue => e
+            puts "Ornato rebuild_module ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('refresh_module_shop_snapshot') do |_ctx, entity_id|
+          begin
+            group = find_group_by_id(entity_id.to_i)
+            unless group
+              @main_panel.execute_script("window.onModuleSnapshotRefresh && window.onModuleSnapshotRefresh(#{JSON.generate({ ok: false, error: 'modulo_nao_encontrado' })})")
+              next
+            end
+            snap = Library::JsonModuleBuilder.refresh_shop_snapshot(group)
+            ok = !snap.nil?
+            payload = {
+              ok:       ok,
+              entity_id: entity_id.to_i,
+              profile:  group.get_attribute('Ornato', 'shop_profile', 'local'),
+              version:  group.get_attribute('Ornato', 'shop_version', '0'),
+            }
+            @main_panel.execute_script(
+              "window.onModuleSnapshotRefresh && window.onModuleSnapshotRefresh(#{JSON.generate(payload)})"
+            )
+            panel_status(ok ? 'Snapshot do módulo atualizado para a config atual' : 'Falha ao atualizar snapshot')
+          rescue => e
+            puts "Ornato refresh_module_shop_snapshot ERRO: #{e.message}"
+          end
+        end
+
+        # ── UI v2 Inspector: detalhes contextual por entidade ───
+        # Os 3 callbacks abaixo respondem a `window.onModuleDetails`,
+        # `window.onPieceDetails` e `window.onAggregateDetails`.
+        @main_panel.add_action_callback('get_module_details') do |_ctx, opts_json|
+          begin
+            opts      = JSON.parse(opts_json.to_s)
+            entity_id = opts['entity_id'].to_i
+            group     = find_group_by_id(entity_id)
+            data = if group
+              build_v2_module_details(group)
+            else
+              { entity_id: entity_id.to_s, ok: false, error: 'group_not_found' }
+            end
+            @main_panel.execute_script(
+              "typeof window.onModuleDetails==='function'&&window.onModuleDetails(#{JSON.generate(data)})"
+            )
+          rescue => e
+            puts "Ornato get_module_details ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('get_piece_details') do |_ctx, opts_json|
+          begin
+            opts      = JSON.parse(opts_json.to_s)
+            entity_id = opts['entity_id'].to_i
+            piece     = find_entity_anywhere(entity_id)
+            data = if piece
+              build_v2_piece_details(piece)
+            else
+              { entity_id: entity_id.to_s, ok: false, error: 'piece_not_found' }
+            end
+            @main_panel.execute_script(
+              "typeof window.onPieceDetails==='function'&&window.onPieceDetails(#{JSON.generate(data)})"
+            )
+          rescue => e
+            puts "Ornato get_piece_details ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('get_aggregate_details') do |_ctx, opts_json|
+          begin
+            opts      = JSON.parse(opts_json.to_s)
+            entity_id = opts['entity_id'].to_i
+            aggr      = find_entity_anywhere(entity_id)
+            data = if aggr
+              build_v2_aggregate_details(aggr)
+            else
+              { entity_id: entity_id.to_s, ok: false, error: 'aggregate_not_found' }
+            end
+            @main_panel.execute_script(
+              "typeof window.onAggregateDetails==='function'&&window.onAggregateDetails(#{JSON.generate(data)})"
+            )
+          rescue => e
+            puts "Ornato get_aggregate_details ERRO: #{e.message}"
+          end
+        end
+
         # ── Machining: get piece data for drawer ───────────────
         @main_panel.add_action_callback('get_module_machining') do |_ctx, opts_json|
           begin
@@ -712,6 +923,269 @@ module Ornato
             panel_status('Usinagem removida')
           rescue => e
             puts "Ornato remove_machining_op ERRO: #{e.message}"
+          end
+        end
+
+        # ── Update channel: get/set (Sprint A3) ───────────────
+        @main_panel.add_action_callback('get_update_channel') do |_ctx|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            ch = Ornato::AutoUpdater.current_channel
+            @main_panel.execute_script("window.onUpdateChannel && window.onUpdateChannel(#{{ channel: ch }.to_json})")
+          rescue => e
+            puts "Ornato get_update_channel ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('set_update_channel') do |_ctx, channel|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            ch = Ornato::AutoUpdater.set_channel(channel.to_s)
+            @main_panel.execute_script("window.onUpdateChannelSet && window.onUpdateChannelSet(#{{ ok: true, channel: ch }.to_json})")
+          rescue ArgumentError => e
+            @main_panel.execute_script("window.onUpdateChannelSet && window.onUpdateChannelSet(#{{ ok: false, error: e.message }.to_json})")
+          rescue => e
+            puts "Ornato set_update_channel ERRO: #{e.message}"
+          end
+        end
+
+        # ── Telemetria opt-in (Sprint A3 / C1) ───────────────────
+        # JS:  sketchup.set_telemetry_enabled(true|false)
+        # JS:  sketchup.get_telemetry_enabled()
+        @main_panel.add_action_callback('set_telemetry_enabled') do |_ctx, enabled|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            flag = Ornato::AutoUpdater.set_telemetry_enabled(enabled)
+            payload = { ok: true, enabled: flag }.to_json
+            @main_panel.execute_script("window.onTelemetrySet && window.onTelemetrySet(#{payload})")
+          rescue => e
+            puts "Ornato set_telemetry_enabled ERRO: #{e.message}"
+            err = { ok: false, error: e.message }.to_json
+            @main_panel.execute_script("window.onTelemetrySet && window.onTelemetrySet(#{err})")
+          end
+        end
+
+        @main_panel.add_action_callback('get_telemetry_enabled') do |_ctx|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            payload = {
+              enabled: Ornato::AutoUpdater.telemetry_enabled?,
+              decided: Ornato::AutoUpdater.telemetry_decided?,
+              last_sent_at: Ornato::AutoUpdater.last_telemetry_at,
+            }.to_json
+            @main_panel.execute_script("window.onTelemetry && window.onTelemetry(#{payload})")
+          rescue => e
+            puts "Ornato get_telemetry_enabled ERRO: #{e.message}"
+          end
+        end
+
+        # JS: sketchup.get_telemetry_status() — payload completo (enabled, decided, last_sent_at)
+        @main_panel.add_action_callback('get_telemetry_status') do |_ctx|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            payload = {
+              enabled:      Ornato::AutoUpdater.telemetry_enabled?,
+              decided:      Ornato::AutoUpdater.telemetry_decided?,
+              last_sent_at: Ornato::AutoUpdater.last_telemetry_at,
+            }.to_json
+            @main_panel.execute_script("window.onTelemetryStatus && window.onTelemetryStatus(#{payload})")
+          rescue => e
+            puts "Ornato get_telemetry_status ERRO: #{e.message}"
+          end
+        end
+
+        # JS: sketchup.mark_telemetry_decision(true|false) — fluxo first-run alternativo (UI v2)
+        @main_panel.add_action_callback('mark_telemetry_decision') do |_ctx, enabled|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            flag = Ornato::AutoUpdater.mark_telemetry_decided(enabled)
+            payload = { ok: true, enabled: flag, decided: true }.to_json
+            @main_panel.execute_script("window.onTelemetryDecision && window.onTelemetryDecision(#{payload})")
+          rescue => e
+            puts "Ornato mark_telemetry_decision ERRO: #{e.message}"
+            err = { ok: false, error: e.message }.to_json
+            @main_panel.execute_script("window.onTelemetryDecision && window.onTelemetryDecision(#{err})")
+          end
+        end
+
+        # ── Compat violation: dev/admin reset (Sprint A3 / C2) ───
+        @main_panel.add_action_callback('clear_compat_violation') do |_ctx|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            Ornato::AutoUpdater.clear_compat_violation
+            payload = { ok: true }.to_json
+            @main_panel.execute_script("window.onCompatCleared && window.onCompatCleared(#{payload})")
+            panel_status('compat_violation limpa — reinicie o SketchUp')
+          rescue => e
+            puts "Ornato clear_compat_violation ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('get_compat_violation') do |_ctx|
+          begin
+            require_relative '../updater/auto_updater' unless defined?(Ornato::AutoUpdater)
+            cv = Ornato::AutoUpdater.compat_violation
+            payload = { violation: cv }.to_json
+            @main_panel.execute_script("window.onCompatViolation && window.onCompatViolation(#{payload})")
+          rescue => e
+            puts "Ornato get_compat_violation ERRO: #{e.message}"
+          end
+        end
+
+        # ── Cloud library toggle (opt-in v1) ──────────────────────
+        # JS:  sketchup.set_cloud_library(true)  // ou false
+        # JS:  sketchup.get_cloud_library()      // → window.onCloudLibrary({enabled: bool})
+        @main_panel.add_action_callback('set_cloud_library') do |_ctx, enabled|
+          begin
+            flag = (enabled == true || enabled.to_s == 'true')
+            Sketchup.write_default('Ornato', 'cloud_library_enabled', flag)
+            @main_panel.execute_script("window.onCloudLibrarySet && window.onCloudLibrarySet(#{{ ok: true, enabled: flag }.to_json})")
+          rescue => e
+            puts "Ornato set_cloud_library ERRO: #{e.message}"
+            @main_panel.execute_script("window.onCloudLibrarySet && window.onCloudLibrarySet(#{{ ok: false, error: e.message }.to_json})")
+          end
+        end
+
+        @main_panel.add_action_callback('get_cloud_library') do |_ctx|
+          begin
+            flag = !!Sketchup.read_default('Ornato', 'cloud_library_enabled', false)
+            @main_panel.execute_script("window.onCloudLibrary && window.onCloudLibrary(#{{ enabled: flag }.to_json})")
+          rescue => e
+            puts "Ornato get_cloud_library ERRO: #{e.message}"
+          end
+        end
+
+        # ── Validação v2: ValidationRunner + central de issues ──
+        @main_panel.add_action_callback('run_validation') do |_ctx, _arg|
+          begin
+            runner = Ornato::Validation::ValidationRunner.new(Sketchup.active_model)
+            report = runner.run
+            @main_panel.execute_script("window.setValidationReport && window.setValidationReport(#{report.to_json})")
+          rescue => e
+            puts "Ornato run_validation ERRO: #{e.message}"
+            @main_panel.execute_script("window.setValidationReport && window.setValidationReport(#{ { error: e.message, issues: [] }.to_json })")
+          end
+        end
+
+        @main_panel.add_action_callback('select_entity_in_model') do |_ctx, arg|
+          begin
+            payload = arg.is_a?(String) ? (JSON.parse(arg) rescue {}) : (arg || {})
+            eid = payload['entity_id'].to_i
+            model = Sketchup.active_model
+            target = nil
+            if model && eid > 0
+              walker = lambda do |coll|
+                coll.each do |e|
+                  target ||= e if e.respond_to?(:entityID) && e.entityID == eid
+                  return if target
+                  walker.call(e.entities) if e.respond_to?(:entities)
+                end
+              end
+              walker.call(model.active_entities)
+              if target
+                model.selection.clear
+                model.selection.add(target)
+                model.active_view.zoom(target) rescue nil
+              end
+            end
+            @main_panel.execute_script("window.onEntitySelected && window.onEntitySelected(#{ { ok: !!target, entity_id: eid }.to_json })")
+          rescue => e
+            puts "Ornato select_entity_in_model ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('auto_fix_issue') do |_ctx, arg|
+          begin
+            payload = arg.is_a?(String) ? (JSON.parse(arg) rescue {}) : (arg || {})
+            eid    = payload['entity_id'].to_i
+            action = payload['action'].to_s
+            ap     = payload['payload'] || {}
+            model  = Sketchup.active_model
+
+            target = nil
+            if model && eid > 0
+              walker = lambda do |coll|
+                coll.each do |e|
+                  target ||= e if e.respond_to?(:entityID) && e.entityID == eid
+                  return if target
+                  walker.call(e.entities) if e.respond_to?(:entities)
+                end
+              end
+              walker.call(model.active_entities)
+            end
+
+            result = if target
+                       model.start_operation("Ornato: Auto-fix #{action}", true)
+                       begin
+                         case action
+                         when 'apply_default_material'
+                           target.set_attribute('Ornato', 'material', (ap['material'] || 'MDF18_BrancoTX').to_s)
+                         when 'apply_default_hardware'
+                           target.set_attribute('Ornato', '_aggregate_hardware', true)
+                           target.set_attribute('Ornato', 'hardware_rule', (ap['rule'] || 'pino_metalico').to_s)
+                         when 'remove_duplicate_drilling'
+                           target.set_attribute('Ornato', '_drilling_dedupe_requested', true)
+                         when 'cache_module_offline'
+                           target.set_attribute('Ornato', '_offline_cache_requested', true)
+                         else
+                           model.abort_operation
+                           next { ok: false, error: "unknown_action:#{action}" }
+                         end
+                         model.commit_operation
+                         { ok: true, action: action, entity_id: eid }
+                       rescue => fix_e
+                         model.abort_operation
+                         { ok: false, error: fix_e.message }
+                       end
+                     else
+                       { ok: false, error: 'entity_not_found' }
+                     end
+            @main_panel.execute_script("window.onAutoFixDone && window.onAutoFixDone(#{result.to_json})")
+          rescue => e
+            puts "Ornato auto_fix_issue ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('ignore_validation_issue') do |_ctx, arg|
+          begin
+            payload  = arg.is_a?(String) ? (JSON.parse(arg) rescue {}) : (arg || {})
+            issue_id = payload['issue_id'].to_s
+            reason   = (payload['reason'] || '').to_s
+            model    = Sketchup.active_model
+
+            result = if model && !issue_id.empty?
+                       raw  = model.get_attribute('Ornato', 'validation_ignores', nil)
+                       list = if raw.is_a?(String) then (JSON.parse(raw) rescue [])
+                              elsif raw.is_a?(Array) then raw
+                              else [] end
+                       list.reject! { |e| (e['id'] || e[:id]) == issue_id }
+                       token = "ign_#{Time.now.to_i}_#{issue_id.hash.abs}"
+                       list << { 'id' => issue_id, 'reason' => reason, 'token' => token,
+                                 'at' => Time.now.to_i, 'by' => ENV['USER'] || 'unknown' }
+                       model.set_attribute('Ornato', 'validation_ignores', list.to_json)
+                       { ok: true, token: token, id: issue_id }
+                     else
+                       { ok: false, error: 'missing_id_or_model' }
+                     end
+            @main_panel.execute_script("window.onIssueIgnored && window.onIssueIgnored(#{result.to_json})")
+          rescue => e
+            puts "Ornato ignore_validation_issue ERRO: #{e.message}"
+          end
+        end
+
+        @main_panel.add_action_callback('get_ignored_issues') do |_ctx, _arg|
+          begin
+            model = Sketchup.active_model
+            list = []
+            if model
+              raw  = model.get_attribute('Ornato', 'validation_ignores', nil)
+              list = if raw.is_a?(String) then (JSON.parse(raw) rescue [])
+                     elsif raw.is_a?(Array) then raw
+                     else [] end
+            end
+            @main_panel.execute_script("window.setIgnoredIssues && window.setIgnoredIssues(#{ { ignored: list }.to_json })")
+          rescue => e
+            puts "Ornato get_ignored_issues ERRO: #{e.message}"
           end
         end
       end
@@ -820,6 +1294,29 @@ module Ornato
           end
         end
 
+        # ── 2b. Hook ferragens 3D (preserve_drillings) ──────────
+        # Mescla ops vindas de ComponentInstances carimbadas com
+        # `Ornato.preserve_drillings == true` no hash de workers,
+        # antes do payload chegar a MachiningJson#serialize (via
+        # JsonExporter / RulesEngine).
+        if defined?(Machining::FerragemDrillingCollector)
+          begin
+            collector_out = Machining::FerragemDrillingCollector
+                              .new(module_group).collect
+            collector_out.each do |pid, extra_ops|
+              next if pid == :_drilling_collisions
+              interpreter_workers[pid] ||= {}
+              base_idx = interpreter_workers[pid].is_a?(Hash) ? interpreter_workers[pid].size : 0
+              extra_ops.each_with_index do |op, i|
+                interpreter_workers[pid]["ferragem_3d_#{base_idx + i}"] = op
+              end
+            end
+          rescue => e
+            puts "Ornato build_machining_pieces_data: ferragem 3D collector error: #{e.message}"
+            puts e.backtrace.first(3).join("\n")
+          end
+        end
+
         # ── 3. Assemble final pieces array for UI ─────────────────
         raw_pieces.map do |rp|
           pid = rp[:id]
@@ -919,6 +1416,165 @@ module Ornato
           pers = e.get_attribute('Ornato', 'persistent_id', nil) || "piece_#{e.entityID}"
           pers == pid
         end
+      end
+
+      # Busca entidade por entityID em todo o modelo (incluindo dentro de grupos).
+      # Usado pelos callbacks da UI v2 que recebem id arbitrário (peça, ferragem ou agregado).
+      def find_entity_anywhere(entity_id, scope = nil)
+        scope ||= Sketchup.active_model.active_entities
+        scope.each do |e|
+          if e.respond_to?(:entityID) && e.entityID == entity_id
+            return e
+          end
+          if e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)
+            child_ents = e.is_a?(Sketchup::Group) ? e.entities : e.definition.entities
+            found = find_entity_anywhere(entity_id, child_ents)
+            return found if found
+          end
+        end
+        nil
+      end
+
+      # ── UI v2 Inspector: builders de detalhes ─────────────
+
+      def build_v2_module_details(group)
+        params = begin
+          JSON.parse(group.get_attribute('Ornato', 'params') || '{}')
+        rescue
+          {}
+        end
+        ferragens_auto = begin
+          JSON.parse(group.get_attribute('Ornato', 'ferragens_auto') || '[]')
+        rescue
+          []
+        end
+        agregados = begin
+          JSON.parse(group.get_attribute('Ornato', 'agregados') || '[]')
+        rescue
+          []
+        end
+
+        # Conta ferragens por tipo (regra)
+        ferr_counts = ferragens_auto.each_with_object(Hash.new(0)) do |f, h|
+          tipo = (f.is_a?(Hash) ? (f['regra'] || f['tipo']) : nil) || 'desconhecida'
+          qtd = (f.is_a?(Hash) && f['qtd']) ? f['qtd'].to_i : 1
+          h[tipo] += qtd
+        end
+
+        # Filhos com tipo=ferragem ou agregado
+        children = []
+        group.entities.each do |e|
+          next unless e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)
+          tipo = e.get_attribute('Ornato', 'tipo', nil)
+          next unless %w[ferragem agregado peca].include?(tipo.to_s)
+          children << {
+            entity_id: e.entityID.to_s,
+            tipo:      tipo,
+            name:      (e.respond_to?(:name) ? e.name : nil),
+            role:      e.get_attribute('Ornato', 'role', nil),
+            aggregate_id: e.get_attribute('Ornato', 'aggregate_id', nil),
+            bay_id:    e.get_attribute('Ornato', 'bay_id', nil),
+          }
+        end
+
+        snapshot = group.get_attribute('Ornato', 'shop_config_snapshot', nil)
+        profile_label = nil
+        version_label = nil
+        if snapshot
+          begin
+            sn = JSON.parse(snapshot)
+            profile_label = sn['profile']
+            version_label = sn['version']
+          rescue
+          end
+        end
+
+        {
+          ok:           true,
+          entity_id:    group.entityID.to_s,
+          name:         (group.respond_to?(:name) ? group.name : 'Módulo'),
+          module_type:  group.get_attribute('Ornato', 'module_type') || '',
+          params:       params,
+          ferragens_counts: ferr_counts,
+          ferragens_total:  ferr_counts.values.inject(0, :+),
+          agregados_count:  agregados.respond_to?(:size) ? agregados.size : 0,
+          children:     children,
+          shop_profile: profile_label,
+          shop_version: version_label,
+        }
+      end
+
+      def build_v2_piece_details(piece)
+        role = if defined?(Core::RoleNormalizer)
+          Core::RoleNormalizer.from_entity(piece).to_s
+        else
+          (piece.get_attribute('Ornato', 'role', nil) ||
+           piece.get_attribute('ornato', 'role', nil) || 'generic').to_s
+        end
+
+        dims_raw = piece.get_attribute('Ornato', 'dimensions', nil)
+        dims = if dims_raw
+          (begin; JSON.parse(dims_raw); rescue; {}; end)
+        else
+          bb = piece.bounds
+          if bb && !bb.empty?
+            sorted = [bb.width.to_mm, bb.height.to_mm, bb.depth.to_mm].sort
+            { 'largura' => sorted[2].round(1), 'altura' => sorted[1].round(1), 'espessura' => sorted[0].round(1) }
+          else
+            {}
+          end
+        end
+
+        material = piece.get_attribute('Ornato', 'material', nil) ||
+                   (piece.respond_to?(:material) && piece.material ? piece.material.name : nil)
+        bordas   = piece.get_attribute('Ornato', 'bordas', nil)
+        bordas_h = bordas.is_a?(String) ? (begin; JSON.parse(bordas); rescue; bordas; end) : bordas
+
+        extra_ops = begin
+          JSON.parse(piece.get_attribute('Ornato', 'usinagens_extra', '[]') || '[]')
+        rescue
+          []
+        end
+
+        bb = piece.bounds
+        origin = bb && !bb.empty? ? [bb.min.x.to_mm.round(1), bb.min.y.to_mm.round(1), bb.min.z.to_mm.round(1)] : nil
+
+        {
+          ok:        true,
+          entity_id: piece.entityID.to_s,
+          name:      (piece.respond_to?(:name) && !piece.name.to_s.empty? ? piece.name : role),
+          role:      role,
+          dims:      dims,
+          material:  material,
+          bordas:    bordas_h,
+          origin:    origin,
+          extra_ops: extra_ops,
+          persistent_id: piece.get_attribute('Ornato', 'persistent_id', nil),
+        }
+      end
+
+      def build_v2_aggregate_details(aggr)
+        params = begin
+          JSON.parse(aggr.get_attribute('Ornato', 'params') || '{}')
+        rescue
+          {}
+        end
+        bb = aggr.bounds
+        bay_dims = bb && !bb.empty? ? {
+          w: bb.width.to_mm.round(1),
+          h: bb.height.to_mm.round(1),
+          d: bb.depth.to_mm.round(1),
+        } : nil
+
+        {
+          ok:           true,
+          entity_id:    aggr.entityID.to_s,
+          aggregate_id: aggr.get_attribute('Ornato', 'aggregate_id', nil),
+          bay_id:       aggr.get_attribute('Ornato', 'bay_id', nil),
+          name:         (aggr.respond_to?(:name) ? aggr.name : nil),
+          params:       params,
+          bay_dims:     bay_dims,
+        }
       end
 
       # Collect all Ornato module groups
@@ -1123,17 +1779,31 @@ module Ornato
 
         @commands['biblioteca_create'] = ->(params) {
           module_id = params[:module_id]
-          tipo_ruby = params[:tipo_ruby] || 'armario_base'
+          tipo_ruby = params[:tipo_ruby] || ''
           mod_params = params[:params] || {}
+
+          # Prefer JSON-first module slug when available; keep compat with older payloads.
+          mid = module_id.to_s
+          tr  = tipo_ruby.to_s
+          valid = ->(s) { s =~ /\A[a-z0-9_-]{1,80}\z/i }
+          build_type =
+            if !mid.empty? && valid.call(mid)
+              # If tipo_ruby looks like a legacy builder key (armario_base, etc.)
+              # or a real module slug, both are acceptable. Prefer the explicit
+              # tipo_ruby only when it is valid; otherwise fall back to module_id.
+              valid.call(tr) ? tr : mid
+            else
+              valid.call(tr) ? tr : 'armario_base'
+            end
 
           if TOOLS_LOADED
             # Activate interactive placement tool — shows ghost, snaps, checks collisions
-            tool = Tools::PlacementTool.new(tipo_ruby, mod_params, self)
+            tool = Tools::PlacementTool.new(build_type, mod_params, self)
             Sketchup.active_model.select_tool(tool)
             send_status('Clique no modelo para posicionar o modulo | ESC para cancelar')
           else
             # Fallback: place at origin if tools not available
-            Library::ParametricEngine.create_module(tipo_ruby, mod_params)
+            Library::ParametricEngine.create_module(build_type, mod_params)
             send_status("Modulo inserido: #{module_id}")
           end
           nil
@@ -1279,6 +1949,122 @@ module Ornato
           nil
         }
 
+        # ── Validação v2 (ValidationRunner + central de issues) ──
+        @commands['run_validation'] = ->(_params) {
+          model = Sketchup.active_model
+          runner = Ornato::Validation::ValidationRunner.new(model)
+          runner.run
+        }
+
+        @commands['select_entity_in_model'] = ->(params) {
+          eid = params[:entity_id].to_i
+          model = Sketchup.active_model
+          return { ok: false } unless model && eid > 0
+          target = nil
+          model.active_entities.each do |ent|
+            target = ent if ent.respond_to?(:entityID) && ent.entityID == eid
+            break if target
+            if ent.respond_to?(:entities)
+              ent.entities.each do |c|
+                target = c if c.respond_to?(:entityID) && c.entityID == eid
+                break if target
+              end
+            end
+            break if target
+          end
+          if target
+            model.selection.clear
+            model.selection.add(target)
+            Sketchup.active_model.active_view.zoom(target) rescue nil
+            { ok: true, entity_id: eid }
+          else
+            { ok: false, entity_id: eid }
+          end
+        }
+
+        @commands['auto_fix_issue'] = ->(params) {
+          model = Sketchup.active_model
+          return { ok: false, error: 'no_model' } unless model
+          eid = params[:entity_id].to_i
+          action = params[:action].to_s
+          payload = params[:payload] || {}
+
+          ent = nil
+          model.active_entities.each do |e|
+            ent = e if e.respond_to?(:entityID) && e.entityID == eid
+            break if ent
+            if e.respond_to?(:entities)
+              e.entities.each do |c|
+                ent = c if c.respond_to?(:entityID) && c.entityID == eid
+                break if ent
+              end
+            end
+            break if ent
+          end
+          return { ok: false, error: 'entity_not_found' } unless ent
+
+          model.start_operation("Ornato: Auto-fix #{action}", true)
+          begin
+            case action
+            when 'apply_default_material'
+              ent.set_attribute('Ornato', 'material', (payload[:material] || 'MDF18_BrancoTX').to_s)
+            when 'apply_default_hardware'
+              ent.set_attribute('Ornato', '_aggregate_hardware', true)
+              ent.set_attribute('Ornato', 'hardware_rule', (payload[:rule] || 'pino_metalico').to_s)
+            when 'remove_duplicate_drilling'
+              # Auto-fix simbólico — marca pra coletor reprocessar.
+              ent.set_attribute('Ornato', '_drilling_dedupe_requested', true)
+            when 'cache_module_offline'
+              ent.set_attribute('Ornato', '_offline_cache_requested', true)
+            else
+              model.abort_operation
+              return { ok: false, error: "unknown_action:#{action}" }
+            end
+            model.commit_operation
+            { ok: true, action: action, entity_id: eid }
+          rescue => e
+            model.abort_operation
+            { ok: false, error: e.message }
+          end
+        }
+
+        @commands['ignore_validation_issue'] = ->(params) {
+          model = Sketchup.active_model
+          return { ok: false } unless model
+          issue_id = params[:issue_id].to_s
+          reason = (params[:reason] || '').to_s
+          return { ok: false, error: 'missing_id' } if issue_id.empty?
+
+          raw = model.get_attribute('Ornato', 'validation_ignores', nil)
+          list = if raw.is_a?(String)
+                   (JSON.parse(raw) rescue [])
+                 elsif raw.is_a?(Array)
+                   raw
+                 else
+                   []
+                 end
+          list.reject! { |e| (e['id'] || e[:id]) == issue_id }
+          token = "ign_#{Time.now.to_i}_#{issue_id.hash.abs}"
+          list << { 'id' => issue_id, 'reason' => reason, 'token' => token,
+                    'at' => Time.now.to_i, 'by' => ENV['USER'] || 'unknown' }
+          model.set_attribute('Ornato', 'validation_ignores', list.to_json)
+          { ok: true, token: token }
+        }
+
+        @commands['get_ignored_issues'] = ->(_params) {
+          model = Sketchup.active_model
+          return { ignored: [] } unless model
+          raw = model.get_attribute('Ornato', 'validation_ignores', nil)
+          list = if raw.is_a?(String)
+                   (JSON.parse(raw) rescue [])
+                 elsif raw.is_a?(Array)
+                   raw
+                 else
+                   []
+                 end
+          { ignored: list }
+        }
+
         # ── Exportar ───────────────────────────────────
         @commands['export_json'] = ->(params) {
           Main.export_json
@@ -1398,7 +2184,7 @@ module Ornato
           end
 
           {
-            version: defined?(PLUGIN_VERSION) ? PLUGIN_VERSION : '0.1.0',
+            version: ::Ornato::Version.current[:version],
             sketchup_version: Sketchup.version,
             ruby_version: RUBY_VERSION,
             catalog_count: catalog_count,
@@ -1416,7 +2202,7 @@ module Ornato
 
       def build_init_config(startup_tab)
         {
-          version: defined?(PLUGIN_VERSION) ? PLUGIN_VERSION : '0.1.0',
+          version: ::Ornato::Version.current[:version],
           startupTab: startup_tab,
         }
       end
@@ -1520,6 +2306,7 @@ module Ornato
       def setup_main_panel_selection_observer
         cancel_main_panel_selection_timer
         @mp_last_sel_id = nil
+        @mp_last_v2_sig = nil
 
         @mp_sel_timer = ::UI.start_timer(1.0, true) do
           unless @main_panel && @main_panel.visible?
@@ -1530,6 +2317,7 @@ module Ornato
           model = Sketchup.active_model
           next unless model
 
+          # ── Legacy main_panel hook (módulo Ornato selecionado apenas) ──
           sel = model.selection.first
           if sel && (sel.is_a?(Sketchup::Group) || sel.is_a?(Sketchup::ComponentInstance)) &&
              (sel.get_attribute('Ornato', 'module_type') || sel.get_attribute('Ornato', 'params'))
@@ -1548,7 +2336,109 @@ module Ornato
               )
             end
           end
+
+          # ── UI v2 hook: dispara onSelectionChanged com payload contextual ──
+          # Suporta peça/ferragem/agregado/módulo + multi-selection. Usa
+          # assinatura simples (ids ordenados) pra evitar spam de redraws.
+          begin
+            ents = model.selection.to_a
+            sig  = ents.first(8).map { |e| e.respond_to?(:entityID) ? e.entityID : e.object_id }.sort.join(',')
+            sig  = "#{ents.size}|#{sig}"
+            if sig != @mp_last_v2_sig
+              @mp_last_v2_sig = sig
+              push_v2_selection_changed(ents)
+            end
+          rescue => e
+            puts "Ornato v2_selection observer ERRO: #{e.message}"
+          end
         end
+      end
+
+      # ── UI v2: build + push selection payload ─────────────
+      # Envia para `window.onSelectionChanged` (v2 inspector dispatch).
+      def push_v2_selection_changed(entities)
+        return unless @main_panel && @main_panel.visible?
+        payload = build_v2_selection_payload(entities)
+        json = JSON.generate(payload)
+        @main_panel.execute_script(
+          "typeof window.onSelectionChanged==='function'&&window.onSelectionChanged(#{json})"
+        )
+      rescue => e
+        puts "Ornato push_v2_selection_changed ERRO: #{e.message}"
+      end
+
+      def build_v2_selection_payload(entities)
+        return { count: 0, items: [], multi: false } if entities.nil? || entities.empty?
+
+        items = entities.first(5).map do |entity|
+          {
+            entity_id: (entity.respond_to?(:entityID) ? entity.entityID.to_s : entity.object_id.to_s),
+            type:      detect_v2_entity_type(entity),
+            name:      (entity.respond_to?(:name) && !entity.name.to_s.empty? ? entity.name : nil),
+            attrs:     read_v2_ornato_attrs(entity),
+            bbox:      v2_bbox_to_hash(entity),
+          }
+        end
+
+        type_counts = items.each_with_object(Hash.new(0)) { |it, h| h[it[:type]] += 1 }
+
+        {
+          count:       entities.size,
+          items:       items,
+          multi:       entities.size > 1,
+          type_counts: type_counts,
+        }
+      end
+
+      def detect_v2_entity_type(entity)
+        return 'unknown' unless entity.respond_to?(:get_attribute)
+        tipo = entity.get_attribute('Ornato', 'tipo', nil)
+        return tipo if %w[modulo peca ferragem agregado].include?(tipo.to_s)
+
+        # Fallbacks por outros sinais quando 'tipo' não foi gravado:
+        if entity.get_attribute('Ornato', 'module_type', nil) ||
+           entity.get_attribute('Ornato', 'params', nil)
+          return 'modulo'
+        end
+        if entity.get_attribute('Ornato', 'role', nil) ||
+           entity.get_attribute('ornato', 'role', nil)
+          return 'peca'
+        end
+        if entity.get_attribute('Ornato', 'aggregate_id', nil)
+          return 'agregado'
+        end
+        if entity.get_attribute('Ornato', 'componente_3d', nil) ||
+           entity.get_attribute('Ornato', 'regra', nil)
+          return 'ferragem'
+        end
+        'unknown'
+      end
+
+      def read_v2_ornato_attrs(entity)
+        return {} unless entity.respond_to?(:get_attribute)
+        keys = %w[
+          tipo module_type role persistent_id regra componente_3d
+          anchor_role aggregate_id bay_id preserve_drillings
+        ]
+        out = {}
+        keys.each do |k|
+          v = entity.get_attribute('Ornato', k, nil)
+          out[k] = v unless v.nil?
+        end
+        out
+      end
+
+      def v2_bbox_to_hash(entity)
+        return nil unless entity.respond_to?(:bounds)
+        bb = entity.bounds
+        return nil if bb.nil? || bb.empty?
+        {
+          w: bb.width.to_mm.round(1),
+          h: bb.height.to_mm.round(1),
+          d: bb.depth.to_mm.round(1),
+        }
+      rescue
+        nil
       end
 
       def cancel_main_panel_selection_timer

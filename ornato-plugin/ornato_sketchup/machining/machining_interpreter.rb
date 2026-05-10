@@ -32,7 +32,10 @@
 #   corredica  peca:   "lateral_esq"
 #   rasgo_led  peca:   "prateleira"
 #   pistao     peca:   "topo"
+#   cavilha_ripa painel: "panel", ripa: "slat"
 # ═══════════════════════════════════════════════════════════════
+
+require_relative '../core/logger'
 
 module Ornato
   module Machining
@@ -88,6 +91,11 @@ module Ornato
           workers    = {}
           op_counter = 0
 
+          direct_ops_for_piece(piece, active, pieces).each do |op|
+            workers["op_#{op_counter}"] = op
+            op_counter += 1
+          end
+
           rule_classes.each do |klass|
             rule = klass.new(rules_config)
             next unless safe_applies?(rule, piece, joints, hardware)
@@ -120,7 +128,7 @@ module Ornato
             width:         (dims[:w] || dims['w'] || 0).to_f,
             height:        (dims[:h] || dims['h'] || 0).to_f,
             thickness:     (dims[:t] || dims['t'] || 18).to_f,
-            role:          role_raw.to_sym,
+            role:          normalize_role(role_raw),
             persistent_id: pd[:id] || pd['id'] || pd[:persistent_id] || pd['persistent_id'],
             origin:        pd[:origin] || pd['origin'] || [0.0, 0.0, 0.0]
           )
@@ -130,7 +138,13 @@ module Ornato
       # ── 2. Filter active rules by evaluating conditions ──────
 
       def evaluate_active_rules(ferragens_auto)
-        ferragens_auto.select { |r| condition_met?(r['condicao']) }
+        ferragens_auto.select do |r|
+          # Regras com `componente_3d` sao tratadas pelo
+          # FerragemDrillingCollector (extracao de furacoes da .skp WPS).
+          # Pular aqui evita duplicar operacoes durante a migracao legacy→3D.
+          next false if r.is_a?(Hash) && r['componente_3d']
+          condition_met?(r['condicao'])
+        end
       end
 
       # ── 3. Build virtual Joint objects + hardware dict ────────
@@ -339,6 +353,117 @@ module Ornato
         end
       end
 
+      # ── Direct declarative machining rules ───────────────────
+      # Algumas operações não são junção de caixaria tradicional.
+      # Ex.: painel ripado, onde cada ripa gabarita furos no painel base.
+      def direct_ops_for_piece(piece, active_rules, pieces)
+        ops = []
+
+        active_rules.each do |regra|
+          case regra['regra'] || regra['tipo']
+          when 'cavilha_ripa', 'slat_dowel'
+            ops.concat(slat_dowel_ops(piece, regra, pieces))
+          end
+        end
+
+        ops
+      end
+
+      def slat_dowel_ops(piece, regra, pieces)
+        panel_role = normalize_role(regra['painel'] || regra['panel'] || 'panel')
+        slat_role  = normalize_role(regra['ripa']   || regra['slat']  || 'slat')
+
+        panel = find_by_role(pieces, panel_role).first
+        slats = find_by_role(pieces, slat_role)
+        return [] unless panel && slats.any?
+        return [] unless piece.role == panel_role || piece.role == slat_role
+
+        diameter = numeric_rule_value(regra, 'diametro', 8.0)
+        tool = regra['tool_code'] || "broca_#{diameter.to_i}mm"
+        positions_y = vertical_dowel_positions(panel.height, regra)
+
+        if piece.role == panel_role
+          panel_slat_dowel_ops(piece, panel, slats, positions_y, regra, diameter, tool)
+        else
+          slat_piece_dowel_ops(piece, positions_y, regra, diameter, tool)
+        end
+      end
+
+      def panel_slat_dowel_ops(_piece, panel, slats, positions_y, regra, diameter, tool)
+        depth = numeric_rule_value(regra, 'profundidade_painel', 12.0)
+
+        slats.each_with_index.flat_map do |slat, slat_idx|
+          center_x = (slat.origin[0].to_f - panel.origin[0].to_f) + (slat.width / 2.0)
+
+          positions_y.each_with_index.map do |y_pos, pos_idx|
+            {
+              'category'    => 'hole',
+              'position_x'  => center_x.round(2),
+              'position_y'  => y_pos.round(2),
+              'diameter'    => diameter,
+              'depth'       => depth,
+              'side'        => 'a',
+              'tool_code'   => tool,
+              'description' => "Cavilha gabarito painel/ripa #{slat_idx + 1} - furo #{pos_idx + 1}/#{positions_y.size}",
+            }
+          end
+        end
+      end
+
+      def slat_piece_dowel_ops(piece, positions_y, regra, diameter, tool)
+        depth = numeric_rule_value(regra, 'profundidade_ripa', 15.0)
+        center_x = piece.width / 2.0
+
+        positions_y.each_with_index.map do |y_pos, idx|
+          {
+            'category'    => 'hole',
+            'position_x'  => center_x.round(2),
+            'position_y'  => y_pos.round(2),
+            'diameter'    => diameter,
+            'depth'       => depth,
+            'side'        => 'b',
+            'tool_code'   => tool,
+            'description' => "Cavilha ripa/painel - furo #{idx + 1}/#{positions_y.size}",
+          }
+        end
+      end
+
+      def vertical_dowel_positions(height, regra)
+        height = height.to_f
+        margin_top = numeric_rule_value(regra, 'margem_topo', 120.0)
+        margin_base = numeric_rule_value(regra, 'margem_base', 120.0)
+        spacing = numeric_rule_value(regra, 'espacamento_vertical', 450.0)
+
+        usable = height - margin_top - margin_base
+        return [(height / 2.0).round(2)] if usable <= 0 || spacing <= 0
+
+        count = (usable / spacing).ceil + 1
+        count = [count, 2].max
+        actual_spacing = usable / (count - 1).to_f
+
+        (0...count).map { |idx| (margin_base + (idx * actual_spacing)).round(2) }
+      end
+
+      def numeric_rule_value(regra, key, default)
+        raw = regra[key] || regra[key.to_sym]
+        raw = regra[key.tr('_', '-')] if raw.nil? && key.include?('_')
+        return default.to_f if raw.nil?
+        return raw.to_f if raw.is_a?(Numeric)
+
+        expr = raw.to_s.dup
+        @params.each do |param_key, value|
+          numeric = value.is_a?(Numeric) ? value.to_s : value.to_f.to_s
+          expr = expr.gsub("{#{param_key}}", numeric)
+        end
+
+        clean = expr.strip.gsub(/[^0-9\+\-\*\/\(\)\.\s]/, '')
+        return default.to_f if clean.empty?
+
+        eval(clean).to_f
+      rescue
+        raw.to_f > 0 ? raw.to_f : default.to_f
+      end
+
       def add_junction_joints(joints, pieces, regra)
         juncao = regra['juncao']
         return unless juncao
@@ -464,7 +589,7 @@ module Ornato
         result = eval(expr) # safe: only module params, no user input
         result ? true : false
       rescue => e
-        puts "Ornato MachiningInterpreter: condition error '#{condition}' → #{e.message}"
+        Ornato::Logger.warn("MachiningInterpreter: condition error", context: { condition: condition, error: e.message })
         true # include by default on error
       end
 
@@ -473,14 +598,14 @@ module Ornato
       def safe_applies?(rule, piece, joints, hardware)
         rule.applies?(piece, joints, hardware)
       rescue => e
-        puts "Ornato MachiningInterpreter: #{rule.class}#applies? error: #{e.message}"
+        Ornato::Logger.error("MachiningInterpreter#applies? error", context: { rule: rule.class.name, error: e.message })
         false
       end
 
       def safe_generate(rule, piece, joints, hardware)
         rule.generate(piece, joints, hardware)
       rescue => e
-        puts "Ornato MachiningInterpreter: #{rule.class}#generate error: #{e.message}"
+        Ornato::Logger.error("MachiningInterpreter#generate error", context: { rule: rule.class.name, error: e.message })
         []
       end
 
@@ -502,11 +627,11 @@ module Ornato
           'Ornato::Hardware::LEDChannelRule',
           'Ornato::Hardware::PassThroughRule',
           'Ornato::Hardware::MiterRule',
-        ].filter_map do |class_name|
+        ].map do |class_name|
           Object.const_get(class_name)
         rescue NameError
           nil
-        end
+        end.compact
       end
 
       # ── Hash key helpers ──────────────────────────────────────

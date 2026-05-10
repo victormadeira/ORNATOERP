@@ -6,6 +6,8 @@
 # assignments, then applies each rule to generate CNC workers.
 # ═══════════════════════════════════════════════════════════════
 
+require_relative '../core/logger'
+
 module Ornato
   module Hardware
     class RulesEngine
@@ -42,6 +44,13 @@ module Ornato
       # @return [Hash] piece_id => { "workers" => { op_key => worker_hash } }
       def process_module(module_group)
         pieces   = detect_pieces(module_group)
+
+        declarative = process_declarative_module(module_group, pieces)
+        if declarative
+          merge_ferragem_3d_ops!(declarative, module_group)
+          return declarative
+        end
+
         joints   = detect_joints(pieces)
         hardware = detect_hardware(module_group)
 
@@ -66,6 +75,40 @@ module Ornato
           machining[piece.persistent_id] = { "workers" => workers } unless workers.empty?
         end
 
+        merge_ferragem_3d_ops!(machining, module_group)
+
+        machining
+      end
+
+      # Mescla operacoes vindas de ferragens 3D (ComponentInstances com
+      # `Ornato.preserve_drillings == true`) no hash final ja no shape
+      # `{ pid => { "workers" => { op_key => op_hash } } }` consumido
+      # pelo JsonExporter / MachiningJson#serialize.
+      def merge_ferragem_3d_ops!(machining, module_group)
+        return machining unless defined?(Ornato::Machining::FerragemDrillingCollector)
+
+        collector_out = Ornato::Machining::FerragemDrillingCollector
+                          .new(module_group).collect
+
+        collector_out.each do |pid, extra_ops|
+          next if pid == :_drilling_collisions
+          machining[pid] ||= { "workers" => {} }
+          machining[pid]["workers"] ||= {}
+          base_idx = machining[pid]["workers"].size
+          extra_ops.each_with_index do |op, i|
+            machining[pid]["workers"]["ferragem_3d_#{base_idx + i}"] = op
+          end
+        end
+
+        # Anexa relatorio de colisoes em chave especial (consumida
+        # opcionalmente pelo validator/UI; ignorada pelo serializer UPM).
+        if collector_out.key?(:_drilling_collisions)
+          machining[:_drilling_collisions] = collector_out[:_drilling_collisions]
+        end
+
+        machining
+      rescue => e
+        Ornato::Logger.error("RulesEngine: ferragem 3D collector falhou", context: { error: e.message })
         machining
       end
 
@@ -95,6 +138,63 @@ module Ornato
 
       private
 
+      # JSON modules store their own ferragens_auto rules. Prefer that path
+      # so custom module intelligence reaches validation/export, not only UI.
+      def process_declarative_module(module_group, pieces)
+        return nil unless defined?(Ornato::Machining::MachiningInterpreter)
+
+        ferragens_raw = module_group.get_attribute('Ornato', 'ferragens_auto', nil)
+        return nil if ferragens_raw.nil? || ferragens_raw.to_s.strip.empty?
+
+        params_raw = module_group.get_attribute('Ornato', 'ferragens_auto_params', nil) ||
+                     module_group.get_attribute('Ornato', 'params', nil) ||
+                     '{}'
+
+        ferragens_auto = JSON.parse(ferragens_raw)
+        return nil unless declarative_rules?(ferragens_auto)
+
+        params = JSON.parse(params_raw) rescue {}
+        shop_config = if defined?(Ornato::Hardware::ShopConfig)
+          Ornato::Hardware::ShopConfig.for_group(module_group)
+        else
+          @config
+        end
+
+        pieces_data = pieces.map do |piece|
+          {
+            id:     piece.persistent_id,
+            role:   piece.role,
+            origin: piece.origin,
+            dims:   {
+              w: piece.width,
+              h: piece.height,
+              t: piece.thickness,
+            },
+          }
+        end
+
+        workers_by_piece = Ornato::Machining::MachiningInterpreter
+                           .new(shop_config, params)
+                           .interpret(ferragens_auto, pieces_data)
+
+        result = {}
+        workers_by_piece.each do |pid, workers|
+          result[pid] = { 'workers' => workers } unless workers.empty?
+        end
+
+        result
+      rescue => e
+        Ornato::Logger.warn("RulesEngine: ferragens_auto falhou; fallback para regras geometricas", context: { error: e.message })
+        nil
+      end
+
+      def declarative_rules?(ferragens_auto)
+        ferragens_auto.any? do |rule|
+          rule.is_a?(Hash) &&
+            (rule['regra'] || %w[cavilha_ripa slat_dowel].include?(rule['tipo'].to_s))
+        end
+      end
+
       # Generate a unique key for each operation
       def op_key(rule, counter)
         prefix = rule.class.name.split('::').last
@@ -109,10 +209,44 @@ module Ornato
       # Delegates to the core ModelAnalyzer / PieceDetector.
       def detect_pieces(module_group)
         if defined?(Ornato::Core::PieceDetector)
-          Ornato::Core::PieceDetector.new(@config).detect(module_group)
+          entities = module_group.respond_to?(:entities) ? module_group.entities : module_group
+          detected = Ornato::Core::PieceDetector.new(@config).detect(entities)
+          detected.map { |piece_hash| piece_from_detector_hash(piece_hash) }.compact
         else
           extract_pieces_simple(module_group)
         end
+      end
+
+      def piece_from_detector_hash(piece_hash)
+        ent = piece_hash[:group] || piece_hash['group']
+        return nil unless ent
+
+        dims_raw = ent.get_attribute('Ornato', 'dimensions', nil)
+        dims = dims_raw ? (JSON.parse(dims_raw) rescue {}) : {}
+
+        width = (dims['largura'] || dims[:largura] || piece_hash[:comprimento] || piece_hash['comprimento']).to_f
+        height = (dims['altura'] || dims[:altura] || piece_hash[:largura] || piece_hash['largura']).to_f
+        thickness = (dims['espessura'] || dims[:espessura] || piece_hash[:espessura] || piece_hash['espessura']).to_f
+
+        bb = ent.bounds
+        origin = if piece_hash[:world_origin] || piece_hash['world_origin']
+          piece_hash[:world_origin] || piece_hash['world_origin']
+        else
+          [bb.min.x.to_mm, bb.min.y.to_mm, bb.min.z.to_mm]
+        end
+
+        Piece.new(
+          entity:        ent,
+          width:         width,
+          height:        height,
+          thickness:     thickness,
+          role:          read_role(ent),
+          persistent_id: read_persistent_id(ent),
+          origin:        origin
+        )
+      rescue => e
+        Ornato::Logger.error("RulesEngine: erro convertendo PieceDetector hash", context: { error: e.message })
+        nil
       end
 
       # Detect joints (contact relationships) between pieces.
