@@ -6,9 +6,18 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { requireAuth } from '../auth.js';
+import multer from 'multer';
+import { requireAuth, isAdmin } from '../auth.js';
 import db from '../db.js';
+
+// ─── requireAdmin middleware (local) ───────────────────
+function requireAdmin(req, res, next) {
+    if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
+    if (!isAdmin(req.user)) return res.status(403).json({ error: 'Apenas admin' });
+    next();
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,7 +74,10 @@ router.get('/latest', requireAuth, (req, res) => {
 
 // ─── GET /api/plugin/download/:filename ─────────────────
 // Serve o arquivo .rbz para download
-router.get('/download/:filename', requireAuth, (req, res) => {
+// Se a query string tiver `channel`, delega ao handler novo (Sprint A2)
+router.get('/download/:filename', requireAuth, (req, res, next) => {
+    if (req.query.channel) return next(); // → handler channel-based abaixo
+
     const filename = req.params.filename;
     // Segurança: só permite .rbz e sem path traversal
     if (!filename.endsWith('.rbz') || filename.includes('..') || filename.includes('/')) {
@@ -99,12 +111,71 @@ router.post('/register', requireAuth, (req, res) => {
     res.json({ ok: true, message: 'Instalação registrada' });
 });
 
-// ─── GET /api/plugin/check-update ───────────────────────
-// Verifica se há atualização (chamado pelo plugin)
-router.get('/check-update', requireAuth, (req, res) => {
-    const { current_version } = req.query;
-    const info = getVersionInfo();
+// ═══════════════════════════════════════════════════════
+// SISTEMA DE RELEASES (channel-based) — Sprint A2
+// Storage: data/plugin/releases/<channel>/<version>.rbz
+// Tabela:  plugin_releases (migration 003)
+// ═══════════════════════════════════════════════════════
 
+const RELEASES_DIR = process.env.ORNATO_PLUGIN_DIR
+    || path.join(__dirname, '..', '..', 'data', 'plugin', 'releases');
+
+const VALID_CHANNELS = new Set(['dev', 'beta', 'stable']);
+
+function findLatestRelease(channel, currentVersion) {
+    // Busca todos publicados no canal e escolhe o maior > current via compareVersions
+    const rows = db.prepare(
+        `SELECT version, rbz_path, sha256, size_bytes, changelog, force_update, min_compat
+         FROM plugin_releases
+         WHERE channel = ? AND status = 'published'`
+    ).all(channel);
+
+    let best = null;
+    for (const r of rows) {
+        if (compareVersions(r.version, currentVersion || '0.0.0') > 0) {
+            if (!best || compareVersions(r.version, best.version) > 0) best = r;
+        }
+    }
+    return best;
+}
+
+// ─── GET /api/plugin/check-update ───────────────────────
+// Suporta dois formatos:
+//  - Legacy:  ?current_version=X.Y.Z         → version.json (clientes antigos)
+//  - New:     ?current=X.Y.Z&channel=stable  → DB plugin_releases (Sprint A2)
+router.get('/check-update', requireAuth, (req, res) => {
+    const { current_version, current, channel } = req.query;
+
+    // ── NEW path: channel-based (Sprint A2) ─────────────
+    if (channel) {
+        if (!VALID_CHANNELS.has(channel)) {
+            return res.status(400).json({ error: 'channel inválido (use dev|beta|stable)' });
+        }
+        const cur = (current || current_version || '0.0.0').toString();
+        const latest = findLatestRelease(channel, cur);
+
+        const host = req.get('host');
+        const protocol = req.protocol;
+
+        if (!latest) {
+            console.log(`[plugin] check-update channel=${channel} current=${cur} → up_to_date`);
+            return res.json({ latest: cur, up_to_date: true });
+        }
+
+        console.log(`[plugin] check-update channel=${channel} current=${cur} → ${latest.version}`);
+        return res.json({
+            latest:     latest.version,
+            url:        `${protocol}://${host}/api/plugin/download/${encodeURIComponent(latest.version)}.rbz?channel=${channel}`,
+            sha256:     latest.sha256,
+            force:      !!latest.force_update,
+            changelog:  latest.changelog || '',
+            min_compat: latest.min_compat || null,
+            up_to_date: false,
+        });
+    }
+
+    // ── LEGACY path (plugin SketchUp atual) ─────────────
+    const info = getVersionInfo();
     const hasUpdate = current_version && compareVersions(info.version, current_version) > 0;
     const host = req.get('host');
     const protocol = req.protocol;
@@ -118,12 +189,139 @@ router.get('/check-update', requireAuth, (req, res) => {
     });
 });
 
+// ─── GET /api/plugin/download/:version.rbz?channel=stable ──
+// Stream do arquivo binário com header Content-SHA256.
+// Path no disco: <RELEASES_DIR>/<channel>/<version>.rbz
+//
+// Compatível com legacy: rota /download/:filename já existe acima e cobre
+// o caso "filename termina com .rbz mas é só nome de arquivo solto".
+// Esta rota só ativa quando ?channel= for passado, deixando legacy intacto.
+router.get('/download/:filename', requireAuth, (req, res, next) => {
+    const channel = (req.query.channel || '').toString();
+    if (!channel) return next(); // delega ao handler legacy registrado abaixo
+
+    if (!VALID_CHANNELS.has(channel)) {
+        return res.status(400).json({ error: 'channel inválido' });
+    }
+
+    const filename = req.params.filename;
+    if (!filename.endsWith('.rbz') || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return res.status(400).json({ error: 'filename inválido' });
+    }
+    const version = filename.replace(/\.rbz$/, '');
+
+    // Verifica licença ativa do user (= conta ativa). req.user populado por requireAuth.
+    const u = req.user;
+    if (!u || !u.id) return res.status(401).json({ error: 'não autenticado' });
+    const userRow = db.prepare('SELECT ativo FROM users WHERE id = ?').get(u.id);
+    if (!userRow || userRow.ativo !== 1) {
+        return res.status(403).json({ error: 'licença inativa' });
+    }
+
+    // Busca registro na DB
+    const rel = db.prepare(
+        `SELECT version, rbz_path, sha256, size_bytes
+         FROM plugin_releases
+         WHERE version = ? AND channel = ? AND status IN ('published','deprecated')`
+    ).get(version, channel);
+
+    if (!rel) return res.status(404).json({ error: 'release não encontrado' });
+
+    const filePath = path.resolve(RELEASES_DIR, rel.rbz_path);
+    const baseDir = path.resolve(RELEASES_DIR);
+    if (!filePath.startsWith(baseDir + path.sep)) {
+        return res.status(400).json({ error: 'path traversal detectado' });
+    }
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'arquivo .rbz ausente no storage' });
+    }
+
+    console.log(`[plugin] download user=${u.id} channel=${channel} version=${version}`);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${version}.rbz"`);
+    res.setHeader('Content-SHA256', rel.sha256);
+    res.setHeader('Content-Length', rel.size_bytes);
+    fs.createReadStream(filePath).pipe(res);
+});
+
+// ─── POST /api/plugin/telemetry ─────────────────────────
+// Body: {plugin_version, os, sketchup_version, locale, install_id}
+// Rate limit: 1 request por install_id por hora
+router.post('/telemetry', requireAuth, (req, res) => {
+    const { plugin_version, os, sketchup_version, locale, install_id } = req.body || {};
+    if (!install_id || typeof install_id !== 'string' || install_id.length > 128) {
+        return res.status(400).json({ error: 'install_id obrigatório' });
+    }
+
+    // Anti-flood: 1 por install_id por hora
+    const recent = db.prepare(
+        `SELECT id FROM plugin_telemetry
+         WHERE install_id = ? AND created_at > datetime('now', '-1 hour')
+         LIMIT 1`
+    ).get(install_id);
+    if (recent) {
+        console.log(`[plugin] telemetry rate-limited install=${install_id}`);
+        return res.status(429).json({ error: 'rate_limited', retry_after: 3600 });
+    }
+
+    db.prepare(
+        `INSERT INTO plugin_telemetry (install_id, plugin_version, os, sketchup_version, locale)
+         VALUES (?, ?, ?, ?, ?)`
+    ).run(install_id,
+          (plugin_version || '').toString().slice(0, 64),
+          (os || '').toString().slice(0, 64),
+          (sketchup_version || '').toString().slice(0, 64),
+          (locale || '').toString().slice(0, 32));
+
+    console.log(`[plugin] telemetry install=${install_id} v=${plugin_version} os=${os}`);
+    res.json({ ok: true });
+});
+
+// ─── POST /api/plugin/error-report ──────────────────────
+// Body: {error_class, message, stack, context, plugin_version, install_id}
+router.post('/error-report', requireAuth, (req, res) => {
+    const { error_class, message, stack, context, plugin_version, install_id } = req.body || {};
+    if (!message && !error_class) {
+        return res.status(400).json({ error: 'error_class ou message obrigatório' });
+    }
+
+    const ticket_id = crypto.randomUUID();
+    db.prepare(
+        `INSERT INTO plugin_error_reports
+         (ticket_id, install_id, plugin_version, error_class, message, stack, context)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(ticket_id,
+          (install_id || '').toString().slice(0, 128),
+          (plugin_version || '').toString().slice(0, 64),
+          (error_class || '').toString().slice(0, 128),
+          (message || '').toString().slice(0, 4000),
+          (stack || '').toString().slice(0, 16000),
+          typeof context === 'string' ? context.slice(0, 8000) : JSON.stringify(context || {}).slice(0, 8000));
+
+    console.log(`[plugin] error-report ticket=${ticket_id} class=${error_class} install=${install_id}`);
+    res.json({ ok: true, ticket_id });
+});
+
 // ─── Biblioteca de Módulos (pública, sem auth) ──────
 // Base: ornato-plugin/biblioteca/ — servida pelo ERP
 
 const BIBLIOTECA_DIR = path.join(__dirname, '..', '..', 'ornato-plugin', 'biblioteca');
 
-const CATEGORIAS_MOVEIS = ['cozinha', 'dormitorio', 'banheiro', 'escritorio', 'closet', 'area_servico', 'comercial'];
+// Legacy fallback list (older clients / older folder layouts)
+const LEGACY_CATEGORIAS_MOVEIS = ['cozinha', 'dormitorio', 'banheiro', 'escritorio', 'closet', 'area_servico', 'comercial', 'sala'];
+
+// Slug validation for module ids (filename without extension).
+// Keep it tight to avoid traversal and weird unicode issues.
+function isValidSlug(s) {
+    return typeof s === 'string' && /^[a-z0-9_-]{1,80}$/i.test(s);
+}
+
+function safeJoin(baseDir, ...parts) {
+    const full = path.resolve(baseDir, ...parts);
+    const base = path.resolve(baseDir);
+    if (!full.startsWith(base + path.sep) && full !== base) return null;
+    return full;
+}
 
 function readJsonFile(filePath) {
     try {
@@ -154,29 +352,102 @@ function resolveRubyType(id) {
     return 'armario_base'; // fallback genérico
 }
 
+// ─────────────────────────────────────────────────────────────
+// Biblioteca index (cached in memory; rebuilt if underlying dir mtime changes)
+// ─────────────────────────────────────────────────────────────
+let _moveisIndex = null; // { builtAtMs, rootMtimeMs, bySlug: Map, metaList: Array, categories: Array }
+
+function getMoveisRootDir() {
+    return safeJoin(BIBLIOTECA_DIR, 'moveis');
+}
+
+function statMtimeMs(p) {
+    try { return fs.statSync(p).mtimeMs || 0; } catch { return 0; }
+}
+
+function walkJsonFiles(dir, out) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const ent of entries) {
+        if (ent.name.startsWith('.')) continue;
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) walkJsonFiles(full, out);
+        else if (ent.isFile() && ent.name.endsWith('.json')) out.push(full);
+    }
+}
+
+function buildMoveisIndex() {
+    const root = getMoveisRootDir();
+    if (!root || !fs.existsSync(root)) {
+        _moveisIndex = { builtAtMs: Date.now(), rootMtimeMs: 0, bySlug: new Map(), metaList: [], categories: [] };
+        return _moveisIndex;
+    }
+
+    const files = [];
+    walkJsonFiles(root, files);
+
+    const bySlug = new Map();
+    const metaList = [];
+    const categories = new Set();
+
+    for (const filePath of files) {
+        const slug = path.basename(filePath, '.json');
+        if (!isValidSlug(slug)) continue;
+        const data = readJsonFile(filePath);
+        if (!data) continue;
+
+        const categoria = (data.categoria || path.basename(path.dirname(filePath)) || '').toString();
+        if (categoria) categories.add(categoria);
+
+        let id = (data.id || slug).toString();
+        if (!isValidSlug(id)) id = slug;
+        const meta = {
+            id,
+            slug,
+            nome: data.nome,
+            descricao: data.descricao,
+            categoria,
+            tags: data.tags,
+            icone: data.icone,
+            parametros: data.parametros,
+            // Prefer explicit tipo_ruby if provided by JSON; otherwise infer from id/slug.
+            tipo_ruby: (data.tipo_ruby || data.tipoRuby || null) || resolveRubyType(id || slug),
+        };
+
+        bySlug.set(slug, { filePath, data, meta });
+        metaList.push(meta);
+    }
+
+    _moveisIndex = {
+        builtAtMs: Date.now(),
+        rootMtimeMs: statMtimeMs(root),
+        bySlug,
+        metaList,
+        categories: Array.from(categories).sort(),
+    };
+    return _moveisIndex;
+}
+
+function ensureMoveisIndex() {
+    const root = getMoveisRootDir();
+    const mtime = root ? statMtimeMs(root) : 0;
+    // Root dir mtime doesn't necessarily change when nested files change,
+    // so also rebuild periodically as a cheap correctness safeguard.
+    const tooOld = !_moveisIndex || (Date.now() - (_moveisIndex.builtAtMs || 0)) > 60_000;
+    if (!_moveisIndex || _moveisIndex.rootMtimeMs !== mtime || tooOld) buildMoveisIndex();
+    return _moveisIndex;
+}
+
 function listModules(category) {
-    const dir = path.join(BIBLIOTECA_DIR, 'moveis', category);
-    if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir)
-        .filter(f => f.endsWith('.json'))
-        .map(f => readJsonFile(path.join(dir, f)))
-        .filter(Boolean)
-        .map(m => ({
-            id: m.id,
-            nome: m.nome,
-            descricao: m.descricao,
-            categoria: m.categoria,
-            tags: m.tags,
-            icone: m.icone,
-            parametros: m.parametros,
-            tipo_ruby: resolveRubyType(m.id),
-        }));
+    const idx = ensureMoveisIndex();
+    if (!category) return idx.metaList.slice();
+    return idx.metaList.filter(m => (m.categoria || '') === category);
 }
 
 // GET /api/plugin/biblioteca — índice de todas as categorias
 router.get('/biblioteca', requireAuth, (req, res) => {
+    const idx = ensureMoveisIndex();
     const result = {};
-    for (const cat of CATEGORIAS_MOVEIS) {
+    for (const cat of (idx.categories.length ? idx.categories : LEGACY_CATEGORIAS_MOVEIS)) {
         const mods = listModules(cat);
         if (mods.length > 0) result[cat] = { count: mods.length, modulos: mods };
     }
@@ -199,9 +470,10 @@ router.get('/biblioteca', requireAuth, (req, res) => {
 router.get('/biblioteca/moveis', requireAuth, (req, res) => {
     const { categoria, search } = req.query;
     let all = [];
-    const cats = categoria ? [categoria] : CATEGORIAS_MOVEIS;
-    for (const cat of cats) {
-        all = all.concat(listModules(cat));
+    if (categoria) {
+        all = listModules(categoria.toString());
+    } else {
+        all = listModules(null);
     }
     if (search) {
         const q = search.toLowerCase();
@@ -217,15 +489,30 @@ router.get('/biblioteca/moveis', requireAuth, (req, res) => {
 // GET /api/plugin/biblioteca/moveis/:id — detalhes completos de um módulo
 router.get('/biblioteca/moveis/:id', requireAuth, (req, res) => {
     const { id } = req.params;
-    if (id.includes('..') || id.includes('/')) return res.status(400).json({ error: 'ID inválido' });
+    if (!isValidSlug(id)) return res.status(400).json({ error: 'ID inválido' });
 
-    for (const cat of CATEGORIAS_MOVEIS) {
-        const filePath = path.join(BIBLIOTECA_DIR, 'moveis', cat, `${id}.json`);
+    const idx = ensureMoveisIndex();
+    const hit = idx.bySlug.get(id);
+    if (hit?.data) {
+        // Ensure minimal identity fields for consumers
+        const payload = { ...hit.data };
+        payload.id = payload.id || id;
+        payload.slug = payload.slug || id;
+        payload.categoria = payload.categoria || hit.meta.categoria || null;
+        payload.tipo_ruby = payload.tipo_ruby || hit.meta.tipo_ruby || resolveRubyType(payload.id || id);
+        return res.json(payload);
+    }
+
+    // Legacy fallback search (in case index is stale or folder layout differs)
+    for (const cat of LEGACY_CATEGORIAS_MOVEIS) {
+        const filePath = safeJoin(BIBLIOTECA_DIR, 'moveis', cat, `${id}.json`);
+        if (!filePath) continue;
         if (fs.existsSync(filePath)) {
             const data = readJsonFile(filePath);
-            if (data) return res.json(data);
+            if (data) return res.json({ ...data, slug: data.slug || id, tipo_ruby: data.tipo_ruby || resolveRubyType(data.id || id) });
         }
     }
+
     res.status(404).json({ error: 'Módulo não encontrado' });
 });
 
@@ -435,6 +722,240 @@ router.post('/projeto/:id/proposta', requireAuth, (req, res) => {
         ambientes_total: ambientes.length,
         modulos_inseridos: novoAmbiente.modulos.length,
     });
+});
+
+// ═══════════════════════════════════════════════════════
+// ADMIN — gerenciamento de releases (Sprint A4)
+// ═══════════════════════════════════════════════════════
+
+// Multer em memória — escrevemos no disco só após validar checksum/version/etc
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (req, file, cb) => {
+        if (!/\.rbz$/i.test(file.originalname)) return cb(new Error('Arquivo deve ter extensão .rbz'));
+        cb(null, true);
+    },
+});
+
+const VERSION_RE = /^\d+\.\d+\.\d+(-[A-Za-z0-9._-]+)?$/;
+
+function ensureDirSync(dir) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+// ─── POST /api/plugin/releases ─────────────────────────
+// multipart: file (.rbz) + version + channel + changelog? + force_update? + min_compat?
+router.post('/releases', requireAuth, requireAdmin, upload.single('file'), (req, res) => {
+    try {
+        const { version, channel, changelog, force_update, min_compat } = req.body || {};
+        if (!req.file) return res.status(400).json({ error: 'Arquivo .rbz obrigatório' });
+        if (!version || !VERSION_RE.test(version)) {
+            return res.status(400).json({ error: 'version inválida (use semver: 1.2.3 ou 1.2.3-beta1)' });
+        }
+        if (!VALID_CHANNELS.has(channel)) {
+            return res.status(400).json({ error: 'channel inválido (use dev|beta|stable)' });
+        }
+
+        // Path traversal block — version já foi regex-validada, mas seguimos defensivos
+        const safeName = `${version}.rbz`;
+        const targetDir = path.resolve(RELEASES_DIR, channel);
+        const targetPath = path.resolve(targetDir, safeName);
+        if (!targetPath.startsWith(path.resolve(RELEASES_DIR) + path.sep)) {
+            return res.status(400).json({ error: 'path traversal' });
+        }
+
+        // Já existe?
+        const existing = db.prepare(
+            `SELECT id FROM plugin_releases WHERE version = ? AND channel = ?`
+        ).get(version, channel);
+        if (existing) {
+            return res.status(409).json({ error: `release ${version} já existe no canal ${channel}` });
+        }
+
+        const buf = req.file.buffer;
+        const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+        const size_bytes = buf.length;
+
+        ensureDirSync(targetDir);
+        fs.writeFileSync(targetPath, buf);
+
+        // rbz_path relativo ao RELEASES_DIR (consistente com handler de download)
+        const rbz_path = path.join(channel, safeName);
+
+        const stmt = db.prepare(
+            `INSERT INTO plugin_releases (version, channel, status, rbz_path, sha256, size_bytes, changelog, force_update, min_compat)
+             VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?)`
+        );
+        const info = stmt.run(
+            version, channel, rbz_path, sha256, size_bytes,
+            (changelog || '').toString().slice(0, 16000),
+            force_update === '1' || force_update === 'true' || force_update === true ? 1 : 0,
+            (min_compat || '').toString().slice(0, 32) || null,
+        );
+
+        console.log(`[plugin] release uploaded id=${info.lastInsertRowid} v=${version} ch=${channel} size=${size_bytes}`);
+        const row = db.prepare(`SELECT * FROM plugin_releases WHERE id = ?`).get(info.lastInsertRowid);
+        res.json({ ok: true, release: row });
+    } catch (err) {
+        console.error('[plugin] release upload error:', err);
+        res.status(500).json({ error: err.message || 'Erro ao salvar release' });
+    }
+});
+
+// ─── GET /api/plugin/releases?channel=stable ───────────
+router.get('/releases', requireAuth, requireAdmin, (req, res) => {
+    const { channel, status } = req.query;
+    const where = [];
+    const params = [];
+    if (channel) {
+        if (!VALID_CHANNELS.has(channel)) return res.status(400).json({ error: 'channel inválido' });
+        where.push('channel = ?'); params.push(channel);
+    }
+    if (status) {
+        if (!['draft', 'published', 'deprecated'].includes(status)) return res.status(400).json({ error: 'status inválido' });
+        where.push('status = ?'); params.push(status);
+    }
+    const sql = `SELECT id, version, channel, status, sha256, size_bytes, changelog, force_update, min_compat, created_at, published_at
+                 FROM plugin_releases ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+                 ORDER BY datetime(created_at) DESC`;
+    const rows = db.prepare(sql).all(...params);
+    res.json({ releases: rows });
+});
+
+// ─── PATCH /api/plugin/releases/:id ────────────────────
+router.patch('/releases/:id', requireAuth, requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'id inválido' });
+    const row = db.prepare(`SELECT * FROM plugin_releases WHERE id = ?`).get(id);
+    if (!row) return res.status(404).json({ error: 'release não encontrado' });
+
+    const { status, force_update, changelog, channel } = req.body || {};
+
+    const updates = [];
+    const params = [];
+    if (status !== undefined) {
+        if (!['draft', 'published', 'deprecated'].includes(status)) return res.status(400).json({ error: 'status inválido' });
+        updates.push('status = ?'); params.push(status);
+        if (status === 'published' && !row.published_at) {
+            updates.push("published_at = datetime('now')");
+        }
+    }
+    if (force_update !== undefined) {
+        updates.push('force_update = ?'); params.push(force_update ? 1 : 0);
+    }
+    if (changelog !== undefined) {
+        updates.push('changelog = ?'); params.push((changelog || '').toString().slice(0, 16000));
+    }
+    // PROMOTE: mover release pra outro canal (dev→beta→stable)
+    if (channel !== undefined && channel !== row.channel) {
+        if (!VALID_CHANNELS.has(channel)) return res.status(400).json({ error: 'channel inválido' });
+        // Bloqueia colisão (mesmo version já existe no destino)
+        const dup = db.prepare(`SELECT id FROM plugin_releases WHERE version = ? AND channel = ? AND id != ?`).get(row.version, channel, id);
+        if (dup) return res.status(409).json({ error: `version ${row.version} já existe no canal ${channel}` });
+
+        // Copiar arquivo .rbz para o novo canal
+        const srcPath = path.resolve(RELEASES_DIR, row.rbz_path);
+        const newRel = path.join(channel, `${row.version}.rbz`);
+        const dstPath = path.resolve(RELEASES_DIR, newRel);
+        const baseDir = path.resolve(RELEASES_DIR);
+        if (!dstPath.startsWith(baseDir + path.sep)) return res.status(400).json({ error: 'path traversal' });
+        if (fs.existsSync(srcPath)) {
+            ensureDirSync(path.dirname(dstPath));
+            fs.copyFileSync(srcPath, dstPath);
+        }
+        updates.push('channel = ?'); params.push(channel);
+        updates.push('rbz_path = ?'); params.push(newRel);
+    }
+
+    if (!updates.length) return res.status(400).json({ error: 'nada pra atualizar' });
+    params.push(id);
+    db.prepare(`UPDATE plugin_releases SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    const updated = db.prepare(`SELECT * FROM plugin_releases WHERE id = ?`).get(id);
+    console.log(`[plugin] release patch id=${id} updates=${updates.join(',')}`);
+    res.json({ ok: true, release: updated });
+});
+
+// ─── DELETE /api/plugin/releases/:id ───────────────────
+router.delete('/releases/:id', requireAuth, requireAdmin, (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'id inválido' });
+    const row = db.prepare(`SELECT * FROM plugin_releases WHERE id = ?`).get(id);
+    if (!row) return res.status(404).json({ error: 'release não encontrado' });
+
+    // Apaga DB + arquivo (best-effort)
+    db.prepare(`DELETE FROM plugin_releases WHERE id = ?`).run(id);
+    try {
+        const filePath = path.resolve(RELEASES_DIR, row.rbz_path);
+        const baseDir = path.resolve(RELEASES_DIR);
+        if (filePath.startsWith(baseDir + path.sep) && fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (e) {
+        console.warn('[plugin] delete file failed:', e.message);
+    }
+    console.log(`[plugin] release deleted id=${id} v=${row.version} ch=${row.channel}`);
+    res.json({ ok: true });
+});
+
+// ─── GET /api/plugin/telemetry ─────────────────────────
+// Agregação de installs por versão/dia
+router.get('/telemetry', requireAuth, requireAdmin, (req, res) => {
+    const { since, group_by } = req.query;
+    const sinceClause = since ? `WHERE created_at >= ?` : `WHERE created_at >= datetime('now', '-30 days')`;
+    const params = since ? [since] : [];
+
+    if (group_by === 'version') {
+        const rows = db.prepare(
+            `SELECT plugin_version as version, COUNT(DISTINCT install_id) as installs
+             FROM plugin_telemetry ${sinceClause}
+             GROUP BY plugin_version
+             ORDER BY installs DESC`
+        ).all(...params);
+        return res.json({ group_by: 'version', rows });
+    }
+    if (group_by === 'os') {
+        const rows = db.prepare(
+            `SELECT os, COUNT(DISTINCT install_id) as installs
+             FROM plugin_telemetry ${sinceClause}
+             GROUP BY os ORDER BY installs DESC`
+        ).all(...params);
+        return res.json({ group_by: 'os', rows });
+    }
+    // Default: por dia
+    const rows = db.prepare(
+        `SELECT date(created_at) as day, COUNT(DISTINCT install_id) as installs
+         FROM plugin_telemetry ${sinceClause}
+         GROUP BY date(created_at)
+         ORDER BY day ASC`
+    ).all(...params);
+    res.json({ group_by: 'day', rows });
+});
+
+// ─── GET /api/plugin/error-reports ─────────────────────
+router.get('/error-reports', requireAuth, requireAdmin, (req, res) => {
+    const { install_id, version, q, limit } = req.query;
+    const where = [];
+    const params = [];
+    if (install_id) { where.push('install_id = ?'); params.push(install_id); }
+    if (version) { where.push('plugin_version = ?'); params.push(version); }
+    if (q) {
+        where.push('(message LIKE ? OR error_class LIKE ?)');
+        params.push(`%${q}%`, `%${q}%`);
+    }
+    const lim = Math.min(parseInt(limit) || 200, 1000);
+    const sql = `SELECT id, ticket_id, install_id, plugin_version, error_class, message, created_at
+                 FROM plugin_error_reports ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+                 ORDER BY datetime(created_at) DESC LIMIT ${lim}`;
+    const rows = db.prepare(sql).all(...params);
+    res.json({ reports: rows });
+});
+
+// ─── GET /api/plugin/error-reports/:ticket_id ──────────
+router.get('/error-reports/:ticket_id', requireAuth, requireAdmin, (req, res) => {
+    const row = db.prepare(`SELECT * FROM plugin_error_reports WHERE ticket_id = ?`).get(req.params.ticket_id);
+    if (!row) return res.status(404).json({ error: 'ticket não encontrado' });
+    res.json(row);
 });
 
 // ─── GET /api/plugin/health ─────────────────────────────
