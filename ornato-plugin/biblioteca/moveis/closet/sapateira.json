@@ -3,150 +3,380 @@
   "nome": "Sapateira",
   "descricao": "Sapateira com prateleiras inclinadas a 15 graus. 5-6 niveis.",
   "categoria": "closet",
-  "tags": ["sapateira", "sapatos", "inclinada", "closet"],
+  "tags": [
+    "sapateira",
+    "sapatos",
+    "inclinada",
+    "closet"
+  ],
   "icone": "sapateira",
-
   "parametros": {
-    "largura":       { "default": 700,  "min": 600, "max": 800,  "step": 50, "unidade": "mm" },
-    "altura":        { "default": 1200, "min": 1200, "max": 1200, "step": 50, "unidade": "mm" },
-    "profundidade":  { "default": 350,  "min": 350, "max": 350,  "step": 10, "unidade": "mm" },
-    "espessura":     { "default": 18,   "min": 15,  "max": 25,   "step": 0.5, "unidade": "mm" },
-    "n_niveis":      { "default": 5,    "min": 5,   "max": 6,    "step": 1 },
-    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
-    "com_fundo":     { "default": true },
-    "com_rodape":    { "default": true, "altura_rodape": 80 }
+    "largura": {
+      "default": 700,
+      "min": 600,
+      "max": 800,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura": {
+      "default": 1200,
+      "min": 1200,
+      "max": 1200,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "profundidade": {
+      "default": 350,
+      "min": 350,
+      "max": 350,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Profundidade",
+      "type": "number",
+      "unit": "mm"
+    },
+    "espessura": {
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 0.5,
+      "unidade": "mm",
+      "label": "Espessura MDF",
+      "type": "number",
+      "unit": "mm"
+    },
+    "n_niveis": {
+      "default": 5,
+      "min": 5,
+      "max": 6,
+      "step": 1,
+      "label": "N Niveis",
+      "type": "number"
+    },
+    "tipo_juncao": {
+      "default": "minifix",
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ],
+      "label": "Juncao",
+      "type": "select"
+    },
+    "com_fundo": {
+      "default": true,
+      "label": "Com fundo",
+      "type": "boolean"
+    },
+    "com_rodape": {
+      "default": true,
+      "altura_rodape": 80,
+      "label": "Com rodape",
+      "type": "boolean"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esquerda",
       "role": "lateral_esq",
-      "largura": "{altura} - {altura_rodape}",
+      "largura": "{altura} - {shop.altura_rodape}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Direita",
       "role": "lateral_dir",
-      "largura": "{altura} - {altura_rodape}",
+      "largura": "{altura} - {shop.altura_rodape}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Base",
       "role": "base",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Topo",
       "role": "topo",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} - {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Traseira",
       "role": "traseira",
-      "largura": "{largura} - 2 * {espessura}",
-      "altura": "{altura} - {altura_rodape} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - {shop.altura_rodape} - 2 * {shop.espessura}",
       "espessura": 3,
       "condicao": "{com_fundo}",
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - 13",
+        "z": "{shop.altura_rodape} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Prateleira Inclinada 1",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 40",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + ({altura} - {altura_rodape}) / ({n_niveis} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 20,
+        "z": "{shop.altura_rodape} + ({altura} - {shop.altura_rodape}) / ({n_niveis} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Prateleira inclinada a 15 graus para apoio dos sapatos"
     },
     {
       "nome": "Prateleira Inclinada 2",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 40",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + 2 * ({altura} - {altura_rodape}) / ({n_niveis} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 20,
+        "z": "{shop.altura_rodape} + 2 * ({altura} - {shop.altura_rodape}) / ({n_niveis} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Inclinada 15 graus"
     },
     {
       "nome": "Prateleira Inclinada 3",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 40",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + 3 * ({altura} - {altura_rodape}) / ({n_niveis} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 20,
+        "z": "{shop.altura_rodape} + 3 * ({altura} - {shop.altura_rodape}) / ({n_niveis} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Inclinada 15 graus"
     },
     {
       "nome": "Prateleira Inclinada 4",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 40",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + 4 * ({altura} - {altura_rodape}) / ({n_niveis} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 20,
+        "z": "{shop.altura_rodape} + 4 * ({altura} - {shop.altura_rodape}) / ({n_niveis} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Inclinada 15 graus"
     },
     {
       "nome": "Prateleira Inclinada 5",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 40",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + 5 * ({altura} - {altura_rodape}) / ({n_niveis} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 20,
+        "z": "{shop.altura_rodape} + 5 * ({altura} - {shop.altura_rodape}) / ({n_niveis} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Inclinada 15 graus"
     },
     {
       "nome": "Prateleira Inclinada 6",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 40",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{n_niveis} >= 6",
-      "posicao": { "x": "{espessura}", "y": 20, "z": "{altura_rodape} + 6 * ({altura} - {altura_rodape}) / ({n_niveis} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 20,
+        "z": "{shop.altura_rodape} + 6 * ({altura} - {shop.altura_rodape}) / ({n_niveis} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Inclinada 15 graus"
     },
     {
       "nome": "Rodape",
       "role": "rodape",
-      "largura": "{largura} - 2 * {espessura}",
-      "altura": "{altura_rodape}",
-      "espessura": "{espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{shop.altura_rodape}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_rodape}",
-      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 50,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     }
   ],
-
   "ferragens_auto": [
-    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base", "topo"], "condicao": "{com_fundo}" },
-    { "regra": "prateleira_fixa", "pecas": ["lateral_esq", "lateral_dir"], "condicao": "true" }
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × topo",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × topo",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "rebaixo_fundo",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir",
+        "base",
+        "topo"
+      ],
+      "condicao": "{com_fundo}"
+    },
+    {
+      "regra": "prateleira_fixa",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir"
+      ],
+      "condicao": "true"
+    }
   ],
-
-  "notas": "Prateleiras inclinadas a 15 graus. Furos nas laterais posicionados para angulo. Sem portas (aberta)."
+  "notas": "Prateleiras inclinadas a 15 graus. Furos nas laterais posicionados para angulo. Sem portas (aberta).",
+  "_migration_notes": [
+    {
+      "date": "2026-05-10T00:14:08-03:00",
+      "tool": "migrate_bordas_keys.rb",
+      "mapping": {
+        "frontal": "frente",
+        "traseira": "tras",
+        "esq": "base",
+        "dir": "topo"
+      },
+      "pecas_migradas": 12
+    }
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 8
+    }
+  ]
 }

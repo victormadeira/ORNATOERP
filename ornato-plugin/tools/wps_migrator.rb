@@ -13,8 +13,8 @@ require 'json'
 require 'open3'
 require 'time'
 
-SOURCE_DIR  = File.expand_path("~/Downloads/Biblioteca WPS/models")
-OUTPUT_DIR  = File.expand_path("~/SISTEMA NOVO/ornato-plugin/biblioteca/modelos")
+SOURCE_DIR  = File.expand_path("../../wps_source/models", __FILE__)
+OUTPUT_DIR  = File.expand_path("../../biblioteca/modelos", __FILE__)
 CATALOG_PATH = File.join(OUTPUT_DIR, "catalog.json")
 
 # ── Accent / diacritics table (Portuguese) ──────────────────────────

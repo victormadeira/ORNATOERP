@@ -3,128 +3,343 @@
   "nome": "Gabinete Banheiro",
   "descricao": "Gabinete para pia de banheiro. Portas e/ou gavetas. Recorte no fundo para sifao.",
   "categoria": "banheiro",
-  "tags": ["gabinete", "pia", "banheiro", "portas"],
+  "tags": [
+    "gabinete",
+    "pia",
+    "banheiro",
+    "portas"
+  ],
   "icone": "armario_base",
-
   "parametros": {
-    "largura":       { "default": 800,  "min": 600, "max": 1200, "step": 50, "unidade": "mm" },
-    "altura":        { "default": 550,  "min": 550, "max": 550,  "step": 50, "unidade": "mm" },
-    "profundidade":  { "default": 450,  "min": 450, "max": 450,  "step": 10, "unidade": "mm" },
-    "espessura":     { "default": 18,   "min": 15,  "max": 25,   "step": 0.5, "unidade": "mm" },
-    "tipo_porta":    { "default": "2_abrir", "opcoes": ["1_abrir_e", "1_abrir_d", "2_abrir"] },
-    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
-    "com_fundo":     { "default": true },
-    "com_rodape":    { "default": true, "altura_rodape": 80 },
-    "puxador":       { "default": "modelo_128mm" }
+    "largura": {
+      "default": 800,
+      "min": 600,
+      "max": 1200,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura": {
+      "default": 550,
+      "min": 550,
+      "max": 550,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "profundidade": {
+      "default": 450,
+      "min": 450,
+      "max": 450,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Profundidade",
+      "type": "number",
+      "unit": "mm"
+    },
+    "espessura": {
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 0.5,
+      "unidade": "mm",
+      "label": "Espessura MDF",
+      "type": "number",
+      "unit": "mm"
+    },
+    "tipo_porta": {
+      "default": "2_abrir",
+      "opcoes": [
+        "1_abrir_e",
+        "1_abrir_d",
+        "2_abrir"
+      ],
+      "label": "Tipo de porta",
+      "type": "select"
+    },
+    "tipo_juncao": {
+      "default": "minifix",
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ],
+      "label": "Juncao",
+      "type": "select"
+    },
+    "com_fundo": {
+      "default": true,
+      "label": "Com fundo",
+      "type": "boolean"
+    },
+    "com_rodape": {
+      "default": true,
+      "altura_rodape": 80,
+      "label": "Com rodape",
+      "type": "boolean"
+    },
+    "puxador": {
+      "default": "modelo_128mm",
+      "label": "Puxador",
+      "type": "string"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esquerda",
       "role": "lateral_esq",
-      "largura": "{altura} - {altura_rodape}",
+      "largura": "{altura} - {shop.altura_rodape}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Direita",
       "role": "lateral_dir",
-      "largura": "{altura} - {altura_rodape}",
+      "largura": "{altura} - {shop.altura_rodape}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Base",
       "role": "base",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Travessa Superior Frontal",
       "role": "travessa",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": 60,
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - 60" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} - 60"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Travessa Superior Traseira",
       "role": "travessa",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": 60,
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - {espessura}", "z": "{altura} - 60" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - {shop.espessura}",
+        "z": "{altura} - 60"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Traseira",
       "role": "traseira",
-      "largura": "{largura} - 2 * {espessura}",
-      "altura": "{altura} - {altura_rodape} - {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - {shop.altura_rodape} - {shop.espessura}",
       "espessura": 3,
       "condicao": "{com_fundo}",
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false },
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - 13",
+        "z": "{shop.altura_rodape} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Fundo com recorte central para passagem do sifao"
     },
     {
       "nome": "Porta Esquerda",
       "role": "porta",
-      "largura": "{altura} - {altura_rodape} - 2",
-      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
-      "espessura": "{espessura}",
+      "largura": "{altura} - {shop.altura_rodape} - 2",
+      "altura": "({largura} - 2 * {shop.espessura}) / 2 - 2",
+      "espessura": "{shop.espessura}",
       "condicao": "{tipo_porta} == '2_abrir'",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      }
     },
     {
       "nome": "Porta Direita",
       "role": "porta",
-      "largura": "{altura} - {altura_rodape} - 2",
-      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
-      "espessura": "{espessura}",
+      "largura": "{altura} - {shop.altura_rodape} - 2",
+      "altura": "({largura} - 2 * {shop.espessura}) / 2 - 2",
+      "espessura": "{shop.espessura}",
       "condicao": "{tipo_porta} == '2_abrir'",
-      "posicao": { "x": "{largura} / 2 + 1", "y": 0, "z": "{altura_rodape} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+      "posicao": {
+        "x": "{largura} / 2 + 1",
+        "y": 0,
+        "z": "{shop.altura_rodape} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      }
     },
     {
       "nome": "Porta Unica",
       "role": "porta",
-      "largura": "{altura} - {altura_rodape} - 2",
-      "altura": "{largura} - 2 * {espessura} - 4",
-      "espessura": "{espessura}",
+      "largura": "{altura} - {shop.altura_rodape} - 2",
+      "altura": "{largura} - 2 * {shop.espessura} - 4",
+      "espessura": "{shop.espessura}",
       "condicao": "{tipo_porta} == '1_abrir_e' || {tipo_porta} == '1_abrir_d'",
-      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{altura_rodape} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+      "posicao": {
+        "x": "{shop.espessura} + 2",
+        "y": 0,
+        "z": "{shop.altura_rodape} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      }
     },
     {
       "nome": "Rodape",
       "role": "rodape",
-      "largura": "{largura} - 2 * {espessura}",
-      "altura": "{altura_rodape}",
-      "espessura": "{espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{shop.altura_rodape}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_rodape}",
-      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 50,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     }
   ],
-
   "ferragens_auto": [
-    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "true" },
-    { "regra": "dobradica", "peca": "lateral_dir", "condicao": "{tipo_porta} == '2_abrir'" },
-    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base"], "condicao": "{com_fundo}" },
-    { "regra": "puxador", "peca": "porta", "condicao": "true" }
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral_esq",
+      "condicao": "true"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral_dir",
+      "condicao": "{tipo_porta} == '2_abrir'"
+    },
+    {
+      "regra": "rebaixo_fundo",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir",
+        "base"
+      ],
+      "condicao": "{com_fundo}"
+    },
+    {
+      "regra": "puxador",
+      "peca": "porta",
+      "condicao": "true"
+    }
+  ],
+  "_migration_notes": [
+    {
+      "date": "2026-05-10T00:14:08-03:00",
+      "tool": "migrate_bordas_keys.rb",
+      "mapping": {
+        "frontal": "frente",
+        "traseira": "tras",
+        "esq": "base",
+        "dir": "topo"
+      },
+      "pecas_migradas": 10
+    }
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 9
+    }
   ]
 }

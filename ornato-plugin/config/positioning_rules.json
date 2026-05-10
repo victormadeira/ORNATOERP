@@ -1,0 +1,375 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "generated": "2026-05-10",
+    "purpose": "Regras normalizadas de posicionamento automático de ferragens 3D (.skp) para o JsonModuleBuilder Ornato.",
+    "source_primary": "ornato-plugin/wps_source/constructor/*.wctr (kit-level anchor/alignment/offset)",
+    "source_secondary": "ornato-plugin/constructor/templates/constructors.json (convertido)",
+    "notes": [
+      "Os .wctr da WPS expõem apenas alinhamento de ANCORA (Vertical/Horizontal/DepthAlignment) e offsets externos do kit.",
+      "A lógica de SUB-POSICIONAMENTO (quantas dobradiças, espaçamento entre corrediças) está embutida nos .skp/.lib paramétricos da WPS e não é extraível por XML.",
+      "Os valores de offset_top_first / offset_bottom_last / spacing_max marcados com `source: convention` seguem padrões de fabricante (Blum/FGV/Hettich) compatíveis com a biblioteca WPS.",
+      "Unidades: milímetros. Eixo Z = vertical, Y = profundidade, X = horizontal.",
+      "depth_offset_from_face: distância em mm da face frontal do componente-âncora até o ponto de fixação da ferragem (positivo = recuado para dentro)."
+    ],
+    "schema": {
+      "anchor_piece_role": "Peça da estrutura à qual a ferragem se prende (lateral, base, tampo, fundo, porta, gaveta, prateleira).",
+      "secondary_piece_role": "Peça que a ferragem conecta à âncora (door, drawer, shelf, structure).",
+      "vertical_alignment": "top | bottom | middle | all (espelha VerticalAlignment do .wctr).",
+      "horizontal_alignment": "left | right | middle | all (espelha HorizontalAlignment).",
+      "depth_alignment": "front | middle | back | all (espelha DepthAlignment).",
+      "offset_top_first": "Distância (mm) do topo do anchor até a primeira ferragem.",
+      "offset_bottom_last": "Distância (mm) da base do anchor até a última ferragem.",
+      "spacing_max": "Espaçamento máximo (mm) entre ferragens consecutivas; usado para calcular quantidade.",
+      "count_rule": "Função/heurística para definir quantidade dada altura/largura útil.",
+      "depth_offset_from_face": "Recuo (mm) do ponto de fixação em relação à face frontal da peça âncora.",
+      "wctr_source": "Lista de arquivos .wctr (em wps_source/constructor/) que originaram a regra."
+    }
+  },
+
+  "rules": {
+
+    "dobradica": {
+      "description": "Dobradiça de copo (caneca) padrão 35mm — Blum/Hettich. Usada em Kit Porta Dobradica, Kit Porta Alta Dobradica, Kit 2 Portas (Altas) Dobradica.",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "door",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "offset_top_first": 100,
+      "offset_bottom_last": 100,
+      "spacing_max": 600,
+      "count_rule": "porta_h <= 900 ? 2 : porta_h <= 1500 ? 3 : porta_h <= 2000 ? 4 : porta_h <= 2400 ? 5 : 6",
+      "depth_offset_from_face": 4,
+      "lateral_offset_from_edge": 100,
+      "side_handing_field": "door_side",
+      "side_handing_options": ["esquerdo", "direito"],
+      "wctr_source": [
+        "Kit Porta Dobradica_CTR.wctr",
+        "Kit Porta Alta Dobradica_CTR.wctr",
+        "Kit 2 Portas Dobradica_CTR.wctr",
+        "Kit 2 Portas Altas Dobradica_CTR.wctr"
+      ],
+      "fields_from_wctr": ["recobrimentoesquerdo", "recobrimentodireito", "recobrimentosuperior", "recobrimentoinferior", "ladoporta", "posicaopuxador"],
+      "source": "wctr (anchor/fields) + convention (spacing/count, padrão Blum)"
+    },
+
+    "corredica_telescopica": {
+      "description": "Corrediça telescópica de esfera lateral (FGV/Hettich) — usada em Kit Sapateira (telescópica) e Kit Gaveta convencional.",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "drawer",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "side_pair",
+      "depth_offset_from_face": 0,
+      "depth_offset_from_back": 13,
+      "vertical_position_in_drawer_box": "center_height",
+      "drawer_box_clearance_per_side": 12.7,
+      "default_extension": "full",
+      "count_rule": "1 par por gaveta (drawer_count campo)",
+      "wctr_source": [
+        "Sapateira Corred. Telescopica_CTR.wctr",
+        "Kit Gaveta_CTR.wctr",
+        "Kit Gaveta Cava_CTR.wctr",
+        "Kit Sapateira_CTR.wctr",
+        "Kit Porta Latas_CTR.wctr",
+        "Kit Porta Latas Gavetas_CTR.wctr"
+      ],
+      "fields_from_wctr": ["wpsuserdrawerquantity"],
+      "source": "wctr (anchor/qty) + convention (geometria FGV padrão 12.7mm folga lateral)"
+    },
+
+    "corredica_oculta": {
+      "description": "Corrediça oculta (Tandem/Movento Blum) — montada sob o fundo da caixa de gaveta. Usada em Sapateira Corredica Oculta.",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "drawer",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "under_bottom",
+      "depth_offset_from_face": 0,
+      "depth_offset_from_back": 0,
+      "vertical_position_in_drawer_box": "bottom_underside",
+      "drawer_box_clearance_per_side": 6.5,
+      "default_extension": "full",
+      "count_rule": "1 par por gaveta (drawer_count)",
+      "wctr_source": ["Sapateira Corredica Oculta_CTR.wctr"],
+      "fields_from_wctr": ["wpsuserdrawerquantity"],
+      "source": "wctr (anchor/qty) + convention (geometria Tandem Blum)"
+    },
+
+    "puxador": {
+      "description": "Puxador (perfil ou cabo) montado em portas/gavetas. A WPS usa o campo `posicaopuxador` (top/bottom/center) do kit para escolher altura.",
+      "anchor_piece_role": "door_or_drawer",
+      "secondary_piece_role": "none",
+      "vertical_alignment_field": "posicaopuxador",
+      "vertical_alignment_options": {
+        "superior": { "anchor_edge": "top", "offset_from_edge": 50 },
+        "inferior": { "anchor_edge": "bottom", "offset_from_edge": 50 },
+        "centralizado": { "anchor_edge": "middle", "offset_from_edge": 0 }
+      },
+      "horizontal_alignment": "middle",
+      "depth_offset_from_face": 0,
+      "depth_alignment": "front",
+      "wctr_source": [
+        "Kit Porta Dobradica_CTR.wctr",
+        "Kit Porta Alta Dobradica_CTR.wctr",
+        "Kit 2 Portas Dobradica_CTR.wctr",
+        "Kit 2 Portas Altas Dobradica_CTR.wctr"
+      ],
+      "fields_from_wctr": ["posicaopuxador"],
+      "defaults_per_kit": {
+        "kit_porta_dobradica": "superior",
+        "kit_porta_alta_dobradica": "centralizado",
+        "kit_2_portas_dobradica": "inferior",
+        "kit_2_portas_altas_dobradica": "centralizado"
+      },
+      "source": "wctr (campo posicaopuxador + defaults por kit) + convention (offset 50mm da borda)"
+    },
+
+    "pe_nivelador": {
+      "description": "Pé nivelador plástico fixado sob a base do módulo. wctr declara VerticalAlignment='bottom' fixo.",
+      "anchor_piece_role": "base",
+      "secondary_piece_role": "structure",
+      "vertical_alignment": "bottom",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "under_base",
+      "default_height_mm": 150,
+      "height_field": "wpsuseralturapenivelador",
+      "count_rule": "Mín. 4 (cantos). Se largura > 900mm adicionar 1 ao centro frontal e 1 ao centro traseiro (6 total). Se largura > 1500mm dobrar (8 total).",
+      "edge_inset_x": 50,
+      "edge_inset_y": 50,
+      "wctr_source": ["Pe Nivelador Plastico CJ_CTR.wctr"],
+      "fields_from_wctr": ["wpsuseralturapenivelador", "wpsusername"],
+      "source": "wctr (anchor + altura) + convention (distribuição 4/6/8 por largura)"
+    },
+
+    "cabideiro": {
+      "description": "Cabideiro (oblongo ou redondo) horizontal entre laterais do roupeiro. wctr declara VerticalAlignment='top' (preso próximo ao topo) e DepthAlignment com 3 opções (front/middle/back).",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "structure",
+      "vertical_alignment": "top",
+      "vertical_offset_from_top": 60,
+      "horizontal_alignment": "all",
+      "depth_alignment": "middle",
+      "depth_alignment_options": ["front", "middle", "back"],
+      "mounting": "between_laterals",
+      "support_type_field": "tipo (oblongo|redondo)",
+      "lateral_inset_each_side": 0,
+      "wctr_source": [
+        "Conjunto cabideiro oblongo_CTR.wctr",
+        "Conjunto cabideiro redondo_CTR.wctr"
+      ],
+      "fields_from_wctr": [],
+      "source": "wctr (VerticalAlignment=top único, DepthAlignment 3 opções) + convention (60mm do topo)"
+    },
+
+    "suporte_prateleira_pino": {
+      "description": "Pino metálico (5mm) furado na lateral. Usado quando prateleira é móvel/regulável (Prateleira CJ, Prateleira Vidro CJ).",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "shelf",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "pin_5mm",
+      "count_per_shelf": 4,
+      "depth_offset_from_face": 37,
+      "depth_offset_from_back": 37,
+      "vertical_offset_from_shelf_bottom": 9,
+      "front_offset_default_mm": 20,
+      "wctr_source": [
+        "Prateleira CJ_CTR.wctr",
+        "Prateleira Vidro CJ_CTR.wctr"
+      ],
+      "fields_from_wctr": [],
+      "wctr_offsets": { "front": 20.0 },
+      "source": "wctr (offsetFront=20mm em Prateleira CJ) + convention (pino 5mm, 4 por prateleira)"
+    },
+
+    "suporte_prateleira_cantoneira": {
+      "description": "Cantoneira/suporte fixo metálico para prateleira fixa parafusada. Usado em Prateleira Fixa.",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "shelf",
+      "vertical_alignment": "bottom",
+      "vertical_alignment_options": ["top", "bottom", "middle"],
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "fixed_bracket",
+      "count_per_shelf": 2,
+      "default_offset_bottom_mm": 800,
+      "front_offset_default_mm": 50,
+      "depth_offset_from_face": 50,
+      "depth_offset_from_back": 50,
+      "wctr_source": ["Prateleira Fixa_CTR.wctr"],
+      "wctr_offsets": { "bottom": 800.0, "front": 50.0 },
+      "fields_from_wctr": ["wpsusername"],
+      "source": "wctr (offsetBottom=800, offsetFront=50, alinhamento bottom default) + convention (cantoneira parafusada)"
+    },
+
+    "aventos_basculante": {
+      "description": "Sistema Blum Aventos para portas basculantes a pistão a gás. Variantes HF (dobradiça paralela), HK (lift up), HL (sobe-e-recolhe), HS (sobe-e-bascula). Pistão fixado nas laterais, dobradiças tipo caneca 35mm na porta basculante.",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "door",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "side_pair_with_pistons",
+      "pistao_qtd": 2,
+      "pistao_anchor_role": "lateral",
+      "pistao_offset_top": 70,
+      "pistao_offset_back": 100,
+      "dobradica_qtd": 2,
+      "dobradica_offset_top_first": 100,
+      "dobradica_offset_bottom_last": 100,
+      "depth_offset_from_face": 4,
+      "lateral_offset_from_edge": 100,
+      "variant_field": "wctr_filename_suffix",
+      "variant_options": {
+        "HF": { "movement": "parallel_lift", "altura_porta_min": 350, "altura_porta_max": 600 },
+        "HK": { "movement": "lift_up", "altura_porta_min": 240, "altura_porta_max": 600 },
+        "HL": { "movement": "two_panel_lift", "altura_porta_min": 350, "altura_porta_max": 1000 },
+        "HS": { "movement": "swing_up", "altura_porta_min": 350, "altura_porta_max": 800 }
+      },
+      "fields_from_wctr": ["recobrimentoesquerdo", "recobrimentodireito", "recobrimentosuperior", "recobrimentoinferior"],
+      "wctr_source": [
+        "KIT AVENTOS HF_CTR.wctr",
+        "KIT AVENTOS HK_CTR.wctr",
+        "KIT AVENTOS HL_CTR.wctr",
+        "KIT AVENTOS HS_CTR.wctr"
+      ],
+      "confidence": "low",
+      "source": "wctr_xml (apenas anchor=all + recobrimentos) + convention (Blum Aventos: 2 pistões fixados no terço superior das laterais, 2 dobradiças caneca na porta)"
+    },
+
+    "basculante_pistao": {
+      "description": "Pistão a gás simples para portinha basculante (sem sistema Aventos). Variantes Superior (porta abre para cima) e Inferior (porta abre para baixo, recobrimento parcial). Dobradiças tipo caneca na borda fixa.",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "door",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "side_pair_with_pistons",
+      "pistao_qtd": 2,
+      "pistao_anchor_role": "lateral",
+      "dobradica_qtd": 2,
+      "depth_offset_from_face": 4,
+      "lateral_offset_from_edge": 80,
+      "posicao_field": "wctr_filename_suffix",
+      "posicao_options": {
+        "superior": {
+          "hinge_edge": "top",
+          "pistao_offset_top": 50,
+          "pistao_offset_bottom": null,
+          "pistao_offset_back": 80,
+          "default_recobrimento_inferior": "total"
+        },
+        "inferior": {
+          "hinge_edge": "bottom",
+          "pistao_offset_top": null,
+          "pistao_offset_bottom": 50,
+          "pistao_offset_back": 80,
+          "default_recobrimento_inferior": "parcial"
+        }
+      },
+      "fields_from_wctr": ["recobrimentoesquerdo", "recobrimentodireito", "recobrimentosuperior", "recobrimentoinferior"],
+      "wctr_source": [
+        "Kit Basculante Pistao Superior_CTR.wctr",
+        "Kit Basculante Pistao Inferior_CTR.wctr"
+      ],
+      "confidence": "low",
+      "source": "wctr_xml (anchor=all + diferença de default `recobrimentoinferior`: total p/ Superior, parcial p/ Inferior — confirma orientação) + convention (geometria padrão pistão a gás 100N)"
+    },
+
+    "corredica_deslizante": {
+      "description": "Corrediça deslizante para sapateira/gaveteiro tipo RO (FGV/Hardt). RO47 = trilho leve até 25kg; RO65 = trilho reforçado até 45kg. Trilho duplo (par lateral) montado nas laterais da caixa, gaveta corre sobre rolete.",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "drawer",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "side_pair_roller",
+      "depth_offset_from_face": 0,
+      "depth_offset_from_back": 13,
+      "vertical_position_in_drawer_box": "bottom_third",
+      "drawer_box_clearance_per_side": 12.5,
+      "default_extension": "partial",
+      "count_rule": "1 par por gaveta (qtd_portas no nome = qtd de pares quando representa gavetas)",
+      "variant_field": "wctr_filename_prefix",
+      "variant_options": {
+        "RO47": { "load_kg": 25, "extension": "partial_3_4", "trilho_thickness": 12 },
+        "RO65": { "load_kg": 45, "extension": "full", "trilho_thickness": 16 }
+      },
+      "n_drawers_regex": "Kit Desl RO\\d+ (\\d+) Portas",
+      "wctr_source": [
+        "Kit Desl RO47 2 Portas_CTR.wctr",
+        "Kit Desl RO47 3 Portas_CTR.wctr",
+        "Kit Desl RO47 4 Portas_CTR.wctr",
+        "Kit Desl RO47 5 Portas_CTR.wctr",
+        "Kit Desl RO65 2 Portas_CTR.wctr",
+        "Kit Desl RO65 3 Portas_CTR.wctr"
+      ],
+      "fields_from_wctr": [],
+      "confidence": "low",
+      "source": "wctr_xml (anchor=all, sem FieldSets — só o nome do arquivo carrega RO47/RO65 e nº gavetas) + convention (geometria FGV série RO)"
+    },
+
+    "porta_correr": {
+      "description": "Porta de correr (deslizante) com trilho superior + inferior. Variantes 1/2/3/4 portas, trilho sobreposto ou embutido. Aplicável a roupeiros e armários com sistema Hettich/Hafele/FGV TopLine ou similar.",
+      "anchor_piece_role": "tampo_e_base",
+      "secondary_piece_role": "door",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "front",
+      "mounting": "track_top_and_bottom",
+      "track_top": true,
+      "track_bottom": true,
+      "n_tracks_regex": "Kit Deslizante (\\d+) Portas?",
+      "n_tracks_default": 2,
+      "depth_offset_from_face": 0,
+      "track_top_offset_from_face": 30,
+      "track_bottom_offset_from_face": 30,
+      "door_overlap_min": 25,
+      "trilho_type_field": "wpsusermodelotrilhoportaspequena",
+      "trilho_type_options": ["sobreposto", "embutido"],
+      "trilho_type_default": "embutido",
+      "porta_frontal_field": "PortaFrontal",
+      "porta_frontal_options": ["direita", "esquerda"],
+      "porta_frontal_default": "esquerda",
+      "wctr_source": [
+        "Kit Deslizante 1 Porta_CTR.wctr",
+        "Kit Deslizante 2 Portas_CTR.wctr"
+      ],
+      "fields_from_wctr": ["PortaFrontal", "wpsusermodelotrilhoportaspequena"],
+      "confidence": "medium",
+      "source": "wctr_xml (campos PortaFrontal direita/esquerda + wpsusermodelotrilhoportaspequena sobreposto/embutido confirmados em Kit Deslizante 2 Portas) + convention (trilho duplo top+bottom, sobreposição mínima entre portas 25mm)"
+    },
+
+    "minifix": {
+      "description": "Tambor/parafuso minifix de montagem desmontável. Usado em todas as junções estrutura-estrutura (lateral×base, lateral×tampo, lateral×fundo, lateral×travessa).",
+      "anchor_piece_role": "lateral",
+      "secondary_piece_role": "structure",
+      "vertical_alignment": "all",
+      "horizontal_alignment": "all",
+      "depth_alignment": "all",
+      "mounting": "perpendicular_join",
+      "count_per_join_rule": "join_length_mm <= 600 ? 2 : 3",
+      "edge_offset_min_mm": 50,
+      "edge_offset_max_mm": 75,
+      "depth_offset_from_face": 37,
+      "depth_offset_from_back": 37,
+      "drum_diameter": 15,
+      "screw_length": 34,
+      "wctr_source": [
+        "Lateral com fixacao_CTR.wctr",
+        "Base com fixacao_CTR.wctr",
+        "Fundo com fixacao_CTR.wctr",
+        "Travessa com fixacao_CTR.wctr"
+      ],
+      "fields_from_wctr": [],
+      "source": "convention (a posição de minifix não está explícita no .wctr; deduzida das peças *com fixacao* vs *sem fixacao*)"
+    }
+
+  }
+}

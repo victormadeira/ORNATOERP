@@ -7,7 +7,7 @@
 require 'rexml/document'
 require 'json'
 
-SOURCE_FILE = "/Users/madeira/Downloads/Biblioteca WPS/global attributes/global_attributes.xml"
+SOURCE_FILE = File.expand_path("../../wps_source/global attributes/global_attributes.xml", __FILE__)
 OUTPUT_FILE = File.expand_path("../../config/wps_defaults.json", __FILE__)
 
 xml = File.read(SOURCE_FILE, encoding: 'UTF-8')

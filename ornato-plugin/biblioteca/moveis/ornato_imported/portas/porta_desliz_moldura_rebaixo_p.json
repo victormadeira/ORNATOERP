@@ -1,0 +1,650 @@
+{
+  "id": "porta_desliz_moldura_rebaixo_p",
+  "codigo": "ORNATO_POR_PORTA_DESLIZ_MOL",
+  "nome": "Porta Desliz. Moldura Rebaixo P",
+  "descricao": "Modulo parametrico inferido da biblioteca WPS (portas). Familia: porta.",
+  "categoria": "portas",
+  "tags": [
+    "portas",
+    "porta",
+    "deslizante",
+    "1portas",
+    "0gavetas"
+  ],
+  "icone": "porta",
+  "thumbnail": "porta_desliz_moldura_rebaixo_p.png",
+  "tipo_ruby": "wps_imported_generico",
+  "versao_schema": 1,
+  "parametros": {
+    "largura": {
+      "label": "Largura",
+      "type": "number",
+      "default": 800,
+      "min": 300,
+      "max": 2400,
+      "step": 10,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "altura": {
+      "label": "Altura",
+      "type": "number",
+      "default": 720,
+      "min": 200,
+      "max": 2700,
+      "step": 10,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "profundidade": {
+      "label": "Profundidade",
+      "type": "number",
+      "default": 560,
+      "min": 200,
+      "max": 700,
+      "step": 10,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "espessura": {
+      "label": "Espessura MDF",
+      "type": "number",
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 1,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "altura_rodape": {
+      "label": "Rodape",
+      "type": "number",
+      "default": 100,
+      "min": 0,
+      "max": 180,
+      "step": 10,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "material_carcaca": {
+      "label": "Material carcaca",
+      "type": "select",
+      "default": "MDF18_BrancoTX",
+      "options": [
+        "MDF18_BrancoTX",
+        "MDF18_Branco",
+        "MDF18_Cinza",
+        "MDF18_Natural",
+        "MDF25_BrancoTX"
+      ],
+      "opcoes": [
+        "MDF18_BrancoTX",
+        "MDF18_Branco",
+        "MDF18_Cinza",
+        "MDF18_Natural",
+        "MDF25_BrancoTX"
+      ]
+    },
+    "material_frente": {
+      "label": "Material frentes",
+      "type": "select",
+      "default": "MDF18_BrancoTX",
+      "options": [
+        "MDF18_BrancoTX",
+        "MDF18_Branco",
+        "MDF18_Cinza",
+        "MDF18_Natural",
+        "MDF18_Lacado",
+        "MDF25_BrancoTX"
+      ],
+      "opcoes": [
+        "MDF18_BrancoTX",
+        "MDF18_Branco",
+        "MDF18_Cinza",
+        "MDF18_Natural",
+        "MDF18_Lacado",
+        "MDF25_BrancoTX"
+      ]
+    },
+    "material_fundo": {
+      "label": "Material fundo",
+      "type": "select",
+      "default": "MDF6_Branco",
+      "options": [
+        "MDF6_Branco",
+        "MDF12_Branco",
+        "MDF18_Branco"
+      ],
+      "opcoes": [
+        "MDF6_Branco",
+        "MDF12_Branco",
+        "MDF18_Branco"
+      ]
+    },
+    "com_tampo": {
+      "label": "Com tampo",
+      "type": "boolean",
+      "default": true
+    },
+    "com_fundo": {
+      "label": "Com fundo",
+      "type": "boolean",
+      "default": true
+    },
+    "n_prateleiras": {
+      "label": "Prateleiras",
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "max": 5,
+      "step": 1
+    },
+    "n_portas": {
+      "label": "Portas",
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "max": 4,
+      "step": 1
+    },
+    "n_gavetas": {
+      "label": "Gavetas",
+      "type": "number",
+      "default": 0,
+      "min": 0,
+      "max": 6,
+      "step": 1
+    },
+    "tipo_juncao": {
+      "label": "Juncao",
+      "type": "select",
+      "default": "minifix",
+      "options": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ],
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ]
+    },
+    "tipo_abertura": {
+      "label": "Abertura",
+      "type": "select",
+      "default": "deslizante",
+      "options": [
+        "abrir",
+        "deslizante",
+        "basculante"
+      ],
+      "opcoes": [
+        "abrir",
+        "deslizante",
+        "basculante"
+      ]
+    },
+    "folga_porta_lateral": {
+      "label": "Folga lateral porta",
+      "type": "number",
+      "default": 2,
+      "min": 1,
+      "max": 5,
+      "step": 0.5,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "folga_porta_vertical": {
+      "label": "Folga vertical porta",
+      "type": "number",
+      "default": 2,
+      "min": 1,
+      "max": 5,
+      "step": 0.5,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "folga_entre_portas": {
+      "label": "Folga entre portas",
+      "type": "number",
+      "default": 3,
+      "min": 1,
+      "max": 6,
+      "step": 0.5,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "recuo_fundo": {
+      "label": "Recuo fundo",
+      "type": "number",
+      "default": 13,
+      "min": 8,
+      "max": 25,
+      "step": 1,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "puxador_espacamento": {
+      "label": "Puxador",
+      "type": "number",
+      "default": 128,
+      "min": 96,
+      "max": 320,
+      "step": 32,
+      "unit": "mm",
+      "unidade": "mm"
+    },
+    "sys32_ativo": {
+      "label": "System 32",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "pecas": [
+    {
+      "nome": "Lateral Esquerda",
+      "role": "lateral",
+      "orientacao": "lateral",
+      "largura": "{altura} - {shop.altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": "{altura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Lateral Direita",
+      "role": "lateral",
+      "orientacao": "lateral",
+      "largura": "{altura} - {shop.altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": "{altura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Base",
+      "role": "base",
+      "orientacao": "horizontal",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Tampo",
+      "role": "top",
+      "orientacao": "horizontal",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{com_tampo} == true",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Traseira",
+      "role": "back_panel",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - {shop.altura_rodape} - 2 * {shop.espessura}",
+      "espessura": 6,
+      "condicao": "{com_fundo} == true",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - {shop.recuo_fundo}",
+        "z": "{altura} - {shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Prateleira 1",
+      "role": "shelf",
+      "orientacao": "horizontal",
+      "largura": "{largura} - 2 * {shop.espessura} - 2",
+      "altura": "{profundidade} - 20",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_prateleiras} >= 1",
+      "posicao": {
+        "x": "{shop.espessura} + 1",
+        "y": 0,
+        "z": "{shop.altura_rodape} + ({altura} - {shop.altura_rodape}) / 2 + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Prateleira 2",
+      "role": "shelf",
+      "orientacao": "horizontal",
+      "largura": "{largura} - 2 * {shop.espessura} - 2",
+      "altura": "{profundidade} - 20",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_prateleiras} >= 2",
+      "posicao": {
+        "x": "{shop.espessura} + 1",
+        "y": 0,
+        "z": "{shop.altura_rodape} + ({altura} - {shop.altura_rodape}) / 3 + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Prateleira 3",
+      "role": "shelf",
+      "orientacao": "horizontal",
+      "largura": "{largura} - 2 * {shop.espessura} - 2",
+      "altura": "{profundidade} - 20",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_prateleiras} >= 3",
+      "posicao": {
+        "x": "{shop.espessura} + 1",
+        "y": 0,
+        "z": "{shop.altura_rodape} + 2 * ({altura} - {shop.altura_rodape}) / 3 + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    },
+    {
+      "nome": "Porta 1",
+      "role": "door",
+      "largura": "({largura} - 2 * {shop.folga_porta_lateral} - ({n_portas} - 1) * {shop.folga_entre_portas}) / {n_portas}",
+      "altura": "{altura} - {shop.altura_rodape} - 2 * {shop.folga_porta_vertical}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_portas} >= 1",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral} + (0) * (({largura} - 2 * {shop.folga_porta_lateral}) / {n_portas})",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{altura} - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Porta 2",
+      "role": "door",
+      "largura": "({largura} - 2 * {shop.folga_porta_lateral} - ({n_portas} - 1) * {shop.folga_entre_portas}) / {n_portas}",
+      "altura": "{altura} - {shop.altura_rodape} - 2 * {shop.folga_porta_vertical}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_portas} >= 2",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral} + (1) * (({largura} - 2 * {shop.folga_porta_lateral}) / {n_portas})",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{altura} - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Porta 3",
+      "role": "door",
+      "largura": "({largura} - 2 * {shop.folga_porta_lateral} - ({n_portas} - 1) * {shop.folga_entre_portas}) / {n_portas}",
+      "altura": "{altura} - {shop.altura_rodape} - 2 * {shop.folga_porta_vertical}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_portas} >= 3",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral} + (2) * (({largura} - 2 * {shop.folga_porta_lateral}) / {n_portas})",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{altura} - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Porta 4",
+      "role": "door",
+      "largura": "({largura} - 2 * {shop.folga_porta_lateral} - ({n_portas} - 1) * {shop.folga_entre_portas}) / {n_portas}",
+      "altura": "{altura} - {shop.altura_rodape} - 2 * {shop.folga_porta_vertical}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_portas} >= 4",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral} + (3) * (({largura} - 2 * {shop.folga_porta_lateral}) / {n_portas})",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{altura} - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Frente Gaveta 1",
+      "role": "drawer_front",
+      "largura": "{largura} - 2 * {shop.folga_porta_lateral}",
+      "altura": "({altura} - {shop.altura_rodape} - ({n_gavetas} + 1) * {shop.folga_porta_vertical}) / {n_gavetas}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_gavetas} >= 1",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral}",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{shop.altura_rodape} + (1) * (({altura} - {shop.altura_rodape}) / {n_gavetas}) - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Frente Gaveta 2",
+      "role": "drawer_front",
+      "largura": "{largura} - 2 * {shop.folga_porta_lateral}",
+      "altura": "({altura} - {shop.altura_rodape} - ({n_gavetas} + 1) * {shop.folga_porta_vertical}) / {n_gavetas}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_gavetas} >= 2",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral}",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{shop.altura_rodape} + (2) * (({altura} - {shop.altura_rodape}) / {n_gavetas}) - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Frente Gaveta 3",
+      "role": "drawer_front",
+      "largura": "{largura} - 2 * {shop.folga_porta_lateral}",
+      "altura": "({altura} - {shop.altura_rodape} - ({n_gavetas} + 1) * {shop.folga_porta_vertical}) / {n_gavetas}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_gavetas} >= 3",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral}",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{shop.altura_rodape} + (3) * (({altura} - {shop.altura_rodape}) / {n_gavetas}) - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Frente Gaveta 4",
+      "role": "drawer_front",
+      "largura": "{largura} - 2 * {shop.folga_porta_lateral}",
+      "altura": "({altura} - {shop.altura_rodape} - ({n_gavetas} + 1) * {shop.folga_porta_vertical}) / {n_gavetas}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{n_gavetas} >= 4",
+      "posicao": {
+        "x": "{shop.folga_porta_lateral}",
+        "y": "0 - {shop.espessura} - 2",
+        "z": "{shop.altura_rodape} + (4) * (({altura} - {shop.altura_rodape}) / {n_gavetas}) - {shop.folga_porta_vertical}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      }
+    },
+    {
+      "nome": "Rodape",
+      "role": "kick",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{shop.altura_rodape}",
+      "espessura": "{shop.espessura}",
+      "condicao": "{shop.altura_rodape} > 0",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 50,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
+    }
+  ],
+  "ferragens_auto": [
+    {
+      "regra": "minifix",
+      "juncao": "lateral × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral × top",
+      "condicao": "{tipo_juncao} == 'minifix' && {com_tampo} == true"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral × top",
+      "condicao": "{tipo_juncao} == 'cavilha' && {com_tampo} == true"
+    },
+    {
+      "regra": "confirmat",
+      "juncao": "lateral × base",
+      "condicao": "{tipo_juncao} == 'confirmat'"
+    },
+    {
+      "regra": "confirmat",
+      "juncao": "lateral × top",
+      "condicao": "{tipo_juncao} == 'confirmat' && {com_tampo} == true"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral",
+      "condicao": "{n_portas} > 0",
+      "componente_3d": "ferragens/dobradica_amor.skp"
+    },
+    {
+      "regra": "puxador",
+      "peca": "door",
+      "espacamento": "{puxador_espacamento}",
+      "condicao": "{n_portas} > 0",
+      "componente_3d": "puxadores/sem_puxador.skp"
+    },
+    {
+      "regra": "rebaixo_fundo",
+      "pecas": [
+        "lateral",
+        "base",
+        "top"
+      ],
+      "condicao": "{com_fundo} == true"
+    },
+    {
+      "regra": "system32",
+      "pecas": [
+        "lateral"
+      ],
+      "condicao": "{sys32_ativo} == true && {n_prateleiras} > 0"
+    }
+  ],
+  "agregados_sugeridos": [
+    "led",
+    "passa_fio",
+    "puxador"
+  ],
+  "_review": {
+    "needs_review": false,
+    "confidence": 0.7,
+    "source_skp": "portas/porta_desliz_moldura_rebaixo_p.skp",
+    "inferred": {
+      "family": "porta",
+      "portas": 1,
+      "gavetas": 0,
+      "abertura": "deslizante"
+    }
+  }
+}

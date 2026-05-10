@@ -3,31 +3,124 @@
   "nome": "Painel Cabeceira",
   "descricao": "Painel decorativo de cabeceira com prateleira e nicho opcional.",
   "categoria": "dormitorio",
-  "tags": ["cabeceira", "painel", "decorativo", "nicho", "dormitorio"],
+  "tags": [
+    "cabeceira",
+    "painel",
+    "decorativo",
+    "nicho",
+    "dormitorio"
+  ],
   "icone": "painel",
-
   "parametros": {
-    "largura":          { "default": 1600, "min": 1400, "max": 2000, "step": 100, "unidade": "mm" },
-    "altura":           { "default": 1200, "min": 1200, "max": 1200, "step": 50,  "unidade": "mm" },
-    "profundidade":     { "default": 40,   "min": 40,   "max": 40,   "step": 10,  "unidade": "mm" },
-    "espessura":        { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
-    "com_prateleira":   { "default": true },
-    "largura_prateleira": { "default": 250, "min": 150, "max": 350, "step": 50, "unidade": "mm" },
-    "com_nicho":        { "default": true },
-    "largura_nicho":    { "default": 400, "min": 300, "max": 600, "step": 50, "unidade": "mm" },
-    "altura_nicho":     { "default": 200, "min": 150, "max": 300, "step": 50, "unidade": "mm" },
-    "tipo_juncao":      { "default": "cavilha", "opcoes": ["minifix", "cavilha", "parafuso"] }
+    "largura": {
+      "default": 1600,
+      "min": 1400,
+      "max": 2000,
+      "step": 100,
+      "unidade": "mm",
+      "label": "Largura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura": {
+      "default": 1200,
+      "min": 1200,
+      "max": 1200,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "profundidade": {
+      "default": 40,
+      "min": 40,
+      "max": 40,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Profundidade",
+      "type": "number",
+      "unit": "mm"
+    },
+    "espessura": {
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 0.5,
+      "unidade": "mm",
+      "label": "Espessura MDF",
+      "type": "number",
+      "unit": "mm"
+    },
+    "com_prateleira": {
+      "default": true,
+      "label": "Com Prateleira",
+      "type": "boolean"
+    },
+    "largura_prateleira": {
+      "default": 250,
+      "min": 150,
+      "max": 350,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura Prateleira",
+      "type": "number",
+      "unit": "mm"
+    },
+    "com_nicho": {
+      "default": true,
+      "label": "Com nicho",
+      "type": "boolean"
+    },
+    "largura_nicho": {
+      "default": 400,
+      "min": 300,
+      "max": 600,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura Nicho",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura_nicho": {
+      "default": 200,
+      "min": 150,
+      "max": 300,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura Nicho",
+      "type": "number",
+      "unit": "mm"
+    },
+    "tipo_juncao": {
+      "default": "cavilha",
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "parafuso"
+      ],
+      "label": "Juncao",
+      "type": "select"
+    }
   },
-
   "pecas": [
     {
       "nome": "Painel Principal",
       "role": "traseira",
       "largura": "{largura}",
       "altura": "{altura}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": true, "esq": true },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": true,
+        "base": true
+      },
       "notas": "Painel principal da cabeceira fixado na parede"
     },
     {
@@ -35,10 +128,19 @@
       "role": "prateleira",
       "largura": "{largura}",
       "altura": "{largura_prateleira}",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_prateleira}",
-      "posicao": { "x": 0, "y": 0, "z": "{altura} / 2" },
-      "bordas": { "frontal": true, "traseira": false, "dir": true, "esq": true },
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": "{altura} / 2"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": true,
+        "base": true
+      },
       "notas": "Prateleira horizontal na metade da altura"
     },
     {
@@ -46,39 +148,100 @@
       "role": "divisoria",
       "largura": "{altura_nicho}",
       "altura": "{largura_prateleira}",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_nicho}",
-      "posicao": { "x": "{largura} / 2 - {largura_nicho} / 2 - {espessura}", "y": 0, "z": "{altura} / 2 + {espessura}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{largura} / 2 - {largura_nicho} / 2 - {shop.espessura}",
+        "y": 0,
+        "z": "{altura} / 2 + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Nicho Dir",
       "role": "divisoria",
       "largura": "{altura_nicho}",
       "altura": "{largura_prateleira}",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_nicho}",
-      "posicao": { "x": "{largura} / 2 + {largura_nicho} / 2", "y": 0, "z": "{altura} / 2 + {espessura}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{largura} / 2 + {largura_nicho} / 2",
+        "y": 0,
+        "z": "{altura} / 2 + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Topo Nicho",
       "role": "prateleira",
       "largura": "{largura_nicho}",
       "altura": "{largura_prateleira}",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_nicho}",
-      "posicao": { "x": "{largura} / 2 - {largura_nicho} / 2", "y": 0, "z": "{altura} / 2 + {altura_nicho} + {espessura}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{largura} / 2 - {largura_nicho} / 2",
+        "y": 0,
+        "z": "{altura} / 2 + {altura_nicho} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     }
   ],
-
   "ferragens_auto": [
-    { "regra": "cavilha", "juncao": "traseira × prateleira", "condicao": "{tipo_juncao} == 'cavilha' && {com_prateleira}" },
-    { "regra": "cavilha", "juncao": "traseira × divisoria", "condicao": "{tipo_juncao} == 'cavilha' && {com_nicho}" },
-    { "regra": "minifix", "juncao": "traseira × prateleira", "condicao": "{tipo_juncao} == 'minifix' && {com_prateleira}" },
-    { "regra": "parafuso", "juncao": "traseira × prateleira", "condicao": "{tipo_juncao} == 'parafuso' && {com_prateleira}" }
+    {
+      "regra": "cavilha",
+      "juncao": "traseira × prateleira",
+      "condicao": "{tipo_juncao} == 'cavilha' && {com_prateleira}"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "traseira × divisoria",
+      "condicao": "{tipo_juncao} == 'cavilha' && {com_nicho}"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "traseira × prateleira",
+      "condicao": "{tipo_juncao} == 'minifix' && {com_prateleira}"
+    },
+    {
+      "regra": "parafuso",
+      "juncao": "traseira × prateleira",
+      "condicao": "{tipo_juncao} == 'parafuso' && {com_prateleira}"
+    }
   ],
-
-  "notas": "Painel de cabeceira fixado na parede. Profundidade minima (40mm) pois e essencialmente um painel. Prateleira e nicho sao opcionais."
+  "notas": "Painel de cabeceira fixado na parede. Profundidade minima (40mm) pois e essencialmente um painel. Prateleira e nicho sao opcionais.",
+  "_migration_notes": [
+    {
+      "date": "2026-05-10T00:14:08-03:00",
+      "tool": "migrate_bordas_keys.rb",
+      "mapping": {
+        "frontal": "frente",
+        "traseira": "tras",
+        "esq": "base",
+        "dir": "topo"
+      },
+      "pecas_migradas": 5
+    }
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 10
+    }
+  ]
 }

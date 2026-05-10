@@ -5,158 +5,334 @@
   "descricao": "Guarda-roupa com estrutura interna e portas de correr (trilho). Estrutura sem portas no modelo 3D — portas são agregados.",
   "icone": "guarda_roupa",
   "thumbnail": "guarda_roupa_correr.png",
-
   "parametros": {
-    "largura":      { "label": "Largura (mm)",     "default": 2000, "min": 1200, "max": 4000, "step": 100 },
-    "altura":       { "label": "Altura (mm)",      "default": 2200, "min": 1800, "max": 2800, "step": 50  },
-    "profundidade": { "label": "Profundidade (mm)", "default": 600,  "min": 500,  "max": 700,  "step": 10  },
-    "espessura":    { "label": "Espessura MDF",    "default": 18,   "min": 15,   "max": 25,   "step": 1   },
-    "altura_rodape":{ "label": "Rodapé (mm)",      "default": 100,  "min": 0,    "max": 150,  "step": 10  },
-    "material":     { "label": "Material",         "default": "MDF18_BrancoTX" },
-    "com_tampo":    { "label": "Com tampo",        "default": true  },
-    "com_fundo":    { "label": "Com fundo",        "default": false },
-    "n_divisorias": { "label": "Divisórias internas", "default": 2, "min": 1, "max": 5, "step": 1 },
-    "n_prateleiras":{ "label": "Prateleiras por vão", "default": 2, "min": 0, "max": 6, "step": 1 },
-    "altura_cabideiro": { "label": "Altura seção cabideiro (mm)", "default": 1000, "min": 600, "max": 1400, "step": 50 }
+    "largura": {
+      "label": "Largura (mm)",
+      "default": 2000,
+      "min": 1200,
+      "max": 4000,
+      "step": 100,
+      "type": "number"
+    },
+    "altura": {
+      "label": "Altura (mm)",
+      "default": 2200,
+      "min": 1800,
+      "max": 2800,
+      "step": 50,
+      "type": "number"
+    },
+    "profundidade": {
+      "label": "Profundidade (mm)",
+      "default": 600,
+      "min": 500,
+      "max": 700,
+      "step": 10,
+      "type": "number"
+    },
+    "espessura": {
+      "label": "Espessura MDF",
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 1,
+      "type": "number"
+    },
+    "altura_rodape": {
+      "label": "Rodapé (mm)",
+      "default": 100,
+      "min": 0,
+      "max": 150,
+      "step": 10,
+      "type": "number"
+    },
+    "material": {
+      "label": "Material",
+      "default": "MDF18_BrancoTX",
+      "type": "string"
+    },
+    "com_tampo": {
+      "label": "Com tampo",
+      "default": true,
+      "type": "boolean"
+    },
+    "com_fundo": {
+      "label": "Com fundo",
+      "default": false,
+      "type": "boolean"
+    },
+    "n_divisorias": {
+      "label": "Divisórias internas",
+      "default": 2,
+      "min": 1,
+      "max": 5,
+      "step": 1,
+      "type": "number"
+    },
+    "n_prateleiras": {
+      "label": "Prateleiras por vão",
+      "default": 2,
+      "min": 0,
+      "max": 6,
+      "step": 1,
+      "type": "number"
+    },
+    "altura_cabideiro": {
+      "label": "Altura seção cabideiro (mm)",
+      "default": 1000,
+      "min": 600,
+      "max": 1400,
+      "step": 50,
+      "type": "number"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esq",
       "role": "lateral",
-      "largura":   "{altura} - {altura_rodape}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+      "largura": "{altura} - {shop.altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": false,
+        "tras": false
+      }
     },
     {
       "nome": "Lateral Dir",
       "role": "lateral",
-      "largura":   "{altura} - {altura_rodape}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frente": true, "topo": true, "base": false, "tras": false }
+      "largura": "{altura} - {shop.altura_rodape}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": false,
+        "tras": false
+      }
     },
     {
       "nome": "Divisória 1",
       "role": "divider",
-      "largura":   "{altura} - {altura_rodape} - {espessura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
+      "largura": "{altura} - {shop.altura_rodape} - {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "round({largura} / ({n_divisorias} + 1)) - {espessura} / 2",
+        "x": "round({largura} / ({n_divisorias} + 1)) - {shop.espessura} / 2",
         "y": 0,
-        "z": "{altura_rodape} + {espessura}"
+        "z": "{shop.altura_rodape} + {shop.espessura}"
       },
-      "bordas": { "frente": true, "topo": true, "base": false, "tras": false },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{n_divisorias} >= 1"
     },
     {
       "nome": "Divisória 2",
       "role": "divider",
-      "largura":   "{altura} - {altura_rodape} - {espessura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
+      "largura": "{altura} - {shop.altura_rodape} - {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "round({largura} * 2 / ({n_divisorias} + 1)) - {espessura} / 2",
+        "x": "round({largura} * 2 / ({n_divisorias} + 1)) - {shop.espessura} / 2",
         "y": 0,
-        "z": "{altura_rodape} + {espessura}"
+        "z": "{shop.altura_rodape} + {shop.espessura}"
       },
-      "bordas": { "frente": true, "topo": true, "base": false, "tras": false },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{n_divisorias} >= 2"
     },
     {
       "nome": "Divisória 3",
       "role": "divider",
-      "largura":   "{altura} - {altura_rodape} - {espessura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
+      "largura": "{altura} - {shop.altura_rodape} - {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "round({largura} * 3 / ({n_divisorias} + 1)) - {espessura} / 2",
+        "x": "round({largura} * 3 / ({n_divisorias} + 1)) - {shop.espessura} / 2",
         "y": 0,
-        "z": "{altura_rodape} + {espessura}"
+        "z": "{shop.altura_rodape} + {shop.espessura}"
       },
-      "bordas": { "frente": true, "topo": true, "base": false, "tras": false },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{n_divisorias} >= 3"
     },
     {
       "nome": "Base",
       "role": "base",
-      "largura":   "{largura} - 2 * {espessura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
     },
     {
       "nome": "Tampo",
       "role": "top",
-      "largura":   "{largura} - 2 * {espessura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
-      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} - {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{com_tampo} == true"
     },
     {
       "nome": "Traseira",
       "role": "back_panel",
-      "largura":   "{largura} - 2 * {espessura}",
-      "altura":    "{altura} - {altura_rodape} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - {shop.altura_rodape} - 2 * {shop.espessura}",
       "espessura": 3,
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_rodape} + {espessura}" },
-      "bordas": { "frente": false, "topo": false, "base": false, "tras": false },
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - 13",
+        "z": "{shop.altura_rodape} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "topo": false,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{com_fundo} == true"
     },
     {
       "nome": "Prateleira Vão 1",
       "role": "shelf",
-      "largura":   "round({largura} / ({n_divisorias} + 1)) - 2 * {espessura}",
-      "altura":    "{profundidade} - 20",
-      "espessura": "{espessura}",
+      "largura": "round({largura} / ({n_divisorias} + 1)) - 2 * {shop.espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "{espessura}",
+        "x": "{shop.espessura}",
         "y": 0,
-        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - {altura_cabideiro} - 2 * {espessura}) / ({n_prateleiras} + 1))"
+        "z": "{shop.altura_rodape} + {shop.espessura} + round(({altura} - {shop.altura_rodape} - {altura_cabideiro} - 2 * {shop.espessura}) / ({n_prateleiras} + 1))"
       },
-      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{n_prateleiras} >= 1"
     },
     {
       "nome": "Prateleira Vão 2",
       "role": "shelf",
-      "largura":   "round({largura} / ({n_divisorias} + 1)) - 2 * {espessura}",
-      "altura":    "{profundidade} - 20",
-      "espessura": "{espessura}",
+      "largura": "round({largura} / ({n_divisorias} + 1)) - 2 * {shop.espessura}",
+      "altura": "{profundidade} - 20",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "round({largura} / ({n_divisorias} + 1)) + {espessura} / 2",
+        "x": "round({largura} / ({n_divisorias} + 1)) + {shop.espessura} / 2",
         "y": 0,
-        "z": "{altura_rodape} + {espessura} + round(({altura} - {altura_rodape} - {altura_cabideiro} - 2 * {espessura}) / ({n_prateleiras} + 1))"
+        "z": "{shop.altura_rodape} + {shop.espessura} + round(({altura} - {shop.altura_rodape} - {altura_cabideiro} - 2 * {shop.espessura}) / ({n_prateleiras} + 1))"
       },
-      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{n_prateleiras} >= 1 && {n_divisorias} >= 1"
     },
     {
       "nome": "Rodapé",
       "role": "kick",
-      "largura":   "{largura} - 2 * {espessura}",
-      "altura":    "{altura_rodape}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 50, "z": 0 },
-      "bordas": { "frente": true, "topo": false, "base": false, "tras": false },
-      "condicao": "{altura_rodape} > 0"
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{shop.altura_rodape}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 50,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      },
+      "condicao": "{shop.altura_rodape} > 0"
     }
   ],
-
   "ferragens_auto": [
-    { "tipo": "minifix",   "aplica_em": ["lateral", "divider", "base", "top"] },
-    { "tipo": "cavilha",   "aplica_em": ["lateral", "divider", "shelf"] },
-    { "tipo": "system32",  "aplica_em": ["lateral", "divider"], "condicao": "{n_prateleiras} > 0" }
+    {
+      "tipo": "minifix",
+      "aplica_em": [
+        "lateral",
+        "divider",
+        "base",
+        "top"
+      ]
+    },
+    {
+      "tipo": "cavilha",
+      "aplica_em": [
+        "lateral",
+        "divider",
+        "shelf"
+      ]
+    },
+    {
+      "tipo": "system32",
+      "aplica_em": [
+        "lateral",
+        "divider"
+      ],
+      "condicao": "{n_prateleiras} > 0"
+    }
   ],
-
   "observacao": "Portas de correr devem ser modeladas separadamente ou adicionadas como agregado. Trilho superior e inferior não são incluídos no corte.",
-
-  "agregados_sugeridos": ["porta_correr", "cabideiro", "led", "varao"]
+  "agregados_sugeridos": [
+    "porta_correr",
+    "cabideiro",
+    "led",
+    "varao"
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 11
+    }
+  ]
 }

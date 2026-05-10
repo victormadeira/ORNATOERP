@@ -3,99 +3,286 @@
   "nome": "Torre Geladeira",
   "descricao": "Torre para geladeira embutida. Abertura grande sem portas para geladeira. Armario pequeno em cima.",
   "categoria": "cozinha",
-  "tags": ["torre", "geladeira", "embutido", "cozinha"],
+  "tags": [
+    "torre",
+    "geladeira",
+    "embutido",
+    "cozinha"
+  ],
   "icone": "torre",
-
   "parametros": {
-    "largura":            { "default": 700,  "min": 700,  "max": 700,  "step": 50, "unidade": "mm" },
-    "altura":             { "default": 2200, "min": 2200, "max": 2200, "step": 50, "unidade": "mm" },
-    "profundidade":       { "default": 600,  "min": 600,  "max": 600,  "step": 10, "unidade": "mm" },
-    "espessura":          { "default": 18,   "min": 15,   "max": 25,   "step": 0.5, "unidade": "mm" },
-    "altura_abertura_geladeira": { "default": 1750, "min": 1600, "max": 1900, "step": 50, "unidade": "mm" },
-    "tipo_juncao":        { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
-    "com_fundo_superior": { "default": true },
-    "puxador":            { "default": "modelo_128mm" }
+    "largura": {
+      "default": 700,
+      "min": 700,
+      "max": 700,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura": {
+      "default": 2200,
+      "min": 2200,
+      "max": 2200,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "profundidade": {
+      "default": 600,
+      "min": 600,
+      "max": 600,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Profundidade",
+      "type": "number",
+      "unit": "mm"
+    },
+    "espessura": {
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 0.5,
+      "unidade": "mm",
+      "label": "Espessura MDF",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura_abertura_geladeira": {
+      "default": 1750,
+      "min": 1600,
+      "max": 1900,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura Abertura Geladeira",
+      "type": "number",
+      "unit": "mm"
+    },
+    "tipo_juncao": {
+      "default": "minifix",
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ],
+      "label": "Juncao",
+      "type": "select"
+    },
+    "com_fundo_superior": {
+      "default": true,
+      "label": "Com Fundo Superior",
+      "type": "boolean"
+    },
+    "puxador": {
+      "default": "modelo_128mm",
+      "label": "Puxador",
+      "type": "string"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esquerda",
       "role": "lateral_esq",
       "largura": "{altura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Direita",
       "role": "lateral_dir",
       "largura": "{altura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Topo",
       "role": "topo",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} - {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Prateleira Divisoria",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_geladeira}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura_abertura_geladeira}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Separa abertura da geladeira do armario superior"
     },
     {
       "nome": "Prateleira Armario Superior",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 20",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura_abertura_geladeira} + ({altura} - {altura_abertura_geladeira}) / 2" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura_abertura_geladeira} + ({altura} - {altura_abertura_geladeira}) / 2"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Traseira Superior",
       "role": "traseira",
-      "largura": "{largura} - 2 * {espessura}",
-      "altura": "{altura} - {altura_abertura_geladeira} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - {altura_abertura_geladeira} - 2 * {shop.espessura}",
       "espessura": 3,
       "condicao": "{com_fundo_superior}",
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{altura_abertura_geladeira} + {espessura}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - 13",
+        "z": "{altura_abertura_geladeira} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Porta Armario Superior",
       "role": "porta",
-      "largura": "{altura} - {altura_abertura_geladeira} - 2 * {espessura} - 4",
-      "altura": "{largura} - 2 * {espessura} - 4",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{altura_abertura_geladeira} + {espessura} + 2" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+      "largura": "{altura} - {altura_abertura_geladeira} - 2 * {shop.espessura} - 4",
+      "altura": "{largura} - 2 * {shop.espessura} - 4",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura} + 2",
+        "y": 0,
+        "z": "{altura_abertura_geladeira} + {shop.espessura} + 2"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      }
     }
   ],
-
   "ferragens_auto": [
-    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_esq × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × prateleira", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "cavilha", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "cavilha", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "true" },
-    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "prateleira", "topo"], "condicao": "{com_fundo_superior}" },
-    { "regra": "puxador", "peca": "porta", "condicao": "true" }
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × topo",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × topo",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × prateleira",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × prateleira",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_esq × topo",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_dir × topo",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral_esq",
+      "condicao": "true"
+    },
+    {
+      "regra": "rebaixo_fundo",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir",
+        "prateleira",
+        "topo"
+      ],
+      "condicao": "{com_fundo_superior}"
+    },
+    {
+      "regra": "puxador",
+      "peca": "porta",
+      "condicao": "true"
+    }
   ],
-
-  "notas": "Abertura inferior para geladeira nao tem portas nem fundo. Somente o armario superior tem porta e fundo."
+  "notas": "Abertura inferior para geladeira nao tem portas nem fundo. Somente o armario superior tem porta e fundo.",
+  "_migration_notes": [
+    {
+      "date": "2026-05-10T00:14:08-03:00",
+      "tool": "migrate_bordas_keys.rb",
+      "mapping": {
+        "frontal": "frente",
+        "traseira": "tras",
+        "esq": "base",
+        "dir": "topo"
+      },
+      "pecas_migradas": 7
+    }
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 8
+    }
+  ]
 }

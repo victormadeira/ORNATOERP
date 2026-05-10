@@ -3,86 +3,214 @@
   "nome": "Criado-Mudo",
   "descricao": "Criado-mudo com 1 gaveta superior e nicho aberto inferior.",
   "categoria": "dormitorio",
-  "tags": ["criado-mudo", "gaveta", "nicho", "dormitorio"],
+  "tags": [
+    "criado-mudo",
+    "gaveta",
+    "nicho",
+    "dormitorio"
+  ],
   "icone": "criado_mudo",
-
   "parametros": {
-    "largura":       { "default": 450,  "min": 400, "max": 500,  "step": 50, "unidade": "mm" },
-    "altura":        { "default": 500,  "min": 500, "max": 500,  "step": 50, "unidade": "mm" },
-    "profundidade":  { "default": 400,  "min": 400, "max": 400,  "step": 10, "unidade": "mm" },
-    "espessura":     { "default": 18,   "min": 15,  "max": 25,   "step": 0.5, "unidade": "mm" },
-    "altura_gaveta": { "default": 180,  "min": 120, "max": 220,  "step": 10, "unidade": "mm" },
-    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
-    "com_fundo":     { "default": true },
-    "puxador":       { "default": "modelo_128mm" }
+    "largura": {
+      "default": 450,
+      "min": 400,
+      "max": 500,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura": {
+      "default": 500,
+      "min": 500,
+      "max": 500,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "profundidade": {
+      "default": 400,
+      "min": 400,
+      "max": 400,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Profundidade",
+      "type": "number",
+      "unit": "mm"
+    },
+    "espessura": {
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 0.5,
+      "unidade": "mm",
+      "label": "Espessura MDF",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura_gaveta": {
+      "default": 180,
+      "min": 120,
+      "max": 220,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Altura gaveta",
+      "type": "number",
+      "unit": "mm"
+    },
+    "tipo_juncao": {
+      "default": "minifix",
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ],
+      "label": "Juncao",
+      "type": "select"
+    },
+    "com_fundo": {
+      "default": true,
+      "label": "Com fundo",
+      "type": "boolean"
+    },
+    "puxador": {
+      "default": "modelo_128mm",
+      "label": "Puxador",
+      "type": "string"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esquerda",
       "role": "lateral_esq",
       "largura": "{altura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Direita",
       "role": "lateral_dir",
       "largura": "{altura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Base",
       "role": "base",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Tampo",
       "role": "topo",
       "largura": "{largura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": "{altura} - {espessura}" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": "{altura} - {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      },
       "notas": "Tampo sobreposto"
     },
     {
       "nome": "Divisoria Horizontal",
       "role": "divisoria",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura} - {altura_gaveta}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} - {shop.espessura} - {altura_gaveta}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Separa gaveta do nicho aberto"
     },
     {
       "nome": "Traseira",
       "role": "traseira",
-      "largura": "{largura} - 2 * {espessura}",
-      "altura": "{altura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - 2 * {shop.espessura}",
       "espessura": 3,
       "condicao": "{com_fundo}",
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{espessura}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - 13",
+        "z": "{shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Frente Gaveta",
       "role": "frente_gaveta",
       "largura": "{altura_gaveta} - 2",
-      "altura": "{largura} - 2 * {espessura} - 4",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{altura} - {espessura} - {altura_gaveta} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+      "altura": "{largura} - 2 * {shop.espessura} - 4",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura} + 2",
+        "y": 0,
+        "z": "{altura} - {shop.espessura} - {altura_gaveta} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      }
     },
     {
       "nome": "Lateral Gaveta Esq",
@@ -90,8 +218,17 @@
       "largura": "{altura_gaveta} - 40",
       "altura": "{profundidade} - 80",
       "espessura": 15,
-      "posicao": { "x": "{espessura} + 3", "y": 18, "z": "{altura} - {espessura} - {altura_gaveta} + 20" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura} + 3",
+        "y": 18,
+        "z": "{altura} - {shop.espessura} - {altura_gaveta} + 20"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Gaveta Dir",
@@ -99,39 +236,129 @@
       "largura": "{altura_gaveta} - 40",
       "altura": "{profundidade} - 80",
       "espessura": 15,
-      "posicao": { "x": "{largura} - {espessura} - 18", "y": 18, "z": "{altura} - {espessura} - {altura_gaveta} + 20" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{largura} - {shop.espessura} - 18",
+        "y": 18,
+        "z": "{altura} - {shop.espessura} - {altura_gaveta} + 20"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Fundo Gaveta",
       "role": "fundo_gaveta",
-      "largura": "{largura} - 2 * {espessura} - 42",
+      "largura": "{largura} - 2 * {shop.espessura} - 42",
       "altura": "{profundidade} - 80",
       "espessura": 3,
-      "posicao": { "x": "{espessura} + 21", "y": 18, "z": "{altura} - {espessura} - {altura_gaveta} + 20" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura} + 21",
+        "y": 18,
+        "z": "{altura} - {shop.espessura} - {altura_gaveta} + 20"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Traseira Gaveta",
       "role": "traseira_gaveta",
       "largura": "{altura_gaveta} - 55",
-      "altura": "{largura} - 2 * {espessura} - 42",
+      "altura": "{largura} - 2 * {shop.espessura} - 42",
       "espessura": 15,
-      "posicao": { "x": "{espessura} + 21", "y": "{profundidade} - 77", "z": "{altura} - {espessura} - {altura_gaveta} + 20" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura} + 21",
+        "y": "{profundidade} - 77",
+        "z": "{altura} - {shop.espessura} - {altura_gaveta} + 20"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     }
   ],
-
   "ferragens_auto": [
-    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_esq × divisoria", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × divisoria", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "corredica", "peca": "lateral_esq", "condicao": "true" },
-    { "regra": "corredica", "peca": "lateral_dir", "condicao": "true" },
-    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base"], "condicao": "{com_fundo}" },
-    { "regra": "puxador", "peca": "frente_gaveta", "condicao": "true" }
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × divisoria",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × divisoria",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "corredica",
+      "peca": "lateral_esq",
+      "condicao": "true"
+    },
+    {
+      "regra": "corredica",
+      "peca": "lateral_dir",
+      "condicao": "true"
+    },
+    {
+      "regra": "rebaixo_fundo",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir",
+        "base"
+      ],
+      "condicao": "{com_fundo}"
+    },
+    {
+      "regra": "puxador",
+      "peca": "frente_gaveta",
+      "condicao": "true"
+    }
+  ],
+  "_migration_notes": [
+    {
+      "date": "2026-05-10T00:14:08-03:00",
+      "tool": "migrate_bordas_keys.rb",
+      "mapping": {
+        "frontal": "frente",
+        "traseira": "tras",
+        "esq": "base",
+        "dir": "topo"
+      },
+      "pecas_migradas": 11
+    }
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 8
+    }
   ]
 }

@@ -3,146 +3,387 @@
   "nome": "Espelheira",
   "descricao": "Espelheira/armario com espelho para banheiro. Porta com espelho e prateleiras internas.",
   "categoria": "banheiro",
-  "tags": ["espelheira", "espelho", "banheiro", "prateleiras"],
+  "tags": [
+    "espelheira",
+    "espelho",
+    "banheiro",
+    "prateleiras"
+  ],
   "icone": "armario_aereo",
-
   "parametros": {
-    "largura":       { "default": 800,  "min": 600, "max": 1000, "step": 50, "unidade": "mm" },
-    "altura":        { "default": 600,  "min": 600, "max": 600,  "step": 50, "unidade": "mm" },
-    "profundidade":  { "default": 150,  "min": 150, "max": 150,  "step": 10, "unidade": "mm" },
-    "espessura":     { "default": 18,   "min": 15,  "max": 25,   "step": 0.5, "unidade": "mm" },
-    "n_prateleiras": { "default": 2,    "min": 1,   "max": 3,    "step": 1 },
-    "tipo_porta":    { "default": "1_abrir_d", "opcoes": ["1_abrir_e", "1_abrir_d", "2_abrir"] },
-    "tipo_juncao":   { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
-    "com_fundo":     { "default": true },
-    "puxador":       { "default": "modelo_96mm" }
+    "largura": {
+      "default": 800,
+      "min": 600,
+      "max": 1000,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura": {
+      "default": 600,
+      "min": 600,
+      "max": 600,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "profundidade": {
+      "default": 150,
+      "min": 150,
+      "max": 150,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Profundidade",
+      "type": "number",
+      "unit": "mm"
+    },
+    "espessura": {
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 0.5,
+      "unidade": "mm",
+      "label": "Espessura MDF",
+      "type": "number",
+      "unit": "mm"
+    },
+    "n_prateleiras": {
+      "default": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "label": "Prateleiras",
+      "type": "number"
+    },
+    "tipo_porta": {
+      "default": "1_abrir_d",
+      "opcoes": [
+        "1_abrir_e",
+        "1_abrir_d",
+        "2_abrir"
+      ],
+      "label": "Tipo de porta",
+      "type": "select"
+    },
+    "tipo_juncao": {
+      "default": "minifix",
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ],
+      "label": "Juncao",
+      "type": "select"
+    },
+    "com_fundo": {
+      "default": true,
+      "label": "Com fundo",
+      "type": "boolean"
+    },
+    "puxador": {
+      "default": "modelo_96mm",
+      "label": "Puxador",
+      "type": "string"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esquerda",
       "role": "lateral_esq",
       "largura": "{altura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Direita",
       "role": "lateral_dir",
       "largura": "{altura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Base",
       "role": "base",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Topo",
       "role": "topo",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} - {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Traseira",
       "role": "traseira",
-      "largura": "{largura} - 2 * {espessura}",
-      "altura": "{altura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - 2 * {shop.espessura}",
       "espessura": 3,
       "condicao": "{com_fundo}",
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{espessura}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - 13",
+        "z": "{shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Prateleira 1",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 20",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{n_prateleiras} >= 1",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} / ({n_prateleiras} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} / ({n_prateleiras} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Prateleira 2",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 20",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{n_prateleiras} >= 2",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "2 * {altura} / ({n_prateleiras} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "2 * {altura} / ({n_prateleiras} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Prateleira 3",
       "role": "prateleira",
-      "largura": "{largura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
       "altura": "{profundidade} - 20",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{n_prateleiras} >= 3",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "3 * {altura} / ({n_prateleiras} + 1)" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "3 * {altura} / ({n_prateleiras} + 1)"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Porta com Espelho Unica",
       "role": "porta",
-      "largura": "{altura} - 2 * {espessura} - 2",
-      "altura": "{largura} - 2 * {espessura} - 4",
-      "espessura": "{espessura}",
+      "largura": "{altura} - 2 * {shop.espessura} - 2",
+      "altura": "{largura} - 2 * {shop.espessura} - 4",
+      "espessura": "{shop.espessura}",
       "condicao": "{tipo_porta} == '1_abrir_e' || {tipo_porta} == '1_abrir_d'",
-      "posicao": { "x": "{espessura} + 2", "y": 0, "z": "{espessura} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true },
+      "posicao": {
+        "x": "{shop.espessura} + 2",
+        "y": 0,
+        "z": "{shop.espessura} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      },
       "notas": "Porta com espelho colado na face externa (espelho nao e peca CNC)"
     },
     {
       "nome": "Porta Esquerda com Espelho",
       "role": "porta",
-      "largura": "{altura} - 2 * {espessura} - 2",
-      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
-      "espessura": "{espessura}",
+      "largura": "{altura} - 2 * {shop.espessura} - 2",
+      "altura": "({largura} - 2 * {shop.espessura}) / 2 - 2",
+      "espessura": "{shop.espessura}",
       "condicao": "{tipo_porta} == '2_abrir'",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{espessura} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true },
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{shop.espessura} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      },
       "notas": "Porta com espelho colado"
     },
     {
       "nome": "Porta Direita com Espelho",
       "role": "porta",
-      "largura": "{altura} - 2 * {espessura} - 2",
-      "altura": "({largura} - 2 * {espessura}) / 2 - 2",
-      "espessura": "{espessura}",
+      "largura": "{altura} - 2 * {shop.espessura} - 2",
+      "altura": "({largura} - 2 * {shop.espessura}) / 2 - 2",
+      "espessura": "{shop.espessura}",
       "condicao": "{tipo_porta} == '2_abrir'",
-      "posicao": { "x": "{largura} / 2 + 1", "y": 0, "z": "{espessura} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true },
+      "posicao": {
+        "x": "{largura} / 2 + 1",
+        "y": 0,
+        "z": "{shop.espessura} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      },
       "notas": "Porta com espelho colado"
     }
   ],
-
   "ferragens_auto": [
-    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_esq × topo", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × topo", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "{tipo_porta} == '1_abrir_e' || {tipo_porta} == '2_abrir'" },
-    { "regra": "dobradica", "peca": "lateral_dir", "condicao": "{tipo_porta} == '1_abrir_d' || {tipo_porta} == '2_abrir'" },
-    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base", "topo"], "condicao": "{com_fundo}" },
-    { "regra": "puxador", "peca": "porta", "condicao": "true" },
-    { "regra": "system32", "pecas": ["lateral_esq", "lateral_dir"], "condicao": "{n_prateleiras} > 0" }
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × topo",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × topo",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral_esq",
+      "condicao": "{tipo_porta} == '1_abrir_e' || {tipo_porta} == '2_abrir'"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral_dir",
+      "condicao": "{tipo_porta} == '1_abrir_d' || {tipo_porta} == '2_abrir'"
+    },
+    {
+      "regra": "rebaixo_fundo",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir",
+        "base",
+        "topo"
+      ],
+      "condicao": "{com_fundo}"
+    },
+    {
+      "regra": "puxador",
+      "peca": "porta",
+      "condicao": "true"
+    },
+    {
+      "regra": "system32",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir"
+      ],
+      "condicao": "{n_prateleiras} > 0"
+    }
   ],
-
-  "notas": "Espelho colado na face externa da porta (acessorio, nao peca CNC). Profundidade reduzida (150mm) por ser armario de banheiro."
+  "notas": "Espelho colado na face externa da porta (acessorio, nao peca CNC). Profundidade reduzida (150mm) por ser armario de banheiro.",
+  "_migration_notes": [
+    {
+      "date": "2026-05-10T00:14:08-03:00",
+      "tool": "migrate_bordas_keys.rb",
+      "mapping": {
+        "frontal": "frente",
+        "traseira": "tras",
+        "esq": "base",
+        "dir": "topo"
+      },
+      "pecas_migradas": 11
+    }
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 9
+    }
+  ]
 }

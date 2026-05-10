@@ -7,7 +7,7 @@
 require 'rexml/document'
 require 'json'
 
-SOURCE_DIR = "/Users/madeira/Downloads/Biblioteca WPS/constructor"
+SOURCE_DIR = File.expand_path("../../wps_source/constructor", __FILE__)
 OUTPUT_FILE = File.expand_path("../../constructor/templates/constructors.json", __FILE__)
 
 # --- Field name translation: WPS FieldName -> [ornato_key, pt_label] ---

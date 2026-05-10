@@ -3,49 +3,147 @@
   "nome": "Modulo Canto L",
   "descricao": "Modulo de canto em L para cozinha. Prateleira giratoria interna (acessorio).",
   "categoria": "cozinha",
-  "tags": ["base", "canto", "L", "giratoria", "cozinha"],
+  "tags": [
+    "base",
+    "canto",
+    "L",
+    "giratoria",
+    "cozinha"
+  ],
   "icone": "armario_canto",
-
   "parametros": {
-    "largura":        { "default": 1000, "min": 900, "max": 1100, "step": 50, "unidade": "mm" },
-    "largura_lado_b": { "default": 1000, "min": 900, "max": 1100, "step": 50, "unidade": "mm" },
-    "altura":         { "default": 850,  "min": 850, "max": 850,  "step": 50, "unidade": "mm" },
-    "profundidade":   { "default": 580,  "min": 580, "max": 580,  "step": 10, "unidade": "mm" },
-    "espessura":      { "default": 18,   "min": 15,  "max": 25,   "step": 0.5, "unidade": "mm" },
-    "tipo_juncao":    { "default": "minifix", "opcoes": ["minifix", "cavilha", "confirmat"] },
-    "com_fundo":      { "default": true },
-    "com_rodape":     { "default": true, "altura_rodape": 100 },
-    "puxador":        { "default": "modelo_160mm" }
+    "largura": {
+      "default": 1000,
+      "min": 900,
+      "max": 1100,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "largura_lado_b": {
+      "default": 1000,
+      "min": 900,
+      "max": 1100,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Largura Lado B",
+      "type": "number",
+      "unit": "mm"
+    },
+    "altura": {
+      "default": 850,
+      "min": 850,
+      "max": 850,
+      "step": 50,
+      "unidade": "mm",
+      "label": "Altura",
+      "type": "number",
+      "unit": "mm"
+    },
+    "profundidade": {
+      "default": 580,
+      "min": 580,
+      "max": 580,
+      "step": 10,
+      "unidade": "mm",
+      "label": "Profundidade",
+      "type": "number",
+      "unit": "mm"
+    },
+    "espessura": {
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 0.5,
+      "unidade": "mm",
+      "label": "Espessura MDF",
+      "type": "number",
+      "unit": "mm"
+    },
+    "tipo_juncao": {
+      "default": "minifix",
+      "opcoes": [
+        "minifix",
+        "cavilha",
+        "confirmat"
+      ],
+      "label": "Juncao",
+      "type": "select"
+    },
+    "com_fundo": {
+      "default": true,
+      "label": "Com fundo",
+      "type": "boolean"
+    },
+    "com_rodape": {
+      "default": true,
+      "altura_rodape": 100,
+      "label": "Com rodape",
+      "type": "boolean"
+    },
+    "puxador": {
+      "default": "modelo_160mm",
+      "label": "Puxador",
+      "type": "string"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esquerda (lado A)",
       "role": "lateral_esq",
-      "largura": "{altura} - {altura_rodape}",
+      "largura": "{altura} - {shop.altura_rodape}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Lateral Direita (lado B)",
       "role": "lateral_dir",
-      "largura": "{altura} - {altura_rodape}",
+      "largura": "{altura} - {shop.altura_rodape}",
       "altura": "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura_lado_b} - {espessura}", "y": "{largura} - {profundidade}", "z": "{altura_rodape}" },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false },
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura_lado_b} - {shop.espessura}",
+        "y": "{largura} - {profundidade}",
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Lateral no sentido perpendicular (lado B do L)"
     },
     {
       "nome": "Base",
       "role": "base",
-      "largura": "{largura_lado_b} - {espessura}",
-      "altura": "{largura} - {espessura}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": "{espessura}", "z": "{altura_rodape}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false },
+      "largura": "{largura_lado_b} - {shop.espessura}",
+      "altura": "{largura} - {shop.espessura}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{shop.espessura}",
+        "z": "{shop.altura_rodape}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      },
       "notas": "Base em formato L cobrindo area total"
     },
     {
@@ -53,89 +151,215 @@
       "role": "travessa",
       "largura": "{largura_lado_b} - {profundidade}",
       "altura": 80,
-      "espessura": "{espessura}",
-      "posicao": { "x": "{profundidade}", "y": 0, "z": "{altura} - 80" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{profundidade}",
+        "y": 0,
+        "z": "{altura} - 80"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Travessa Frontal B",
       "role": "travessa",
       "largura": 80,
       "altura": "{largura} - {profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": "{profundidade}", "z": "{altura} - 80" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": "{profundidade}",
+        "z": "{altura} - 80"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Traseira Lado A",
       "role": "traseira",
-      "largura": "{largura_lado_b} - {espessura}",
-      "altura": "{altura} - {altura_rodape} - {espessura}",
+      "largura": "{largura_lado_b} - {shop.espessura}",
+      "altura": "{altura} - {shop.altura_rodape} - {shop.espessura}",
       "espessura": 3,
       "condicao": "{com_fundo}",
-      "posicao": { "x": "{espessura}", "y": "{largura} - 13", "z": "{altura_rodape} + {espessura}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{largura} - 13",
+        "z": "{shop.altura_rodape} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Traseira Lado B",
       "role": "traseira",
-      "largura": "{altura} - {altura_rodape} - {espessura}",
-      "altura": "{largura} - {profundidade} - {espessura}",
+      "largura": "{altura} - {shop.altura_rodape} - {shop.espessura}",
+      "altura": "{largura} - {profundidade} - {shop.espessura}",
       "espessura": 3,
       "condicao": "{com_fundo}",
-      "posicao": { "x": "{largura_lado_b} - 13", "y": "{profundidade} + {espessura}", "z": "{altura_rodape} + {espessura}" },
-      "bordas": { "frontal": false, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{largura_lado_b} - 13",
+        "y": "{profundidade} + {shop.espessura}",
+        "z": "{shop.altura_rodape} + {shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Porta Lado A",
       "role": "porta",
-      "largura": "{altura} - {altura_rodape} - {espessura} - 2",
+      "largura": "{altura} - {shop.altura_rodape} - {shop.espessura} - 2",
       "altura": "{largura_lado_b} - {profundidade} - 4",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{profundidade} + 2", "y": 0, "z": "{altura_rodape} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{profundidade} + 2",
+        "y": 0,
+        "z": "{shop.altura_rodape} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      }
     },
     {
       "nome": "Porta Lado B",
       "role": "porta",
       "largura": "{largura} - {profundidade} - 4",
-      "altura": "{altura} - {altura_rodape} - {espessura} - 2",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": "{profundidade} + 2", "z": "{altura_rodape} + 1" },
-      "bordas": { "frontal": true, "traseira": true, "dir": true, "esq": true }
+      "altura": "{altura} - {shop.altura_rodape} - {shop.espessura} - 2",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": "{profundidade} + 2",
+        "z": "{shop.altura_rodape} + 1"
+      },
+      "bordas": {
+        "frente": true,
+        "tras": true,
+        "topo": true,
+        "base": true
+      }
     },
     {
       "nome": "Rodape Lado A",
       "role": "rodape",
       "largura": "{largura_lado_b} - {profundidade}",
-      "altura": "{altura_rodape}",
-      "espessura": "{espessura}",
+      "altura": "{shop.altura_rodape}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_rodape}",
-      "posicao": { "x": "{profundidade}", "y": 50, "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": "{profundidade}",
+        "y": 50,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     },
     {
       "nome": "Rodape Lado B",
       "role": "rodape",
-      "largura": "{altura_rodape}",
+      "largura": "{shop.altura_rodape}",
       "altura": "{largura} - {profundidade}",
-      "espessura": "{espessura}",
+      "espessura": "{shop.espessura}",
       "condicao": "{com_rodape}",
-      "posicao": { "x": 50, "y": "{profundidade}", "z": 0 },
-      "bordas": { "frontal": true, "traseira": false, "dir": false, "esq": false }
+      "posicao": {
+        "x": 50,
+        "y": "{profundidade}",
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "tras": false,
+        "topo": false,
+        "base": false
+      }
     }
   ],
-
   "ferragens_auto": [
-    { "regra": "minifix", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "minifix", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'minifix'" },
-    { "regra": "cavilha", "juncao": "lateral_esq × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "cavilha", "juncao": "lateral_dir × base", "condicao": "{tipo_juncao} == 'cavilha'" },
-    { "regra": "dobradica", "peca": "lateral_esq", "condicao": "true" },
-    { "regra": "dobradica", "peca": "lateral_dir", "condicao": "true" },
-    { "regra": "rebaixo_fundo", "pecas": ["lateral_esq", "lateral_dir", "base"], "condicao": "{com_fundo}" },
-    { "regra": "puxador", "peca": "porta", "condicao": "true" }
+    {
+      "regra": "minifix",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "minifix",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'minifix'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_esq × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "cavilha",
+      "juncao": "lateral_dir × base",
+      "condicao": "{tipo_juncao} == 'cavilha'"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral_esq",
+      "condicao": "true"
+    },
+    {
+      "regra": "dobradica",
+      "peca": "lateral_dir",
+      "condicao": "true"
+    },
+    {
+      "regra": "rebaixo_fundo",
+      "pecas": [
+        "lateral_esq",
+        "lateral_dir",
+        "base"
+      ],
+      "condicao": "{com_fundo}"
+    },
+    {
+      "regra": "puxador",
+      "peca": "porta",
+      "condicao": "true"
+    }
   ],
-
-  "notas": "Modulo em L. Prateleira giratoria e acessorio comprado pronto (nao e peca em MDF). As 2 portas abrem em direcoes perpendiculares."
+  "notas": "Modulo em L. Prateleira giratoria e acessorio comprado pronto (nao e peca em MDF). As 2 portas abrem em direcoes perpendiculares.",
+  "_migration_notes": [
+    {
+      "date": "2026-05-10T00:14:08-03:00",
+      "tool": "migrate_bordas_keys.rb",
+      "mapping": {
+        "frontal": "frente",
+        "traseira": "tras",
+        "esq": "base",
+        "dir": "topo"
+      },
+      "pecas_migradas": 11
+    }
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 9
+    }
+  ]
 }

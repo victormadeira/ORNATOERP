@@ -5,114 +5,240 @@
   "descricao": "Armário aéreo com porta(s) basculante(s) com pistão a gás",
   "icone": "aereo",
   "thumbnail": "aereo_basculante.png",
-
   "parametros": {
-    "largura":      { "label": "Largura (mm)",     "default": 900,  "min": 300,  "max": 1800, "step": 50 },
-    "altura":       { "label": "Altura (mm)",      "default": 700,  "min": 300,  "max": 1000, "step": 10 },
-    "profundidade": { "label": "Profundidade (mm)", "default": 350,  "min": 280,  "max": 450,  "step": 10 },
-    "espessura":    { "label": "Espessura MDF",    "default": 18,   "min": 15,   "max": 25,   "step": 1  },
-    "material":     { "label": "Material",         "default": "MDF18_BrancoTX" },
-    "com_fundo":    { "label": "Com fundo",        "default": true  },
-    "n_portas":     { "label": "Número de portas basculantes", "default": 1, "min": 1, "max": 2, "step": 1 }
+    "largura": {
+      "label": "Largura (mm)",
+      "default": 900,
+      "min": 300,
+      "max": 1800,
+      "step": 50,
+      "type": "number"
+    },
+    "altura": {
+      "label": "Altura (mm)",
+      "default": 700,
+      "min": 300,
+      "max": 1000,
+      "step": 10,
+      "type": "number"
+    },
+    "profundidade": {
+      "label": "Profundidade (mm)",
+      "default": 350,
+      "min": 280,
+      "max": 450,
+      "step": 10,
+      "type": "number"
+    },
+    "espessura": {
+      "label": "Espessura MDF",
+      "default": 18,
+      "min": 15,
+      "max": 25,
+      "step": 1,
+      "type": "number"
+    },
+    "material": {
+      "label": "Material",
+      "default": "MDF18_BrancoTX",
+      "type": "string"
+    },
+    "com_fundo": {
+      "label": "Com fundo",
+      "default": true,
+      "type": "boolean"
+    },
+    "n_portas": {
+      "label": "Número de portas basculantes",
+      "default": 1,
+      "min": 1,
+      "max": 2,
+      "step": 1,
+      "type": "number"
+    }
   },
-
   "pecas": [
     {
       "nome": "Lateral Esq",
       "role": "lateral",
-      "largura":   "{altura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": 0, "y": 0, "z": 0 },
-      "bordas": { "frente": true, "topo": true, "base": true, "tras": false }
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": false
+      }
     },
     {
       "nome": "Lateral Dir",
       "role": "lateral",
-      "largura":   "{altura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{largura} - {espessura}", "y": 0, "z": 0 },
-      "bordas": { "frente": true, "topo": true, "base": true, "tras": false }
+      "largura": "{altura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{largura} - {shop.espessura}",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": false
+      }
     },
     {
       "nome": "Base",
       "role": "base",
-      "largura":   "{largura} - 2 * {espessura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": 0 },
-      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": 0
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
     },
     {
       "nome": "Topo",
       "role": "top",
-      "largura":   "{largura} - 2 * {espessura}",
-      "altura":    "{profundidade}",
-      "espessura": "{espessura}",
-      "posicao": { "x": "{espessura}", "y": 0, "z": "{altura} - {espessura}" },
-      "bordas": { "frente": true, "topo": false, "base": false, "tras": false }
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{profundidade}",
+      "espessura": "{shop.espessura}",
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": 0,
+        "z": "{altura} - {shop.espessura}"
+      },
+      "bordas": {
+        "frente": true,
+        "topo": false,
+        "base": false,
+        "tras": false
+      }
     },
     {
       "nome": "Traseira",
       "role": "back_panel",
-      "largura":   "{largura} - 2 * {espessura}",
-      "altura":    "{altura} - 2 * {espessura}",
+      "largura": "{largura} - 2 * {shop.espessura}",
+      "altura": "{altura} - 2 * {shop.espessura}",
       "espessura": 3,
-      "posicao": { "x": "{espessura}", "y": "{profundidade} - 13", "z": "{espessura}" },
-      "bordas": { "frente": false, "topo": false, "base": false, "tras": false },
+      "posicao": {
+        "x": "{shop.espessura}",
+        "y": "{profundidade} - 13",
+        "z": "{shop.espessura}"
+      },
+      "bordas": {
+        "frente": false,
+        "topo": false,
+        "base": false,
+        "tras": false
+      },
       "condicao": "{com_fundo} == true"
     },
     {
       "nome": "Porta Basculante",
       "role": "door",
-      "largura":   "{altura} - 2 * {espessura} - 2",
-      "altura":    "{largura} - 2 * {espessura} - 2",
-      "espessura": "{espessura}",
+      "largura": "{altura} - 2 * {shop.espessura} - 2",
+      "altura": "{largura} - 2 * {shop.espessura} - 2",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "{espessura} + 1",
+        "x": "{shop.espessura} + 1",
         "y": 0,
-        "z": "{espessura} + 1"
+        "z": "{shop.espessura} + 1"
       },
-      "bordas": { "frente": true, "topo": true, "base": true, "tras": true },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      },
       "condicao": "{n_portas} == 1"
     },
     {
       "nome": "Porta Basculante Sup",
       "role": "door",
-      "largura":   "{altura} - 2 * {espessura} - 2",
-      "altura":    "({largura} - 2 * {espessura}) / 2 - 2",
-      "espessura": "{espessura}",
+      "largura": "{altura} - 2 * {shop.espessura} - 2",
+      "altura": "({largura} - 2 * {shop.espessura}) / 2 - 2",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "{espessura} + 1",
+        "x": "{shop.espessura} + 1",
         "y": 0,
-        "z": "{espessura} + 1"
+        "z": "{shop.espessura} + 1"
       },
-      "bordas": { "frente": true, "topo": true, "base": true, "tras": true },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      },
       "condicao": "{n_portas} == 2"
     },
     {
       "nome": "Porta Basculante Dir",
       "role": "door",
-      "largura":   "{altura} - 2 * {espessura} - 2",
-      "altura":    "({largura} - 2 * {espessura}) / 2 - 2",
-      "espessura": "{espessura}",
+      "largura": "{altura} - 2 * {shop.espessura} - 2",
+      "altura": "({largura} - 2 * {shop.espessura}) / 2 - 2",
+      "espessura": "{shop.espessura}",
       "posicao": {
-        "x": "{espessura} + 1",
+        "x": "{shop.espessura} + 1",
         "y": 0,
         "z": "{largura} / 2 + 1"
       },
-      "bordas": { "frente": true, "topo": true, "base": true, "tras": true },
+      "bordas": {
+        "frente": true,
+        "topo": true,
+        "base": true,
+        "tras": true
+      },
       "condicao": "{n_portas} == 2"
     }
   ],
-
   "ferragens_auto": [
-    { "tipo": "pistao",    "aplica_em": "door", "quantidade": 2 },
-    { "tipo": "puxador",  "aplica_em": "door",  "espacamento": 128 },
-    { "tipo": "minifix",  "aplica_em": ["lateral", "base", "top"] },
-    { "tipo": "cavilha",  "aplica_em": "lateral" }
+    {
+      "tipo": "pistao",
+      "aplica_em": "door",
+      "quantidade": 2
+    },
+    {
+      "tipo": "puxador",
+      "aplica_em": "door",
+      "espacamento": 128
+    },
+    {
+      "tipo": "minifix",
+      "aplica_em": [
+        "lateral",
+        "base",
+        "top"
+      ]
+    },
+    {
+      "tipo": "cavilha",
+      "aplica_em": "lateral"
+    }
   ],
+  "agregados_sugeridos": [
 
-  "agregados_sugeridos": []
+  ],
+  "_enrichment_notes": [
+    {
+      "timestamp": "2026-05-10T00:21:45-03:00",
+      "tool": "enrich_module_params.rb",
+      "params_enriched": 7
+    }
+  ]
 }

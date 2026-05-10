@@ -122,11 +122,23 @@ module Ornato
         'acabamento'     => :cover,
         'painel_lateral' => :cover,
 
-        # Cabideiro / varão
+        # Painel ripado / revestimento decorativo técnico
+        'painel'         => :panel,
+        'panel'          => :panel,
+        'painel_base'    => :panel,
+        'painel_ripado'  => :panel,
+        'ripa'           => :slat,
+        'ripas'          => :slat,
+        'slat'           => :slat,
+        'ripado'         => :slat,
+
+        # Cabideiro / varão / travessa
         'cabideiro'      => :rail,
         'varao'          => :rail,
         'varão'          => :rail,
         'rail'           => :rail,
+        'travessa'       => :rail,
+        'crossbar'       => :rail,
 
         # Tampo de bancada (countertop)
         'countertop'     => :countertop,
@@ -154,6 +166,8 @@ module Ornato
         drawer_front:  { label: 'Frente Gaveta',   color: '#C9A96E', pip: 'copper'  },
         kick:          { label: 'Rodapé',          color: '#525d72', pip: 'muted'   },
         cover:         { label: 'Tamponamento',    color: '#8b94a8', pip: 'gray'    },
+        panel:         { label: 'Painel',          color: '#8b94a8', pip: 'gray'    },
+        slat:          { label: 'Ripa',            color: '#C9A96E', pip: 'copper'  },
         rail:          { label: 'Varão',           color: '#8b94a8', pip: 'gray'    },
         countertop:    { label: 'Tampo Bancada',   color: '#C9A96E', pip: 'copper'  },
         generic:       { label: 'Peça',            color: '#525d72', pip: 'muted'   },
@@ -176,6 +190,8 @@ module Ornato
         drawer_front:  %w[rasgo_fechadura furo_passagem furo_livre],
         kick:          %w[recorte furo_livre],
         cover:         %w[rasgo_led furo_livre],
+        panel:         %w[furo_livre],
+        slat:          %w[furo_livre],
         rail:          %w[],
         countertop:    %w[recorte furo_passagem rasgo_led furo_livre],
         generic:       %w[rasgo_led furo_passagem rasgo_fechadura pistao_gas recorte furo_livre],
@@ -239,6 +255,8 @@ module Ornato
         return :drawer_back   if n =~ /gaveta.*tras|drawer.*back/
         return :kick          if n =~ /rodape|rodapé|kick|saia/
         return :cover         if n =~ /tampon|cover|acabam/
+        return :panel         if n =~ /painel|panel/
+        return :slat          if n =~ /ripa|slat|ripado/
         return :rail          if n =~ /cabid|varao|varão|rail/
         :generic
       end
