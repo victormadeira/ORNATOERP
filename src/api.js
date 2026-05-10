@@ -137,6 +137,7 @@ const api = {
     get: (path, opts) => request('GET', path, null, 1, opts),  // opts aceita { signal } para AbortController
     post: (path, body, opts) => request('POST', path, body, 1, opts),
     put: (path, body, opts) => request('PUT', path, body, 1, opts),
+    patch: (path, body, opts) => request('PATCH', path, body, 1, opts),
     del: (path) => request('DELETE', path),
     postBlob: (path, body) => requestBlob('POST', path, body),
     upload: uploadFile,

@@ -38,6 +38,11 @@ const GestaoAvancada = lazy(() => import('./pages/GestaoAvancada'));
 const ProducaoTV = lazy(() => import('./pages/ProducaoTV'));
 const Produtividade = lazy(() => import('./pages/Produtividade'));
 const PluginDownload = lazy(() => import('./pages/PluginDownload'));
+const PluginReleases = lazy(() => import('./pages/admin/PluginReleases'));
+const PluginTelemetry = lazy(() => import('./pages/admin/PluginTelemetry'));
+const PluginErrorReports = lazy(() => import('./pages/admin/PluginErrorReports'));
+const LibraryManager = lazy(() => import('./pages/admin/LibraryManager'));
+const ShopProfiles = lazy(() => import('./pages/admin/ShopProfiles'));
 const Ponto = lazy(() => import('./pages/Ponto'));
 const FunilLeads = lazy(() => import('./pages/FunilLeads'));
 const ErrorsPage = lazy(() => import('./pages/Errors'));
@@ -128,7 +133,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','ponto','funil','errors','oficina','oficina_tv'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','plugin_releases','plugin_telemetry','plugin_errors','library_manager','shop_profiles','ponto','funil','errors','oficina','oficina_tv'];
     // Páginas aposentadas — redirecionam para o destino atual
     const LEGACY_REDIRECTS = { digital_twin: 'cnc' };
     const [pg, setPg] = useState(() => {
@@ -615,6 +620,9 @@ export default function App() {
             { id: "assistente", lb: "Assistente IA", ic: Ic.Sparkles },
         { id: "gerente-revisional", lb: "Gerente Revisional IA", ic: Ic.Brain },
             { id: "plugin_download", lb: "Plugin SketchUp", ic: Ic.Plug },
+            ...(isAdmin ? [{ id: "plugin_releases", lb: "Plugin · Releases", ic: Ic.Plug }] : []),
+            ...((isAdmin || user?.role === 'library_curator') ? [{ id: "library_manager", lb: "Biblioteca · Curadoria", ic: Ic.Briefcase || Ic.File }] : []),
+            ...(isAdmin ? [{ id: "shop_profiles", lb: "Padrões · Marcenaria", ic: Ic.Cog || Ic.Gear }] : []),
             { id: "cfg", lb: "Configurações", ic: Ic.Gear },
             ...(isAdmin ? [{ id: "users", lb: "Usuários", ic: Ic.Users }] : []),
             ...(isAdmin ? [{ id: "errors", lb: "Erros do Sistema", ic: Bug }] : []),
@@ -714,6 +722,13 @@ export default function App() {
             case "oficina_tv": return <Oficina notify={notify} tvMode />;
             case "produtividade": return <Produtividade notify={notify} />;
             case "plugin_download": return <PluginDownload notify={notify} />;
+            case "plugin_releases":  return isAdmin ? <PluginReleases notify={notify} onNav={nav} /> : <Dash nav={nav} notify={notify} />;
+            case "plugin_telemetry": return isAdmin ? <PluginTelemetry notify={notify} onNav={nav} /> : <Dash nav={nav} notify={notify} />;
+            case "plugin_errors":    return isAdmin ? <PluginErrorReports notify={notify} onNav={nav} /> : <Dash nav={nav} notify={notify} />;
+            case "library_manager":  return (isAdmin || user?.role === 'library_curator')
+                ? <LibraryManager notify={notify} user={user} />
+                : <Dash nav={nav} notify={notify} />;
+            case "shop_profiles":    return isAdmin ? <ShopProfiles notify={notify} user={user} /> : <Dash nav={nav} notify={notify} />;
             case "ponto": return <Ponto notify={notify} />;
             case "funil": return <FunilLeads notify={notify} nav={nav} />;
             case "errors": return isAdmin ? <ErrorsPage notify={notify} /> : <Dash nav={nav} notify={notify} />;
