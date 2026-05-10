@@ -1,0 +1,4 @@
+0.4.2
+sha:abc123
+channel:dev
+built:2026-05-10T10:30:00Z
