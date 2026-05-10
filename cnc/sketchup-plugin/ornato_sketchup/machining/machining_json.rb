@@ -19,7 +19,27 @@ module Ornato
         contour
       ].freeze
 
-      VALID_SIDES = %w[a b].freeze
+      # Lados aceitos pelo UPM:
+      #   - 'a' / 'b'        → legado (face superior / inferior da chapa 2D)
+      #   - 'topside'        → equivalente a 'a' no path de furações 3D (WPS)
+      #   - 'underside'      → equivalente a 'b' no path de furações 3D
+      #   - 'edge_left' / 'edge_right' / 'edge_front' / 'edge_back'
+      #                      → furações de borda lateral (sistema 32, minifix)
+      # A router CNC precisa do valor cru (não normalizamos para a/b) porque
+      # o pós-processador escolhe a árvore/cabeçote conforme o lado.
+      VALID_SIDES = %w[
+        a
+        b
+        topside
+        underside
+        edge_left
+        edge_right
+        edge_front
+        edge_back
+      ].freeze
+
+      EDGE_SIDES = %w[edge_left edge_right edge_front edge_back].freeze
+      EDGE_MAX_DIAMETER_MM = 12.0
 
       # Serializa hash de usinagem para o formato JSON esperado pelo Ornato CNC.
       #
@@ -82,6 +102,17 @@ module Ornato
           side = op['side'] || op[:side]
           if side && !VALID_SIDES.include?(side.to_s)
             errors << "#{prefix} side '#{side}' invalido (validos: #{VALID_SIDES.join(', ')})"
+          end
+
+          # Lados de borda só podem aparecer em furos pequenos (sistema 32, minifix).
+          if side && EDGE_SIDES.include?(side.to_s)
+            if category.to_s != 'hole'
+              errors << "#{prefix} side '#{side}' so pode ser usado em category 'hole' (recebido: '#{category}')"
+            end
+            diameter = op['diameter'] || op[:diameter]
+            if diameter && diameter.to_f > EDGE_MAX_DIAMETER_MM
+              errors << "#{prefix} side '#{side}' exige diameter <= #{EDGE_MAX_DIAMETER_MM}mm (recebido: #{diameter})"
+            end
           end
 
           # Validar parametros especificos por tipo

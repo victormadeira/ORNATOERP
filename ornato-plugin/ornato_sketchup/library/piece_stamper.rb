@@ -58,6 +58,8 @@ module Ornato
         rail:         { frente: false, tras: false, topo: false, base: false },
         countertop:   { frente: true,  tras: false, topo: false, base: false },
         cover:        { frente: true,  tras: false, topo: true,  base: true  },
+        panel:        { frente: true,  tras: false, topo: true,  base: true  },
+        slat:         { frente: true,  tras: false, topo: true,  base: true  },
         drawer_side:  { frente: false, tras: false, topo: true,  base: false },
         drawer_back:  { frente: false, tras: false, topo: true,  base: false },
         drawer_bottom:{ frente: false, tras: false, topo: false, base: false },
