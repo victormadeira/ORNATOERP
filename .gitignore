@@ -53,3 +53,22 @@ ref-sistema-antigo/
 # Agent/Claude files
 .agent/
 .claude/
+
+# WPS library — referência interna, não versionar (1.1GB cada)
+ornato-plugin/wps_source/
+ornato-plugin/wps_working/
+
+# Extracted .skp libraries — distribuídos via API cloud (B2/B5 sync)
+ornato-plugin/biblioteca/modelos/
+ornato-plugin/biblioteca/modelos_ornato/
+
+# ERP runtime storage
+data/library/assets/
+data/plugin/releases/*/*.rbz
+data/plugin/releases/*/*.zip
+
+# Migration mappings (gerados por tools, regeneráveis)
+ornato-plugin/biblioteca/migration_mapping.json
+
+# Backups locais pre-migração (gerados, não commitar)
+ornato-plugin/wps_working/backups_pre_*/
