@@ -1,4 +1,8 @@
 # frozen_string_literal: true
+require 'net/http'
+require 'uri'
+require 'json'
+require 'fileutils'
 # ═══════════════════════════════════════════════════════════════
 # ShopConfig — Configuração global da marcenaria
 #
@@ -30,8 +34,9 @@ module Ornato
   module Hardware
     module ShopConfig
 
-      PREF_KEY  = 'shop_config'
-      PREF_APP  = 'Ornato'
+      PREF_KEY       = 'shop_config'
+      PREF_APP       = 'Ornato'
+      OVERRIDES_KEY  = 'shop_overrides'
 
       # ─── Defaults de fábrica ──────────────────────────────────
       FACTORY_DEFAULTS = {
@@ -169,6 +174,20 @@ module Ornato
         # ─── Pistão a gás ─────────────────────────────────────
         'pistao' => {
           'forca_padrao' => 80,  # Newtons
+        },
+
+        # ─── Rodapé ───────────────────────────────────────────
+        # Altura padrão do rodapé do módulo (mm). Usada nos JSONs
+        # paramétricos via {shop.altura_rodape}.
+        'rodape' => {
+          'altura' => 100.0,
+        },
+
+        # ─── Fita de borda ────────────────────────────────────
+        # Código padrão da fita de borda usada quando o JSON não
+        # especifica explicitamente. Usado via {shop.fita_borda_padrao}.
+        'fita' => {
+          'padrao' => 'BOR_04x22_Branco',
         },
 
         # ─── Folgas de fabricação ─────────────────────────────
@@ -348,6 +367,51 @@ module Ornato
         (c.dig('sobreposicao', tipo.to_s) || 0).to_f
       end
 
+      # ─── Local overrides (Sprint SHOP-5) ──────────────────────
+      # Ovverrides locais por workstation, aplicados POR CIMA do
+      # profile sincronizado do ERP. Não sobem para o ERP.
+      # Estrutura: { 'folga_porta_lateral' => 2.5, ... } (chaves
+      # do to_expr_params, valores numéricos/booleans/strings).
+      def self.read_overrides
+        raw = Sketchup.read_default(PREF_APP, OVERRIDES_KEY)
+        return {} if raw.nil? || raw.to_s.empty?
+        parsed = JSON.parse(raw)
+        parsed.is_a?(Hash) ? parsed : {}
+      rescue StandardError
+        {}
+      end
+
+      def self.write_overrides(hash)
+        clean = (hash || {}).reject { |_, v| v.nil? }
+        Sketchup.write_default(PREF_APP, OVERRIDES_KEY, JSON.generate(clean))
+        clean
+      rescue StandardError => e
+        puts "Ornato ShopConfig.write_overrides ERRO: #{e.message}"
+        false
+      end
+
+      def self.set_override(key, value)
+        h = read_overrides
+        if value.nil?
+          h.delete(key.to_s)
+        else
+          h[key.to_s] = value
+        end
+        write_overrides(h)
+        h
+      end
+
+      def self.clear_override(key)
+        set_override(key, nil)
+      end
+
+      def self.clear_all_overrides!
+        Sketchup.write_default(PREF_APP, OVERRIDES_KEY, nil)
+        {}
+      rescue StandardError
+        {}
+      end
+
       def self.to_expr_params(cfg = nil)
         c = cfg || load
 
@@ -367,13 +431,24 @@ module Ornato
         cr   = c['corredica']      || {}
         rf   = c['rasgo_fundo']    || {}
         pu   = c['puxador']        || {}
+        rd   = c['rodape']         || {}
+        ft   = c['fita']           || {}
+
+        esp_carcaca = c['espessura_carcaca_padrao'] || 18
+        esp_fundo   = c['espessura_fundo_padrao']   || 6
+        alt_rodape  = rd['altura']                  || 100.0
 
         {
           # ── Espessuras padrão ───────────────────────────────
-          'espessura_carcaca'      => c['espessura_carcaca_padrao'] || 18,
-          'espessura_fundo'        => c['espessura_fundo_padrao']   || 6,
+          'espessura_carcaca'      => esp_carcaca,
+          'espessura_fundo'        => esp_fundo,
           'espessura_frente'       => c['espessura_frente_padrao']  || 18,
           'fundo_metodo'           => c['fundo_metodo_padrao']      || 'rasgo',
+
+          # ── Aliases planos de espessura (compat JSONs migrados) ─
+          'espessura'              => esp_carcaca,
+          'espessura_padrao'       => esp_carcaca,
+          'espessura_chapa_padrao' => esp_carcaca,
 
           # ── Folgas: porta de abrir ──────────────────────────
           'folga_porta_lateral'    => fpa['lateral_ext']    || 2.0,
@@ -381,6 +456,16 @@ module Ornato
           'folga_entre_modulos'    => fpa['entre_modulos']  || 3.0,
           'folga_porta_topo'       => fpa['topo']           || 2.0,
           'folga_porta_base'       => fpa['base']           || 2.0,
+
+          # ── Aliases planos de folga porta (compat JSONs migrados) ─
+          # vertical = gap topo/base (usa o topo como referência)
+          'folga_porta_vertical'   => fpa['topo']           || 2.0,
+          # entre_portas = gap total entre 2 portas no mesmo módulo (2 × lateral_int)
+          'folga_entre_portas'     => ((fpa['lateral_int'] || 1.5).to_f * 2.0),
+          # reta = porta com sobreposição reta (mesmo critério de lateral_ext)
+          'folga_porta_reta'       => fpa['lateral_ext']    || 2.0,
+          # dupla = par de portas adjacentes (entre_modulos)
+          'folga_porta_dupla'      => fpa['entre_modulos']  || 3.0,
 
           # ── Folgas: porta de correr ─────────────────────────
           'folga_correr_topo'      => fpc['topo']           || 3.0,
@@ -391,6 +476,8 @@ module Ornato
           'folga_gaveta_fundo'     => fgv['fundo']          || 5.0,
           'folga_gaveta_topo'      => fgv['topo']           || 5.0,
           'folga_entre_gavetas'    => fgv['entre_gavetas']  || 3.0,
+          # Alias plano: folga_gaveta = gap entre frentes consecutivas
+          'folga_gaveta'           => fgv['entre_gavetas']  || 3.0,
 
           # ── Folgas: prateleira ──────────────────────────────
           'folga_prat_lateral'     => fpr['lateral']        || 1.0,
@@ -404,6 +491,19 @@ module Ornato
           # largura do rasgo = espessura do fundo (calculada por módulo)
           'rasgo_profundidade'     => rf['profundidade']    || 6.0,
           'rasgo_recuo'            => rf['recuo']           || 15.0,
+
+          # ── Aliases planos de rasgo de fundo (compat JSONs) ─
+          'recuo_fundo'              => rf['recuo']        || 15.0,
+          'profundidade_rasgo_fundo' => rf['profundidade'] || 6.0,
+          # largura do rasgo = espessura do fundo (calculada)
+          'largura_rasgo_fundo'      => esp_fundo,
+
+          # ── Rodapé ──────────────────────────────────────────
+          'altura_rodape'            => alt_rodape,
+          'rodape_altura_padrao'     => alt_rodape,
+
+          # ── Fita de borda ───────────────────────────────────
+          'fita_borda_padrao'        => ft['padrao']       || 'BOR_04x22_Branco',
 
           # ── Dobradiça ───────────────────────────────────────
           'dobradica_edge_offset'  => dob['edge_offset']    || 22.0,
@@ -431,6 +531,9 @@ module Ornato
           'cavilha_depth'          => cv['depth']           || 15.0,
           'cavilha_spacing'        => cv['spacing']         || 96.0,
           'cavilha_min_edge'       => cv['min_edge']        || 32.0,
+          # Aliases planos (PT) usados nos JSONs migrados
+          'cavilha_diametro'       => cv['dia']             || 8.0,
+          'cavilha_profundidade'   => cv['depth']           || 15.0,
 
           # ── Pino de prateleira ──────────────────────────────
           'pino_diametro'          => pp['diametro']        || 5.0,
@@ -457,10 +560,153 @@ module Ornato
           'sys32_spacing'          => s32['spacing']        || 32.0,
           'sys32_front_offset'     => s32['front_offset']   || 37.0,
           'sys32_top_margin'       => s32['top_margin']     || 37.0,
-        }
+          # Aliases planos (sistema32_*) usados nos JSONs migrados
+          'sistema32_offset'       => s32['front_offset']   || 37.0,
+          'sistema32_passo'        => s32['spacing']        || 32.0,
+        }.then do |base|
+          # Apply local overrides (Sprint SHOP-5) — puramente locais,
+          # NÃO sobem para o ERP. Sobrescrevem profile sincronizado.
+          read_overrides.each do |k, v|
+            base[k.to_s] = v unless v.nil?
+          end
+          base
+        end
       rescue => e
         puts "Ornato ShopConfig.to_expr_params ERRO: #{e.message}"
         {}
+      end
+
+      # ─── Cloud sync (Sprint SHOP-3) ───────────────────────────
+      # Estado em memória do último sync bem-sucedido.
+      @cloud_version = nil
+      @cloud_profile = nil
+      @last_sync_at  = nil
+
+      CLOUD_CACHE_PATH = File.expand_path('~/.ornato/shop/config.json')
+      CLOUD_DEFAULT_TIMEOUT = 10
+
+      class << self
+        attr_reader :cloud_version, :cloud_profile, :last_sync_at
+
+        # Baixa /api/shop/config do ERP e aplica via save (silencioso em erro).
+        # @param force [Boolean] ignora comparação de version
+        # @return [Hash, nil] payload aplicado ou nil
+        def sync_from_cloud(force: false)
+          token = read_pref('auth_token', '')
+          return nil if token.nil? || token.to_s.empty?
+
+          api_url = resolve_api_url
+          local_path = CLOUD_CACHE_PATH
+
+          payload = http_get_json("#{api_url}/api/shop/config", token: token)
+          return nil unless payload.is_a?(Hash) && payload['values'].is_a?(Hash)
+
+          if !force && File.exist?(local_path)
+            begin
+              local = JSON.parse(File.read(local_path))
+              if local['version'] && local['version'] == payload['version']
+                @cloud_version = payload['version']
+                @cloud_profile = payload['profile_name']
+                @last_sync_at  = Time.now.to_i
+                log(:info, "ShopConfig sync: já atualizado v=#{payload['version']}")
+                return payload
+              end
+            rescue StandardError
+              # cache corrompido → re-aplica
+            end
+          end
+
+          FileUtils.mkdir_p(File.dirname(local_path))
+          tmp = "#{local_path}.tmp"
+          File.write(tmp, JSON.pretty_generate(payload))
+          File.rename(tmp, local_path)
+
+          apply_cloud_config(payload)
+          log(:info, "ShopConfig synced: profile=#{payload['profile_name']} v=#{payload['version']}")
+          payload
+        rescue StandardError => e
+          log(:warn, "ShopConfig sync falhou: #{e.message}")
+          nil
+        end
+
+        # Aplica payload {values, custom_keys} ao ShopConfig persistido.
+        # cloud > sketchup_default > FACTORY_DEFAULTS
+        def apply_cloud_config(payload)
+          config = load
+          (payload['values'] || {}).each do |k, v|
+            config[k.to_s] = v
+          end
+          (payload['custom_keys'] || {}).each do |k, v|
+            config["custom_#{k}"] = v
+          end
+          save(config)
+          @cloud_version = payload['version']
+          @cloud_profile = payload['profile_name']
+          @last_sync_at  = Time.now.to_i
+          true
+        rescue StandardError => e
+          log(:warn, "ShopConfig.apply_cloud_config falhou: #{e.message}")
+          false
+        end
+
+        # Status atual sem fazer request
+        def cloud_status
+          {
+            'profile'      => @cloud_profile,
+            'version'      => @cloud_version,
+            'last_sync_at' => @last_sync_at,
+            'cached'       => File.exist?(CLOUD_CACHE_PATH),
+          }
+        end
+
+        private
+
+        def resolve_api_url
+          if defined?(::Ornato::Config) && ::Ornato::Config.respond_to?(:get)
+            (::Ornato::Config.get(:api, :url) || 'http://localhost:3001').to_s
+          else
+            'http://localhost:3001'
+          end
+        rescue StandardError
+          'http://localhost:3001'
+        end
+
+        def read_pref(key, fallback)
+          if defined?(::Sketchup) && ::Sketchup.respond_to?(:read_default)
+            ::Sketchup.read_default('Ornato', key, fallback)
+          else
+            fallback
+          end
+        rescue StandardError
+          fallback
+        end
+
+        def http_get_json(url, token:, timeout: CLOUD_DEFAULT_TIMEOUT)
+          uri = URI.parse(url)
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = (uri.scheme == 'https')
+          http.open_timeout = timeout
+          http.read_timeout = timeout
+          req = Net::HTTP::Get.new(uri.request_uri)
+          req['Accept']        = 'application/json'
+          req['Authorization'] = "Bearer #{token}" unless token.nil? || token.empty?
+          res = http.request(req)
+          return nil unless res.is_a?(Net::HTTPSuccess)
+          JSON.parse(res.body.to_s)
+        rescue StandardError => e
+          log(:warn, "ShopConfig.http_get_json #{url}: #{e.message}")
+          nil
+        end
+
+        def log(level, msg)
+          if defined?(::Ornato::Logger)
+            ::Ornato::Logger.public_send(level, msg)
+          else
+            $stdout.puts("[#{level.to_s.upcase}] #{msg}")
+          end
+        rescue StandardError
+          nil
+        end
       end
 
       private
