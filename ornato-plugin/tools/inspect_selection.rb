@@ -12,17 +12,19 @@
 #   #    - Clipboard (cópia pronta pra colar aqui)
 #   #    - Arquivo /tmp/ornato_inspect_<timestamp>.json (estruturado)
 #
-# OPÇÕES:
-#   Ornato::Inspector.run            # padrão (depth=3, selection)
-#   Ornato::Inspector.run(depth: 5)  # mais profundo
-#   Ornato::Inspector.run(model: true) # modelo inteiro (cuidado)
+# 4 MODOS:
+#   Ornato::Inspector.run             # FULL (depth=99, todos attrs) — verbose
+#   Ornato::Inspector.tree            # TREE só hierarquia + dims (rápido)
+#   Ornato::Inspector.attrs_only      # só AttributeDictionaries (foco em metadata)
+#   Ornato::Inspector.run(depth: 3)   # limita profundidade
+#   Ornato::Inspector.run(model: true) # modelo inteiro
 # ═══════════════════════════════════════════════════════════════════════
 
 module Ornato
   module Inspector
-    MAX_DEPTH = 3
+    MAX_DEPTH = 99  # default: sem limite prático (gavetas têm 5-6 níveis)
 
-    def self.run(depth: MAX_DEPTH, model: false, to_clipboard: true, to_file: true)
+    def self.run(depth: MAX_DEPTH, model: false, to_clipboard: true, to_file: true, mode: :full)
       out = []
       sel = Sketchup.active_model.selection
 
@@ -36,15 +38,19 @@ module Ornato
       out << "═══════════════════════════════════════════════════════"
       out << "ORNATO INSPECTOR — #{Time.now.iso8601}"
       out << "Modelo: #{Sketchup.active_model.path.empty? ? '(não-salvo)' : File.basename(Sketchup.active_model.path)}"
-      out << "Modo: #{model ? 'MODELO INTEIRO' : 'SELEÇÃO'}"
-      out << "Entidades: #{entities.size}"
+      out << "Modo: #{model ? 'MODELO INTEIRO' : 'SELEÇÃO'} | Output: #{mode.upcase}"
+      out << "Entidades root: #{entities.size}"
       out << "Depth máximo: #{depth}"
       out << "═══════════════════════════════════════════════════════"
       out << ""
 
       entities.each_with_index do |ent, i|
         out << "┌─ ENTIDADE #{i + 1}/#{entities.size} ──────────────────────"
-        dump_entity(ent, out, 0, depth)
+        case mode
+        when :tree       then dump_tree(ent, out, 0, depth)
+        when :attrs_only then dump_attrs_only(ent, out, 0, depth)
+        else                  dump_entity(ent, out, 0, depth)
+        end
         out << "└─────────────────────────────────────────────────────"
         out << ""
       end
@@ -156,15 +162,87 @@ module Ornato
 
       if children && children.any? && indent < max_depth
         out << "#{pad}Children (#{children.size}):"
-        children.first(20).each_with_index do |child, i|
-          out << "#{pad}  ── [#{i + 1}/#{children.size.clamp(0, 20)}] ──"
+        children.each_with_index do |child, i|
+          out << "#{pad}  ── [#{i + 1}/#{children.size}] ──"
           dump_entity(child, out, indent + 1, max_depth)
         end
-        if children.size > 20
-          out << "#{pad}  ... (+ #{children.size - 20} mais — aumenta depth pra ver)"
-        end
       elsif children && children.any?
-        out << "#{pad}Children:     #{children.size} (depth limit alcançado, use depth: #{max_depth + 2} pra ver)"
+        out << "#{pad}Children:     #{children.size} (depth #{max_depth} alcançado — aumente)"
+      end
+    end
+
+    # ─── TREE: só estrutura + dims (compacto, sem attrs) ──────────
+    def self.tree(depth: 99, model: false)
+      run(depth: depth, model: model, mode: :tree)
+    end
+
+    # ─── ATTRS_ONLY: só AttributeDictionaries de cada nó ──────────
+    def self.attrs_only(depth: 99, model: false)
+      run(depth: depth, model: model, mode: :attrs_only)
+    end
+
+    def self.dump_tree(ent, out, indent, max_depth)
+      pad = '│  ' * indent
+      cls_short = ent.class.to_s.sub('Sketchup::', '')
+      name = (ent.respond_to?(:name) ? ent.name : '').to_s
+      role = (ent.respond_to?(:get_attribute) ? (ent.get_attribute('Ornato', 'role') || ent.get_attribute('Ornato', 'tipo')) : nil)
+      role_tag = role ? " [#{role}]" : ''
+
+      dims = ''
+      if ent.respond_to?(:bounds) && ent.bounds && ent.bounds.valid?
+        bb = ent.bounds
+        mm = ->(v) { (v.to_f * 25.4).round(0) rescue v.to_f.round(0) }
+        dx = mm.call(bb.max.x - bb.min.x)
+        dy = mm.call(bb.max.y - bb.min.y)
+        dz = mm.call(bb.max.z - bb.min.z)
+        dims = " (#{dx}×#{dy}×#{dz}mm)"
+      end
+
+      out << "#{pad}#{cls_short} \"#{name}\"#{role_tag}#{dims} #id=#{ent.entityID rescue '?'}"
+
+      children = nil
+      if ent.is_a?(Sketchup::Group)
+        children = ent.entities.to_a
+      elsif ent.is_a?(Sketchup::ComponentInstance)
+        children = ent.definition.entities.to_a
+      end
+
+      if children && children.any? && indent < max_depth
+        children.each { |c| dump_tree(c, out, indent + 1, max_depth) }
+      elsif children && children.any?
+        out << "#{pad}│  ... (+ #{children.size} sub, depth #{max_depth})"
+      end
+    end
+
+    def self.dump_attrs_only(ent, out, indent, max_depth)
+      pad = '│  ' * indent
+      name = (ent.respond_to?(:name) ? ent.name : '').to_s
+      out << "#{pad}● #{ent.class.to_s.sub('Sketchup::', '')} \"#{name}\" #id=#{ent.entityID rescue '?'}"
+
+      if ent.respond_to?(:attribute_dictionaries) && ent.attribute_dictionaries
+        dicts = ent.attribute_dictionaries.to_a
+        if dicts.any?
+          dicts.each do |dict|
+            out << "#{pad}  ▸ '#{dict.name}' (#{dict.length} keys)"
+            dict.each_pair do |k, v|
+              val_str = v.inspect.length > 120 ? "#{v.inspect[0, 117]}..." : v.inspect
+              out << "#{pad}     #{k.ljust(28)} = #{val_str}"
+            end
+          end
+        else
+          out << "#{pad}  (sem attrs)"
+        end
+      end
+
+      children = nil
+      if ent.is_a?(Sketchup::Group)
+        children = ent.entities.to_a
+      elsif ent.is_a?(Sketchup::ComponentInstance)
+        children = ent.definition.entities.to_a
+      end
+
+      if children && children.any? && indent < max_depth
+        children.each { |c| dump_attrs_only(c, out, indent + 1, max_depth) }
       end
     end
 
@@ -271,14 +349,19 @@ require 'json'
 # Auto-executa quando carregado via load:
 puts ""
 puts "═══════════════════════════════════════════════════════════════════"
-puts "Ornato::Inspector carregado. Selecione algo e rode:"
-puts "  Ornato::Inspector.run                  # padrão (depth=3, seleção)"
-puts "  Ornato::Inspector.run(depth: 5)        # mais profundo"
-puts "  Ornato::Inspector.run(model: true)     # modelo inteiro"
+puts "Ornato::Inspector carregado. Selecione algo e rode 1 dos 3 modos:"
+puts ""
+puts "  Ornato::Inspector.tree        # ÁRVORE: hierarquia + dims (recomendado p/ ver estrutura)"
+puts "  Ornato::Inspector.attrs_only  # ATRIBUTOS: foco em metadata Ornato/wps*"
+puts "  Ornato::Inspector.run         # FULL: tudo (verbose)"
+puts ""
+puts "  Limitar profundidade:  Ornato::Inspector.tree(depth: 4)"
+puts "  Modelo inteiro:        Ornato::Inspector.tree(model: true)"
 puts "═══════════════════════════════════════════════════════════════════"
 puts ""
 
-# Roda imediatamente se há seleção:
+# Roda TREE imediatamente se há seleção (modo mais útil pra debugar hierarquia):
 if defined?(Sketchup) && !Sketchup.active_model.selection.empty?
-  Ornato::Inspector.run
+  puts "→ Auto-executando .tree (hierarquia compacta)..."
+  Ornato::Inspector.tree
 end
