@@ -1,0 +1,92 @@
+{
+  "families": {
+    "dobradica": {
+      "label": "Dobradiça",
+      "context_match": { "regra": "dobradica" },
+      "variants": [
+        {
+          "id": "amor_reta",
+          "label": "Amortecida reta 110°",
+          "componente_3d": "ferragens/dobradica_amor.skp",
+          "params": { "angulo": 110, "amortecimento": true, "tipo": "reta" },
+          "compatible_when": "{angulo_porta} <= 110 && {espessura_porta} <= 22"
+        },
+        {
+          "id": "amor_canto_l",
+          "label": "Amortecida canto L 165°",
+          "componente_3d": "ferragens/dobradica_amor_165.skp",
+          "params": { "angulo": 165, "amortecimento": true, "tipo": "canto_l" },
+          "compatible_when": "{angulo_porta} == 165"
+        },
+        {
+          "id": "sem_amor",
+          "label": "Sem amortecimento 110°",
+          "componente_3d": "ferragens/dobradica_sem_amor.skp",
+          "params": { "angulo": 110, "amortecimento": false, "tipo": "reta" },
+          "compatible_when": "{angulo_porta} <= 110"
+        },
+        {
+          "id": "porta_espessa",
+          "label": "Porta espessa 110°",
+          "componente_3d": "ferragens/dobradica_porta_espessa.skp",
+          "params": { "angulo": 110, "amortecimento": true, "espessura_max": 28 },
+          "compatible_when": "{espessura_porta} > 22"
+        }
+      ]
+    },
+    "corredica": {
+      "label": "Corrediça",
+      "context_match": { "regra": "corredica" },
+      "variants": [
+        {
+          "id": "telescopica_amor",
+          "label": "Telescópica amortecida",
+          "componente_3d": "ferragens/corredica_telescopica_com_amortecedor.skp",
+          "params": { "tipo": "telescopica", "amortecimento": true },
+          "compatible_when": "true"
+        },
+        {
+          "id": "telescopica_light",
+          "label": "Telescópica light",
+          "componente_3d": "ferragens/corredica_telescopica_light.skp",
+          "params": { "tipo": "telescopica", "amortecimento": false },
+          "compatible_when": "true"
+        },
+        {
+          "id": "oculta",
+          "label": "Oculta com amortecedor",
+          "componente_3d": "ferragens/corredica_oculta_slowmotion.skp",
+          "params": { "tipo": "oculta", "amortecimento": true },
+          "compatible_when": "{tipo_gaveta} != 'sobreposta'"
+        }
+      ]
+    },
+    "puxador": {
+      "label": "Puxador",
+      "context_match": { "regra": "puxador" },
+      "variants": [
+        {
+          "id": "barra_128",
+          "label": "Barra 128mm",
+          "componente_3d": "puxadores/puxador_galla_128mm.skp",
+          "params": { "espacamento": 128, "tipo": "barra" },
+          "compatible_when": "true"
+        },
+        {
+          "id": "concha",
+          "label": "Concha horizontal",
+          "componente_3d": "puxadores/puxador_concha_horizontal.skp",
+          "params": { "tipo": "concha" },
+          "compatible_when": "true"
+        },
+        {
+          "id": "gola",
+          "label": "Perfil gola",
+          "componente_3d": "puxadores/puxador_gola_com_ponteira.skp",
+          "params": { "tipo": "gola" },
+          "compatible_when": "true"
+        }
+      ]
+    }
+  }
+}

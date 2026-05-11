@@ -1,0 +1,44 @@
+{
+  "families": {
+    "interior_prateleira_to_gaveteiro": {
+      "label": "Trocar prateleira por gaveteiro",
+      "context_match": { "aggregate_id": "prateleira" },
+      "from_aggregate": "prateleira",
+      "to_aggregates": ["gaveteiro_simples", "divisoria"],
+      "variants": [
+        {
+          "id": "gaveteiro_simples",
+          "label": "Gaveteiro simples",
+          "aggregate_id": "gaveteiro_simples",
+          "compatible_when": "true"
+        },
+        {
+          "id": "divisoria",
+          "label": "Divisória vertical",
+          "aggregate_id": "divisoria",
+          "compatible_when": "true"
+        }
+      ]
+    },
+    "interior_gaveteiro_to_prateleira": {
+      "label": "Trocar gaveteiro por prateleira",
+      "context_match": { "aggregate_id": "gaveteiro_simples" },
+      "from_aggregate": "gaveteiro_simples",
+      "to_aggregates": ["prateleira", "divisoria"],
+      "variants": [
+        {
+          "id": "prateleira",
+          "label": "Prateleira",
+          "aggregate_id": "prateleira",
+          "compatible_when": "true"
+        },
+        {
+          "id": "divisoria",
+          "label": "Divisória vertical",
+          "aggregate_id": "divisoria",
+          "compatible_when": "true"
+        }
+      ]
+    }
+  }
+}

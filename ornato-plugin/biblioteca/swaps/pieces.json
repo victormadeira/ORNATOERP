@@ -1,0 +1,22 @@
+{
+  "families": {
+    "drawer_front_styles": {
+      "label": "Estilo de frente de gaveta",
+      "context_match": { "role": "drawer_front" },
+      "variants": [
+        {
+          "id": "liso",
+          "label": "Liso",
+          "material_override": null,
+          "compatible_when": "true"
+        },
+        {
+          "id": "fresado",
+          "label": "Fresado clássico",
+          "material_override": "MDF18_Lacado",
+          "compatible_when": "true"
+        }
+      ]
+    }
+  }
+}
