@@ -1016,3 +1016,169 @@ body.focus-mode .focus-banner { display: flex; }
 }
 .focus-banner button:hover { background: var(--accent-soft); }
 .focus-banner button svg { width: 12px; height: 12px; }
+
+/* ─── Biblioteca tab (Sprint UX-5) ─── */
+.lib-tab {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px;
+}
+.lib-header { display: flex; align-items: center; gap: 10px; }
+.lib-header h2 { font-size: 14px; font-weight: 700; color: var(--text); margin: 0; }
+.lib-stats {
+  font-size: 11px; color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
+.lib-channel { color: var(--accent); font-weight: 600; }
+.lib-header .btn { margin-left: auto; }
+
+.lib-search-wrap { position: relative; display: flex; align-items: center; }
+.lib-search {
+  width: 100%; height: 32px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg); color: var(--text);
+  font-size: 13px; font-family: inherit;
+  transition: border var(--t-fast), box-shadow var(--t-fast);
+}
+.lib-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.lib-search-spinner {
+  position: absolute; right: 10px;
+  font-size: 14px; color: var(--text-mute);
+  pointer-events: none;
+  animation: lib-pulse 1.2s ease-in-out infinite;
+}
+.lib-search-clear {
+  position: absolute; right: 6px;
+  width: 22px; height: 22px;
+  border-radius: var(--r);
+  font-size: 16px; line-height: 1;
+  color: var(--text-mute);
+  background: transparent;
+  cursor: pointer;
+}
+.lib-search-clear:hover { background: var(--bg-soft); color: var(--text); }
+
+.lib-strip {
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+}
+.lib-strip--type { padding-left: 2px; }
+.lib-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg); color: var(--text);
+  font-size: 11px; font-weight: 500;
+  cursor: pointer;
+  transition: background var(--t-fast), border var(--t-fast), color var(--t-fast);
+}
+.lib-chip:hover { background: var(--bg-soft); }
+.lib-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent); font-weight: 600;
+}
+.lib-chip--ghost { border-style: dashed; }
+.lib-chip-count {
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  padding: 1px 5px; background: var(--bg-soft);
+  border-radius: var(--r);
+}
+.lib-chip.active .lib-chip-count {
+  color: var(--accent); background: rgba(255,255,255,0.4);
+}
+
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.lib-card {
+  display: flex; flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  cursor: pointer; text-align: left;
+  position: relative;
+  transition: border var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast);
+}
+.lib-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15,23,42,0.08);
+}
+.lib-card:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lib-thumb {
+  aspect-ratio: 1 / 1;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-soft);
+  border-radius: var(--r);
+  color: var(--text-faint);
+  overflow: hidden;
+}
+.lib-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.lib-thumb-fallback svg { width: 28px; height: 28px; opacity: 0.6; }
+.lib-card-title {
+  margin: 0;
+  font-size: 12px; font-weight: 600; color: var(--text);
+  line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lib-card-meta {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  font-size: 10px; color: var(--text-mute);
+}
+.lib-card-dims { font-variant-numeric: tabular-nums; }
+.lib-badge {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 9px; font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--r);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.lib-badge--stable { background: var(--accent-soft); color: var(--accent); }
+.lib-badge--beta   { background: rgba(232,150,35,0.16); color: #b9651a; }
+.lib-badge--alpha  { background: rgba(220,38,38,0.14); color: #b91c1c; }
+
+.lib-loadmore { display: flex; justify-content: center; padding: 6px 0 2px; }
+
+.lib-empty {
+  padding: 32px 16px;
+  text-align: center; color: var(--text-mute);
+  font-size: 12px;
+  display: flex; flex-direction: column; gap: 10px; align-items: center;
+}
+.lib-empty-detail { font-size: 11px; color: var(--text-faint); }
+
+.lib-footer {
+  font-size: 11px;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.lib-footer svg { width: 11px; height: 11px; flex-shrink: 0; }
+
+/* Skeleton loading */
+.lib-card--skeleton { cursor: default; pointer-events: none; }
+.lib-card--skeleton:hover { transform: none; box-shadow: none; border-color: var(--border); }
+.lib-skel {
+  background: var(--bg-soft);
+  border-radius: var(--r);
+  animation: lib-pulse 1.2s ease-in-out infinite;
+}
+.lib-skel--line { height: 10px; }
+.lib-skel--short { width: 60%; }
+@keyframes lib-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
