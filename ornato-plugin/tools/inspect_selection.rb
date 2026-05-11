@@ -49,6 +49,7 @@ module Ornato
         case mode
         when :tree       then dump_tree(ent, out, 0, depth)
         when :attrs_only then dump_attrs_only(ent, out, 0, depth)
+        when :formulas   then dump_formulas(ent, out, 0, depth)
         else                  dump_entity(ent, out, 0, depth)
         end
         out << "└─────────────────────────────────────────────────────"
@@ -181,12 +182,45 @@ module Ornato
       run(depth: depth, model: model, mode: :attrs_only)
     end
 
+    # ─── FORMULAS: só fórmulas paramétricas (DynamicComponent + WPS) ──
+    # Captura {_KEY_formula} de dynamic_attributes E qualquer chave
+    # que pareça fórmula (começa com '=') em qualquer dict.
+    def self.formulas(depth: 99, model: false)
+      run(depth: depth, model: model, mode: :formulas)
+    end
+
+    # Assinatura compacta de uma entidade pra detectar repetições (mesmo role + dims arredondadas)
+    def self.entity_signature(ent)
+      cls = ent.class.to_s.sub('Sketchup::', '')
+      role = (ent.respond_to?(:get_attribute) ? (ent.get_attribute('Ornato', 'role') || ent.get_attribute('Ornato', 'tipo') || '') : '').to_s
+      defname = ent.is_a?(Sketchup::ComponentInstance) ? ent.definition.name : ''
+      dims = ''
+      if ent.respond_to?(:bounds) && ent.bounds && ent.bounds.valid?
+        bb = ent.bounds
+        mm = ->(v) { (v.to_f * 25.4).round(0) rescue v.to_f.round(0) }
+        dx = mm.call(bb.max.x - bb.min.x)
+        dy = mm.call(bb.max.y - bb.min.y)
+        dz = mm.call(bb.max.z - bb.min.z)
+        dims = "#{dx}×#{dy}×#{dz}"
+      end
+      "#{cls}|#{role}|#{defname}|#{dims}"
+    end
+
     def self.dump_tree(ent, out, indent, max_depth)
       pad = '│  ' * indent
       cls_short = ent.class.to_s.sub('Sketchup::', '')
       name = (ent.respond_to?(:name) ? ent.name : '').to_s
       role = (ent.respond_to?(:get_attribute) ? (ent.get_attribute('Ornato', 'role') || ent.get_attribute('Ornato', 'tipo')) : nil)
       role_tag = role ? " [#{role}]" : ''
+
+      # Info de JSON template (se for módulo/agregado)
+      tpl_info = ''
+      if ent.respond_to?(:get_attribute)
+        module_id = ent.get_attribute('Ornato', 'module_id') || ent.get_attribute('Ornato', 'aggregate_id')
+        if module_id
+          tpl_info = " 📄 #{module_id}"
+        end
+      end
 
       dims = ''
       if ent.respond_to?(:bounds) && ent.bounds && ent.bounds.valid?
@@ -198,7 +232,7 @@ module Ornato
         dims = " (#{dx}×#{dy}×#{dz}mm)"
       end
 
-      out << "#{pad}#{cls_short} \"#{name}\"#{role_tag}#{dims} #id=#{ent.entityID rescue '?'}"
+      out << "#{pad}#{cls_short} \"#{name}\"#{role_tag}#{dims}#{tpl_info} #id=#{ent.entityID rescue '?'}"
 
       children = nil
       if ent.is_a?(Sketchup::Group)
@@ -208,9 +242,157 @@ module Ornato
       end
 
       if children && children.any? && indent < max_depth
-        children.each { |c| dump_tree(c, out, indent + 1, max_depth) }
+        # GROUPING: detecta repetições (ex: 20 ripas idênticas) e colapsa
+        groups = group_repeated_children(children)
+        groups.each do |grp|
+          if grp[:count] == 1
+            dump_tree(grp[:entities].first, out, indent + 1, max_depth)
+          else
+            # Colapsa: mostra primeiro + segundo + último + total
+            sig = grp[:signature].split('|')
+            role_of = sig[1].empty? ? '' : " [#{sig[1]}]"
+            dims_of = sig[3].empty? ? '' : " (#{sig[3]}mm)"
+            name_first = grp[:entities].first.respond_to?(:name) ? grp[:entities].first.name : ''
+            out << "#{('│  ' * (indent + 1))}╔══ × #{grp[:count]} SIMILARES ═══════════════════════════"
+            out << "#{('│  ' * (indent + 1))}║  #{sig[0]} \"#{name_first}\"#{role_of}#{dims_of}"
+            out << "#{('│  ' * (indent + 1))}║  ids: #{grp[:entities].first(5).map { |e| e.entityID rescue '?' }.join(', ')}#{grp[:count] > 5 ? ', ...' : ''}"
+            out << "#{('│  ' * (indent + 1))}╚══════════════════════════════════════════════════"
+          end
+        end
       elsif children && children.any?
         out << "#{pad}│  ... (+ #{children.size} sub, depth #{max_depth})"
+      end
+    end
+
+    # Detecta sequências de children com mesma signature e agrupa.
+    # Mantém ordem; só agrupa quando >= 3 consecutivos similares (ripas, sys32 furos, etc).
+    def self.group_repeated_children(children)
+      groups = []
+      current_sig = nil
+      current_group = nil
+
+      children.each do |c|
+        sig = entity_signature(c)
+        if sig == current_sig
+          current_group[:entities] << c
+          current_group[:count] += 1
+        else
+          groups << current_group if current_group
+          current_group = { signature: sig, entities: [c], count: 1 }
+          current_sig = sig
+        end
+      end
+      groups << current_group if current_group
+
+      # Só colapsa grupos com >= 3 itens (2 mostra ambos)
+      groups.map { |g| g[:count] < 3 ? g.merge(count: 1).then { |_| g.merge(force_expand: true) } : g }
+
+      # Versão simplificada: se group tem >= 3, mantém como grupo (colapsa); se < 3, expande
+      groups.each_with_object([]) do |g, acc|
+        if g[:count] >= 3
+          acc << g
+        else
+          g[:entities].each { |e| acc << { signature: nil, entities: [e], count: 1 } }
+        end
+      end
+    end
+
+    # ─── FORMULAS DUMP ────────────────────────────────────────────
+    # Pesca chaves _*_formula em dynamic_attributes + valores que começam com '='
+    # Apresenta como: nome_var = fórmula  (atual: valor_calculado, unidade)
+    def self.dump_formulas(ent, out, indent, max_depth)
+      pad = '│  ' * indent
+      name = (ent.respond_to?(:name) ? ent.name : '').to_s
+      out << "#{pad}● #{ent.class.to_s.sub('Sketchup::', '')} \"#{name}\" #id=#{ent.entityID rescue '?'}"
+
+      if ent.respond_to?(:attribute_dictionaries) && ent.attribute_dictionaries
+        formulas_found = []
+
+        ent.attribute_dictionaries.each do |dict|
+          # Coleta todas chaves do dict, separa em valor/fórmula/metadata
+          all_keys = {}
+          dict.each_pair { |k, v| all_keys[k] = v }
+
+          # Heurística 1: chaves _KEY_formula em dynamic_attributes
+          formula_keys = all_keys.keys.select { |k| k.start_with?('_') && k.end_with?('_formula') }
+
+          # Heurística 2: qualquer valor String começando com '=' (formula syntax)
+          inline_formulas = all_keys.select { |_k, v| v.is_a?(String) && v.start_with?('=') }
+
+          formula_keys.each do |fk|
+            var_name = fk.sub(/^_/, '').sub(/_formula$/, '')
+            formula  = all_keys[fk]
+            current  = all_keys[var_name]
+            units    = all_keys["_#{var_name}_units"]
+            label    = all_keys["_#{var_name}_label"]
+            access   = all_keys["_#{var_name}_access"]
+
+            formulas_found << {
+              dict: dict.name,
+              var: var_name,
+              formula: formula,
+              current: current,
+              units: units,
+              label: label,
+              access: access
+            }
+          end
+
+          # Inline formulas (valores que são fórmulas mas não estão em _*_formula keys)
+          inline_formulas.each do |k, v|
+            next if k.start_with?('_') && k.end_with?('_formula')  # já coberto acima
+            formulas_found << {
+              dict: dict.name,
+              var: k,
+              formula: v,
+              current: nil,
+              units: nil,
+              label: nil,
+              access: nil,
+              inline: true
+            }
+          end
+        end
+
+        if formulas_found.empty?
+          out << "#{pad}  (sem fórmulas paramétricas)"
+        else
+          out << "#{pad}  📐 #{formulas_found.size} fórmulas encontradas:"
+          # Agrupa por dict
+          formulas_found.group_by { |f| f[:dict] }.each do |dname, list|
+            out << "#{pad}  ▸ Dict '#{dname}':"
+            list.each do |f|
+              label = f[:label] ? " (#{f[:label]})" : ''
+              access = f[:access] ? " [access=#{f[:access]}]" : ''
+              units = f[:units] ? " #{f[:units]}" : ''
+              # Fórmula completa (sem truncar)
+              out << "#{pad}     #{f[:var].ljust(28)}#{label}#{access}"
+              out << "#{pad}       FÓRMULA: #{f[:formula]}"
+              if f[:current]
+                cur_str = if f[:current].is_a?(Float)
+                  # Converte inches→mm se parecer dimensão
+                  mm_val = (f[:current] * 25.4).round(2)
+                  "#{f[:current].round(4)} (#{mm_val}mm se inches)"
+                else
+                  f[:current].inspect
+                end
+                out << "#{pad}       ATUAL  : #{cur_str}#{units}"
+              end
+              out << "#{pad}       ─"
+            end
+          end
+        end
+      end
+
+      children = nil
+      if ent.is_a?(Sketchup::Group)
+        children = ent.entities.to_a
+      elsif ent.is_a?(Sketchup::ComponentInstance)
+        children = ent.definition.entities.to_a
+      end
+
+      if children && children.any? && indent < max_depth
+        children.each { |c| dump_formulas(c, out, indent + 1, max_depth) }
       end
     end
 
@@ -351,7 +533,8 @@ puts ""
 puts "═══════════════════════════════════════════════════════════════════"
 puts "Ornato::Inspector carregado. Selecione algo e rode 1 dos 3 modos:"
 puts ""
-puts "  Ornato::Inspector.tree        # ÁRVORE: hierarquia + dims (recomendado p/ ver estrutura)"
+puts "  Ornato::Inspector.tree        # ÁRVORE: hierarquia + dims (recomendado p/ estrutura)"
+puts "  Ornato::Inspector.formulas    # FÓRMULAS: DynamicComponent + WPS paramétricas ★"
 puts "  Ornato::Inspector.attrs_only  # ATRIBUTOS: foco em metadata Ornato/wps*"
 puts "  Ornato::Inspector.run         # FULL: tudo (verbose)"
 puts ""
