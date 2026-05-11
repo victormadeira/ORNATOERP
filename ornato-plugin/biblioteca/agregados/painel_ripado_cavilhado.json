@@ -1,0 +1,133 @@
+{
+  "id": "painel_ripado_cavilhado",
+  "tipo": "agregado",
+  "nome": "Painel Ripado Cavilhado",
+  "descricao": "Painel decorativo com ripas verticais cavilhadas. Cavilhas geram furacao espelhada painel<->ripa para alinhamento CNC.",
+  "bay_target": "interior_bay",
+  "min_bay": { "largura": 300, "altura": 400, "profundidade": 30 },
+  "parametros": {
+    "largura_ripa": {
+      "label": "Largura da ripa",
+      "type": "number",
+      "default": 40,
+      "min": 20,
+      "max": 120,
+      "step": 5,
+      "unit": "mm"
+    },
+    "espessura_ripa": {
+      "label": "Espessura da ripa",
+      "type": "number",
+      "default": 18,
+      "min": 12,
+      "max": 30,
+      "step": 1,
+      "unit": "mm"
+    },
+    "espacamento": {
+      "label": "Espacamento entre ripas",
+      "type": "number",
+      "default": 20,
+      "min": 5,
+      "max": 80,
+      "step": 5,
+      "unit": "mm"
+    },
+    "material_painel": {
+      "label": "Material do painel",
+      "type": "select",
+      "default": "{shop.material_carcaca_padrao}",
+      "options": ["MDF18_BrancoTX", "MDF18_Branco", "MDF18_Cinza", "MDF18_Natural"]
+    },
+    "material_ripa": {
+      "label": "Material da ripa",
+      "type": "select",
+      "default": "{shop.material_frente_padrao}",
+      "options": ["MDF18_BrancoTX", "MDF18_Branco", "MDF18_Cinza", "MDF18_Natural", "MDF18_Lacado"]
+    },
+    "diametro_cavilha": {
+      "label": "Diametro cavilha",
+      "type": "number",
+      "default": "{shop.cavilha_diametro}",
+      "min": 6,
+      "max": 10,
+      "step": 1,
+      "unit": "mm"
+    },
+    "profundidade_cavilha": {
+      "label": "Profundidade cavilha",
+      "type": "number",
+      "default": "{shop.cavilha_profundidade}",
+      "min": 10,
+      "max": 20,
+      "step": 1,
+      "unit": "mm"
+    },
+    "margem_lateral": {
+      "label": "Margem lateral",
+      "type": "number",
+      "default": 30,
+      "min": 0,
+      "max": 100,
+      "step": 10,
+      "unit": "mm"
+    },
+    "n_cavilhas_por_ripa": {
+      "label": "Cavilhas por ripa",
+      "type": "number",
+      "default": 3,
+      "min": 2,
+      "max": 8,
+      "step": 1
+    }
+  },
+  "pecas": [
+    {
+      "nome": "Painel base",
+      "role": "panel",
+      "material_param": "material_painel",
+      "largura": "{bay.largura}",
+      "altura": "{bay.altura}",
+      "espessura": "{shop.espessura}",
+      "posicao_relativa_bay": {
+        "x": 0,
+        "y": "{bay.profundidade} - {shop.espessura}",
+        "z": 0
+      },
+      "bordas": { "frente": false, "topo": true, "base": true, "tras": false }
+    },
+    {
+      "nome": "Ripa {i}",
+      "role": "slat",
+      "material_param": "material_ripa",
+      "largura": "{largura_ripa}",
+      "altura": "{bay.altura} - 100",
+      "espessura": "{espessura_ripa}",
+      "posicao_relativa_bay": {
+        "x": "{margem_lateral} + {i} * ({largura_ripa} + {espacamento})",
+        "y": "{bay.profundidade} - {shop.espessura} - {espessura_ripa}",
+        "z": 50
+      },
+      "repeat": {
+        "axis": "x",
+        "count": "floor(({bay.largura} - 2 * {margem_lateral} + {espacamento}) / ({largura_ripa} + {espacamento}))",
+        "offset": "{largura_ripa} + {espacamento}"
+      },
+      "bordas": { "frente": true, "topo": true, "base": true, "tras": false }
+    }
+  ],
+  "ferragens_auto": [
+    {
+      "regra": "cavilha_ripa",
+      "painel": "panel",
+      "ripa": "slat",
+      "diametro": "{diametro_cavilha}",
+      "profundidade_painel": "{profundidade_cavilha}",
+      "profundidade_ripa": "{profundidade_cavilha}",
+      "margem_topo": 50,
+      "margem_base": 50,
+      "espacamento_vertical": "({bay.altura} - 100 - 2 * 50) / ({n_cavilhas_por_ripa} - 1)"
+    }
+  ],
+  "agregados_sugeridos": []
+}
