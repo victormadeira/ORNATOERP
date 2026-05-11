@@ -286,6 +286,36 @@ module Ornato
           end
         end
 
+        # UI v2 Internos (Sprint UX-8): lista agregados disponíveis em biblioteca/agregados/
+        # JS chama: window.sketchup.get_available_aggregates()
+        # Ruby responde: window.onAggregatesList({ aggregates: [{id, nome, ...}] })
+        @main_panel.add_action_callback('get_available_aggregates') do |_ctx|
+          begin
+            agg_dir = File.expand_path('../../biblioteca/agregados', __dir__)
+            files = Dir.glob(File.join(agg_dir, '*.json'))
+            agregados = files.map do |f|
+              begin
+                j = JSON.parse(File.read(f))
+                {
+                  id:         j['id'],
+                  nome:       j['nome'],
+                  descricao:  j['descricao'],
+                  bay_target: j['bay_target'],
+                  min_bay:    j['min_bay'],
+                }
+              rescue StandardError => e
+                warn "[Ornato] falha lendo agregado #{f}: #{e.message}"
+                nil
+              end
+            end.compact
+            json = { aggregates: agregados }.to_json
+            @main_panel.execute_script("window.onAggregatesList && window.onAggregatesList(#{json})")
+          rescue StandardError => e
+            warn "[Ornato] get_available_aggregates ERRO: #{e.message}"
+            @main_panel.execute_script("window.onAggregatesList && window.onAggregatesList({\"aggregates\":[]})")
+          end
+        end
+
         # Analyze model — refreshes module/piece counts
         @main_panel.add_action_callback('analyze') do |_ctx|
           Main.analyze_model
@@ -920,13 +950,25 @@ module Ornato
             entity_id  = opts['entity_id'].to_i
             group      = find_group_by_id(entity_id)
             unless group
-              @main_panel.execute_script("window.setModuleMachining(#{JSON.generate({ pieces: [] })})")
+              @main_panel.execute_script("window.setModuleMachining(#{JSON.generate({ pieces: [], ops: [], collisions: { collisions: [], stats: {} } })})")
               next
             end
 
-            pieces_data = build_machining_pieces_data(group)
+            payload = build_machining_pieces_data(group)
+            # Backward-compat: build_machining_pieces_data agora retorna Hash
+            # { pieces:, ops:, collisions: } — mas pode ser apenas Array por
+            # caminhos legados/erro. Normaliza aqui.
+            if payload.is_a?(Hash)
+              out = {
+                pieces:     payload[:pieces]     || [],
+                ops:        payload[:ops]        || [],
+                collisions: payload[:collisions] || { collisions: [], stats: {} },
+              }
+            else
+              out = { pieces: payload || [], ops: [], collisions: { collisions: [], stats: {} } }
+            end
             @main_panel.execute_script(
-              "window.setModuleMachining(#{JSON.generate({ pieces: pieces_data })})"
+              "window.setModuleMachining(#{JSON.generate(out)})"
             )
           rescue => e
             puts "Ornato get_module_machining ERRO: #{e.message}"
@@ -1455,7 +1497,7 @@ module Ornato
           }
         end
 
-        return [] if raw_pieces.empty?
+        return { pieces: [], ops: [], collisions: { collisions: [], stats: {} } } if raw_pieces.empty?
 
         # ── 2. Run MachiningInterpreter if ferragens_auto is stored ──
         interpreter_workers = {}
@@ -1502,12 +1544,16 @@ module Ornato
         # `Ornato.preserve_drillings == true` no hash de workers,
         # antes do payload chegar a MachiningJson#serialize (via
         # JsonExporter / RulesEngine).
+        drilling_collisions = { collisions: [], stats: {} }
         if defined?(Machining::FerragemDrillingCollector)
           begin
             collector_out = Machining::FerragemDrillingCollector
                               .new(module_group).collect
             collector_out.each do |pid, extra_ops|
-              next if pid == :_drilling_collisions
+              if pid == :_drilling_collisions
+                drilling_collisions = extra_ops || drilling_collisions
+                next
+              end
               interpreter_workers[pid] ||= {}
               base_idx = interpreter_workers[pid].is_a?(Hash) ? interpreter_workers[pid].size : 0
               extra_ops.each_with_index do |op, i|
@@ -1521,8 +1567,10 @@ module Ornato
         end
 
         # ── 3. Assemble final pieces array for UI ─────────────────
-        raw_pieces.map do |rp|
+        piece_name_by_id = {}
+        pieces_payload = raw_pieces.map do |rp|
           pid = rp[:id]
+          piece_name_by_id[pid] = rp[:name]
 
           # Structural ops: from MachiningInterpreter output
           struct_ops = if interpreter_workers.key?(pid)
@@ -1542,6 +1590,36 @@ module Ornato
             compatible_extras: rp[:compatible_extras],
           }
         end
+
+        # ── 4. Flat ops array (for Usinagens tab) ─────────────────
+        ops_flat = []
+        interpreter_workers.each do |pid, workers|
+          next unless workers.is_a?(Hash)
+          pname = piece_name_by_id[pid] || pid.to_s
+          workers.each do |op_key, op|
+            next unless op.is_a?(Hash)
+            ops_flat << {
+              op_id:       op_key.to_s,
+              peca_id:     pid,
+              peca_name:   pname,
+              category:    (op['category']    || op[:category]    || 'hole').to_s,
+              tipo_ornato: (op['tipo_ornato'] || op[:tipo_ornato] ||
+                            op['description'] || op[:description] || '').to_s,
+              diameter:    (op['diameter']    || op[:diameter]    || op['diametro'] || 0).to_f,
+              depth:       (op['depth']       || op[:depth]       || op['profundidade'] || 0).to_f,
+              side:        (op['side']        || op[:side]        || '').to_s,
+              x_mm:        (op['position_x']  || op[:position_x]  || op[:x_mm] || 0).to_f,
+              y_mm:        (op['position_y']  || op[:position_y]  || op[:y_mm] || 0).to_f,
+              tool_code:   (op['tool_code']   || op[:tool_code]   || '').to_s,
+            }
+          end
+        end
+
+        {
+          pieces:     pieces_payload,
+          ops:        ops_flat,
+          collisions: drilling_collisions,
+        }
       end
 
       # Convert MachiningInterpreter workers hash → distinct display labels

@@ -104,6 +104,23 @@ export function callRuby(name, arg) {
   }
 }
 
+/* Variante multi-arg: para callbacks Ruby que aceitam mais de um arg
+ * (ex: apply_swap(entity_id, variant_id), edit_change_material(eid, mat)). */
+export function callRubyArgs(name, ...args) {
+  try {
+    if (window.sketchup && typeof window.sketchup[name] === 'function') {
+      const norm = args.map(a => (a === null || a === undefined) ? '' : String(a))
+      window.sketchup[name](...norm)
+      return true
+    }
+    console.warn(`[Ornato] callRubyArgs('${name}') — bridge ausente`)
+    return false
+  } catch (e) {
+    console.error(`[Ornato] callRubyArgs('${name}') ERRO:`, e)
+    return false
+  }
+}
+
 /* Setters globais que o Ruby chama via execute_script */
 window.setShopConfig = function (payload) {
   // payload pode vir como string JSON ou já como objeto
@@ -193,11 +210,162 @@ window.setModuleMachining = function (payload) {
   const prev = state.moduleFerragens || {}
   setState({
     moduleFerragens: {
-      entityId: prev.entityId ?? null,
-      pieces:   p?.pieces || [],
+      entityId:   prev.entityId ?? null,
+      pieces:     p?.pieces     || [],
+      ops:        p?.ops        || [],
+      collisions: p?.collisions || { collisions: [], stats: {} },
     },
     moduleFerragensLoading: false,
   })
+}
+
+/* ─── Helper: escape HTML para evitar quebra de markup vinda de attrs Ruby ─── */
+export function htmlEscape(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/* ─── Modal genérico (cria/remove overlay sob demanda) ────────
+ * openModal({ title, body, footer, onClick: (id) => void, onClose })
+ * - body é HTML string; clicks em [data-id] dentro do body disparam onClick(id).
+ * - closeModal() remove o overlay.
+ */
+let _modalOnClose = null
+export function openModal({ title, body, footer, onClick, onClose }) {
+  closeModal()
+  _modalOnClose = onClose || null
+  const ov = document.createElement('div')
+  ov.id = 'ornatoModalOverlay'
+  ov.className = 'overlay ornato-modal'
+  ov.style.cssText = `
+    position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;
+    background:rgba(15,23,42,0.42);backdrop-filter:blur(2px);
+  `
+  ov.innerHTML = `
+    <div class="ornato-modal-panel" style="
+      background:var(--bg);color:var(--text);border:1px solid var(--border);
+      border-radius:12px;min-width:300px;max-width:480px;width:90%;max-height:80vh;
+      display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(15,23,42,0.28);
+      overflow:hidden;font-family:inherit;">
+      <header style="display:flex;align-items:center;justify-content:space-between;
+                     padding:12px 14px;border-bottom:1px solid var(--border);">
+        <strong style="font-size:13px;">${htmlEscape(title || '')}</strong>
+        <button data-close style="background:none;border:0;cursor:pointer;font-size:18px;color:var(--text-mute);line-height:1;">×</button>
+      </header>
+      <div class="ornato-modal-body" style="padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:8px;">
+        ${body || ''}
+      </div>
+      ${footer ? `<footer style="padding:10px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;">${footer}</footer>` : ''}
+    </div>
+  `
+  document.body.appendChild(ov)
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.matches('[data-close]')) { closeModal() }
+  })
+  if (onClick) {
+    ov.querySelectorAll('[data-id]').forEach(b => {
+      b.addEventListener('click', () => onClick(b.dataset.id))
+    })
+  }
+}
+export function closeModal() {
+  const old = document.getElementById('ornatoModalOverlay')
+  if (old) old.remove()
+  if (_modalOnClose) { try { _modalOnClose() } catch(_) {} }
+  _modalOnClose = null
+}
+
+/* ─── Setters chamados pelo Ruby (SwapEngine / ComponentEditor) ──── */
+window.onSwapList = function (payload) {
+  const data = (typeof payload === 'string') ? JSON.parse(payload) : payload
+  if (!data || data.ok === false) {
+    window.showToast(`Erro ao listar trocas: ${data?.error || 'desconhecido'}`, 'error')
+    return
+  }
+  const swaps = data.swaps || []
+  if (!swaps.length) {
+    window.showToast('Nenhuma troca compatível para este contexto', 'warn')
+    return
+  }
+  const body = swaps.map(s => {
+    const sub = s.variant_data?.params?.tipo || s.variant_data?.componente_3d || s.variant_data?.aggregate_id || ''
+    return `<button data-id="${htmlEscape(s.id)}" class="swap-card btn btn-ghost" style="
+      display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;
+      width:100%;text-align:left;border:1px solid var(--border);border-radius:8px;cursor:pointer;">
+      <strong style="font-size:12px;">${htmlEscape(s.label)}</strong>
+      ${sub ? `<small style="font-size:10px;color:var(--text-mute);">${htmlEscape(sub)}</small>` : ''}
+    </button>`
+  }).join('')
+  openModal({
+    title: `Trocar ${data.kind || 'item'}`,
+    body,
+    onClick: (id) => {
+      callRubyArgs('apply_swap', data.entity_id, id)
+      closeModal()
+    },
+  })
+}
+
+window.onSwapApplied = function (payload) {
+  const r = (typeof payload === 'string') ? JSON.parse(payload) : payload
+  if (r && r.ok) {
+    window.showToast(`Trocado: ${r.message || r.variant_id || ''}`, 'success')
+    const sel = state.selection?.items?.[0]
+    if (sel?.entity_id) {
+      // Invalida cache e re-fetch
+      delete state.detailsCache[sel.entity_id]
+      ensureSelectionDetailsLoaded(sel)
+      render()
+    }
+  } else {
+    window.showToast(`Erro: ${r?.message || r?.error || 'falha desconhecida'}`, 'error')
+  }
+}
+
+window.onComponentEdit = function (payload) {
+  const r = (typeof payload === 'string') ? JSON.parse(payload) : payload
+  if (r && r.ok) {
+    window.showToast(`${r.action || 'edição'} aplicado`, 'success')
+    const sel = state.selection?.items?.[0]
+    const eid = r.entity_id || sel?.entity_id
+    if (eid && sel) {
+      delete state.detailsCache[eid]
+      ensureSelectionDetailsLoaded(sel)
+      render()
+    }
+  } else {
+    window.showToast(`Erro: ${r?.error || 'edição falhou'}`, 'error')
+  }
+}
+
+window.onModuleRebuild = function (payload) {
+  const r = (typeof payload === 'string') ? JSON.parse(payload) : payload
+  if (r && r.ok) {
+    window.showToast(`Módulo recalculado (${r.rebuilt||0} ok, ${r.dropped||0} descartados)`, 'success')
+    if (r.entity_id) {
+      delete state.detailsCache[r.entity_id]
+      const sel = state.selection?.items?.find(i => i.entity_id == r.entity_id) || state.selection?.items?.[0]
+      if (sel) ensureSelectionDetailsLoaded(sel)
+      render()
+    }
+  } else {
+    window.showToast(`Rebuild falhou: ${r?.error || 'desconhecido'}`, 'error')
+  }
+}
+
+window.onSelectionResolved = function (payload) {
+  const p = (typeof payload === 'string') ? JSON.parse(payload) : payload
+  if (!p || !p.entity_id) return
+  // Mapeia kind do resolver (:piece/:module/:hardware/:aggregate) → tipos UI
+  const kindMap = { piece: 'peca', module: 'modulo', hardware: 'ferragem', aggregate: 'agregado' }
+  const type = kindMap[p.kind] || p.kind
+  state.detailsCache[p.entity_id] = { type, data: p, loadedAt: Date.now() }
+  delete state.detailsLoading[p.entity_id]
+  render()
 }
 
 window.showToast = function (msg, kind = 'info') {
@@ -609,6 +777,131 @@ function renderInspector() {
       setState({ inspSectionsCollapsed: next })
     })
   })
+  bindInspectorActions(el)
+}
+
+/* ─── Binds das ações editáveis do Inspector ─────────────────
+ * Single point para wire-up de Module/Piece/Hardware/Aggregate/Multi.
+ * Todas as ações delegam para callbacks Ruby (SwapEngine /
+ * ComponentEditor) — resposta volta via window.onSwapApplied
+ * ou window.onComponentEdit que re-fetcha detalhes da seleção.
+ */
+function bindInspectorActions(el) {
+  /* ── Module ── */
+  el.querySelectorAll('[data-mod-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.modAction
+      const eid = btn.dataset.eid
+      if (act === 'rebuild')         callRubyArgs('rebuild_module', eid, '{}')
+      else if (act === 'swap')       callRuby('list_swaps', eid)
+      else if (act === 'refresh-shop') callRuby('refresh_module_shop_snapshot', eid)
+      else if (act === 'add-aggregate') {
+        callRuby('start_aim_placement', 'prateleira')
+        window.showToast('Mira ativada — clique em um vão', 'info')
+      }
+    })
+  })
+  el.querySelectorAll('[data-select-child]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cid = btn.dataset.selectChild
+      callRuby('select_entity_in_model', cid)
+      callRuby('resolve_selection', cid)
+    })
+  })
+
+  /* ── Piece ── */
+  el.querySelectorAll('[data-piece-edit]').forEach(input => {
+    const eid = input.dataset.eid
+    const kind = input.dataset.pieceEdit
+    if (kind === 'material') {
+      input.addEventListener('change', () => {
+        callRubyArgs('edit_change_material', eid, input.value)
+      })
+    } else if (kind === 'thickness') {
+      input.addEventListener('blur', () => {
+        const v = parseFloat(input.value)
+        if (!isNaN(v) && v > 0) callRubyArgs('edit_change_thickness', eid, v)
+      })
+    }
+  })
+  el.querySelectorAll('[data-piece-edge]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const eid = cb.dataset.eid
+      const acc = { frente: false, tras: false, topo: false, base: false }
+      el.querySelectorAll(`[data-piece-edge][data-eid="${eid}"]`).forEach(c => {
+        acc[c.dataset.pieceEdge] = !!c.checked
+      })
+      callRubyArgs('edit_change_edges', eid, JSON.stringify(acc))
+    })
+  })
+  el.querySelectorAll('[data-piece-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.pieceAction
+      const eid = btn.dataset.eid
+      if (act === 'turn-grain')     callRuby('edit_turn_grain', eid)
+      else if (act === 'rotate-90') callRubyArgs('edit_rotate_piece', eid, '90')
+      else if (act === 'duplicate') callRubyArgs('edit_duplicate_entity', eid, '50')
+      else if (act === 'hide')      callRuby('edit_hide_temporary', eid)
+      else if (act === 'swap')      callRuby('list_swaps', eid)
+    })
+  })
+
+  /* ── Hardware ── */
+  el.querySelectorAll('[data-hw-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.hwAction
+      const eid = btn.dataset.eid
+      if (act === 'swap')        callRuby('list_swaps', eid)
+      else if (act === 'remove') callRuby('soft_remove_entity', eid)
+    })
+  })
+
+  /* ── Aggregate ── */
+  el.querySelectorAll('[data-agg-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.aggAction
+      const eid = btn.dataset.eid
+      if (act === 'swap')        callRuby('list_swaps', eid)
+      else if (act === 'remove') callRuby('soft_remove_entity', eid)
+      else if (act === 'move') {
+        callRuby('start_mira', 'amarela')
+        window.showToast('Mira amarela — escolha o vão de destino (V2)', 'info')
+      }
+    })
+  })
+
+  /* ── Multi (batch) ── */
+  el.querySelectorAll('[data-multi-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.multiAction
+      const items = state.selection?.items || []
+      if (act === 'material') {
+        openModal({
+          title: 'Trocar material em lote',
+          body: `
+            <label style="font-size:11px;display:flex;flex-direction:column;gap:6px;">
+              <span style="color:var(--text-mute);">Aplicar a ${items.length} item(s)</span>
+              <input id="ornatoMultiMatInput" type="text" placeholder="ex: MDF18_BrancoTX"
+                     style="padding:8px;border:1px solid var(--border);border-radius:6px;
+                            background:var(--bg);color:var(--text);font-size:12px;" />
+            </label>
+          `,
+          footer: `<button class="btn btn-primary" data-id="apply">Aplicar</button>`,
+          onClick: (id) => {
+            if (id !== 'apply') return
+            const v = document.getElementById('ornatoMultiMatInput')?.value?.trim()
+            if (!v) { window.showToast('Material vazio', 'warn'); return }
+            items.forEach(it => callRubyArgs('edit_change_material', it.entity_id, v))
+            closeModal()
+          },
+        })
+      } else if (act === 'hide-all') {
+        items.forEach(it => callRuby('edit_hide_temporary', it.entity_id))
+      } else if (act === 'unhide-all') {
+        callRuby('edit_unhide_all')
+      }
+    })
+  })
 }
 
 function inspectorTitleForItem(item) {
@@ -715,11 +1008,11 @@ function renderInspectorModule(item) {
     ? (aggChildren.length === 0
         ? `<p style="font-size:11px;color:var(--text-mute);">Nenhum agregado.</p>`
         : aggChildren.map(c => `
-          <div class="insp-row" style="gap:6px;">
+          <button class="insp-row" data-select-child="${c.entity_id}" style="display:flex;gap:6px;width:100%;background:none;border:0;padding:4px;cursor:pointer;text-align:left;border-radius:6px;">
             ${iconHTML('layers', 12)}
-            <span style="flex:1;">${c.aggregate_id || c.name || 'agregado'}</span>
-            <span style="font-size:10px;color:var(--text-mute);">${c.bay_id || ''}</span>
-          </div>`).join(''))
+            <span style="flex:1;font-size:11px;">${htmlEscape(c.aggregate_id || c.name || 'agregado')}</span>
+            <span style="font-size:10px;color:var(--text-mute);">${htmlEscape(c.bay_id || '')}</span>
+          </button>`).join(''))
     : inspLoadingBlock()
 
   // Seção: shop profile
@@ -757,9 +1050,19 @@ function renderInspectorModule(item) {
       <button class="btn btn-primary insp-cta" data-action="open-composicao">
         ${iconHTML('layers', 14)} Abrir Composição ${iconHTML('chevron-right', 12)}
       </button>
-      <div class="insp-secondary">
-        <button class="btn btn-ghost" title="Reaplicar config (read-only no MVP)">${iconHTML('refresh', 12)} Rebuild</button>
-        <button class="btn btn-ghost" title="Repintar">${iconHTML('paintbrush', 12)} Repaint</button>
+      <div class="insp-secondary" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button class="btn btn-ghost" data-mod-action="rebuild" data-eid="${item.entity_id}" title="Recalcular módulo (params atuais)">
+          ${iconHTML('refresh', 12)} Recalcular
+        </button>
+        <button class="btn btn-ghost" data-mod-action="swap" data-eid="${item.entity_id}" title="Trocar variante de módulo">
+          ${iconHTML('layers', 12)} Trocar
+        </button>
+        <button class="btn btn-ghost" data-mod-action="refresh-shop" data-eid="${item.entity_id}" title="Aplicar Padrão Marcenaria atual">
+          ${iconHTML('settings', 12)} Padrão atual
+        </button>
+        <button class="btn btn-ghost" data-mod-action="add-aggregate" data-eid="${item.entity_id}" title="Inserir agregado em vão">
+          ${iconHTML('layers', 12)} + Agregado
+        </button>
       </div>
     </div>
   `
@@ -776,19 +1079,55 @@ function renderInspectorPiece(item) {
   const A = dims.altura || dims.h || item.bbox?.h || '—'
   const E = dims.espessura || dims.t || '—'
 
+  // Lista de materiais comuns (pode vir do shopConfig futuramente)
+  const materialOptions = [
+    data.material || '',
+    'MDF18_BrancoTX', 'MDF18_PretoTX', 'MDF15_BrancoTX',
+    'MDF06_BrancoTX', 'COMPENSADO_15', 'MDP18_Carvalho',
+  ].filter((v, i, a) => v && a.indexOf(v) === i)
+
   const idHTML = `
     <div class="insp-list">
-      ${inspKVRow('Role',       data.role || '—')}
-      ${inspKVRow('Espessura',  `${E} mm`)}
-      ${inspKVRow('Material',   data.material || 'sem material')}
+      ${inspKVRow('Role', htmlEscape(data.role || '—'))}
+      <div class="insp-row" style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:10px;color:var(--text-mute);min-width:90px;">Material</span>
+        <select data-piece-edit="material" data-eid="${item.entity_id}"
+                style="flex:1;font-size:11px;padding:4px 6px;border:1px solid var(--border);
+                       border-radius:6px;background:var(--bg);color:var(--text);">
+          ${materialOptions.map(m => `<option value="${htmlEscape(m)}" ${m === (data.material || '') ? 'selected' : ''}>${htmlEscape(m)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="insp-row" style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:10px;color:var(--text-mute);min-width:90px;">Espessura</span>
+        <input type="number" min="3" max="50" step="0.5"
+               data-piece-edit="thickness" data-eid="${item.entity_id}"
+               value="${typeof E === 'number' ? E : (parseFloat(E) || 18)}"
+               style="width:80px;font-size:11px;padding:4px 6px;border:1px solid var(--border);
+                      border-radius:6px;background:var(--bg);color:var(--text);font-variant-numeric:tabular-nums;" />
+        <span style="font-size:10px;color:var(--text-mute);">mm</span>
+      </div>
     </div>
   `
+  // Bordas: 4 checkboxes — frente / tras / topo / base
   const bordas = data.bordas || {}
-  const bordasHTML = (typeof bordas === 'object' && Object.keys(bordas).length)
-    ? Object.entries(bordas).map(([face, fita]) =>
-        `<div class="insp-row"><span style="font-size:10px;color:var(--text-mute);min-width:60px;">${face}</span><span style="font-size:11px;">${fita || '—'}</span></div>`
-      ).join('')
-    : `<p style="font-size:11px;color:var(--text-mute);">Sem bordas configuradas.</p>`
+  const bordaChecked = (face) => {
+    const v = bordas[face]
+    if (typeof v === 'boolean') return v
+    if (typeof v === 'string')  return v.length > 0 && v !== 'none'
+    return false
+  }
+  const bordasHTML = `
+    <div class="insp-list">
+      ${['frente','tras','topo','base'].map(face => `
+        <label class="insp-row" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" data-piece-edge="${face}" data-eid="${item.entity_id}"
+                 ${bordaChecked(face) ? 'checked' : ''}
+                 style="margin:0;cursor:pointer;" />
+          <span style="font-size:11px;flex:1;text-transform:capitalize;">${face}</span>
+        </label>
+      `).join('')}
+    </div>
+  `
 
   const origin = data.origin || []
   const posHTML = `<div class="insp-list">
@@ -818,9 +1157,22 @@ function renderInspectorPiece(item) {
       ${inspSection('peca-pos',    'Posição',     posHTML)}
       ${inspSection('peca-usin',   'Usinagens',   usinHTML, { hint: `${ops.length}` })}
 
-      <div class="insp-secondary">
-        <button class="btn btn-ghost" disabled title="Edit em sprint Reflow">${iconHTML('paintbrush', 12)} Material</button>
-        <button class="btn btn-ghost" disabled title="Edit em sprint Reflow">${iconHTML('pencil', 12)} Bordas</button>
+      <div class="insp-secondary" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button class="btn btn-ghost" data-piece-action="turn-grain" data-eid="${item.entity_id}" title="Alternar veio horizontal/vertical">
+          ${iconHTML('refresh', 12)} Girar veio
+        </button>
+        <button class="btn btn-ghost" data-piece-action="rotate-90" data-eid="${item.entity_id}" title="Rotacionar 90° em Z">
+          ${iconHTML('refresh', 12)} Rotacionar 90°
+        </button>
+        <button class="btn btn-ghost" data-piece-action="duplicate" data-eid="${item.entity_id}" title="Duplicar peça com offset 50mm">
+          ${iconHTML('layers', 12)} Duplicar
+        </button>
+        <button class="btn btn-ghost" data-piece-action="hide" data-eid="${item.entity_id}" title="Ocultar peça (reversível)">
+          ${iconHTML('minimize', 12)} Ocultar
+        </button>
+        <button class="btn btn-ghost" data-piece-action="swap" data-eid="${item.entity_id}" title="Trocar variante de peça" style="grid-column:1/3;">
+          ${iconHTML('layers', 12)} Trocar variante
+        </button>
       </div>
     </div>
   `
@@ -857,9 +1209,16 @@ function renderInspectorHardware(item) {
       ${headHTML}
       ${inspSection('ferr-anchor', 'Âncora', anchorHTML)}
       ${inspSection('ferr-ops',    'Furação gerada', opsHTML)}
-      <div class="insp-secondary">
-        <button class="btn btn-ghost" data-go-tab="ferragens">${iconHTML('chevron-right', 12)} Ver tab Ferragens</button>
-        <button class="btn btn-ghost" disabled title="Trocar variante em sprint Reflow">${iconHTML('layers', 12)} Trocar</button>
+      <div class="insp-secondary" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button class="btn btn-ghost" data-hw-action="swap" data-eid="${item.entity_id}" title="Trocar variante de ferragem">
+          ${iconHTML('layers', 12)} Trocar
+        </button>
+        <button class="btn btn-ghost" data-hw-action="remove" data-eid="${item.entity_id}" title="Remover ferragem (oculta, reversível)">
+          ${iconHTML('minimize', 12)} Remover
+        </button>
+        <button class="btn btn-ghost" data-go-tab="ferragens" style="grid-column:1/3;">
+          ${iconHTML('chevron-right', 12)} Ver tab Ferragens
+        </button>
       </div>
     </div>
   `
@@ -893,9 +1252,16 @@ function renderInspectorAggregate(item) {
       ${inspSection('agg-bay',    'Bay info',  bayHTML)}
       ${inspSection('agg-params', 'Parâmetros do agregado', paramsHTML)}
 
-      <div class="insp-secondary">
-        <button class="btn btn-ghost" disabled title="Mover/Remover em sprint Reflow">${iconHTML('layers', 12)} Mover</button>
-        <button class="btn btn-ghost" disabled title="Remover em sprint Reflow">${iconHTML('chevron-right', 12)} Remover</button>
+      <div class="insp-secondary" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button class="btn btn-ghost" data-agg-action="swap" data-eid="${item.entity_id}" title="Trocar agregado (ex: prateleira↔gaveteiro)">
+          ${iconHTML('layers', 12)} Trocar
+        </button>
+        <button class="btn btn-ghost" data-agg-action="move" data-eid="${item.entity_id}" title="Mover para outro vão (V2)">
+          ${iconHTML('refresh', 12)} Mover
+        </button>
+        <button class="btn btn-ghost" data-agg-action="remove" data-eid="${item.entity_id}" title="Remover agregado (oculta, reversível)" style="grid-column:1/3;">
+          ${iconHTML('minimize', 12)} Remover
+        </button>
       </div>
     </div>
   `
@@ -937,17 +1303,15 @@ function renderInspectorMulti(sel) {
 
       <p class="insp-section-title" style="margin-top:8px">Ações em lote</p>
       <div class="insp-list">
-        ${[
-          { label: 'Aplicar acabamento', icon: 'paintbrush' },
-          { label: 'Trocar ferragem',     icon: 'ferragens'  },
-          { label: 'Atribuir material',   icon: 'acabamentos'},
-          { label: 'Repaint',             icon: 'paintbrush' },
-          { label: 'Selecionar similares',icon: 'mouse-pointer' },
-        ].map(a => `
-          <button class="insp-action-row" disabled title="Edição em batch chega no sprint Reflow">
-            ${iconHTML(a.icon, 14)}<span>${a.label}</span>${iconHTML('chevron-right', 12)}
-          </button>
-        `).join('')}
+        <button class="insp-action-row" data-multi-action="material" title="Aplicar material em lote">
+          ${iconHTML('paintbrush', 14)}<span>Trocar material em lote</span>${iconHTML('chevron-right', 12)}
+        </button>
+        <button class="insp-action-row" data-multi-action="hide-all" title="Ocultar todas as peças selecionadas">
+          ${iconHTML('minimize', 14)}<span>Ocultar todas</span>${iconHTML('chevron-right', 12)}
+        </button>
+        <button class="insp-action-row" data-multi-action="unhide-all" title="Restaurar todas as ocultadas">
+          ${iconHTML('layers', 14)}<span>Mostrar tudo</span>${iconHTML('chevron-right', 12)}
+        </button>
       </div>
     </div>
   `
