@@ -852,6 +852,67 @@ module Ornato
           end
         end
 
+        # ── SelectionResolver (cockpit / Miras / Trocas / Inspector) ──
+        # JS: sketchup.resolve_selection(entity_id)
+        # Resposta: window.onSelectionResolved(payload) — payload sempre
+        # contém :kind, :allowed_actions, :compatible_aggregates,
+        # :compatible_swaps. Botões btn-aggregates/btn-change ficam
+        # disabled enquanto kind == :empty/:invalid/:unknown.
+        @main_panel.add_action_callback('resolve_selection') do |_ctx, entity_id|
+          begin
+            ent = entity_id.nil? ? nil : find_entity_anywhere(entity_id.to_i)
+            payload = ::Ornato::Tools::SelectionResolver.resolve(ent)
+            @main_panel.execute_script(
+              "window.onSelectionResolved && window.onSelectionResolved(#{JSON.generate(payload)})"
+            )
+          rescue => e
+            puts "Ornato resolve_selection ERRO: #{e.message}"
+            @main_panel.execute_script(
+              "window.onSelectionResolved && window.onSelectionResolved(#{JSON.generate({ kind: :invalid, error: e.message })})"
+            )
+          end
+        end
+
+        # ── SwapEngine: lista variantes compatíveis para entidade ──
+        # JS: sketchup.list_swaps(entity_id)
+        # Resposta: window.onSwapList({ entity_id, kind, swaps: [...] })
+        @main_panel.add_action_callback('list_swaps') do |_ctx, entity_id|
+          begin
+            ent     = entity_id.nil? ? nil : find_entity_anywhere(entity_id.to_i)
+            payload = ::Ornato::Tools::SelectionResolver.resolve(ent)
+            payload = payload.merge(_entity: ent)
+            list    = ::Ornato::Constructor::SwapEngine.list_swaps_for(payload)
+            @main_panel.execute_script(
+              "window.onSwapList && window.onSwapList(#{JSON.generate({ entity_id: entity_id, kind: payload[:kind], swaps: list })})"
+            )
+          rescue => e
+            puts "Ornato list_swaps ERRO: #{e.message}"
+            @main_panel.execute_script(
+              "window.onSwapList && window.onSwapList(#{JSON.generate({ ok: false, error: e.message })})"
+            )
+          end
+        end
+
+        # ── SwapEngine: aplica troca ───────────────────────────
+        # JS: sketchup.apply_swap(entity_id, variant_id)
+        # Resposta: window.onSwapApplied(result)
+        @main_panel.add_action_callback('apply_swap') do |_ctx, entity_id, variant_id|
+          begin
+            ent     = find_entity_anywhere(entity_id.to_i)
+            payload = ::Ornato::Tools::SelectionResolver.resolve(ent)
+            payload = payload.merge(_entity: ent)
+            result  = ::Ornato::Constructor::SwapEngine.apply_swap(payload, variant_id)
+            @main_panel.execute_script(
+              "window.onSwapApplied && window.onSwapApplied(#{JSON.generate(result)})"
+            )
+          rescue => e
+            puts "Ornato apply_swap ERRO: #{e.message}"
+            @main_panel.execute_script(
+              "window.onSwapApplied && window.onSwapApplied(#{JSON.generate({ ok: false, error: e.message })})"
+            )
+          end
+        end
+
         # ── Machining: get piece data for drawer ───────────────
         @main_panel.add_action_callback('get_module_machining') do |_ctx, opts_json|
           begin
@@ -1186,6 +1247,148 @@ module Ornato
             @main_panel.execute_script("window.setIgnoredIssues && window.setIgnoredIssues(#{ { ignored: list }.to_json })")
           rescue => e
             puts "Ornato get_ignored_issues ERRO: #{e.message}"
+          end
+        end
+
+        # ── UX-2: Sistema de Miras (amarela / verde / vermelha) ──────────
+        # UI v2 chama: window.sketchup.start_mira('amarela'|'verde'|'vermelha')
+        @main_panel.add_action_callback('start_mira') do |_ctx, cor|
+          begin
+            unless defined?(Tools::MiraTool)
+              panel_status('MiraTool indisponivel')
+              next
+            end
+            sym = cor.to_s.downcase.to_sym
+            tool = Tools::MiraTool.new(sym, controller: self)
+            Sketchup.active_model.select_tool(tool)
+            panel_status("Mira #{sym} ativada | ESC cancela")
+          rescue ArgumentError => e
+            panel_status("Cor de mira invalida: #{cor} (#{e.message})")
+          rescue => e
+            puts "Ornato start_mira ERRO: #{e.message}"
+          end
+        end
+
+        # Soft-delete (oculta entidade sem apagar). Reversível via restore_hidden_entity.
+        @main_panel.add_action_callback('soft_remove_entity') do |_ctx, entity_id|
+          begin
+            ent = find_entity_anywhere(entity_id.to_i)
+            unless ent
+              panel_status("Entidade #{entity_id} nao encontrada")
+              next
+            end
+            Sketchup.active_model.start_operation('Ocultar entidade', true)
+            ent.set_attribute('Ornato', 'hidden', true) if ent.respond_to?(:set_attribute)
+            ent.hidden = true if ent.respond_to?(:hidden=)
+            Sketchup.active_model.commit_operation
+            panel_status("Entidade ocultada (id=#{entity_id})")
+          rescue => e
+            Sketchup.active_model.abort_operation rescue nil
+            puts "Ornato soft_remove_entity ERRO: #{e.message}"
+          end
+        end
+
+        # Restaura entidade ocultada por soft_remove_entity.
+        @main_panel.add_action_callback('restore_hidden_entity') do |_ctx, entity_id|
+          begin
+            ent = find_entity_anywhere(entity_id.to_i)
+            unless ent
+              panel_status("Entidade #{entity_id} nao encontrada")
+              next
+            end
+            Sketchup.active_model.start_operation('Restaurar entidade', true)
+            ent.set_attribute('Ornato', 'hidden', false) if ent.respond_to?(:set_attribute)
+            ent.hidden = false if ent.respond_to?(:hidden=)
+            Sketchup.active_model.commit_operation
+            panel_status("Entidade restaurada (id=#{entity_id})")
+          rescue => e
+            Sketchup.active_model.abort_operation rescue nil
+            puts "Ornato restore_hidden_entity ERRO: #{e.message}"
+          end
+        end
+
+        # ── ComponentEditor (UX-4): acoes editaveis atomicas ───
+        # Cada callback dispara Ornato::Constructor::ComponentEditor.<acao>
+        # e envia o resultado para a UI via:
+        #   window.onComponentEdit({ action:, ok:, ...meta })
+        # JS dispara via: sketchup.edit_turn_grain(entityId),
+        #                 sketchup.edit_change_material(entityId, 'MDF18_Cinza'), etc.
+        component_editor_actions = {
+          'edit_turn_grain'       => ->(args) { ::Ornato::Constructor::ComponentEditor.turn_grain(args[0].to_i) },
+          'edit_rotate_piece'     => ->(args) { ::Ornato::Constructor::ComponentEditor.rotate_piece(args[0].to_i, args[1].to_i) },
+          'edit_transfer_props'   => ->(args) { ::Ornato::Constructor::ComponentEditor.transfer_props(args[0].to_i, args[1].to_i) },
+          'edit_hide_temporary'   => ->(args) { ::Ornato::Constructor::ComponentEditor.hide_temporary(args[0].to_i) },
+          'edit_unhide'           => ->(args) { ::Ornato::Constructor::ComponentEditor.unhide(args[0].to_i) },
+          'edit_unhide_all'       => ->(_args) { ::Ornato::Constructor::ComponentEditor.unhide_all },
+          'edit_duplicate_entity' => ->(args) { ::Ornato::Constructor::ComponentEditor.duplicate(args[0].to_i, (args[1] || 50).to_f) },
+          'edit_change_material'  => ->(args) { ::Ornato::Constructor::ComponentEditor.change_material(args[0].to_i, args[1].to_s) },
+          'edit_change_thickness' => ->(args) { ::Ornato::Constructor::ComponentEditor.change_thickness(args[0].to_i, args[1].to_f) },
+          'edit_change_edges'     => ->(args) { ::Ornato::Constructor::ComponentEditor.change_edges(args[0].to_i, args[1]) }
+        }
+        component_editor_actions.each do |action_name, fn|
+          @main_panel.add_action_callback(action_name) do |_ctx, *args|
+            begin
+              result  = fn.call(args)
+              payload = result.is_a?(Hash) ? result.merge(action: action_name) :
+                                             { ok: false, action: action_name, error: 'resultado invalido' }
+              @main_panel.execute_script(
+                "window.onComponentEdit && window.onComponentEdit(#{JSON.generate(payload)})"
+              )
+            rescue => e
+              puts "Ornato #{action_name} ERRO: #{e.message}"
+              err = { ok: false, action: action_name, error: e.message }
+              @main_panel.execute_script(
+                "window.onComponentEdit && window.onComponentEdit(#{JSON.generate(err)})"
+              )
+            end
+          end
+        end
+
+        # ── UI v2 · Biblioteca: insere módulo via JSON definition ──
+        # JS: window.sketchup.insert_module_from_library(JSON.stringify({ module_id: 'balcao_2_portas' }))
+        # Cliente ack opcional: window.onLibraryModuleInserted({ ok, module_id, entity_id, error })
+        @main_panel.add_action_callback('insert_module_from_library') do |_ctx, payload|
+          ack = { ok: false, module_id: nil, entity_id: nil, error: nil }
+          begin
+            data = begin
+              JSON.parse(payload.to_s)
+            rescue
+              {}
+            end
+            module_id = (data['module_id'] || data[:module_id]).to_s
+            ack[:module_id] = module_id
+
+            if module_id.empty?
+              ack[:error] = 'module_id ausente'
+            elsif defined?(Library::JsonModuleBuilder)
+              group = Library::JsonModuleBuilder.create_from_json(module_id, {})
+              if group
+                ack[:ok] = true
+                ack[:entity_id] = group.entityID
+                if defined?(Ornato::Logger)
+                  Ornato::Logger.info("Biblioteca: inserido #{module_id}",
+                                      context: { entity_id: group.entityID })
+                end
+                panel_status("Módulo inserido: #{module_id}")
+                push_model_summary_to_panel if respond_to?(:push_model_summary_to_panel, true)
+              else
+                ack[:error] = "Módulo '#{module_id}' não encontrado na biblioteca"
+                panel_status(ack[:error])
+              end
+            else
+              ack[:error] = 'JsonModuleBuilder indisponível'
+            end
+          rescue => e
+            ack[:error] = e.message
+            puts "Ornato insert_module_from_library ERRO: #{e.message}"
+          end
+
+          begin
+            js = "typeof window.onLibraryModuleInserted==='function' && " \
+                 "window.onLibraryModuleInserted(#{JSON.generate(ack)});"
+            @main_panel.execute_script(js) if @main_panel && @main_panel.visible?
+          rescue => e
+            puts "Ornato insert_module_from_library ack ERRO: #{e.message}"
           end
         end
       end

@@ -26,6 +26,10 @@ ORNATO_TESTS = %w[
   aggregate_builder_test.rb
   reflow_test.rb
   validation_runner_test.rb
+  selection_resolver_test.rb
+  mira_tool_test.rb
+  swap_engine_test.rb
+  component_editor_test.rb
 ].freeze
 
 # E2E tests — pipelines críticos com mocks de SketchUp (tests/e2e/*).

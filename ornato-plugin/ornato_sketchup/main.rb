@@ -73,7 +73,9 @@ end
 require_relative 'constructor/box_builder'
 require_relative 'constructor/aggregator'
 require_relative 'constructor/component_swap'
+require_relative 'constructor/swap_engine'
 require_relative 'constructor/finish_manager'
+require_relative 'constructor/component_editor'
 
 # ─── Smart Advisor (inteligencia de sugestao) ────────
 begin
@@ -139,6 +141,8 @@ begin
   require_relative 'tools/edit_tool'
   require_relative 'tools/copy_array_tool'
   require_relative 'tools/aim_placement_tool'
+  require_relative 'tools/selection_resolver'
+  require_relative 'tools/mira_tool'
   TOOLS_LOADED = true
 rescue LoadError => e
   puts "Ornato: Ferramentas interativas nao disponiveis (#{e.message})"

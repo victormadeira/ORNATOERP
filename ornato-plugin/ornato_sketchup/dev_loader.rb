@@ -109,6 +109,9 @@ module Ornato
       'tools/ambiente_tool.rb',
       'tools/edit_tool.rb',
       'tools/copy_array_tool.rb',
+      'tools/selection_resolver.rb',
+      'tools/aim_placement_tool.rb',
+      'tools/mira_tool.rb',
 
       # Updater (optional)
       'updater/auto_updater.rb',
