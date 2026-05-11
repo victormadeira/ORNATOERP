@@ -44,8 +44,14 @@ module Ornato
         [3,0,4,7], [4,5,6,7], [3,2,1,0],
       ].freeze
 
+      # Modo padrão da tool — inserir agregado em vão. Outros modos podem
+      # ser plugados no futuro (ex: :measure_bay) sem quebrar retrocompat.
+      DEFAULT_MODE = :insert_aggregate
+
       # @param aggregate_id [String] ex: 'prateleira', 'divisoria', 'gaveteiro_simples'
-      def initialize(aggregate_id)
+      # @param mode [Symbol] :insert_aggregate (default). Reservado pra extensão.
+      def initialize(aggregate_id, mode: DEFAULT_MODE)
+        @mode           = mode
         @aggregate_id   = aggregate_id.to_s
         @aggregate_meta = self.class.load_aggregate_meta(@aggregate_id)
         @hovered_bay    = nil
@@ -53,6 +59,9 @@ module Ornato
         @valid          = false
         @detectors      = {}
       end
+
+      # Acessores p/ testes e introspecção.
+      attr_reader :mode, :aggregate_id
 
       # ── Tool Interface ──────────────────────────────────────
 
