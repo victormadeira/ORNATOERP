@@ -26,6 +26,56 @@ import { optimizeCutSequence, calcRapidDistance } from '../../shared/tspUtils.js
 import { summarizePlanEconomics } from '../../shared/operationalMetrics.js';
 import { PecaInspectPanel } from './PecaInspectPanel.jsx';
 
+// ─── Helpers do popover de parâmetros ────────────────────────────
+function NumField({ label, value, onChange, step = 1, min }) {
+    return (
+        <div>
+            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>{label}</label>
+            <input
+                type="number"
+                value={value}
+                onChange={e => onChange(Number(e.target.value) || 0)}
+                step={step}
+                min={min}
+                style={{
+                    width: '100%', padding: '5px 8px', borderRadius: 5,
+                    border: '1px solid var(--border)', background: 'var(--bg-card)',
+                    fontSize: 11, color: 'var(--text-primary)',
+                    fontFamily: 'ui-monospace, "SF Mono", monospace',
+                    fontVariantNumeric: 'tabular-nums',
+                }}
+            />
+        </div>
+    );
+}
+
+function ToggleField({ label, value, onChange }) {
+    return (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', padding: '5px 0' }}>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={value}
+                onClick={() => onChange(!value)}
+                style={{
+                    width: 28, height: 16, borderRadius: 999, border: 'none', cursor: 'pointer',
+                    background: value ? 'var(--primary)' : 'var(--bg-muted)',
+                    position: 'relative', transition: 'background 0.18s',
+                    flexShrink: 0,
+                }}
+            >
+                <span style={{
+                    position: 'absolute', top: 2, left: value ? 14 : 2,
+                    width: 12, height: 12, borderRadius: '50%',
+                    background: '#fff', transition: 'left 0.18s',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                }} />
+            </button>
+            <span style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 500 }}>{label}</span>
+        </label>
+    );
+}
+
 export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, setTab, onAbrirPreCorte }) {
     const [plano, setPlano] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -72,6 +122,25 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
     // Qualidade do otimizador
     const [qualidade, setQualidade] = useState('balanceado'); // 'rapido' | 'balanceado' | 'maximo'
     const [ultimaEstrategia, setUltimaEstrategia] = useState(null); // estratégia usada na última otimização
+
+    // Popover de edição rápida dos parâmetros (engrenagem na param-bar)
+    const [paramPopoverOpen, setParamPopoverOpen] = useState(false);
+    const paramPopoverRef = useRef(null);
+    useEffect(() => {
+        if (!paramPopoverOpen) return;
+        const onClickOutside = (e) => {
+            if (paramPopoverRef.current && !paramPopoverRef.current.contains(e.target)) {
+                setParamPopoverOpen(false);
+            }
+        };
+        const onEsc = (e) => { if (e.key === 'Escape') setParamPopoverOpen(false); };
+        document.addEventListener('mousedown', onClickOutside);
+        document.addEventListener('keydown', onEsc);
+        return () => {
+            document.removeEventListener('mousedown', onClickOutside);
+            document.removeEventListener('keydown', onEsc);
+        };
+    }, [paramPopoverOpen]);
     const [ultimoCusto, setUltimoCusto] = useState(null); // { custo_total, custo_desperdicio } após otimização
 
     // Progresso de otimização simulado (mostra fases)
@@ -1998,8 +2067,26 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
             ) : (
                 <>
                     {/* Config param bar — Linear-style compact */}
-                    <div className="param-bar" style={{ marginBottom: otimProgress || ultimaEstrategia || ultimoCusto ? 6 : 12 }}>
-                        <Settings size={12} style={{ flexShrink: 0, opacity: 0.5 }} />
+                    <div className="param-bar" style={{ marginBottom: otimProgress || ultimaEstrategia || ultimoCusto ? 6 : 12, position: 'relative' }} ref={paramPopoverRef}>
+                        <button
+                            type="button"
+                            onClick={() => setParamPopoverOpen(o => !o)}
+                            title="Editar parâmetros do otimizador"
+                            aria-label="Editar parâmetros"
+                            aria-expanded={paramPopoverOpen}
+                            style={{
+                                background: paramPopoverOpen ? 'var(--bg-muted)' : 'transparent',
+                                border: '1px solid transparent', borderColor: paramPopoverOpen ? 'var(--border)' : 'transparent',
+                                borderRadius: 5, padding: '3px 5px', cursor: 'pointer',
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                color: 'var(--text-muted)', flexShrink: 0,
+                                transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => !paramPopoverOpen && (e.currentTarget.style.background = 'var(--bg-muted)')}
+                            onMouseLeave={e => !paramPopoverOpen && (e.currentTarget.style.background = 'transparent')}
+                        >
+                            <Settings size={12} />
+                        </button>
                         <span className="param-chip"><strong>{modo === 'guilhotina' ? 'Guilhotina' : modo === 'maxrects' ? 'MaxRects' : 'Shelf'}</strong></span>
                         <span className="param-chip">Espaço <strong>{espacoPecas}mm</strong></span>
                         <span className="param-chip">Refilo <strong>{refilo}mm</strong></span>
@@ -2008,6 +2095,75 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         {usarRetalhos && <span className="param-chip">◧ Retalhos</span>}
                         {considerarSobra && <span className="param-chip">≥{sobraMinW}×{sobraMinH}mm</span>}
                         <span className="param-chip">Dir <strong>{direcaoCorte}</strong></span>
+
+                        {/* Popover de edição rápida */}
+                        {paramPopoverOpen && (
+                            <div role="dialog" aria-label="Parâmetros do otimizador" style={{
+                                position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50,
+                                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+                                boxShadow: '0 12px 32px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.08)',
+                                padding: 14, minWidth: 360, maxWidth: 420,
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Parâmetros do otimizador</div>
+                                    <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'ui-monospace, monospace' }}>auto-salva</div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                    {/* Modo */}
+                                    <div style={{ gridColumn: '1 / -1' }}>
+                                        <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Algoritmo</label>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+                                            {[
+                                                { id: 'guilhotina', label: 'Guilhotina' },
+                                                { id: 'maxrects',   label: 'MaxRects' },
+                                                { id: 'shelf',      label: 'Shelf' },
+                                            ].map(opt => (
+                                                <button key={opt.id} onClick={() => setModo(opt.id)} type="button" style={{
+                                                    padding: '6px 8px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                                                    border: '1px solid var(--border)',
+                                                    background: modo === opt.id ? 'var(--primary)' : 'var(--bg-card)',
+                                                    color: modo === opt.id ? '#fff' : 'var(--text-primary)',
+                                                    transition: 'all 0.15s',
+                                                }}>{opt.label}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <NumField label="Espaço (mm)" value={espacoPecas} onChange={setEspacoPecas} step={1} min={0} />
+                                    <NumField label="Refilo (mm)" value={refilo} onChange={setRefilo} step={1} min={0} />
+                                    {(modo === 'guilhotina' || modo === 'shelf') && (
+                                        <NumField label="Kerf (mm)" value={kerf} onChange={setKerf} step={0.5} min={0} />
+                                    )}
+
+                                    <div>
+                                        <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Direção</label>
+                                        <select value={direcaoCorte} onChange={e => setDirecaoCorte(e.target.value)}
+                                            style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-card)', fontSize: 11, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                            <option value="misto">Misto</option>
+                                            <option value="horizontal">Horizontal</option>
+                                            <option value="vertical">Vertical</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Toggles */}
+                                    <ToggleField label="Permitir rotação" value={permitirRotacao} onChange={setPermitirRotacao} />
+                                    <ToggleField label="Usar retalhos" value={usarRetalhos} onChange={setUsarRetalhos} />
+                                    <ToggleField label="Salvar sobras" value={considerarSobra} onChange={setConsiderarSobra} />
+
+                                    {considerarSobra && (
+                                        <>
+                                            <NumField label="Sobra mín. larg (mm)" value={sobraMinW} onChange={setSobraMinW} step={50} min={0} />
+                                            <NumField label="Sobra mín. comp (mm)" value={sobraMinH} onChange={setSobraMinH} step={50} min={0} />
+                                        </>
+                                    )}
+                                </div>
+
+                                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                    Alterações persistem como padrão da empresa. Clique em "Otimizar" novamente para re-aplicar.
+                                </div>
+                            </div>
+                        )}
 
                         {/* Seletor de qualidade */}
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--bg-card)', borderRadius: 5, padding: 2, border: '1px solid var(--border)' }}>
