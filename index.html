@@ -106,45 +106,7 @@
     Instagram: <a href="https://instagram.com/studioornato">@studioornato</a><br>
     Site: <a href="https://studioornato.com.br">studioornato.com.br</a></p>
   </noscript>
-  <script>
-    // Dev safety: if an old service worker was registered before this guard
-    // existed, it can keep serving stale Vite chunks and create two React
-    // runtimes. On localhost, remove SW/caches before loading the app module.
-    (function() {
-      var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-      var mainSrc = '/src/main.jsx';
-
-      function loadMain() {
-        var script = document.createElement('script');
-        script.type = 'module';
-        script.src = mainSrc;
-        document.body.appendChild(script);
-      }
-
-      if (!isLocalhost) {
-        loadMain();
-        return;
-      }
-
-      var swCleanup = 'serviceWorker' in navigator
-        ? navigator.serviceWorker.getRegistrations()
-          .then(function(regs) {
-            return Promise.all(regs.map(function(reg) { return reg.unregister(); }));
-          })
-          .catch(function() {})
-        : Promise.resolve();
-
-      var cacheCleanup = window.caches?.keys
-        ? caches.keys()
-          .then(function(keys) {
-            return Promise.all(keys.map(function(key) { return caches.delete(key); }));
-          })
-          .catch(function() {})
-        : Promise.resolve();
-
-      Promise.all([swCleanup, cacheCleanup]).finally(loadMain);
-    })();
-  </script>
+  <script type="module" src="/src/main.jsx"></script>
   <script>
     // Never register SW on localhost — Vite pre-bundles rotate chunk hashes and
     // a cache-first SW would serve stale chunks (two React instances → hook errors).
