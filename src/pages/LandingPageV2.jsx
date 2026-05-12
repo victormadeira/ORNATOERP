@@ -1364,7 +1364,7 @@ export default function LandingPageV2() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function buildCSS(acc) {
     return `
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Oswald:wght@200;300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Oswald:wght@200;300;400;500;600&display=swap');
 
 .lp { margin:0; padding:0; font-family:'Geist',system-ui,sans-serif; overflow-x:hidden; -webkit-font-smoothing:antialiased; color:#1A1614; background:#FAF7F2; line-height:1.6; }
 .lp *, .lp *::before, .lp *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -1421,7 +1421,7 @@ function buildCSS(acc) {
 .lp-hero { min-height:100dvh; display:flex; align-items:center; padding-top:8rem; position:relative; overflow:hidden; background:#1A1614; }
 .lp-hero-content { display:grid; grid-template-columns:1.1fr 0.9fr; gap:6rem; align-items:center; width:100%; position:relative; z-index:10; }
 .lp-hero-text { display:flex; flex-direction:column; gap:2rem; }
-.lp-headline { font-family:'Playfair Display',Georgia,serif; font-size:clamp(2.5rem,5.5vw,4.5rem); font-weight:400; line-height:1.15; letter-spacing:-0.01em; color:#1A1614; }
+.lp-headline { font-family:'Oswald',sans-serif; font-size:clamp(2.5rem,5.5vw,4.5rem); font-weight:400; line-height:1.15; letter-spacing:-0.01em; color:#1A1614; }
 .lp-hero .lp-headline { color:#FAF7F2; }
 .lp-hl { color:${acc}; font-weight:400; position:relative; }
 .lp-hl::after { content:''; position:absolute; bottom:0.1em; left:0; width:100%; height:1px; background:${acc}; opacity:0.35; }
@@ -1535,7 +1535,7 @@ function buildCSS(acc) {
 .lp-timeline-card-header { display:flex; align-items:center; gap:1.5rem; margin-bottom:1.5rem; }
 .lp-timeline-icon { width:48px; height:48px; display:flex; align-items:center; justify-content:center; background:${acc}14; border-radius:1rem; border:1px solid ${acc}28; font-family:'Oswald',sans-serif; font-size:1rem; font-weight:400; color:${acc}; letter-spacing:0.05em; transition:all 0.4s ease; }
 .lp-timeline-card:hover .lp-timeline-icon { background:${acc}25; border-color:${acc}; transform:scale(1.1); box-shadow:0 0 20px ${acc}35; }
-.lp-timeline-title { font-family:'Playfair Display',Georgia,serif; font-size:1.5rem; font-weight:500; letter-spacing:-0.01em; color:#1A1614; }
+.lp-timeline-title { font-family:'Oswald',sans-serif; font-size:1.5rem; font-weight:500; letter-spacing:-0.01em; color:#1A1614; }
 .lp-timeline-desc { color:rgba(26,22,20,0.65); font-size:0.95rem; line-height:1.65; font-weight:400; }
 
 /* ══════════════════════════════════════════
@@ -1777,7 +1777,7 @@ function buildCSS(acc) {
 .lp-dark-input::placeholder { color:rgba(26,22,20,0.4); }
 .lp-form-erro { font-size:13px; color:#B91C1C; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:10px 12px; }
 .lp-form-badge { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; padding:5px 12px; border-radius:9999px; background:${acc}18; border:1px solid ${acc}50; color:${acc}; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; }
-.lp-form-title { font-family:'Playfair Display',Georgia,serif; font-size:clamp(1.5rem,3vw,2rem); font-weight:400; line-height:1.2; letter-spacing:-0.01em; color:#1A1614; }
+.lp-form-title { font-family:'Oswald',sans-serif; font-size:clamp(1.5rem,3vw,2rem); font-weight:400; line-height:1.2; letter-spacing:-0.01em; color:#1A1614; }
 .lp-form-sub { font-size:0.95rem; color:rgba(26,22,20,0.65); line-height:1.65; font-weight:400; }
 .lp-input-lg { padding:18px 20px !important; font-size:16px !important; border-radius:14px !important; }
 .lp-select { appearance:none; -webkit-appearance:none; cursor:pointer; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231a161477' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 18px center; padding-right:44px !important; }
@@ -1951,7 +1951,7 @@ function buildCSS(acc) {
   }
   .lp-mobile-menu-close:hover { color:#1A1614; background:rgba(26,22,20,0.06); }
   .lp-mobile-menu a:not(.lp-btn-copper) {
-    font-family:'Playfair Display',Georgia,serif;
+    font-family:'Oswald',sans-serif;
     font-size:2rem; font-weight:400;
     color:#1A1614; text-decoration:none;
     letter-spacing:-0.02em;
