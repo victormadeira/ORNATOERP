@@ -310,6 +310,44 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
 });
 
 // ═══════════════════════════════════════════════════════
+// GET/PUT /api/config/progresso-pesos — pesos do cálculo de progresso
+// ═══════════════════════════════════════════════════════
+router.get('/progresso-pesos', requireAuth, (req, res) => {
+    const DEFAULTS = { medicao:5, aprovacao:5, compra:5, producao:35, acabamento:20, entrega:30, default:10 };
+    try {
+        const row = db.prepare('SELECT progresso_pesos_json FROM empresa_config WHERE id = 1').get();
+        const parsed = row?.progresso_pesos_json ? JSON.parse(row.progresso_pesos_json) : {};
+        res.json({ ...DEFAULTS, ...parsed });
+    } catch (_) {
+        res.json(DEFAULTS);
+    }
+});
+
+router.put('/progresso-pesos', requireAuth, requireRole('admin', 'gerente'), async (req, res) => {
+    const pesos = req.body || {};
+    const VALID_KEYS = ['medicao', 'aprovacao', 'compra', 'producao', 'acabamento', 'entrega', 'default'];
+    const clean = {};
+    for (const k of VALID_KEYS) {
+        const v = Number(pesos[k]);
+        if (!isNaN(v) && v >= 0 && v <= 100) clean[k] = Math.round(v);
+    }
+    if (Object.keys(clean).length === 0) {
+        return res.status(400).json({ error: 'Nenhum peso válido enviado (0-100 por chave).' });
+    }
+    try {
+        db.prepare('UPDATE empresa_config SET progresso_pesos_json = ? WHERE id = 1').run(JSON.stringify(clean));
+        // Limpa cache do serviço pra próxima chamada pegar os novos valores
+        try {
+            const { invalidatePesosCache } = await import('../services/progresso.js');
+            invalidatePesosCache();
+        } catch (_) {}
+        res.json(clean);
+    } catch (e) {
+        res.status(500).json({ error: 'Falha ao salvar pesos: ' + e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // PUT /api/config/menus — atualizar menus ocultos (admin only)
 // ═══════════════════════════════════════════════════════
 router.put('/menus', requireAuth, requireRole('admin'), (req, res) => {
