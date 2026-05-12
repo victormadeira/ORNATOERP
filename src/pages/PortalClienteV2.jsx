@@ -123,25 +123,60 @@ function StatusDot({ tone = 'neutral', pulse = false }) {
 function ProgressRing({ value, size = 168, stroke = 6 }) {
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
-    const animated = useCountUp(value, 1600);
+    const animated = useCountUp(value, 1800);
     const offset = c - (c * animated) / 100;
+    const cx = size / 2;
+    const cy = size / 2;
+    // Posição do endpoint do arco (final do progresso)
+    const angle = (animated / 100) * 2 * Math.PI - Math.PI / 2;
+    const endX = cx + r * Math.cos(angle);
+    const endY = cy + r * Math.sin(angle);
+
     return (
-        <div style={{ position: 'relative', width: size, height: size }}>
-            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" style={{ display: 'block' }}>
-                <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+        <div className="v2-ring-wrap" style={{ width: size, height: size }}>
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" className="v2-ring-svg">
+                <defs>
+                    <linearGradient id="v2RingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="color-mix(in oklch, var(--v2-cobre) 60%, white)" />
+                        <stop offset="100%" stopColor="var(--v2-cobre)" />
+                    </linearGradient>
+                    <filter id="v2RingGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="3" result="blur" />
+                        <feMerge>
+                            <feMergeNode in="blur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+                {/* Trilho */}
+                <circle cx={cx} cy={cy} r={r} fill="none"
                         stroke="color-mix(in oklch, var(--v2-cobre) 14%, transparent)"
                         strokeWidth={stroke} />
-                <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-                        stroke="var(--v2-cobre)" strokeWidth={stroke}
+                {/* Arco principal */}
+                <circle cx={cx} cy={cy} r={r} fill="none"
+                        stroke="url(#v2RingGrad)" strokeWidth={stroke}
                         strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
-                        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                        transform={`rotate(-90 ${cx} ${cy})`}
                         style={{ transition: 'stroke-dashoffset 240ms linear' }} />
+                {/* Sweep luminoso percorrendo o arco */}
+                {animated > 0 && (
+                    <circle cx={cx} cy={cy} r={r} fill="none"
+                            stroke="color-mix(in oklch, white 75%, var(--v2-cobre))"
+                            strokeWidth={stroke * 0.55} strokeLinecap="round"
+                            strokeDasharray={`${c * 0.08} ${c * 0.92}`}
+                            transform={`rotate(-90 ${cx} ${cy})`}
+                            className="v2-ring-sweep"
+                            style={{ filter: 'blur(2px)' }} />
+                )}
+                {/* Endpoint glow — bolinha cobre brilhante no fim do progresso */}
+                {animated > 0 && animated < 100 && (
+                    <>
+                        <circle cx={endX} cy={endY} r={stroke * 0.9} fill="var(--v2-cobre)" filter="url(#v2RingGlow)" className="v2-ring-endpoint" />
+                        <circle cx={endX} cy={endY} r={stroke * 0.45} fill="white" />
+                    </>
+                )}
             </svg>
-            <div style={{
-                position: 'absolute', inset: 0,
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-            }}>
+            <div className="v2-ring-center">
                 <div style={{
                     fontFamily: 'var(--v2-mono)', fontVariantNumeric: 'tabular-nums',
                     fontSize: Math.round(size * 0.32), fontWeight: 500,
@@ -187,12 +222,11 @@ function Hero({ projeto, empresa, concluidasPct, etapas }) {
                         fontSize: 'clamp(1rem, 1.6vw, 1.125rem)', lineHeight: 1.55,
                         color: 'var(--v2-ink-2)',
                     }}>
-                        {projeto.nome ? <>Estamos cuidando do seu <strong style={{ color: 'var(--v2-ink)', fontWeight: 600 }}>{projeto.nome}</strong>.</> : <>Seu projeto está em curso.</>}
-                        {' '}
+                        Estamos cuidando do seu projeto.{' '}
                         {concluidasPct >= 100
                             ? 'Tudo entregue — foi um prazer.'
                             : currentEtapa
-                                ? <>Estamos na fase de <strong style={{ color: 'var(--v2-ink)', fontWeight: 600 }}>{currentEtapa.nome?.toLowerCase()}</strong>.</>
+                                ? <>Agora na fase de <strong style={{ color: 'var(--v2-ink)', fontWeight: 600 }}>{currentEtapa.nome?.toLowerCase()}</strong>.</>
                                 : 'Em breve mais atualizações.'}
                     </Reveal>
 
@@ -234,6 +268,125 @@ function Hero({ projeto, empresa, concluidasPct, etapas }) {
     );
 }
 
+// ─── Gantt horizontal (desktop) ───────────────────────────────────────────────
+function GanttChart({ etapas }) {
+    const range = useMemo(() => {
+        const dates = etapas.flatMap(e => [e.data_inicio, e.data_vencimento])
+            .filter(Boolean)
+            .map(d => new Date(d + 'T12:00:00').getTime());
+        if (dates.length < 2) return null;
+        let minD = Math.min(...dates);
+        let maxD = Math.max(...dates);
+        const span = maxD - minD;
+        if (span <= 0) return null;
+        // Padding 5% nas pontas pra respirar
+        const pad = span * 0.05;
+        minD -= pad; maxD += pad;
+        return { minD, maxD, totalMs: maxD - minD };
+    }, [etapas]);
+
+    if (!range) return null;
+
+    const { minD, maxD, totalMs } = range;
+    const now = Date.now();
+    const todayPct = Math.max(0, Math.min(100, ((now - minD) / totalMs) * 100));
+
+    // Gerar markers de mês
+    const monthMarkers = useMemo(() => {
+        const out = [];
+        const start = new Date(minD);
+        const end = new Date(maxD);
+        const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+        while (cursor <= end) {
+            const t = cursor.getTime();
+            if (t >= minD && t <= maxD) {
+                out.push({
+                    label: cursor.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
+                    pct: ((t - minD) / totalMs) * 100,
+                });
+            }
+            cursor.setMonth(cursor.getMonth() + 1);
+        }
+        return out;
+    }, [minD, maxD, totalMs]);
+
+    const [revealRef, shown] = useReveal();
+
+    return (
+        <div className="v2-gantt" ref={revealRef} style={{ opacity: shown ? 1 : 0, transition: 'opacity 600ms ease-out' }}>
+            {/* Eixo de meses */}
+            <div className="v2-gantt-axis">
+                {monthMarkers.map((m, i) => (
+                    <div key={i} className="v2-gantt-month" style={{ left: `${m.pct}%` }}>
+                        <div className="v2-gantt-month-label">{m.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Linhas de grade verticais */}
+            <div className="v2-gantt-grid">
+                {monthMarkers.map((m, i) => (
+                    <div key={i} className="v2-gantt-gridline" style={{ left: `${m.pct}%` }} />
+                ))}
+                {/* Linha "hoje" */}
+                {todayPct > 0 && todayPct < 100 && (
+                    <div className="v2-gantt-today" style={{ left: `${todayPct}%` }}>
+                        <div className="v2-gantt-today-line" />
+                        <div className="v2-gantt-today-label">HOJE</div>
+                    </div>
+                )}
+            </div>
+
+            {/* Barras */}
+            <div className="v2-gantt-bars">
+                {etapas.map((e, i) => {
+                    if (!e.data_inicio || !e.data_vencimento) {
+                        // Etapa sem datas — mostra placeholder sutil
+                        return (
+                            <div key={e.id || i} className="v2-gantt-row">
+                                <div className="v2-gantt-row-name">{e.nome}</div>
+                                <div className="v2-gantt-row-track">
+                                    <div className="v2-gantt-bar v2-gantt-bar-empty">sem datas</div>
+                                </div>
+                            </div>
+                        );
+                    }
+                    const start = new Date(e.data_inicio + 'T12:00:00').getTime();
+                    const end = new Date(e.data_vencimento + 'T12:00:00').getTime();
+                    const leftPct = ((start - minD) / totalMs) * 100;
+                    const widthPct = Math.max(2, ((end - start) / totalMs) * 100);
+
+                    const isDone = e.status === 'concluida';
+                    const isActive = e.status === 'em_andamento' || e.status === 'atrasada';
+                    const isLate = e.status === 'atrasada';
+                    const tone = isDone ? 'done' : isActive ? 'active' : 'neutral';
+                    const progresso = isDone ? 100 : (e.progresso ?? (isActive ? Math.max(5, Math.min(95, ((now - start) / (end - start)) * 100)) : 0));
+
+                    return (
+                        <div key={e.id || i} className="v2-gantt-row" style={{ animationDelay: `${i * 80}ms` }}>
+                            <div className="v2-gantt-row-name">{String(i + 1).padStart(2, '0')} <span>{e.nome}</span></div>
+                            <div className="v2-gantt-row-track">
+                                <div
+                                    className={`v2-gantt-bar v2-gantt-bar-${tone} ${shown ? 'v2-gantt-bar-shown' : ''}`}
+                                    style={{
+                                        left: `${leftPct}%`,
+                                        width: `${widthPct}%`,
+                                        transitionDelay: `${300 + i * 100}ms`,
+                                    }}
+                                    title={`${e.nome} · ${dtFmt(e.data_inicio)} → ${dtFmt(e.data_vencimento)}`}
+                                >
+                                    <div className="v2-gantt-bar-fill" style={{ width: `${progresso}%`, transitionDelay: `${600 + i * 100}ms` }} />
+                                    {isActive && <div className="v2-gantt-bar-pulse" />}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 // ─── Cronograma ───────────────────────────────────────────────────────────────
 function Cronograma({ etapas }) {
     if (!etapas || etapas.length === 0) {
@@ -250,6 +403,9 @@ function Cronograma({ etapas }) {
 
     return (
         <Section title="Cronograma" eyebrow="Linha do tempo">
+            {/* Gantt horizontal — só desktop */}
+            <GanttChart etapas={etapas} />
+
             <ol className="v2-timeline">
                 {etapas.map((e, i) => {
                     const Icon = getEtapaIcon(e.nome);
@@ -772,10 +928,16 @@ export default function PortalClienteV2({ token }) {
         <div className="v2-shell">
             <style>{V2_STYLES}</style>
 
-            {/* Background decorativo — grid + mesh cobre */}
+            {/* Background editorial — papel quente + vignette cobre sutil */}
             <div className="v2-bg" aria-hidden="true">
-                <div className="v2-bg-grid" />
-                <div className="v2-bg-mesh" />
+                <div className="v2-bg-vignette" />
+                <svg className="v2-bg-noise" viewBox="0 0 200 200" preserveAspectRatio="none">
+                    <filter id="v2NoiseFilter">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3" />
+                        <feColorMatrix values="0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0.18 0" />
+                    </filter>
+                    <rect width="100%" height="100%" filter="url(#v2NoiseFilter)" />
+                </svg>
             </div>
 
             {/* Topo: logo + experimento ribbon */}
@@ -820,9 +982,9 @@ const V2_STYLES = `
     --v2-display: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-body: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-    --v2-paper: oklch(0.985 0.005 75);
+    --v2-paper: #F8F6F1;
     --v2-surface: #ffffff;
-    --v2-surface-2: oklch(0.975 0.005 75);
+    --v2-surface-2: #F4F1EB;
     --v2-ink: oklch(0.20 0.012 60);
     --v2-ink-2: oklch(0.46 0.012 60);
     --v2-ink-3: oklch(0.68 0.012 60);
@@ -846,25 +1008,43 @@ const V2_STYLES = `
 @keyframes v2Pulse { 0%, 100% { box-shadow: 0 0 0 4px color-mix(in oklch, var(--v2-cobre) 22%, transparent); } 50% { box-shadow: 0 0 0 7px color-mix(in oklch, var(--v2-cobre) 6%, transparent); } }
 @keyframes v2Spin { to { transform: rotate(360deg); } }
 @keyframes v2Shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes v2RingBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
+@keyframes v2RingSweep { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1000; } }
+@keyframes v2RingEndpointPulse { 0%, 100% { opacity: 1; transform-origin: center; } 50% { opacity: 0.5; } }
 @keyframes v2FabBreathe { 0%, 100% { box-shadow: 0 12px 32px -8px color-mix(in oklch, var(--v2-cobre) 50%, transparent), 0 0 0 0 color-mix(in oklch, var(--v2-cobre) 30%, transparent); } 50% { box-shadow: 0 12px 32px -8px color-mix(in oklch, var(--v2-cobre) 60%, transparent), 0 0 0 12px color-mix(in oklch, var(--v2-cobre) 0%, transparent); } }
 @keyframes v2DrawerIn { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes v2ScrimIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* ── Background decorativo ── */
-.v2-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
-.v2-bg-grid {
-    position: absolute; inset: 0;
-    background-image:
-        linear-gradient(to right, color-mix(in oklch, var(--v2-ink) 4%, transparent) 1px, transparent 1px),
-        linear-gradient(to bottom, color-mix(in oklch, var(--v2-ink) 4%, transparent) 1px, transparent 1px);
-    background-size: 56px 56px;
-    mask-image: linear-gradient(to bottom, black 0%, black 60%, transparent 100%);
+/* ── Background editorial ── */
+.v2-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.v2-bg-vignette {
+    position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
+    width: 140vw; height: 90vh; max-height: 900px;
+    background: radial-gradient(ellipse at center top, color-mix(in oklch, var(--v2-cobre) 14%, transparent) 0%, transparent 55%);
+    filter: blur(20px);
 }
-.v2-bg-mesh {
-    position: absolute; top: -10%; right: -20%; width: 60vw; height: 60vw;
-    background: radial-gradient(circle at center, color-mix(in oklch, var(--v2-cobre) 22%, transparent) 0%, transparent 65%);
-    filter: blur(40px);
-    opacity: 0.7;
+.v2-bg-noise {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0.55; mix-blend-mode: multiply;
+}
+
+/* ── Ring de progresso ── */
+.v2-ring-wrap {
+    position: relative;
+    animation: v2RingBreath 4.2s ease-in-out infinite;
+}
+.v2-ring-svg { display: block; }
+.v2-ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+}
+.v2-ring-sweep {
+    animation: v2RingSweep 6s linear infinite;
+    opacity: 0.85;
+}
+.v2-ring-endpoint {
+    animation: v2RingEndpointPulse 2.6s ease-in-out infinite;
 }
 
 /* ── Topbar ── */
@@ -944,6 +1124,123 @@ const V2_STYLES = `
 .v2-status-pill.v2-tone-active { color: var(--v2-ink); background: color-mix(in oklch, var(--v2-cobre) 8%, var(--v2-surface)); border-color: color-mix(in oklch, var(--v2-cobre) 22%, var(--v2-border)); }
 .v2-status-pill.v2-tone-done { color: oklch(0.42 0.13 155); background: oklch(0.97 0.04 155); border-color: oklch(0.88 0.06 155); }
 .v2-status-pill.v2-tone-late { color: oklch(0.45 0.18 27); background: oklch(0.97 0.04 27); border-color: oklch(0.88 0.08 27); }
+
+/* ── Gantt horizontal ── */
+.v2-gantt { display: none; }
+@media (min-width: 720px) {
+    .v2-gantt {
+        display: block; position: relative;
+        background: var(--v2-surface);
+        border: 1px solid var(--v2-border); border-radius: 16px;
+        padding: 18px 22px 22px; margin-bottom: 36px;
+        overflow: hidden;
+    }
+}
+.v2-gantt-axis {
+    position: relative; height: 22px; margin-left: 180px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--v2-border-soft);
+}
+.v2-gantt-month {
+    position: absolute; bottom: -1px; transform: translateX(-50%);
+    height: 8px; width: 1px; background: var(--v2-border);
+}
+.v2-gantt-month-label {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-family: var(--v2-mono); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.12em; color: var(--v2-ink-3);
+    white-space: nowrap;
+}
+.v2-gantt-grid {
+    position: absolute; top: 40px; bottom: 22px; left: calc(22px + 180px); right: 22px;
+    pointer-events: none;
+}
+.v2-gantt-gridline {
+    position: absolute; top: 0; bottom: 0; width: 1px;
+    background: color-mix(in oklch, var(--v2-ink) 4%, transparent);
+}
+.v2-gantt-today {
+    position: absolute; top: -8px; bottom: -4px;
+    transform: translateX(-50%);
+    pointer-events: none; z-index: 2;
+}
+.v2-gantt-today-line {
+    width: 1.5px; height: 100%;
+    background: linear-gradient(to bottom, color-mix(in oklch, var(--v2-cobre) 80%, transparent), color-mix(in oklch, var(--v2-cobre) 30%, transparent));
+    animation: v2RingEndpointPulse 2.4s ease-in-out infinite;
+}
+.v2-gantt-today-label {
+    position: absolute; top: -2px; left: 50%; transform: translateX(-50%);
+    font-family: var(--v2-mono); font-size: 9px; font-weight: 700;
+    letter-spacing: 0.16em; color: var(--v2-cobre);
+    padding: 2px 6px; background: var(--v2-surface);
+    border: 1px solid color-mix(in oklch, var(--v2-cobre) 40%, var(--v2-border));
+    border-radius: 4px; white-space: nowrap;
+}
+.v2-gantt-bars { position: relative; display: grid; gap: 8px; }
+.v2-gantt-row {
+    display: grid; grid-template-columns: 180px 1fr; align-items: center;
+    height: 30px;
+}
+.v2-gantt-row-name {
+    font-family: var(--v2-mono); font-size: 11px; color: var(--v2-ink-3);
+    letter-spacing: 0.04em; padding-right: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.v2-gantt-row-name span {
+    font-family: var(--v2-display); font-size: 13px; color: var(--v2-ink);
+    font-weight: 500; letter-spacing: -0.01em; margin-left: 4px;
+    text-transform: none;
+}
+.v2-gantt-row-track {
+    position: relative; height: 100%;
+    background: var(--v2-surface-2);
+    border-radius: 6px; overflow: hidden;
+}
+.v2-gantt-bar {
+    position: absolute; top: 4px; bottom: 4px;
+    border-radius: 5px;
+    transform-origin: left center;
+    transform: scaleX(0); opacity: 0;
+    transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1), opacity 400ms ease-out;
+    overflow: hidden;
+}
+.v2-gantt-bar-shown { transform: scaleX(1); opacity: 1; }
+.v2-gantt-bar-neutral {
+    background: color-mix(in oklch, var(--v2-ink) 8%, transparent);
+    border: 1px solid color-mix(in oklch, var(--v2-ink) 12%, transparent);
+}
+.v2-gantt-bar-active {
+    background: color-mix(in oklch, var(--v2-cobre) 18%, var(--v2-surface));
+    border: 1px solid color-mix(in oklch, var(--v2-cobre) 50%, var(--v2-border));
+}
+.v2-gantt-bar-done {
+    background: color-mix(in oklch, oklch(0.65 0.13 155) 18%, var(--v2-surface));
+    border: 1px solid color-mix(in oklch, oklch(0.55 0.14 155) 40%, var(--v2-border));
+}
+.v2-gantt-bar-empty {
+    position: absolute; top: 4px; bottom: 4px; left: 0; right: 0;
+    background: transparent; border: 1px dashed var(--v2-border);
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--v2-mono); font-size: 10px; color: var(--v2-ink-3);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    transform: none; opacity: 0.7;
+}
+.v2-gantt-bar-fill {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    width: 0;
+    background: linear-gradient(90deg, color-mix(in oklch, var(--v2-cobre) 80%, white) 0%, var(--v2-cobre) 100%);
+    transition: width 1000ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.v2-gantt-bar-done .v2-gantt-bar-fill {
+    background: linear-gradient(90deg, oklch(0.65 0.13 155) 0%, oklch(0.55 0.14 155) 100%);
+}
+.v2-gantt-bar-pulse {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 60%;
+    background: linear-gradient(90deg, transparent, color-mix(in oklch, white 50%, transparent), transparent);
+    background-size: 200% 100%;
+    animation: v2Shimmer 2.4s ease-in-out infinite;
+}
 
 /* ── Timeline ── */
 .v2-timeline { list-style: none; padding: 0; margin: 0; }
