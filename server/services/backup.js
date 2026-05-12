@@ -20,12 +20,14 @@ let _failureCount = 0; // sequência de falhas — alerta a equipe quando ≥ 2
 // Mantém ~14 backups na própria VPS — sobrevive a Drive offline ou DB corrompida
 export async function backupLocal() {
     try {
-        if (!existsSync(LOCAL_BACKUP_DIR)) mkdirSync(LOCAL_BACKUP_DIR, { recursive: true });
+        // mode 0o700 — só o owner lê/escreve/executa (backup contém DB com hashes de senha)
+        if (!existsSync(LOCAL_BACKUP_DIR)) mkdirSync(LOCAL_BACKUP_DIR, { recursive: true, mode: 0o700 });
         const dbBuffer = readFileSync(DB_PATH);
         const compressed = await gzipBuffer(dbBuffer);
         const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
         const filePath = join(LOCAL_BACKUP_DIR, `backup-${ts}.db.gz`);
-        writeFileSync(filePath, compressed);
+        // mode 0o600 — só o owner lê/escreve
+        writeFileSync(filePath, compressed, { mode: 0o600 });
 
         // Rotation: mantém apenas os MAX_LOCAL_BACKUPS mais recentes
         const files = readdirSync(LOCAL_BACKUP_DIR)
