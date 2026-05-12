@@ -227,6 +227,9 @@ app.use('/api/projetos', projetosRoutes);
 app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/estoque', estoqueRoutes);
 app.use('/api/drive', driveRoutes);
+// Montador: rotas /public/:token são acessadas sem auth (apenas via token).
+// Uploads são pesados (12MB) — aplicar mediaLimiter pra prevenir DoS.
+app.use('/api/montador/public', mediaLimiter);
 app.use('/api/montador', montadorRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/whatsapp', whatsappRoutes);

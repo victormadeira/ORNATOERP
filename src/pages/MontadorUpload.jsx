@@ -410,6 +410,10 @@ export default function MontadorUpload({ token }) {
 
             <div style={styles.footer}>
                 As fotos vão direto pra equipe. Você pode ajustar o ambiente de cada uma tocando nelas.
+                <br />
+                <span style={{ opacity: 0.75, fontSize: 10.5 }}>
+                    Quando disponíveis nos metadados, a data e localização da foto também são enviadas pra ajudar a equipe a confirmar o registro no local.
+                </span>
             </div>
         </div>
     );
