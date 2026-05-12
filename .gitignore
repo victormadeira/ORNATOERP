@@ -16,6 +16,7 @@ server/marcenaria.db
 server/database.sqlite
 server/database.db
 server/backups/
+/backups/
 server/.jwt_secret
 
 # Environment variables
