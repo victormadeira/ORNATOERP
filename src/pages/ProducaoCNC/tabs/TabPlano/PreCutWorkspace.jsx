@@ -13,6 +13,7 @@ import {
     Activity, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
 } from 'lucide-react';
 import { Spinner } from '../../../../ui';
+import GcodeSimWrapper from '../../../../components/GcodeSimWrapper.jsx';
 import { GcodeSimCanvas } from './GcodeSimCanvas.jsx';
 import { parseGcodeForSim, getOpCat, OP_CATS } from './parseGcode.js';
 import { analyzeGcodeOperational, formatMeters, formatMinutes } from '../../shared/operationalMetrics.js';
@@ -162,6 +163,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         chapaIdx = 0, contorno_tool, maquina: maquinaInfo = null,
         chapa: chapaData = null,
         printStatusMap = {}, pecasPersistentIds = [],
+        generation_error = '', generation_blocked = false,
     } = data || {};
 
     // ── Fullscreen cockpit: hide ERP topbar + bottom-nav ─────────────────────
@@ -181,6 +183,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const [currentLineIdx, setCurrentLineIdx] = useState(-1);
     const [leftCollapsed,  setLeftCollapsed]  = useState(false); // checklist sidebar
     const [rightCollapsed, setRightCollapsed] = useState(false); // HUD sidebar
+    const [simView,        setSimView]        = useState('2d');
 
     // ── G-code filter ─────────────────────────────────────────────────────────
     const [filterType, setFilterType] = useState('all');
@@ -190,12 +193,6 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const currentLineRef  = useRef(null);
     const filterFirstRef  = useRef(null); // first matching line (for auto-scroll on filter change)
     const scrollTimerRef  = useRef(null); // debounce scroll during fast playback
-
-    // ── Sync total moves once canvas mounts (or gcode changes) ───────────────
-    useEffect(() => {
-        const t = simRef.current?.getTotalMoves?.() ?? 0;
-        setTotalMoves(t);
-    }, [gcode]);
 
     // ── Move change callback (canvas → parent) ───────────────────────────────
     const handleMoveChange = useCallback((moveIdx, lineIdx, time) => {
@@ -212,9 +209,27 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     // ── G-code analysis ───────────────────────────────────────────────────────
     const parsedPreview = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
     const gcodeCutMoves = parsedPreview.moves.filter(m => m.type !== 'G0').length;
+    const hasParsedMoves = parsedPreview.moves.length > 0;
     const operational   = useMemo(() => analyzeGcodeOperational({
         gcode, chapa: chapaData, stats, alertas, parsed: parsedPreview,
     }), [gcode, chapaData, stats, alertas, parsedPreview]);
+
+    // ── Sync total moves once canvas mounts (or gcode changes) ───────────────
+    useEffect(() => {
+        if (simView !== '3d') {
+            setTotalMoves(parsedPreview.moves.length);
+            return;
+        }
+        const frame = requestAnimationFrame(() => {
+            const t = simRef.current?.getTotalMoves?.() ?? parsedPreview.moves.length;
+            setTotalMoves(t);
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [gcode, simView, parsedPreview.moves.length]);
+
+    useEffect(() => {
+        if (simView !== '3d') setSimPlaying(false);
+    }, [simView]);
 
     const operationSummary = useMemo(() => {
         const counts = new Map();
@@ -270,7 +285,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         return map;
     }, [parsedPreview.moves]);
 
-    const lines  = (gcode || '').split('\n');
+    const lines  = gcode ? gcode.split('\n') : [];
     const sizeKB = new Blob([gcode]).size / 1024;
 
     // ── Estimated total simulation time (mirrors parse3D logic) ──────────────
@@ -292,6 +307,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         return `${m}:${sec}`;
     };
 
+    const alertText = (alert) => alert?.msg || alert?.message || String(alert || '');
     const criticalAlerts = alertas.filter(a => {
         const t = String(a?.tipo || '').toLowerCase();
         return t.includes('erro') || t.includes('critico');
@@ -302,14 +318,54 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const impressasCount  = pecasPersistentIds.filter(pid => printStatusMap[pid]).length;
     const etiquetasOk     = totalPecasChapa === 0 || impressasCount === totalPecasChapa;
 
+    const hasBackendBlocker = generation_blocked || criticalAlerts.length > 0;
+    const hasExecutableGcode = Boolean(gcode) && gcodeCutMoves > 0;
+    const hasSimulatablePath = Boolean(gcode) && gcodeCutMoves > 0;
+    const releaseReady = hasExecutableGcode
+        && Boolean(contorno_tool)
+        && !hasBackendBlocker
+        && operational.critical.length === 0;
+    const hasBlocking = !releaseReady;
+
+    const blockingReasons = (() => {
+        const items = [];
+        const add = (title, detail) => {
+            const clean = String(detail || '').trim();
+            if (!clean) return;
+            if (items.some(i => i.detail === clean)) return;
+            items.push({ title, detail: clean });
+        };
+        if (generation_error) add('Geração bloqueada', generation_error);
+        if (!gcode) add('Arquivo CNC', 'Nenhum arquivo executável foi liberado pelo servidor.');
+        if (!contorno_tool) {
+            add(
+                'Ferramenta de contorno',
+                `Configure uma fresa de contorno${maquinaInfo?.nome ? ` na ${maquinaInfo.nome}` : ''} antes de gerar novamente.`
+            );
+        }
+        if (gcode && gcodeCutMoves === 0) {
+            add('Movimentos de corte', 'O arquivo atual não contém movimentos G1/G2/G3 de corte para simular.');
+        }
+        criticalAlerts.forEach(a => add('Alerta crítico', alertText(a)));
+        operational.critical.forEach(a => add('Validação operacional', alertText(a)));
+        return items;
+    })();
+
     // ── Checklist ─────────────────────────────────────────────────────────────
     const checklist = [
-        { label: 'G-code gerado',          ok: Boolean(gcode),                    detail: filename || 'Arquivo pendente' },
+        {
+            label: 'Arquivo CNC executável',
+            ok: Boolean(gcode) && !hasBackendBlocker,
+            detail: gcode
+                ? (hasBackendBlocker ? 'Gerado, mas bloqueado por validação crítica' : (filename || 'Arquivo sem nome'))
+                : 'Não liberado pelo servidor',
+        },
         { label: 'Máquina selecionada',     ok: Boolean(maquinaInfo?.nome),        detail: maquinaInfo?.nome || 'Padrão do servidor' },
-        { label: 'Ferramenta de contorno',  ok: Boolean(contorno_tool),            detail: contorno_tool ? `${contorno_tool.nome || contorno_tool.codigo} Ø${contorno_tool.diametro}mm` : 'Não identificada' },
-        { label: 'Alertas críticos',        ok: criticalAlerts.length === 0,       detail: criticalAlerts.length ? `${criticalAlerts.length} pendência(s)` : 'Sem bloqueios' },
-        { label: 'Validação operacional',   ok: operational.critical.length === 0, detail: operational.warning.length ? `${operational.warning.length} atenção(ões)` : 'Sem risco crítico' },
-        { label: 'Movimentos de corte',     ok: gcodeCutMoves > 0,                detail: `${gcodeCutMoves} movimento(s)` },
+        { label: 'Ferramenta de contorno',  ok: Boolean(contorno_tool),            detail: contorno_tool ? `${contorno_tool.nome || contorno_tool.codigo} Ø${contorno_tool.diametro}mm` : 'Cadastre ou atribua uma fresa de contorno' },
+        { label: 'Pendências críticas',     ok: criticalAlerts.length === 0,       detail: criticalAlerts.length ? `${criticalAlerts.length} bloqueio(s) do backend` : 'Sem bloqueios' },
+        { label: 'Validação do percurso',   ok: operational.critical.length === 0, detail: operational.critical.length ? `${operational.critical.length} bloqueio(s)` : (operational.warning.length ? `${operational.warning.length} atenção(ões)` : 'Sem risco crítico') },
+        { label: 'Movimentos de corte',     ok: gcodeCutMoves > 0,                detail: gcode ? `${gcodeCutMoves} movimento(s) G1/G2/G3` : 'Sem arquivo para simular' },
+        { label: 'Simulação do percurso',   ok: hasSimulatablePath,               detail: hasSimulatablePath ? 'Disponível no modo 2D/3D' : 'Indisponível até gerar percurso válido' },
         ...(totalPecasChapa > 0 ? [{
             label: 'Etiquetas impressas',
             ok: etiquetasOk,
@@ -319,12 +375,14 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         }] : []),
     ];
 
-    const hasBlocking  = operational.critical.length > 0 || !gcode || gcodeCutMoves === 0;
     const scoreColor   = operational.score >= 85 ? C.success : operational.score >= 70 ? C.warning : C.danger;
 
     // ── Actions ───────────────────────────────────────────────────────────────
     const handleDownload = useCallback(() => {
-        if (!gcode) return;
+        if (!gcode || hasBlocking) {
+            notify?.('G-code bloqueado. Corrija as pendências e gere novamente antes de baixar.', 'error');
+            return;
+        }
         const blob = new Blob([gcode], { type: 'text/plain' });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
@@ -333,7 +391,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         notify?.(`G-code baixado: ${filename || `chapa_${chapaIdx + 1}.nc`}`, 'success');
-    }, [gcode, filename, chapaIdx, notify]);
+    }, [gcode, hasBlocking, filename, chapaIdx, notify]);
 
     const handleSendToMachine = useCallback(async () => {
         if (!loteAtual?.id || hasBlocking) return;
@@ -383,6 +441,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
 
     // ── Keyboard shortcuts ────────────────────────────────────────────────────
     useEffect(() => {
+        if (simView !== '3d') return;
         const onKey = (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             switch (e.key) {
@@ -408,7 +467,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [simPlaying, handlePlay, handlePause, handleStep, handleSeekFirst, handleSeekLast]);
+    }, [simView, simPlaying, handlePlay, handlePause, handleStep, handleSeekFirst, handleSeekLast]);
 
     // ── Auto-scroll G-code viewer — debounced so fast playback doesn't stutter ─
     useEffect(() => {
@@ -622,12 +681,24 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                 : <><Zap size={11} /> Liberado para cortar</>
                             }
                         </div>
-                        <div style={{ fontSize: 10, color: hasBlocking ? C.danger : C.success, lineHeight: 1.4 }}>
-                            {hasBlocking
-                                ? checklist.filter(c => !c.ok).map(c => c.label).join(' · ')
-                                : 'Todos os itens verificados.'
-                            }
-                        </div>
+                        {hasBlocking ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {blockingReasons.slice(0, 4).map((b, i) => (
+                                    <div key={`${b.title}-${i}`} style={{ fontSize: 10, color: C.danger, lineHeight: 1.35 }}>
+                                        <strong>{b.title}:</strong> {b.detail}
+                                    </div>
+                                ))}
+                                {blockingReasons.length > 4 && (
+                                    <div style={{ fontSize: 10, color: C.danger, opacity: 0.75 }}>
+                                        +{blockingReasons.length - 4} outro(s) bloqueio(s) nos alertas.
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: 10, color: C.success, lineHeight: 1.4 }}>
+                                Todos os itens verificados.
+                            </div>
+                        )}
                     </div>
 
                     {/* Score operacional */}
@@ -664,9 +735,74 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                             Simulador CNC
                         </span>
+                        {!hasSimulatablePath && (
+                            <span style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: C.danger,
+                                border: '1px solid rgba(248,81,73,0.35)',
+                                background: 'rgba(248,81,73,0.10)',
+                                borderRadius: 5,
+                                padding: '3px 7px',
+                                whiteSpace: 'nowrap',
+                            }}>
+                                Simulação bloqueada
+                            </span>
+                        )}
+                        {gcode && !hasParsedMoves && (
+                            <span style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: C.warning,
+                                border: '1px solid rgba(210,153,34,0.35)',
+                                background: 'rgba(210,153,34,0.10)',
+                                borderRadius: 5,
+                                padding: '3px 7px',
+                                whiteSpace: 'nowrap',
+                            }}>
+                                Sem movimentos XY no parser 3D
+                            </span>
+                        )}
                         <div style={{ flex: 1 }} />
+                        {hasSimulatablePath && (
+                            <div style={{
+                                display: 'inline-flex',
+                                padding: 2,
+                                borderRadius: 6,
+                                border: `1px solid ${C.border}`,
+                                background: C.bg,
+                            }}>
+                                {[
+                                    { id: '2d', label: '2D' },
+                                    { id: '3d', label: '3D' },
+                                ].map(opt => {
+                                    const active = simView === opt.id;
+                                    return (
+                                        <button
+                                            key={opt.id}
+                                            onClick={() => setSimView(opt.id)}
+                                            style={{
+                                                height: 22,
+                                                minWidth: 34,
+                                                padding: '0 9px',
+                                                border: 'none',
+                                                borderRadius: 4,
+                                                background: active ? C.blue : 'transparent',
+                                                color: active ? '#fff' : C.muted,
+                                                fontSize: 10,
+                                                fontWeight: 800,
+                                                cursor: 'pointer',
+                                                fontFamily: '"JetBrains Mono", monospace',
+                                            }}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                         <span style={{ fontSize: 10, color: C.muted, fontFamily: '"JetBrains Mono", monospace' }}>
-                            {filename || `chapa_${chapaIdx + 1}.nc`}
+                            {gcode ? (filename || `chapa_${chapaIdx + 1}.nc`) : 'Sem arquivo CNC'}
                         </span>
                         <span style={{ fontSize: 10, color: C.muted, fontFamily: '"JetBrains Mono", monospace' }}>
                             {lines.length} ln · {sizeKB.toFixed(1)} KB
@@ -675,25 +811,89 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
 
                     {/* Canvas */}
                     <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-                        {gcode ? (
-                            <GcodeSimCanvas
-                                ref={simRef}
-                                gcode={gcode}
-                                chapa={chapaData}
-                                playing={simPlaying}
-                                speed={simSpeed}
-                                onPlayEnd={() => setSimPlaying(false)}
-                                onMoveChange={handleMoveChange}
-                            />
+                        {hasSimulatablePath ? (
+                            simView === '2d' ? (
+                                <div style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    minHeight: 0,
+                                    overflow: 'auto',
+                                    padding: 12,
+                                    background: '#f4f1ea',
+                                }}>
+                                    <GcodeSimWrapper gcode={gcode} chapa={chapaData} />
+                                </div>
+                            ) : (
+                                <GcodeSimCanvas
+                                    ref={simRef}
+                                    gcode={gcode}
+                                    chapa={chapaData}
+                                    playing={simPlaying}
+                                    speed={simSpeed}
+                                    onPlayEnd={() => setSimPlaying(false)}
+                                    onMoveChange={handleMoveChange}
+                                />
+                            )
                         ) : (
                             <div style={{
                                 flex: 1, display: 'flex', flexDirection: 'column',
                                 alignItems: 'center', justifyContent: 'center',
-                                gap: 10, color: C.muted,
+                                gap: 12, color: C.muted,
+                                padding: 24,
                             }}>
-                                <ZapOff size={32} style={{ opacity: 0.4 }} />
-                                <span style={{ fontSize: 13, fontWeight: 600 }}>G-code não gerado</span>
-                                <span style={{ fontSize: 11, opacity: 0.7 }}>Gere o G-code no plano de corte antes de revisar</span>
+                                <div style={{
+                                    width: 52, height: 52, borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: hasBlocking ? 'rgba(248,81,73,0.10)' : 'rgba(47,129,247,0.10)',
+                                    border: `1px solid ${hasBlocking ? 'rgba(248,81,73,0.35)' : 'rgba(47,129,247,0.35)'}`,
+                                    color: hasBlocking ? C.danger : C.blueHi,
+                                }}>
+                                    <ZapOff size={24} />
+                                </div>
+                                <span style={{ fontSize: 15, fontWeight: 800, color: hasBlocking ? C.danger : C.text }}>
+                                    {gcode && gcodeCutMoves === 0
+                                        ? 'G-code sem percurso para simular'
+                                        : hasBlocking ? 'G-code não liberado para corte' : 'G-code não gerado'
+                                    }
+                                </span>
+                                <span style={{ fontSize: 12, opacity: 0.82, textAlign: 'center', maxWidth: 520, lineHeight: 1.45 }}>
+                                    {gcode && gcodeCutMoves === 0
+                                        ? 'O arquivo recebido não contém movimentos de corte G1/G2/G3. O simulador precisa desses movimentos para desenhar o percurso da ferramenta.'
+                                        : hasBlocking
+                                        ? 'O servidor bloqueou a liberação porque ainda existem pendências técnicas. Corrija os itens abaixo e gere o G-code novamente.'
+                                        : 'Gere o G-code no plano de corte antes de revisar.'
+                                    }
+                                </span>
+                                {hasBlocking && blockingReasons.length > 0 && (
+                                    <div style={{
+                                        width: 'min(640px, 92%)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 7,
+                                        marginTop: 4,
+                                    }}>
+                                        {blockingReasons.slice(0, 6).map((b, i) => (
+                                            <div key={`${b.title}-${i}`} style={{
+                                                display: 'flex',
+                                                alignItems: 'flex-start',
+                                                gap: 8,
+                                                padding: '9px 11px',
+                                                borderRadius: 6,
+                                                background: 'rgba(248,81,73,0.08)',
+                                                border: '1px solid rgba(248,81,73,0.28)',
+                                                color: C.danger,
+                                                fontSize: 11.5,
+                                                lineHeight: 1.35,
+                                            }}>
+                                                <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                                                <div>
+                                                    <div style={{ fontWeight: 800, marginBottom: 2 }}>{b.title}</div>
+                                                    <div>{b.detail}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -999,7 +1199,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                 </div> {/* end 3-column row */}
 
                 {/* ══ TRANSPORT BAR — full-width row ═══════════════════════ */}
-                {gcode && (
+                {hasSimulatablePath && simView === '3d' && (
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         padding: '0 16px', height: 48, flexShrink: 0,
@@ -1112,14 +1312,15 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
 
                 <button
                     onClick={handleDownload}
-                    disabled={!gcode}
+                    disabled={!gcode || hasBlocking}
+                    title={hasBlocking ? 'Corrija os bloqueios antes de baixar o G-code executável' : 'Baixar G-code'}
                     style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6,
                         padding: '0 14px', height: 34, borderRadius: 6,
                         background: C.panel2, border: `1px solid ${C.border}`,
-                        color: gcode ? C.text : C.muted,
-                        cursor: gcode ? 'pointer' : 'not-allowed',
-                        opacity: gcode ? 1 : 0.5,
+                        color: gcode && !hasBlocking ? C.text : C.muted,
+                        cursor: gcode && !hasBlocking ? 'pointer' : 'not-allowed',
+                        opacity: gcode && !hasBlocking ? 1 : 0.5,
                         fontSize: 12, fontWeight: 600,
                     }}
                 >

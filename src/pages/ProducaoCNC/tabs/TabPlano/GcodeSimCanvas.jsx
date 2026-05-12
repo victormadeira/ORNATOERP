@@ -21,9 +21,9 @@ const STOCK_THICKNESS   = 15.5;
 // Sprint 3 CAM palette — premium dark industrial look.
 const COL = {
     // Pending — barely visible ghost. Functional, not decoration.
-    cutPending:    0x0a1525,  // deep navy-black
-    rapidPending:  0x0f1520,  // near-invisible gray
-    abovePending:  0x0a1510,  // near-invisible green-gray
+    cutPending:    0x334155,  // visible slate preview
+    rapidPending:  0x1e293b,
+    abovePending:  0x243447,
 
     // Executed — calm, readable, not saturated.
     cutExec:       0xE5E7EB,  // gray-200 — white-gray executed cuts
@@ -39,8 +39,8 @@ const COL = {
     toolTip:       0x60A5FA,  // blue-400 — active glow tip
 
     // Stock mesh
-    stockFace:     0x1E2933,  // dark graphite sheet surface
-    stockEdge:     0x9CA3AF,  // gray-400 edge highlight
+    stockFace:     0x243447,  // dark graphite sheet surface
+    stockEdge:     0xCBD5E1,  // gray-300 edge highlight
     stockSide:     0x111820,  // near-invisible sides
 
     // Grid / axes
@@ -49,9 +49,9 @@ const COL = {
 
 // Pending opacity per view mode
 const PENDING_OPACITY = {
-    operator:   { rapid: 0.00, cut: 0.04 },  // rapid invisible, cuts barely there
-    technical:  { rapid: 0.05, cut: 0.07 },  // standard ghost
-    inspection: { rapid: 0.18, cut: 0.32 },  // more visible for plan review
+    operator:   { rapid: 0.03, cut: 0.16 },
+    technical:  { rapid: 0.12, cut: 0.24 },
+    inspection: { rapid: 0.22, cut: 0.42 },
 };
 
 // ─── Parse G-code with per-segment timing ────────────────────────────────────
@@ -107,7 +107,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
 
     // Refs to avoid stale closures in animation loop and effects
     const setTimeInternalRef = useRef(null);
-    const viewModeRef        = useRef('technical');
+    const viewModeRef        = useRef('inspection');
     const lastHudRef         = useRef(0);   // throttle React re-renders
     const lastIdxRef         = useRef(-1);  // fire onMoveChange immediately on idx change
 
@@ -116,7 +116,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
     const [curMoveIdx, setCurMoveIdx] = useState(-1);
     const [curTime,    setCurTime]    = useState(0);
     const [activeView, setActiveView] = useState('iso');
-    const [viewMode,   setViewMode]   = useState('technical'); // operator|technical|inspection
+    const [viewMode,   setViewMode]   = useState('inspection'); // operator|technical|inspection
     const [showGrid,   setShowGrid]   = useState(false);
 
     const program = useMemo(() => parse3D(gcode), [gcode]);
@@ -129,7 +129,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0x070A0F, 1); // Sprint 3: deep navy-black background
+        renderer.setClearColor(0x0B1220, 1); // deep CAM background, but not pure black
         renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
         el.appendChild(renderer.domElement);
 
@@ -476,6 +476,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
                 : (isCutting ? COL.cutPending : COL.abovePending);
             const execColor = isRapid ? COL.rapidExec
                 : (isCutting ? COL.cutExec : COL.aboveExec);
+            const initialOpacity = PENDING_OPACITY[viewModeRef.current] || PENDING_OPACITY.inspection;
 
             let line;
             if (isRapid) {
@@ -488,7 +489,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
                 line = new THREE.Line(
                     geomG0,
                     new THREE.LineDashedMaterial({
-                        color: pendingColor, transparent: true, opacity: 0.08,
+                        color: pendingColor, transparent: true, opacity: initialOpacity.rapid,
                         dashSize: 12, gapSize: 8, scale: 1,
                     })
                 );
@@ -500,7 +501,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
                 const mat = new LineMaterial({
                     color: pendingColor,
                     linewidth: isCutting ? 2.0 : 1.4,
-                    transparent: true, opacity: 0.07,
+                    transparent: true, opacity: initialOpacity.cut,
                     resolution: vpRes.clone(),
                 });
                 line = new Line2(geom, mat);
@@ -633,16 +634,38 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
     // ─── Render ───────────────────────────────────────────────────────────────
     const mono = '"JetBrains Mono","Fira Code",Consolas,monospace';
     const hudSectionLabel = {
-        fontSize: 9, fontWeight: 700, color: '#21262d',
+        fontSize: 9, fontWeight: 700, color: '#7D8794',
         textTransform: 'uppercase', letterSpacing: '0.1em',
         marginBottom: 4, fontFamily: 'system-ui,sans-serif',
     };
     const hudDivider = { borderTop: '1px solid #1e2733', marginTop: 7, paddingTop: 7 };
+    const noMoves = Boolean(gcode) && moves.length === 0;
 
     return (
         <div style={{ position: 'relative', flex: 1, minHeight: 0, background: '#0d1117' }}>
             {/* Three.js canvas target */}
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+
+            {noMoves && (
+                <div style={{
+                    position: 'absolute', inset: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(7,10,15,0.74)',
+                    color: '#CBD5E1',
+                    fontFamily: 'system-ui,sans-serif',
+                    textAlign: 'center', padding: 24, pointerEvents: 'none',
+                }}>
+                    <div>
+                        <div style={{ fontSize: 15, fontWeight: 750, marginBottom: 6 }}>
+                            G-code sem movimentos XY para simular
+                        </div>
+                        <div style={{ fontSize: 12, color: '#94A3B8', maxWidth: 360, lineHeight: 1.45 }}>
+                            O arquivo foi carregado, mas o parser nao encontrou linhas G0/G1/G2/G3 com X ou Y.
+                            Confira se o gerador retornou operacoes reais de corte.
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── HUD — top left ────────────────────────────────────────────── */}
             <div style={{
@@ -670,7 +693,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
                     <div style={hudDivider}>
                         <div style={hudSectionLabel}>Feed</div>
                         <div style={{ fontSize: 11, color: '#79c0ff', fontVariantNumeric: 'tabular-nums' }}>
-                            {Math.round(toolPos.f)} <span style={{ fontSize: 9, color: '#30363d' }}>mm/min</span>
+                            {Math.round(toolPos.f)} <span style={{ fontSize: 9, color: '#7D8794' }}>mm/min</span>
                         </div>
                     </div>
                 )}
@@ -742,7 +765,7 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
 
                 {/* View modes — Operator / Technical / Inspection */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
-                    <div style={{ fontSize: 9, color: '#21262d', fontFamily: mono, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right', marginBottom: 1 }}>Modo</div>
+                    <div style={{ fontSize: 9, color: '#7D8794', fontFamily: mono, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right', marginBottom: 1 }}>Modo</div>
                     {[
                         { id: 'operator',   label: 'Operador',  title: 'Ferramenta, corte e caminho atual apenas' },
                         { id: 'technical',  label: 'Técnico',   title: 'G0, eixos, chapa, grid disponível' },

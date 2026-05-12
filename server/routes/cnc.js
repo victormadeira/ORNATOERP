@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import AdmZip from 'adm-zip';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
@@ -292,6 +293,89 @@ function mergeMachiningPayload(base, dedicated) {
         side_b: dedicated.side_b || base.side_b,
         contour: dedicated.contour || base.contour,
     };
+}
+
+function collectMachiningWorkers(mach) {
+    const workers = [];
+    const add = (source) => {
+        if (!source) return;
+        if (Array.isArray(source)) {
+            for (const w of source) if (w && typeof w === 'object') workers.push(w);
+        } else if (typeof source === 'object') {
+            for (const w of Object.values(source)) if (w && typeof w === 'object') workers.push(w);
+        }
+    };
+    add(mach?.workers);
+    add(mach?.side_a?.workers || mach?.side_a);
+    add(mach?.side_b?.workers || mach?.side_b);
+    return workers;
+}
+
+function cleanContourPoints(points) {
+    const clean = (points || [])
+        .map(pt => ({ x: cncNumber(pt?.x, pt?.x2, Array.isArray(pt) ? pt[0] : undefined), y: cncNumber(pt?.y, pt?.y2, Array.isArray(pt) ? pt[1] : undefined) }))
+        .filter(pt => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+    if (clean.length > 2) {
+        const first = clean[0];
+        const last = clean[clean.length - 1];
+        if (Math.hypot(first.x - last.x, first.y - last.y) < 0.001) clean.pop();
+    }
+    return clean;
+}
+
+function isOuterContourPath(path, comp, larg) {
+    const clean = cleanContourPoints(path);
+    const bbox = pathBBox(clean);
+    const c = Number(comp || 0);
+    const l = Number(larg || 0);
+    if (!bbox || c <= 0 || l <= 0) return false;
+    const tol = Math.max(2, Math.min(c, l) * 0.02);
+    const spansX = (bbox.maxX - bbox.minX) >= c - tol * 2;
+    const spansY = (bbox.maxY - bbox.minY) >= l - tol * 2;
+    return spansX && spansY
+        && bbox.minX <= tol
+        && bbox.minY <= tol
+        && bbox.maxX >= c - tol
+        && bbox.maxY >= l - tol;
+}
+
+function extractOuterContourPoints(mach, comp, larg, esp = 0) {
+    const explicit = mach?.contour?.outer;
+    if (Array.isArray(explicit) && explicit.length >= 3) {
+        const pts = cleanContourPoints(explicit);
+        if (pts.length >= 3) return pts.map(pt => ({ x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 }));
+    }
+    for (const worker of collectMachiningWorkers(mach)) {
+        const path = workerPathPoints(worker);
+        const depth = cncNumber(worker?.depth, worker?.usedepth, worker?.profundidade);
+        const thickness = Number(esp || 0);
+        if (String(worker?.close) !== '1' || path.length < 3 || depth <= 0) continue;
+        if (thickness > 0 && depth < thickness * 0.9) continue;
+        if (isOuterContourPath(path, comp, larg)) {
+            return cleanContourPoints(path).map(pt => ({ x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 }));
+        }
+    }
+    return null;
+}
+
+function contourPointsToSegments(points) {
+    const pts = cleanContourPoints(points);
+    if (pts.length < 3) return [];
+    const segments = [];
+    for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        segments.push({ type: 'line', x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    }
+    return segments;
+}
+
+function isWorkerExternalContourPath(worker, path, comp, larg, esp) {
+    const depth = cncNumber(worker?.depth, worker?.usedepth, worker?.profundidade);
+    return String(worker?.close) === '1'
+        && path?.length >= 3
+        && depth >= Number(esp || 0) * 0.9
+        && isOuterContourPath(path, comp, larg);
 }
 
 function workerFingerprintV2(w) {
@@ -1870,11 +1954,8 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                 if (!p.machining_json) continue;
                 try {
                     const mach = JSON.parse(p.machining_json);
-                    if (mach.contour && mach.contour.outer && mach.contour.outer.length > 0) {
-                        let pts = mach.contour.outer.map(v => ({
-                            x: Math.round((v.x ?? v[0] ?? 0) * 10) / 10,
-                            y: Math.round((v.y ?? v[1] ?? 0) * 10) / 10,
-                        }));
+                    let pts = extractOuterContourPoints(mach, p.comprimento || 0, p.largura || 0, p.espessura || 0);
+                    if (pts && pts.length >= 3) {
                         // Auto-detect and fix swapped axes: contour should fit within comprimento × largura
                         const comp = p.comprimento || 0, larg = p.largura || 0;
                         if (comp > 0 && larg > 0 && pts.length >= 3) {
@@ -2480,11 +2561,8 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             if (!p.machining_json) continue;
             try {
                 const mach = JSON.parse(p.machining_json);
-                if (mach.contour && mach.contour.outer && mach.contour.outer.length > 0) {
-                    let pts = mach.contour.outer.map(v => ({
-                        x: Math.round((v.x ?? v[0] ?? 0) * 10) / 10,
-                        y: Math.round((v.y ?? v[1] ?? 0) * 10) / 10,
-                    }));
+                let pts = extractOuterContourPoints(mach, p.comprimento || 0, p.largura || 0, p.espessura || 0);
+                if (pts && pts.length >= 3) {
                     // Auto-detect and fix swapped axes
                     const comp = p.comprimento || 0, larg = p.largura || 0;
                     if (comp > 0 && larg > 0 && pts.length >= 3) {
@@ -4313,7 +4391,9 @@ function mapWorkerToTipo(worker, usinagemTipos) {
         if (cats.some(c => cat.includes(c))) return t;
     }
     const opKind = classifyWorkerOp(worker);
+    if (opKind === 't_slot') return { codigo: 'rasgo_t_slot', nome: 'Rasgo T / Cava composta', prioridade: 3, fase: 'interna', tool_code_padrao: 'f_12mm' };
     if (opKind === 'groove') return { codigo: 'rasgo_generico', nome: 'Rasgo / Canal', prioridade: 3, fase: 'interna', tool_code_padrao: 'r_f' };
+    if (opKind === 'pocket_path') return { codigo: 'rebaixo_poligonal', nome: 'Rebaixo Poligonal', prioridade: 3, fase: 'interna' };
     if (opKind === 'milling_path') return { codigo: 'fresamento_caminho', nome: 'Fresamento de Caminho', prioridade: 3, fase: 'interna' };
     if (opKind === 'pocket') return { codigo: 'pocket', nome: 'Pocket / Fresagem', prioridade: 3, fase: 'interna' };
     if (opKind === 'hole') return { codigo: 'furacao_generica', nome: 'Furação Genérica', prioridade: 6, fase: 'interna' };
@@ -4328,13 +4408,122 @@ function workerText(worker) {
         worker?.tool_code,
         worker?.tool,
         worker?.nome,
+        worker?.descricao,
+        worker?.description,
     ].filter(Boolean).join(' ').toLowerCase();
 }
 
-function classifyWorkerOp(worker, millingPath = null) {
+function cncNumber(...values) {
+    for (const value of values) {
+        if (value === null || value === undefined || value === '') continue;
+        const n = Number(value);
+        if (Number.isFinite(n)) return n;
+    }
+    return 0;
+}
+
+function workerPathPoints(worker) {
+    if (!worker || typeof worker !== 'object') return [];
+    if (Array.isArray(worker.path) && worker.path.length >= 2) {
+        return worker.path
+            .map(pt => ({ x: cncNumber(pt?.x, pt?.position_x), y: cncNumber(pt?.y, pt?.position_y) }))
+            .filter(pt => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+    }
+    const source = worker.positions_origin && typeof worker.positions_origin === 'object'
+        ? worker.positions_origin
+        : worker.positions;
+    if (!source || typeof source !== 'object') return [];
+    return Object.keys(source)
+        .sort((a, b) => Number(a) - Number(b))
+        .map(key => {
+            const pt = source[key];
+            if (Array.isArray(pt)) return { x: cncNumber(pt[0]), y: cncNumber(pt[1]) };
+            return { x: cncNumber(pt?.x, pt?.position_x), y: cncNumber(pt?.y, pt?.position_y) };
+        })
+        .filter(pt => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+}
+
+function pathBBox(path) {
+    if (!Array.isArray(path) || path.length === 0) return null;
+    const xs = path.map(pt => Number(pt.x || 0));
+    const ys = path.map(pt => Number(pt.y || 0));
+    return {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys),
+    };
+}
+
+function bboxContains(outer, inner, tol = 0) {
+    if (!outer || !inner) return false;
+    return inner.minX >= outer.minX - tol
+        && inner.maxX <= outer.maxX + tol
+        && inner.minY >= outer.minY - tol
+        && inner.maxY <= outer.maxY + tol;
+}
+
+function isChamferWorker(worker) {
+    return /chanfro|chamfer|45/.test(workerText(worker));
+}
+
+function isTSlotWorker(worker) {
+    const shape = String(worker?.shape || worker?.slot_shape || worker?.forma || worker?.perfil || '').toLowerCase();
+    const hasHead = cncNumber(
+        worker?.head_width, worker?.head_depth,
+        worker?.t_width, worker?.t_depth,
+        worker?.cava_width, worker?.cava_largura,
+        worker?.cava_depth, worker?.cava_profundidade
+    ) > 0;
+    const legacySupport = /suporte[_\s-]*invis|invisible[_\s-]*shelf|hidden[_\s-]*shelf|transfer_slot/.test(workerText(worker));
+    return /t[_\s-]*slot|slot[_\s-]*t|rasgo[_\s-]*t|perfil[_\s-]*t/.test(shape) || (legacySupport && hasHead);
+}
+
+function isClosedAreaPocket(worker, pieceThickness = null, path = null) {
+    const pts = path || workerPathPoints(worker);
+    if (String(worker?.close) !== '1' || pts.length < 3 || isChamferWorker(worker)) return false;
+    const depth = cncNumber(worker?.depth, worker?.usedepth, worker?.profundidade);
+    if (depth <= 0) return false;
+    const esp = Number(pieceThickness || 0);
+    if (esp > 0) return depth < esp * 0.9;
+    return /pocket|rebaixo|recess|baixo/.test(workerText(worker));
+}
+
+function getTSlotLine(worker, comp, larg) {
+    if (worker?.pos_start_for_line && worker?.pos_end_for_line) {
+        return {
+            sx: cncNumber(worker.pos_start_for_line.position_x, worker.pos_start_for_line.x),
+            sy: cncNumber(worker.pos_start_for_line.position_y, worker.pos_start_for_line.y),
+            ex: cncNumber(worker.pos_end_for_line.position_x, worker.pos_end_for_line.x),
+            ey: cncNumber(worker.pos_end_for_line.position_y, worker.pos_end_for_line.y),
+        };
+    }
+    const path = workerPathPoints(worker);
+    if (path.length >= 2) {
+        return { sx: path[0].x, sy: path[0].y, ex: path[path.length - 1].x, ey: path[path.length - 1].y };
+    }
+    const x = cncNumber(worker?.x, worker?.position_x, worker?.slot_x);
+    const y = cncNumber(worker?.y, worker?.position_y, worker?.slot_y);
+    const len = cncNumber(worker?.slot_length, worker?.length, worker?.comprimento, worker?.comprimento_haste, 160);
+    const axis = String(worker?.axis || worker?.eixo || 'y').toLowerCase();
+    const edge = String(worker?.edge || worker?.entrada || 'y_min').toLowerCase();
+    if (axis === 'x' || edge.includes('x_')) {
+        const fromMax = edge.includes('max') || edge.includes('right');
+        const sx = fromMax ? Number(comp || 0) : x;
+        return { sx, sy: y, ex: fromMax ? sx - len : sx + len, ey: y };
+    }
+    const fromMax = edge.includes('max') || edge.includes('rear') || edge.includes('back');
+    const sy = fromMax ? Number(larg || 0) : y;
+    return { sx: x, sy, ex: x, ey: fromMax ? sy - len : sy + len };
+}
+
+function classifyWorkerOp(worker, millingPath = null, opts = {}) {
     const txt = workerText(worker);
+    const path = millingPath || workerPathPoints(worker);
     if (worker?.is_edge_operation) return 'edge_hole';
-    if (millingPath && millingPath.length >= 2) return 'milling_path';
+    if (isTSlotWorker(worker)) return 't_slot';
+    if (isClosedAreaPocket(worker, opts.pieceThickness, path)) return 'pocket_path';
+    if (path && path.length >= 2) return 'milling_path';
     if (/pocket|rebaixo|recess|baixo/.test(txt)) return 'pocket';
     if (/slot|saw|cut|groove|rasgo|canal|transfer_vertical_saw_cut|transfer_horizontal_saw_cut/.test(txt)) return 'groove';
     if (/hole|borehole|furo|furacao|drill|broca/.test(txt)) return 'hole';
@@ -4346,6 +4535,7 @@ function hasWorkerPosition(worker) {
     if (worker?._no_position) return false;
     if (worker?.pos_start_for_line) return true;
     if (Array.isArray(worker?.path) && worker.path.length >= 2) return true;
+    if (workerPathPoints(worker).length >= 2) return true;
     const x = Number(worker?.x ?? worker?.position_x);
     const y = Number(worker?.y ?? worker?.position_y);
     return Number.isFinite(x) && Number.isFinite(y);
@@ -4357,6 +4547,8 @@ function gcodeOpCommentType(op) {
     if (op?.opType === 'edge_hole') return 'furo_lateral';
     if (op?.opType === 'groove') return 'rasgo';
     if (op?.opType === 'pocket') return 'rebaixo';
+    if (op?.opType === 'pocket_path') return 'rebaixo';
+    if (op?.opType === 't_slot') return 'rasgo_t';
     if (op?.opType === 'milling_path') return 'fresagem';
     if (op?.opType === 'circular_hole') return 'furo_circular';
     if (op?.opType === 'contour_hole') return 'recorte_interno';
@@ -4917,6 +5109,19 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         // Só usa o JSON dedicado do lado B quando ele realmente tem conteúdo.
         // Campo padrão '{}' não pode apagar usinagens importadas no JSON principal.
         let mach = ladoAtivo === 'B' ? mergeMachiningPayload(machBase, machB) : machBase;
+        const generatedOuterContour = !(mach?.contour?.outer?.length)
+            ? extractOuterContourPoints(mach, compOrig, largOrig, esp)
+            : null;
+        if (generatedOuterContour?.length >= 3) {
+            mach = {
+                ...mach,
+                contour: {
+                    ...(mach.contour || {}),
+                    outer: contourPointsToSegments(generatedOuterContour),
+                    source: mach.contour?.source || 'closed_passante_worker',
+                },
+            };
+        }
 
         // Coletar workers
         const workers = [];
@@ -4931,16 +5136,40 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             for (const r of sArr) { if (r && typeof r === 'object') workers.push({ ...r, side }); }
         }
 
+        const transformLocalToAbs = (px0, py0) => {
+            let px = Number(px0 || 0);
+            let py = Number(py0 || 0);
+            if (ladoAtivo === 'B') px = compOrig - px;
+            if (rotated) {
+                const t = transformRotated(px, py, compOrig);
+                px = t.x;
+                py = t.y;
+            }
+            return { x: refilo + pX + px, y: refilo + pY + py };
+        };
+
+        const closedThroughPathsLocal = workers
+            .map((worker) => {
+                const path = workerPathPoints(worker);
+                const depth = cncNumber(worker?.depth, worker?.usedepth, worker?.profundidade);
+                if (String(worker?.close) !== '1' || path.length < 3 || depth < esp * 0.9) return null;
+                if (isWorkerExternalContourPath(worker, path, compOrig, largOrig, esp)) return null;
+                return { worker, path, bbox: pathBBox(path) };
+            })
+            .filter(Boolean);
+
         // Processar cada worker
 	        for (const w of workers) {
 	            const tc = w.tool_code || w.tool || '';
 	            const tipo = (w.type || w.category || '').toLowerCase();
-	            const prelimKind = classifyWorkerOp(w, Array.isArray(w.path) ? w.path : null);
+	            const workerPathLocal = workerPathPoints(w);
+	            const prelimKind = classifyWorkerOp(w, workerPathLocal, { pieceThickness: esp });
+	            if (isWorkerExternalContourPath(w, workerPathLocal, compOrig, largOrig, esp)) continue;
 	            if (w.side === 'side_b' && !exportB) continue;
 	            if (w.side === 'side_a' && !exportA) continue;
 	            if ((prelimKind === 'hole' || prelimKind === 'edge_hole') && !exportFuros) continue;
-	            if (prelimKind === 'pocket' && !exportRebaixos) continue;
-	            if ((prelimKind === 'pocket' || prelimKind === 'groove' || prelimKind === 'milling_path') && !exportUsinagens) continue;
+	            if ((prelimKind === 'pocket' || prelimKind === 'pocket_path') && !exportRebaixos) continue;
+	            if ((prelimKind === 'pocket' || prelimKind === 'pocket_path' || prelimKind === 'groove' || prelimKind === 't_slot' || prelimKind === 'milling_path') && !exportUsinagens) continue;
 
             // Coords locais — declaradas aqui para ficarem disponíveis no bloco is_edge_operation
             let wx, wy, wx2, wy2;
@@ -5061,15 +5290,21 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 });
                 continue;
             }
-            if (w.pos_start_for_line) {
+            if (prelimKind === 't_slot') {
+                const line = getTSlotLine(w, compOrig, largOrig);
+                wx = line.sx;
+                wy = line.sy;
+                wx2 = line.ex;
+                wy2 = line.ey;
+            } else if (w.pos_start_for_line) {
                 wx = Number(w.pos_start_for_line.position_x ?? w.pos_start_for_line.x ?? 0);
                 wy = Number(w.pos_start_for_line.position_y ?? w.pos_start_for_line.y ?? 0);
                 wx2 = Number(w.pos_end_for_line?.position_x ?? w.pos_end_for_line?.x ?? wx);
                 wy2 = Number(w.pos_end_for_line?.position_y ?? w.pos_end_for_line?.y ?? wy);
-            } else if (w.path && Array.isArray(w.path) && w.path.length >= 2) {
-                // usi_line/usi_point_to_point: usar primeiro e último pontos do path
-                const first = w.path[0];
-                const last = w.path[w.path.length - 1];
+            } else if (workerPathLocal.length >= 2) {
+                // usi_line/usi_point_to_point: usar primeiro e último pontos do path/positions_origin
+                const first = workerPathLocal[0];
+                const last = workerPathLocal[workerPathLocal.length - 1];
                 wx = Number(first.x ?? 0);
                 wy = Number(first.y ?? 0);
                 wx2 = Number(last.x ?? wx);
@@ -5101,8 +5336,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 wx = compOrig - wx;
                 if (wx2 !== undefined) wx2 = compOrig - wx2;
                 // Swap wx/wx2 so that start < end after mirroring
-                if (wx2 !== undefined && wx > wx2) { const tmp = wx; wx = wx2; wx2 = tmp; }
-                if (wy2 !== undefined && wy > wy2) { const tmp = wy; wy = wy2; wy2 = tmp; }
+                if (prelimKind !== 't_slot' && wx2 !== undefined && wx > wx2) { const tmp = wx; wx = wx2; wx2 = tmp; }
+                if (prelimKind !== 't_slot' && wy2 !== undefined && wy > wy2) { const tmp = wy; wy = wy2; wy2 = tmp; }
             }
             if (rotated) {
                 const t1 = transformRotated(wx, wy, compOrig);
@@ -5120,16 +5355,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
             // ─── Transformar path completo de fresamento (transfer_milling, usi_line, chanfro) ───
             let millingPath = null;
-            if (w.path && Array.isArray(w.path) && w.path.length >= 2) {
-                millingPath = w.path.map(pt => {
-                    let px = Number(pt.x ?? 0), py = Number(pt.y ?? 0);
-                    if (ladoAtivo === 'B') { px = compOrig - px; }
-                    if (rotated) {
-                        const t = transformRotated(px, py, compOrig);
-                        px = t.x; py = t.y;
-                    }
-                    return { x: refilo + pX + px, y: refilo + pY + py };
-                });
+            if (workerPathLocal.length >= 2) {
+                millingPath = workerPathLocal.map(pt => transformLocalToAbs(pt.x, pt.y));
             }
             const millingClosed = String(w.close) === '1';
 
@@ -5179,7 +5406,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 	                continue;
 	            }
 
-	            const opKind = classifyWorkerOp(w, millingPath);
+	            const opKind = classifyWorkerOp(w, millingPath, { pieceThickness: esp });
 	            if (opKind === 'generic') {
 	                alertas.push({
 	                    tipo: 'erro_critico',
@@ -5189,7 +5416,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 	            }
 	            const isHole = opKind === 'hole';
 	            const isCut = opKind === 'groove';
-	            const isPocket = opKind === 'pocket';
+	            const isTSlot = opKind === 't_slot';
+	            const isPocket = opKind === 'pocket' || opKind === 'pocket_path';
 	            const isMillingPath = opKind === 'milling_path';
 	            const isChanfro = tc.includes('chanfro') || tipo.includes('chanfro');
 	            if (isMillingPath && (!millingPath || millingPath.length < 2)) {
@@ -5199,7 +5427,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 	                });
 	                continue;
 	            }
-	            if (isCut && !(Number.isFinite(absX2) && Number.isFinite(absY2))) {
+	            if ((isCut || isTSlot) && !(Number.isFinite(absX2) && Number.isFinite(absY2))) {
 	                alertas.push({
 	                    tipo: 'erro_critico',
 	                    msg: `Rasgo/canal sem ponto final em ${pDb.descricao}: ${tipo || tc}. Configure length, x2/y2 ou path.`,
@@ -5224,7 +5452,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     resolvedMetodo = 'helical';
                 } else if (isPocket) {
                     resolvedMetodo = 'pocket_zigzag';
-                } else if (isCut) {
+                } else if (isCut || isTSlot) {
                     resolvedMetodo = 'groove';
                 } else {
                     resolvedMetodo = 'drill';
@@ -5239,25 +5467,28 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const passes = calcularPassadas(depthTotal, doc);
 
             // Tool-agnostic: calcular step-over para rasgos/canais mais largos que a fresa
-            const reqWidth = Number(w.width_line || w.width || w.largura || w.diameter || 0);
+            const reqWidth = Number(w.slot_width || w.width_line || w.width || w.largura || w.diameter || 0);
             const toolDiamEf = effectiveTool?.diametro || 0;
-            let grooveMultiPass = false;
-            let grooveOffsets = [0]; // offsets laterais para passadas múltiplas
-            if (reqWidth > 0 && toolDiamEf > 0 && reqWidth > toolDiamEf) {
+            const buildGroovePlan = (width, label = 'Rasgo') => {
+                const plan = { grooveMultiPass: false, grooveOffsets: [0], grooveWidth: Number(width || 0) };
+                if (plan.grooveWidth <= 0 || toolDiamEf <= 0 || plan.grooveWidth <= toolDiamEf) return plan;
                 // Canal mais largo que a fresa: calcular passadas laterais
-                grooveMultiPass = true;
+                plan.grooveMultiPass = true;
                 const stepOver = toolDiamEf * opStepoverPct;
-                const halfW = (reqWidth - toolDiamEf) / 2; // offset total do centro
-                grooveOffsets = [];
+                const halfW = (plan.grooveWidth - toolDiamEf) / 2; // offset total do centro
+                plan.grooveOffsets = [];
                 for (let off = -halfW; off <= halfW + 0.01; off += stepOver) {
-                    grooveOffsets.push(Math.min(off, halfW));
+                    plan.grooveOffsets.push(Math.min(off, halfW));
                 }
                 // Garantir que a última passada cobre a borda
-                if (grooveOffsets[grooveOffsets.length - 1] < halfW - 0.1) {
-                    grooveOffsets.push(halfW);
+                if (plan.grooveOffsets[plan.grooveOffsets.length - 1] < halfW - 0.1) {
+                    plan.grooveOffsets.push(halfW);
                 }
-                alertas.push({ tipo: 'info', msg: `Rasgo ${reqWidth}mm com fresa Ø${toolDiamEf}mm: ${grooveOffsets.length} passadas laterais em ${pDb.descricao}` });
-            }
+                alertas.push({ tipo: 'info', msg: `${label} ${plan.grooveWidth}mm com fresa Ø${toolDiamEf}mm: ${plan.grooveOffsets.length} passadas laterais em ${pDb.descricao}` });
+                return plan;
+            };
+            const groovePlan = buildGroovePlan(reqWidth);
+            let { grooveMultiPass, grooveOffsets } = groovePlan;
 
             // Validação: diâmetro fresa > largura rasgo (erro só se não tem multi-pass)
             if (reqWidth > 0 && effectiveTool && effectiveTool.diametro > reqWidth && !grooveMultiPass) {
@@ -5267,8 +5498,16 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const velEf = isPeq ? Math.round(velCorte * feedPct / 100) : velCorte;
             const effRpm = ovRpm ?? effectiveTool?.rpm ?? rpmDef;
             const effHoleDiam = ovDiam ?? Number(w.diameter || 0);
+            const pocketHoles = opKind === 'pocket_path'
+                ? (() => {
+                    const outerBBox = pathBBox(workerPathLocal);
+                    return closedThroughPathsLocal
+                        .filter(h => h.worker !== w && bboxContains(outerBBox, h.bbox, 2))
+                        .map(h => h.path.map(pt => transformLocalToAbs(pt.x, pt.y)));
+                })()
+                : [];
 
-            allOps.push({
+            const commonOp = {
                 pecaId: pp.pecaId, pecaDesc: pDb.descricao, moduloDesc: pDb.modulo_desc,
                 absX, absY, absX2, absY2,
                 opType: opKind,
@@ -5291,7 +5530,69 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 hasOverride: !!(groupOv || pecaOv),
                 // Fresamento de caminho (transfer_milling, chanfro, usi_line com path)
                 millingPath, millingClosed, isChanfro,
-            });
+                pocketPath: opKind === 'pocket_path' ? millingPath : null,
+                pocketHoles,
+            };
+
+            if (isTSlot) {
+                const slotLine = getTSlotLine(w, compOrig, largOrig);
+                const slotWidth = reqWidth || effectiveTool?.diametro || 8;
+                const headDepth = cncNumber(w.head_depth, w.t_depth, w.cava_depth, w.cava_profundidade, slotWidth * 1.6);
+                const headWidth = cncNumber(w.head_width, w.t_width, w.cava_width, w.cava_largura, slotWidth * 2.8);
+                const startEdgeDist = Math.min(slotLine.sx, compOrig - slotLine.sx, slotLine.sy, largOrig - slotLine.sy);
+                const endEdgeDist = Math.min(slotLine.ex, compOrig - slotLine.ex, slotLine.ey, largOrig - slotLine.ey);
+                const startIsEdge = startEdgeDist <= endEdgeDist;
+                const shaftStart = { x: absX, y: absY };
+                const shaftEnd = { x: absX2, y: absY2 };
+                const edgeAbs = startIsEdge ? shaftStart : shaftEnd;
+                const innerAbs = startIsEdge ? shaftEnd : shaftStart;
+                const dirLen = Math.hypot(innerAbs.x - edgeAbs.x, innerAbs.y - edgeAbs.y);
+                if (headDepth <= 0 || headWidth <= 0 || dirLen < 0.01) {
+                    alertas.push({ tipo: 'erro_critico', msg: `Rasgo T inválido em ${pDb.descricao}: informe slot/head width/depth e pontos distintos.` });
+                    continue;
+                }
+                const dirX = (innerAbs.x - edgeAbs.x) / dirLen;
+                const dirY = (innerAbs.y - edgeAbs.y) / dirLen;
+                const perpX = -dirY;
+                const perpY = dirX;
+                const headCx = edgeAbs.x + dirX * headDepth / 2;
+                const headCy = edgeAbs.y + dirY * headDepth / 2;
+                const headStart = { x: headCx - perpX * headWidth / 2, y: headCy - perpY * headWidth / 2 };
+                const headEnd = { x: headCx + perpX * headWidth / 2, y: headCy + perpY * headWidth / 2 };
+                const shaftPlan = buildGroovePlan(slotWidth, 'Rasgo T - haste');
+                const headPlan = buildGroovePlan(headDepth, 'Rasgo T - boca');
+                if (effectiveTool?.diametro > slotWidth && !shaftPlan.grooveMultiPass) {
+                    alertas.push({ tipo: 'erro_critico', msg: `Fresa ${effectiveTool.nome} (Ø${effectiveTool.diametro}mm) > largura da haste do Rasgo T (${slotWidth}mm) na peça ${pDb.descricao}` });
+                }
+                if (effectiveTool?.diametro > headDepth && !headPlan.grooveMultiPass) {
+                    alertas.push({ tipo: 'erro_critico', msg: `Fresa ${effectiveTool.nome} (Ø${effectiveTool.diametro}mm) > profundidade da boca do Rasgo T (${headDepth}mm) na peça ${pDb.descricao}` });
+                }
+                allOps.push({
+                    ...commonOp,
+                    opType: 'groove',
+                    tipoNome: `${usiTipo.nome} - haste`,
+                    absX: shaftStart.x, absY: shaftStart.y, absX2: shaftEnd.x, absY2: shaftEnd.y,
+                    grooveMultiPass: shaftPlan.grooveMultiPass,
+                    grooveOffsets: shaftPlan.grooveOffsets,
+                    grooveWidth: slotWidth,
+                    sourceShape: 't_slot',
+                    shapePart: 'shaft',
+                });
+                allOps.push({
+                    ...commonOp,
+                    opType: 'groove',
+                    tipoNome: `${usiTipo.nome} - boca`,
+                    absX: headStart.x, absY: headStart.y, absX2: headEnd.x, absY2: headEnd.y,
+                    grooveMultiPass: headPlan.grooveMultiPass,
+                    grooveOffsets: headPlan.grooveOffsets,
+                    grooveWidth: headDepth,
+                    sourceShape: 't_slot',
+                    shapePart: 'head',
+                });
+                continue;
+            }
+
+            allOps.push(commonOp);
         }
 
         // ═══ CONTORNO AUTOMÁTICO da peça ═══
@@ -6362,7 +6663,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             }
             L.push('');
 
-        } else if (op.opType === 'pocket') {
+        } else if (op.opType === 'pocket' || op.opType === 'pocket_path') {
             const pw = op.pocketW, ph = op.pocketH;
             const toolDiam = op.toolDiam || 8;
             const toolR = toolDiam / 2;
@@ -6371,6 +6672,109 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const opPocketAcabamento = op.passesAcabamento != null ? op.passesAcabamento > 0 : pocketAcabamento;
             L.push(`${cmt} Pocket: ${op.pecaDesc} ${XY(op.absX, op.absY)} ${pw}x${ph} Prof=${fmt(op.depthTotal)} Stepover=${Math.round(opPocketStepover * 100)}%`);
             L.push(`${cmt} [OP type=rebaixo w=${fmt(pw)} h=${fmt(ph)} prof=${fmt(op.depthTotal)} x=${fmt(op.absX)} y=${fmt(op.absY)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
+
+            if (op.opType === 'pocket_path' && Array.isArray(op.pocketPath) && op.pocketPath.length >= 3) {
+	                const path = op.pocketPath;
+	                const holePaths = Array.isArray(op.pocketHoles) ? op.pocketHoles.filter(h => Array.isArray(h) && h.length >= 3) : [];
+	                const ys = path.map(pt => Number(pt.y || 0));
+	                const minY = Math.min(...ys) + toolR;
+	                const maxY = Math.max(...ys) - toolR;
+	                const intervalsAtY = (poly, scanY, inset = 0) => {
+	                    const hits = [];
+	                    for (let i = 0; i < poly.length; i++) {
+	                        const a = poly[i];
+	                        const b = poly[(i + 1) % poly.length];
+	                        const y1 = Number(a.y || 0), y2 = Number(b.y || 0);
+	                        if (Math.abs(y2 - y1) < 0.001) continue;
+	                        const lo = Math.min(y1, y2), hi = Math.max(y1, y2);
+	                        if (scanY < lo || scanY >= hi) continue;
+	                        const t = (scanY - y1) / (y2 - y1);
+	                        hits.push(Number(a.x || 0) + (Number(b.x || 0) - Number(a.x || 0)) * t);
+	                    }
+	                    hits.sort((a, b) => a - b);
+	                    const segs = [];
+	                    for (let i = 0; i < hits.length - 1; i += 2) {
+	                        const x1 = hits[i] + inset;
+	                        const x2 = hits[i + 1] - inset;
+	                        if (x2 - x1 > Math.max(toolDiam * 0.4, 0.5)) segs.push([x1, x2]);
+	                    }
+	                    return segs;
+	                };
+	                const subtractIntervals = (segments, blockers) => {
+	                    let result = segments;
+	                    for (const block of blockers) {
+	                        const next = [];
+	                        for (const seg of result) {
+	                            const [a, b] = seg;
+	                            const [c, d] = block;
+	                            if (d <= a || c >= b) {
+	                                next.push(seg);
+	                                continue;
+	                            }
+	                            if (c > a) next.push([a, Math.min(c, b)]);
+	                            if (d < b) next.push([Math.max(d, a), b]);
+	                        }
+	                        result = next.filter(([a, b]) => b - a > Math.max(toolDiam * 0.4, 0.5));
+	                    }
+	                    return result;
+	                };
+	                const polygonSegmentsAtY = (scanY) => {
+	                    let segs = intervalsAtY(path, scanY, toolR);
+	                    const blockers = holePaths.flatMap(hole => intervalsAtY(hole, scanY, -toolR));
+	                    if (blockers.length) segs = subtractIntervals(segs, blockers);
+	                    return segs;
+	                };
+                const rows = [];
+                if (Number.isFinite(minY) && Number.isFinite(maxY) && maxY >= minY) {
+                    for (let y = minY; y <= maxY + 0.01; y += Math.max(stepOver, 0.5)) {
+                        const segs = polygonSegmentsAtY(y);
+                        if (segs.length) rows.push({ y, segs });
+                    }
+                }
+	                L.push(`${cmt} Rebaixo POLIGONAL: ${path.length} vertices | ${rows.length} linhas de preenchimento${holePaths.length ? ` | ${holePaths.length} ilha(s)` : ''}`);
+	                L.push(`${cmt} [OP type=rebaixo_polygon vertices=${path.length} holes=${holePaths.length} prof=${fmt(op.depthTotal)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
+
+                for (let pi = 0; pi < op.passes.length; pi++) {
+                    const zTarget = zCut(op.passes[pi]);
+                    if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+
+                    if (rows.length) {
+                        for (let ri = 0; ri < rows.length; ri++) {
+                            const row = rows[ri];
+                            const segs = ri % 2 === 0 ? row.segs : [...row.segs].reverse();
+                            for (const seg of segs) {
+                                const x1 = ri % 2 === 0 ? seg[0] : seg[1];
+                                const x2 = ri % 2 === 0 ? seg[1] : seg[0];
+                                emit(`G0 ${XY(x1, row.y)}`);
+                                emit(`G0 Z${fmt(zApproach())}`);
+                                emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                                emit(`G1 ${XY(x2, row.y)} F${op.velCorte}`);
+                                emit(`G0 Z${fmt(zApproach())}`);
+                            }
+                        }
+                    } else {
+                        emit(`G0 ${XY(path[0].x, path[0].y)}`);
+                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                        for (let i = 1; i < path.length; i++) emit(`G1 ${XY(path[i].x, path[i].y)} F${op.velCorte}`);
+                        emit(`G1 ${XY(path[0].x, path[0].y)} F${op.velCorte}`);
+                    }
+
+                    if (opPocketAcabamento) {
+                        const velAcab = Math.round(op.velCorte * velAcabPct);
+                        L.push(`${cmt}   Acabamento perimetro poligonal`);
+                        emit(`G0 ${XY(path[0].x, path[0].y)}`);
+                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                        for (let i = 1; i < path.length; i++) emit(`G1 ${XY(path[i].x, path[i].y)} F${velAcab}`);
+                        emit(`G1 ${XY(path[0].x, path[0].y)} F${velAcab}`);
+                    }
+
+                    emit(`G0 Z${fmt(pi < op.passes.length - 1 ? zApproach() : zSafe())}`);
+                }
+                L.push('');
+                continue;
+            }
 
             for (let pi = 0; pi < op.passes.length; pi++) {
                 const pd = op.passes[pi];
@@ -7260,7 +7664,7 @@ router.get('/validar-usinagens/:loteId', requireAuth, (req, res) => {
 	                    const depth = Number(w.depth || 0);
 	                    const tc = w.tool_code || w.tool || '';
 	                    const tipo = (w.type || w.category || '').toLowerCase();
-	                    const opKind = classifyWorkerOp(w, Array.isArray(w.path) ? w.path : null);
+	                    const opKind = classifyWorkerOp(w, workerPathPoints(w), { pieceThickness: pecaEsp });
 	                    const tool = toolMap[tc] || null;
 
 	                    if (opKind === 'generic') {
@@ -8560,11 +8964,25 @@ function calcularFaceCNC(pecas, melamina = 'ambos') {
     for (const peca of pecas) {
         let mj;
         try { mj = typeof peca.machining_json === 'string' ? JSON.parse(peca.machining_json) : peca.machining_json; } catch { mj = {}; }
-        const workers = Array.isArray(mj) ? mj : (mj?.workers || []);
+        const workers = [];
+        const addWorkers = (source, side = null) => {
+            if (!source) return;
+            const arr = Array.isArray(source) ? source : (typeof source === 'object' ? Object.values(source) : []);
+            for (const w of arr) {
+                if (w && typeof w === 'object') workers.push(side ? { ...w, side } : w);
+            }
+        };
+        if (Array.isArray(mj)) {
+            addWorkers(mj);
+        } else {
+            addWorkers(mj?.workers);
+            addWorkers(mj?.side_a, 'side_a');
+            addWorkers(mj?.side_b, 'side_b');
+        }
 
         let scoreA = 0, scoreB = 0, countA = 0, countB = 0;
-        workers.forEach((w, i) => {
-            const face = (w.face || 'top').toLowerCase();
+        workers.forEach((w) => {
+            const face = (w.face || w.side || 'top').toLowerCase();
             const score = scoreDificuldade(w);
             const isA = face === 'top' || face === 'side_a';
             const isB = face === 'bottom' || face === 'side_b';
@@ -10261,7 +10679,7 @@ router.post('/validar-usinagens/:pecaId', requireAuth, (req, res) => {
 	        for (let i = 0; i < workers.length; i++) {
 	            const w = workers[i];
 	            const tipo = (w.type || w.category || '').toLowerCase();
-	            const opKind = classifyWorkerOp(w, Array.isArray(w.path) ? w.path : null);
+	            const opKind = classifyWorkerOp(w, workerPathPoints(w), { pieceThickness: esp });
 	            const isHole = opKind === 'hole';
 	            const firstPath = Array.isArray(w.path) && w.path.length ? w.path[0] : null;
 	            const wx = Number(w.x ?? w.position_x ?? firstPath?.x ?? 0);
@@ -10354,7 +10772,7 @@ router.post('/validar-usinagens/:pecaId', requireAuth, (req, res) => {
                 }
 
                 // Overlapping holes
-	                if (isHole && classifyWorkerOp(w2, Array.isArray(w2.path) ? w2.path : null) === 'hole' && wDiam > 0 && (w2.diameter || 0) > 0) {
+	                if (isHole && classifyWorkerOp(w2, workerPathPoints(w2), { pieceThickness: esp }) === 'hole' && wDiam > 0 && (w2.diameter || 0) > 0) {
                     const minDist = wDiam / 2 + (w2.diameter || 0) / 2;
                     if (dist < minDist) {
                         warnings.push({
@@ -13967,120 +14385,477 @@ router.get('/materiais/alertas-preco', requireAuth, (req, res) => {
 // #51 — EXPORT DXF (Aspire/VCarve compatible, ASCII R12)
 // ═══════════════════════════════════════════════════════════════════
 
+const DXF_LAYER_COLORS = {
+    SHEET: 8,
+    OUTLINE: 7,
+    PIECE_REF: 3,
+    SCRAP: 2,
+    DRILL_TOPSIDE: 1,
+    DRILL_UNDERSIDE: 2,
+    DRILL_EDGE_LEFT: 3,
+    DRILL_EDGE_RIGHT: 4,
+    DRILL_EDGE_FRONT: 5,
+    DRILL_EDGE_BACK: 6,
+    POCKET_TOPSIDE: 30,
+    POCKET_UNDERSIDE: 30,
+    GROOVE_TOPSIDE: 9,
+    GROOVE_UNDERSIDE: 9,
+    MILL_TOPSIDE: 140,
+    MILL_UNDERSIDE: 141,
+    EDGE_BANDING: 8,
+    LABEL: 8,
+};
+
+const DXF_LAYERS = Object.keys(DXF_LAYER_COLORS);
+
+function dxfFmt(n) {
+    const v = Number(n);
+    return Number.isFinite(v) ? v.toFixed(4) : '0.0000';
+}
+
+function dxfText(value) {
+    return String(value ?? '').replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7EÀ-ÿ]/g, '').slice(0, 240);
+}
+
+function dxfGc(out, code, value) {
+    out.push(String(code), String(value));
+}
+
+function dxfWriteXData(out, xdata) {
+    if (!xdata || typeof xdata !== 'object') return;
+    dxfGc(out, 1001, 'ORNATO');
+    for (const [key, value] of Object.entries(xdata)) {
+        if (value === undefined || value === null || value === '') continue;
+        dxfGc(out, 1000, `${key}=${String(value).slice(0, 180)}`);
+    }
+}
+
+function dxfAddLwpoly(out, layer, points, { closed = true, xdata = null } = {}) {
+    const pts = (points || []).filter(p => Number.isFinite(Number(p?.x ?? p?.[0])) && Number.isFinite(Number(p?.y ?? p?.[1])));
+    if (pts.length < 2) return;
+    dxfGc(out, 0, 'LWPOLYLINE');
+    dxfGc(out, 8, layer);
+    dxfGc(out, 100, 'AcDbEntity');
+    dxfGc(out, 100, 'AcDbPolyline');
+    dxfGc(out, 90, pts.length);
+    dxfGc(out, 70, closed ? 1 : 0);
+    for (const p of pts) {
+        dxfGc(out, 10, dxfFmt(p.x ?? p[0]));
+        dxfGc(out, 20, dxfFmt(p.y ?? p[1]));
+    }
+    dxfWriteXData(out, xdata);
+}
+
+function dxfAddRect(out, layer, x1, y1, x2, y2, xdata = null) {
+    dxfAddLwpoly(out, layer, [
+        { x: x1, y: y1 },
+        { x: x2, y: y1 },
+        { x: x2, y: y2 },
+        { x: x1, y: y2 },
+    ], { closed: true, xdata });
+}
+
+function dxfAddLine(out, layer, x1, y1, x2, y2, xdata = null) {
+    if (![x1, y1, x2, y2].every(v => Number.isFinite(Number(v)))) return;
+    dxfGc(out, 0, 'LINE');
+    dxfGc(out, 8, layer);
+    dxfGc(out, 10, dxfFmt(x1));
+    dxfGc(out, 20, dxfFmt(y1));
+    dxfGc(out, 30, '0.0');
+    dxfGc(out, 11, dxfFmt(x2));
+    dxfGc(out, 21, dxfFmt(y2));
+    dxfGc(out, 31, '0.0');
+    dxfWriteXData(out, xdata);
+}
+
+function dxfAddCircle(out, layer, cx, cy, radius, xdata = null) {
+    if (![cx, cy, radius].every(v => Number.isFinite(Number(v))) || Number(radius) <= 0) return;
+    dxfGc(out, 0, 'CIRCLE');
+    dxfGc(out, 8, layer);
+    dxfGc(out, 10, dxfFmt(cx));
+    dxfGc(out, 20, dxfFmt(cy));
+    dxfGc(out, 30, '0.0');
+    dxfGc(out, 40, dxfFmt(radius));
+    dxfWriteXData(out, xdata);
+}
+
+function dxfAddText(out, layer, x, y, text, height = 12) {
+    if (![x, y].every(v => Number.isFinite(Number(v)))) return;
+    dxfGc(out, 0, 'TEXT');
+    dxfGc(out, 8, layer);
+    dxfGc(out, 10, dxfFmt(x));
+    dxfGc(out, 20, dxfFmt(y));
+    dxfGc(out, 30, '0.0');
+    dxfGc(out, 40, dxfFmt(height));
+    dxfGc(out, 1, dxfText(text));
+}
+
+function dxfSideForWorker(worker, fallbackSide = 'A') {
+    const raw = String(worker?.edge_face || worker?.quadrant || worker?.face || worker?.side || worker?.lado || fallbackSide || '').toLowerCase();
+    if (raw.includes('left') || raw.includes('esq')) return 'EDGE_LEFT';
+    if (raw.includes('right') || raw.includes('dir')) return 'EDGE_RIGHT';
+    if (raw.includes('front') || raw.includes('frente')) return 'EDGE_FRONT';
+    if (raw.includes('back') || raw.includes('rear') || raw.includes('trase')) return 'EDGE_BACK';
+    if (raw.includes('bottom') || raw.includes('under') || raw === 'b' || raw === 'side_b') return 'UNDERSIDE';
+    return 'TOPSIDE';
+}
+
+function dxfLayerForWorker(kind, worker, fallbackSide = 'A') {
+    const side = dxfSideForWorker(worker, fallbackSide);
+    if (kind === 'hole' || kind === 'edge_hole') {
+        if (side.startsWith('EDGE_')) return `DRILL_${side}`;
+        return side === 'UNDERSIDE' ? 'DRILL_UNDERSIDE' : 'DRILL_TOPSIDE';
+    }
+    if (kind === 'pocket' || kind === 'pocket_path') return side === 'UNDERSIDE' ? 'POCKET_UNDERSIDE' : 'POCKET_TOPSIDE';
+    if (kind === 'groove' || kind === 't_slot') return side === 'UNDERSIDE' ? 'GROOVE_UNDERSIDE' : 'GROOVE_TOPSIDE';
+    if (kind === 'milling_path') return side === 'UNDERSIDE' ? 'MILL_UNDERSIDE' : 'MILL_TOPSIDE';
+    return 'MILL_TOPSIDE';
+}
+
+function dxfCollectWorkers(mach, ladoAtivo) {
+    const workers = [];
+    if (mach?.workers) {
+        const arr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+        for (const w of arr) if (w && typeof w === 'object') workers.push({ ...w });
+    }
+    const sideKey = ladoAtivo === 'B' ? 'side_b' : 'side_a';
+    if (mach?.[sideKey]) {
+        const arr = Array.isArray(mach[sideKey]) ? mach[sideKey] : Object.values(mach[sideKey]);
+        for (const w of arr) if (w && typeof w === 'object') workers.push({ ...w, side: sideKey });
+    }
+    return workers;
+}
+
+function dxfPieceTransform(placement, pDb) {
+    const pW = Number(placement.w || 0);
+    const pH = Number(placement.h || 0);
+    const compOrig = Number(pDb?.comprimento || pW || 0);
+    const largOrig = Number(pDb?.largura || pH || 0);
+    const wMatchesComp = Math.abs(pW - compOrig) <= 1;
+    const wMatchesLarg = Math.abs(pW - largOrig) <= 1;
+    const rotated = wMatchesLarg && !wMatchesComp ? true : wMatchesComp && !wMatchesLarg ? false : !!placement.rotated;
+    const ladoAtivo = placement.lado_ativo || pDb?.lado_ativo || 'A';
+    return { compOrig, largOrig, rotated, ladoAtivo };
+}
+
+function dxfMapLocalPoint(x, y, placement, pDb, refilo = 0, transform = dxfPieceTransform(placement, pDb)) {
+    let px = Number(x || 0);
+    let py = Number(y || 0);
+    if (transform.ladoAtivo === 'B') px = transform.compOrig - px;
+    if (transform.rotated) {
+        const t = transformRotated(px, py, transform.compOrig);
+        px = t.x;
+        py = t.y;
+    }
+    return {
+        x: refilo + Number(placement.x || 0) + px,
+        y: refilo + Number(placement.y || 0) + py,
+    };
+}
+
+function dxfWorkerPoints(worker, placement, pDb, refilo, transform) {
+    if (isTSlotWorker(worker)) {
+        const line = getTSlotLine(worker, transform.compOrig, transform.largOrig);
+        return [
+            dxfMapLocalPoint(line.sx, line.sy, placement, pDb, refilo, transform),
+            dxfMapLocalPoint(line.ex, line.ey, placement, pDb, refilo, transform),
+        ];
+    }
+    const path = workerPathPoints(worker);
+    if (path.length >= 2) {
+        return path.map(pt => dxfMapLocalPoint(pt.x ?? 0, pt.y ?? 0, placement, pDb, refilo, transform));
+    }
+    let x = Number(worker?.x ?? worker?.position_x ?? 0);
+    let y = Number(worker?.y ?? worker?.position_y ?? 0);
+    let x2 = worker?.x2 != null ? Number(worker.x2) : undefined;
+    let y2 = worker?.y2 != null ? Number(worker.y2) : undefined;
+    if (worker?.pos_start_for_line) {
+        x = Number(worker.pos_start_for_line.position_x ?? worker.pos_start_for_line.x ?? 0);
+        y = Number(worker.pos_start_for_line.position_y ?? worker.pos_start_for_line.y ?? 0);
+        x2 = Number(worker.pos_end_for_line?.position_x ?? worker.pos_end_for_line?.x ?? x);
+        y2 = Number(worker.pos_end_for_line?.position_y ?? worker.pos_end_for_line?.y ?? y);
+    } else if (x2 === undefined && worker?.length != null) {
+        const len = Number(worker.length || 0);
+        if (x + len > transform.compOrig + 1) {
+            x2 = x + len / 2;
+            x -= len / 2;
+        } else {
+            x2 = x + len;
+        }
+        y2 = y;
+    }
+    const p1 = dxfMapLocalPoint(x, y, placement, pDb, refilo, transform);
+    const p2 = x2 !== undefined && y2 !== undefined
+        ? dxfMapLocalPoint(x2, y2, placement, pDb, refilo, transform)
+        : null;
+    return p2 ? [p1, p2] : [p1];
+}
+
+function dxfEmitPieceMachining(out, placement, pDb, refilo) {
+    const ladoAtivo = placement.lado_ativo || pDb?.lado_ativo || 'A';
+    const machBase = parseMachiningData(pDb?.machining_json || '{}');
+    const machB = ladoAtivo === 'B' ? parseMachiningData(pDb?.machining_json_b || '{}') : {};
+    const mach = ladoAtivo === 'B' ? mergeMachiningPayload(machBase, machB) : machBase;
+    const workers = dxfCollectWorkers(mach, ladoAtivo);
+    const transform = dxfPieceTransform(placement, pDb);
+    let emitted = 0;
+
+    for (const worker of workers) {
+        const pts = dxfWorkerPoints(worker, placement, pDb, refilo, transform);
+        if (!pts.length) continue;
+        const workerPath = workerPathPoints(worker);
+        if (isWorkerExternalContourPath(worker, workerPath, transform.compOrig, transform.largOrig, pDb?.espessura || 0)) continue;
+        const kind = classifyWorkerOp(worker, workerPath, { pieceThickness: pDb?.espessura || 0 });
+        const layer = dxfLayerForWorker(kind, worker, ladoAtivo);
+        const tool = worker.tool_code || worker.tool || '';
+        const diameter = Number(worker.diameter || worker.diametro || 0);
+        const depth = Number(worker.depth || worker.profundidade || 0);
+        const width = Number(worker.width_line || worker.width || worker.largura || diameter || 0);
+        const meta = {
+            piece_id: pDb?.id || placement.pecaId || '',
+            piece: pDb?.descricao || placement.nome || '',
+            op: kind,
+            tool,
+            diameter_mm: diameter || '',
+            depth_mm: depth || '',
+            width_mm: width || '',
+            side: dxfSideForWorker(worker, ladoAtivo),
+        };
+
+        if (kind === 'hole' || kind === 'edge_hole') {
+            dxfAddCircle(out, layer, pts[0].x, pts[0].y, (diameter || width || 8) / 2, meta);
+            dxfAddText(out, 'LABEL', pts[0].x + 5, pts[0].y + 5, `D${dxfFmt(diameter || width || 8)} P${dxfFmt(depth)} ${tool}`, 6);
+            emitted++;
+        } else if (kind === 'pocket' || kind === 'pocket_path') {
+            const w = Number(worker.width || worker.width_line || worker.w || diameter || 0);
+            const h = Number(worker.height || worker.h || worker.length || diameter || 0);
+            if (kind === 'pocket_path' && pts.length >= 3) {
+                dxfAddLwpoly(out, layer, pts, { closed: true, xdata: meta });
+            } else if (w > 0 && h > 0) {
+                dxfAddRect(out, layer, pts[0].x, pts[0].y, pts[0].x + w, pts[0].y + h, meta);
+            } else {
+                dxfAddCircle(out, layer, pts[0].x, pts[0].y, Math.max(1, (diameter || 8) / 2), meta);
+            }
+            emitted++;
+        } else if (kind === 'groove' || kind === 't_slot') {
+            if (pts.length >= 2) {
+                dxfAddLine(out, layer, pts[0].x, pts[0].y, pts[1].x, pts[1].y, meta);
+                if (kind === 't_slot') {
+                    const line = getTSlotLine(worker, transform.compOrig, transform.largOrig);
+                    const startEdgeDist = Math.min(line.sx, transform.compOrig - line.sx, line.sy, transform.largOrig - line.sy);
+                    const endEdgeDist = Math.min(line.ex, transform.compOrig - line.ex, line.ey, transform.largOrig - line.ey);
+                    const startIsEdge = startEdgeDist <= endEdgeDist;
+                    const edge = startIsEdge ? pts[0] : pts[1];
+                    const inner = startIsEdge ? pts[1] : pts[0];
+                    const dirLen = Math.hypot(inner.x - edge.x, inner.y - edge.y);
+                    if (dirLen > 0.01) {
+                        const slotWidth = Number(worker.slot_width || worker.width_line || worker.width || worker.largura || width || 20);
+                        const headDepth = cncNumber(worker.head_depth, worker.t_depth, worker.cava_depth, worker.cava_profundidade, slotWidth * 1.6);
+                        const headWidth = cncNumber(worker.head_width, worker.t_width, worker.cava_width, worker.cava_largura, slotWidth * 2.8);
+                        const ux = (inner.x - edge.x) / dirLen;
+                        const uy = (inner.y - edge.y) / dirLen;
+                        const pxn = -uy;
+                        const pyn = ux;
+                        const cx = edge.x + ux * headDepth / 2;
+                        const cy = edge.y + uy * headDepth / 2;
+                        dxfAddLine(out, layer, cx - pxn * headWidth / 2, cy - pyn * headWidth / 2, cx + pxn * headWidth / 2, cy + pyn * headWidth / 2, { ...meta, shape_part: 'head' });
+                    }
+                }
+            }
+            emitted++;
+        } else if (kind === 'milling_path') {
+            if (pts.length >= 2) dxfAddLwpoly(out, layer, pts, { closed: String(worker.close) === '1', xdata: meta });
+            emitted++;
+        }
+    }
+    return emitted;
+}
+
+function dxfEmitEdgeBanding(out, placement, pDb, refilo) {
+    const x1 = refilo + Number(placement.x || 0);
+    const y1 = refilo + Number(placement.y || 0);
+    const w = Number(placement.w || 0);
+    const h = Number(placement.h || 0);
+    const edges = [
+        ['F', pDb?.borda_frontal, x1 + w / 2, y1 + 6],
+        ['T', pDb?.borda_traseira, x1 + w / 2, y1 + h - 6],
+        ['E', pDb?.borda_esq, x1 + 6, y1 + h / 2],
+        ['D', pDb?.borda_dir, x1 + w - 6, y1 + h / 2],
+    ];
+    for (const [code, value, x, y] of edges) {
+        if (value) dxfAddText(out, 'EDGE_BANDING', x, y, `FITA_${code}:${value}`, 6);
+    }
+}
+
+function buildCncChapaDxf({ lote, plano, chapa, chapaIdx, pecasDb }) {
+    const out = [];
+    const entities = [];
+    const refilo = Number(chapa.refilo || 0);
+    const sheetW = Number(chapa.comprimento || chapa.w || 0);
+    const sheetH = Number(chapa.largura || chapa.h || 0);
+    const pieceMap = new Map((pecasDb || []).map(p => [Number(p.id), p]));
+
+    dxfAddRect(entities, 'SHEET', 0, 0, sheetW, sheetH, {
+        lote_id: lote?.id || '',
+        chapa: chapaIdx + 1,
+        material: chapa.material || chapa.material_code || '',
+    });
+
+    for (const placement of (chapa.pecas || [])) {
+        const pDb = pieceMap.get(Number(placement.pecaId)) || {};
+        const x1 = refilo + Number(placement.x || 0);
+        const y1 = refilo + Number(placement.y || 0);
+        const x2 = x1 + Number(placement.w || pDb.comprimento || 0);
+        const y2 = y1 + Number(placement.h || pDb.largura || 0);
+        const label = pDb.descricao || placement.nome || `Peca ${placement.pecaId || ''}`;
+        const meta = {
+            piece_id: pDb.id || placement.pecaId || '',
+            persistent_id: pDb.persistent_id || pDb.upmcode || '',
+            name: label,
+            material: pDb.material_code || pDb.material || chapa.material_code || '',
+            rotated: placement.rotated ? 1 : 0,
+            lado: placement.lado_ativo || pDb.lado_ativo || 'A',
+        };
+        dxfAddRect(entities, 'PIECE_REF', x1, y1, x2, y2, meta);
+        const transform = dxfPieceTransform(placement, pDb);
+        const placementContour = Array.isArray(placement.contour) && placement.contour.length >= 3
+            ? cleanContourPoints(placement.contour)
+            : null;
+        const dbContour = !placementContour
+            ? extractOuterContourPoints(parseMachiningData(pDb.machining_json || '{}'), transform.compOrig, transform.largOrig, pDb.espessura || 0)
+            : null;
+        if (placementContour?.length >= 3) {
+            dxfAddLwpoly(entities, 'OUTLINE', placementContour.map(v => ({ x: x1 + v.x, y: y1 + v.y })), { closed: true, xdata: { ...meta, op: 'outline_contour' } });
+        } else if (dbContour?.length >= 3) {
+            dxfAddLwpoly(entities, 'OUTLINE', dbContour.map(v => dxfMapLocalPoint(v.x, v.y, placement, pDb, refilo, transform)), { closed: true, xdata: { ...meta, op: 'outline_contour' } });
+        } else {
+            dxfAddRect(entities, 'OUTLINE', x1, y1, x2, y2, { ...meta, op: 'outline' });
+        }
+        dxfAddText(entities, 'LABEL', x1 + 8, y1 + 12, `${label} | ${Math.round(x2 - x1)}x${Math.round(y2 - y1)}`, 8);
+        dxfEmitEdgeBanding(entities, placement, pDb, refilo);
+        dxfEmitPieceMachining(entities, placement, pDb, refilo);
+    }
+
+    for (const ret of (chapa.retalhos || [])) {
+        const x1 = refilo + Number(ret.x || 0);
+        const y1 = refilo + Number(ret.y || 0);
+        dxfAddRect(entities, 'SCRAP', x1, y1, x1 + Number(ret.w || 0), y1 + Number(ret.h || 0), {
+            op: 'scrap',
+            w: Math.round(Number(ret.w || 0)),
+            h: Math.round(Number(ret.h || 0)),
+        });
+    }
+
+    dxfGc(out, 0, 'SECTION');
+    dxfGc(out, 2, 'HEADER');
+    dxfGc(out, 9, '$ACADVER'); dxfGc(out, 1, 'AC1009');
+    dxfGc(out, 9, '$INSUNITS'); dxfGc(out, 70, 4);
+    dxfGc(out, 9, '$MEASUREMENT'); dxfGc(out, 70, 1);
+    dxfGc(out, 9, '$EXTMIN'); dxfGc(out, 10, '0.0'); dxfGc(out, 20, '0.0'); dxfGc(out, 30, '0.0');
+    dxfGc(out, 9, '$EXTMAX'); dxfGc(out, 10, dxfFmt(sheetW)); dxfGc(out, 20, dxfFmt(sheetH)); dxfGc(out, 30, '0.0');
+    dxfGc(out, 0, 'ENDSEC');
+
+    dxfGc(out, 0, 'SECTION');
+    dxfGc(out, 2, 'TABLES');
+    dxfGc(out, 0, 'TABLE');
+    dxfGc(out, 2, 'APPID');
+    dxfGc(out, 70, 1);
+    dxfGc(out, 0, 'APPID');
+    dxfGc(out, 2, 'ORNATO');
+    dxfGc(out, 70, 0);
+    dxfGc(out, 0, 'ENDTAB');
+    dxfGc(out, 0, 'TABLE');
+    dxfGc(out, 2, 'LAYER');
+    dxfGc(out, 70, DXF_LAYERS.length);
+    for (const layer of DXF_LAYERS) {
+        dxfGc(out, 0, 'LAYER');
+        dxfGc(out, 2, layer);
+        dxfGc(out, 70, 0);
+        dxfGc(out, 62, DXF_LAYER_COLORS[layer] || 7);
+        dxfGc(out, 6, 'CONTINUOUS');
+    }
+    dxfGc(out, 0, 'ENDTAB');
+    dxfGc(out, 0, 'ENDSEC');
+
+    dxfGc(out, 0, 'SECTION');
+    dxfGc(out, 2, 'BLOCKS');
+    dxfGc(out, 0, 'ENDSEC');
+    dxfGc(out, 0, 'SECTION');
+    dxfGc(out, 2, 'ENTITIES');
+    out.push(...entities);
+    dxfGc(out, 0, 'ENDSEC');
+    dxfGc(out, 0, 'EOF');
+    return out.join('\n') + '\n';
+}
+
+function loadDxfExportContext(loteId, userId) {
+    const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(loteId, userId);
+    if (!lote) return { error: 'Lote não encontrado', status: 404 };
+    if (!lote.plano_json) return { error: 'Lote sem plano de corte', status: 400 };
+    let plano;
+    try { plano = typeof lote.plano_json === 'string' ? JSON.parse(lote.plano_json) : lote.plano_json; }
+    catch { return { error: 'Plano de corte inválido', status: 400 }; }
+    const chapas = Array.isArray(plano) ? plano : (plano.chapas || []);
+    const allPecaIds = new Set();
+    for (const ch of chapas) for (const p of (ch.pecas || [])) if (p.pecaId) allPecaIds.add(Number(p.pecaId));
+    const ids = [...allPecaIds];
+    const pecasDb = ids.length
+        ? db.prepare(`SELECT * FROM cnc_pecas WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+        : [];
+    return { lote, plano, chapas, pecasDb };
+}
+
+function dxfFilename(lote, chapaIdx, ext = '.dxf') {
+    const base = `${lote?.nome || 'lote'}_chapa_${String(chapaIdx + 1).padStart(2, '0')}`;
+    return base.replace(/[^a-zA-Z0-9_-]/g, '_') + ext;
+}
+
 router.get('/export-dxf/:loteId/chapa/:chapaIdx', requireAuth, (req, res) => {
     try {
         const loteId = req.params.loteId;
         const chapaIdx = parseInt(req.params.chapaIdx, 10);
 
-        const lote = db.prepare('SELECT plano_json, user_id FROM cnc_lotes WHERE id = ?').get(loteId);
-        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
-
-        const plano = typeof lote.plano_json === 'string' ? JSON.parse(lote.plano_json) : lote.plano_json;
-
-        // plano can be an array of chapas or an object with a chapas property
-        const chapas = Array.isArray(plano) ? plano : (plano.chapas || []);
+        const ctx = loadDxfExportContext(loteId, req.user.id);
+        if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+        const { lote, plano, chapas, pecasDb } = ctx;
         if (chapaIdx < 0 || chapaIdx >= chapas.length) {
             return res.status(404).json({ error: 'Índice de chapa inválido' });
         }
 
         const chapa = chapas[chapaIdx];
-        const largura = chapa.largura || chapa.w || 0;
-        const comprimento = chapa.comprimento || chapa.h || chapa.l || 0;
-        const refilo = chapa.refilo || 0;
-        const pecas = chapa.pecas || [];
-        const retalhos = chapa.retalhos || [];
-
-        // ── DXF layer definitions ────────────────────────────────
-        const layers = [
-            { name: 'Chapa',    color: 7 },
-            { name: 'Pecas',    color: 3 },
-            { name: 'Contorno', color: 1 },
-            { name: 'Furo',     color: 5 },
-            { name: 'Rebaixo',  color: 4 },
-            { name: 'Canal',    color: 6 },
-            { name: 'Retalho',  color: 2 },
-        ];
-
-        // ── Helpers ──────────────────────────────────────────────
-        const lwpoly = (layer, x1, y1, x2, y2) =>
-            `0\nLWPOLYLINE\n8\n${layer}\n70\n1\n90\n4\n10\n${x1}\n20\n${y1}\n10\n${x2}\n20\n${y1}\n10\n${x2}\n20\n${y2}\n10\n${x1}\n20\n${y2}\n`;
-
-        const circle = (layer, cx, cy, radius) =>
-            `0\nCIRCLE\n8\n${layer}\n10\n${cx}\n20\n${cy}\n30\n0.0\n40\n${radius}\n`;
-
-        // ── Build entity strings ─────────────────────────────────
-        let entities = '';
-
-        // Sheet boundary
-        entities += lwpoly('Chapa', 0, 0, largura, comprimento);
-
-        // Pieces
-        for (const peca of pecas) {
-            const x1 = (peca.x || 0) + refilo;
-            const y1 = (peca.y || 0) + refilo;
-            const x2 = x1 + (peca.w || 0);
-            const y2 = y1 + (peca.h || 0);
-            entities += lwpoly('Pecas',    x1, y1, x2, y2);
-            entities += lwpoly('Contorno', x1, y1, x2, y2);
-
-            // Optional drill holes
-            if (Array.isArray(peca.furos)) {
-                for (const furo of peca.furos) {
-                    const cx = x1 + (furo.x || 0);
-                    const cy = y1 + (furo.y || 0);
-                    const r  = (furo.diametro || furo.d || 8) / 2;
-                    entities += circle('Furo', cx, cy, r);
-                }
-            }
-
-            // Optional rebaixos
-            if (Array.isArray(peca.rebaixos)) {
-                for (const rb of peca.rebaixos) {
-                    const rx1 = x1 + (rb.x || 0);
-                    const ry1 = y1 + (rb.y || 0);
-                    entities += lwpoly('Rebaixo', rx1, ry1, rx1 + (rb.w || 0), ry1 + (rb.h || 0));
-                }
-            }
-
-            // Optional canais
-            if (Array.isArray(peca.canais)) {
-                for (const canal of peca.canais) {
-                    const cx1 = x1 + (canal.x || 0);
-                    const cy1 = y1 + (canal.y || 0);
-                    entities += lwpoly('Canal', cx1, cy1, cx1 + (canal.w || 0), cy1 + (canal.h || 0));
-                }
-            }
-        }
-
-        // Scrap zones
-        for (const ret of retalhos) {
-            const x1 = ret.x || 0;
-            const y1 = ret.y || 0;
-            const x2 = x1 + (ret.w || 0);
-            const y2 = y1 + (ret.h || 0);
-            entities += lwpoly('Retalho', x1, y1, x2, y2);
-        }
-
-        // ── Assemble DXF ─────────────────────────────────────────
-        const layerDefs = layers
-            .map(l => `0\nLAYER\n2\n${l.name}\n70\n0\n62\n${l.color}\n6\nCONTINUOUS`)
-            .join('\n');
-
-        const dxf =
-`0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n` +
-`0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n${layers.length}\n` +
-`${layerDefs}\n` +
-`0\nENDTAB\n0\nENDSEC\n` +
-`0\nSECTION\n2\nENTITIES\n` +
-entities +
-`0\nENDSEC\n0\nEOF\n`;
+        const dxf = buildCncChapaDxf({ lote, plano, chapa, chapaIdx, pecasDb });
 
         res.setHeader('Content-Type', 'application/dxf');
-        res.setHeader('Content-Disposition', `attachment; filename="chapa_${chapaIdx + 1}.dxf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${dxfFilename(lote, chapaIdx)}"`);
         res.send(dxf);
     } catch (err) {
         console.error('[CNC export-dxf]', err);
         res.status(500).json({ error: 'Erro ao gerar DXF' });
+    }
+});
+
+router.get('/export-dxf/:loteId', requireAuth, (req, res) => {
+    try {
+        const ctx = loadDxfExportContext(req.params.loteId, req.user.id);
+        if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+        const { lote, plano, chapas, pecasDb } = ctx;
+        const requested = String(req.query.chapas || '')
+            .split(',')
+            .map(v => Number(v))
+            .filter(v => Number.isInteger(v) && v >= 0 && v < chapas.length);
+        const indexes = requested.length ? [...new Set(requested)] : chapas.map((_, i) => i);
+        const zip = new AdmZip();
+        for (const idx of indexes) {
+            const dxf = buildCncChapaDxf({ lote, plano, chapa: chapas[idx], chapaIdx: idx, pecasDb });
+            zip.addFile(dxfFilename(lote, idx), Buffer.from(dxf, 'utf8'));
+        }
+        const zipName = `${(lote?.nome || 'lote').replace(/[^a-zA-Z0-9_-]/g, '_')}_dxf.zip`;
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+        res.send(zip.toBuffer());
+    } catch (err) {
+        console.error('[CNC export-dxf zip]', err);
+        res.status(500).json({ error: 'Erro ao gerar pacote DXF' });
     }
 });
 

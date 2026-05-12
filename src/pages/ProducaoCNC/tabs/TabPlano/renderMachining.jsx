@@ -15,15 +15,140 @@ import { STATUS_COLORS } from '../../shared/constants.js';
 import { buildMillingOutline } from './buildMillingOutline.js';
 import { isPanningCursor } from './_utils.js';
 
+function orderedMachiningPoints(worker) {
+    const source = worker?.positions_origin && typeof worker.positions_origin === 'object'
+        ? worker.positions_origin
+        : worker?.positions;
+    if (!source || typeof source !== 'object') return [];
+    const keys = Object.keys(source).sort((a, b) => Number(a) - Number(b));
+    return keys.map(key => {
+        const pt = source[key];
+        if (Array.isArray(pt)) return [Number(pt[0] || 0), Number(pt[1] || 0)];
+        return [Number(pt?.x ?? pt?.position_x ?? 0), Number(pt?.y ?? pt?.position_y ?? 0)];
+    });
+}
+
+function machiningPathBBox(points) {
+    if (!Array.isArray(points) || points.length === 0) return null;
+    const xs = points.map(pt => Number(pt[0] || 0));
+    const ys = points.map(pt => Number(pt[1] || 0));
+    return {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys),
+    };
+}
+
+function cleanClosedMachiningPath(points) {
+    const clean = (points || []).filter(pt => Number.isFinite(pt?.[0]) && Number.isFinite(pt?.[1]));
+    if (clean.length > 2) {
+        const first = clean[0];
+        const last = clean[clean.length - 1];
+        if (Math.hypot(first[0] - last[0], first[1] - last[1]) < 0.001) clean.pop();
+    }
+    return clean;
+}
+
+function isOuterContourMachiningPath(points, comp, larg) {
+    const clean = cleanClosedMachiningPath(points);
+    const bbox = machiningPathBBox(clean);
+    if (!bbox || comp <= 0 || larg <= 0) return false;
+    const tol = Math.max(2, Math.min(comp, larg) * 0.02);
+    const spansX = (bbox.maxX - bbox.minX) >= comp - tol * 2;
+    const spansY = (bbox.maxY - bbox.minY) >= larg - tol * 2;
+    return spansX && spansY
+        && bbox.minX <= tol
+        && bbox.minY <= tol
+        && bbox.maxX >= comp - tol
+        && bbox.maxY >= larg - tol;
+}
+
+function machiningText(worker) {
+    return [
+        worker?.category,
+        worker?.type,
+        worker?.tipo,
+        worker?.tool,
+        worker?.tool_code,
+        worker?.descricao,
+        worker?.description,
+    ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function numberValue(...values) {
+    for (const value of values) {
+        if (value === null || value === undefined || value === '') continue;
+        const n = Number(value);
+        if (Number.isFinite(n)) return n;
+    }
+    return 0;
+}
+
+function isHiddenSupportOperation(worker) {
+    return /suporte[_\s-]*invis|invisible[_\s-]*shelf|hidden[_\s-]*shelf|transfer_slot/.test(machiningText(worker));
+}
+
+function isTSlotOperation(worker) {
+    const shape = String(worker?.shape || worker?.slot_shape || worker?.forma || worker?.perfil || '').toLowerCase();
+    const hasHead = numberValue(worker?.head_width, worker?.head_depth, worker?.t_width, worker?.t_depth, worker?.cava_width, worker?.cava_largura, worker?.cava_depth, worker?.cava_profundidade) > 0;
+    return /t[_\s-]*slot|slot[_\s-]*t|rasgo[_\s-]*t|perfil[_\s-]*t/.test(shape) || (isHiddenSupportOperation(worker) && hasHead);
+}
+
+function machiningRadiusPx(worker, rw, rh, sx, sy) {
+    const explicit = Number(worker?.radius ?? worker?.raio ?? worker?.corner_radius ?? worker?.cornerradius ?? 0);
+    const fallback = isHiddenSupportOperation(worker) ? Math.min(rw, rh) / 2 : 1;
+    const px = Number.isFinite(explicit) && explicit > 0 ? explicit * Math.min(sx, sy) : fallback;
+    return Math.max(1, Math.min(px, rw / 2, rh / 2));
+}
+
+function getTSlotLine(worker, comp, larg) {
+    if (worker?.pos_start_for_line && worker?.pos_end_for_line) {
+        return {
+            sx: numberValue(worker.pos_start_for_line.position_x, worker.pos_start_for_line.x),
+            sy: numberValue(worker.pos_start_for_line.position_y, worker.pos_start_for_line.y),
+            ex: numberValue(worker.pos_end_for_line.position_x, worker.pos_end_for_line.x),
+            ey: numberValue(worker.pos_end_for_line.position_y, worker.pos_end_for_line.y),
+        };
+    }
+    const x = numberValue(worker?.x, worker?.position_x, worker?.slot_x);
+    const y = numberValue(worker?.y, worker?.position_y, worker?.slot_y);
+    const len = numberValue(worker?.slot_length, worker?.length, worker?.comprimento, worker?.comprimento_haste, 160);
+    const axis = String(worker?.axis || worker?.eixo || 'y').toLowerCase();
+    const edge = String(worker?.edge || worker?.entrada || 'y_min').toLowerCase();
+    if (axis === 'x' || edge.includes('x_')) {
+        const fromMax = edge.includes('max') || edge.includes('right');
+        const sx = fromMax ? comp : x;
+        return { sx, sy: y, ex: fromMax ? sx - len : sx + len, ey: y };
+    }
+    const fromMax = edge.includes('max') || edge.includes('rear') || edge.includes('back');
+    const sy = fromMax ? larg : y;
+    return { sx: x, sy, ex: x, ey: fromMax ? sy - len : sy + len };
+}
+
 export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, pieceH, ladoAtivo, onMachHover) {
     const isSideB = ladoAtivo === 'B';
-    // If side B has dedicated machining data, use it; otherwise use normal machining_json
-    let machSource = piece?.machining_json;
-    if (isSideB && piece?.machining_json_b) machSource = piece.machining_json_b;
-    if (!machSource || machSource === '{}') return null;
-    let mach;
-    try { mach = typeof machSource === 'string' ? JSON.parse(machSource) : machSource; } catch { return null; }
-    if (!mach.workers) return null;
+    const activeSide = isSideB ? 'B' : 'A';
+
+    const parseMach = (source) => {
+        if (!source || source === '{}') return {};
+        try { return typeof source === 'string' ? JSON.parse(source) : (source || {}); } catch { return {}; }
+    };
+    const normalizeWorkerSide = (worker, fallbackSide = 'A') => {
+        const raw = String(worker?.side || worker?.face || worker?.quadrant || worker?.lado || fallbackSide || 'A').toLowerCase();
+        if (['b', 'face_b', 'side_b', 'bottom', 'under', 'underside', 'fundo'].includes(raw)) return 'B';
+        if (['a', 'face_a', 'side_a', 'top', 'upper', 'topside', 'topo'].includes(raw)) return 'A';
+        return fallbackSide === 'B' ? 'B' : 'A';
+    };
+    const normalizeFace = (worker, workerSide) => {
+        const raw = String(worker?.quadrant || worker?.face || worker?.side || '').toLowerCase();
+        if (['b', 'face_b', 'side_b', 'bottom', 'under', 'underside', 'fundo'].includes(raw)) return 'bottom';
+        if (['a', 'face_a', 'side_a', 'top', 'upper', 'topside', 'topo'].includes(raw)) return 'top';
+        return raw || (workerSide === 'B' ? 'bottom' : 'top');
+    };
+
+    const machBase = parseMach(piece?.machining_json);
+    const machB = parseMach(piece?.machining_json_b);
 
     const elements = [];
     const ghostElements = []; // opposite side elements (rendered behind, ghost style)
@@ -103,18 +228,41 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
         return { sx: Math.max(0, Math.min(sx, pw)), sy: Math.max(0, Math.min(sy, ph)) };
     }
 
-    // Collect all workers (workers + side_a + side_b)
+    // Collect all workers from every supported shape:
+    // - machining_json.workers as array/object
+    // - machining_json.side_a / side_b
+    // - machining_json_b dedicated payload, treated as Face B by default
     const allWorkers = [];
-    if (mach.workers) {
-        const wArr = Array.isArray(mach.workers) ? mach.workers : Object.entries(mach.workers);
-        for (const entry of wArr) {
-            const [k, w] = Array.isArray(entry) ? entry : [allWorkers.length, entry];
-            if (w && typeof w === 'object') allWorkers.push([k, w]);
+    const addWorkers = (source, fallbackSide, namespace) => {
+        if (!source) return;
+        const entries = Array.isArray(source)
+            ? source.map((w, i) => [i, w])
+            : (typeof source === 'object' ? Object.entries(source) : []);
+        for (const [k, w] of entries) {
+            if (!w || typeof w !== 'object') continue;
+            const workerSide = normalizeWorkerSide(w, fallbackSide);
+            allWorkers.push([`${namespace}_${k}`, { ...w, _renderSide: workerSide }]);
         }
-    }
+    };
+    const addMachPayload = (mach, defaultWorkerSide, namespace) => {
+        if (!mach) return;
+        if (Array.isArray(mach)) {
+            addWorkers(mach, defaultWorkerSide, `${namespace}_array`);
+            return;
+        }
+        addWorkers(mach.workers, defaultWorkerSide, `${namespace}_workers`);
+        addWorkers(mach.side_a, 'A', `${namespace}_side_a`);
+        addWorkers(mach.side_b, 'B', `${namespace}_side_b`);
+    };
+
+    addMachPayload(machBase, 'A', 'base');
+    addMachPayload(machB, 'B', 'dedicated_b');
+
+    if (allWorkers.length === 0) return null;
 
     for (const [k, w] of allWorkers) {
-        const face = (w.quadrant || w.face || 'top').toLowerCase();
+        const workerSide = w._renderSide || activeSide;
+        const face = normalizeFace(w, workerSide);
         const cat = (w.category || w.type || '').toLowerCase();
 
         // Skip back (alias for rear) but keep front/rear for semicircle indicators
@@ -122,23 +270,26 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
         if (w.is_edge_operation && !['left', 'right', 'front', 'rear', 'back'].includes(face)) continue;
         // Skip ghost workers (no position data — transfer_milling sem coordenadas)
         if (w._no_position) continue;
-        // Skip passante milling (contour cuts) — already shown as piece shape
-        // BUT keep closed contours (close='1') — interior cutouts like porta provençal
+        // Skip passante milling that belongs to the external shape. Closed
+        // passante paths are kept only when they are true internal cutouts
+        // (porta provençal, recorte interno etc.).
         const espVal = Number(piece.espessura) || 18;
-        const isPassanteMilling = cat.includes('milling') && (w.depth || w.usedepth || 0) >= espVal * 0.9 && w.positions;
+        const hasMillingPositions = w.positions || w.positions_origin;
+        const isPassanteMilling = cat.includes('milling') && (w.depth || w.usedepth || 0) >= espVal * 0.9 && hasMillingPositions;
         const isClosedInterior = String(w.close) === '1';
-        if (isPassanteMilling && !isClosedInterior) continue;
+        const passantePts = isPassanteMilling ? orderedMachiningPoints(w) : [];
+        const isOuterPassante = isClosedInterior && isOuterContourMachiningPath(
+            passantePts,
+            Number(piece.comprimento) || pieceW,
+            Number(piece.largura) || pieceH,
+        );
+        if (isPassanteMilling && (!isClosedInterior || isOuterPassante)) continue;
 
-        // ── Determine if this worker is on the OPPOSITE side ──
-        // Active side = what user is looking at. Opposite = the other face.
-        // Side A active: top workers = active, bottom workers = opposite
-        // Side B active: bottom workers = active, top workers = opposite
-        const isTopFaceWorker = face === 'top';
-        const isBottomFaceWorker = face === 'bottom';
-        const isGhost = (isSideB && isTopFaceWorker) || (!isSideB && isBottomFaceWorker);
-        // Ghost style: reduced opacity, dashed stroke, neutral color
+        // Active side = what user is looking at. Opposite side stays visible as
+        // a translucent/dashed reference so double-sided pieces do not look empty.
+        const isGhost = workerSide !== activeSide;
         const ghostColor = '#64748b'; // slate gray for all ghost ops
-        const ghostOpacity = 0.18;
+        const ghostOpacity = 0.22;
         const ghostDash = '4,2';
         const targetArr = isGhost ? ghostElements : elements;
 
@@ -161,7 +312,62 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
         // Tooltip data base
         const faceLabel = { top: 'Topo', bottom: 'Fundo', left: 'Lateral dir', right: 'Lateral esq', front: 'Frontal', rear: 'Traseira' }[face] || face;
         const toolLabel = w.tool_code || w.tool || '';
-        const baseTip = { face: faceLabel, tool: toolLabel, posX: Math.round(mx * 10) / 10, posY: Math.round(my * 10) / 10, ghost: isGhost };
+        const baseTip = {
+            face: `${faceLabel} / Face ${workerSide}${isGhost ? ' (oposta)' : ' (ativa)'}`,
+            tool: toolLabel,
+            posX: Math.round(mx * 10) / 10,
+            posY: Math.round(my * 10) / 10,
+            ghost: isGhost,
+        };
+
+        if (isTSlotOperation(w)) {
+            const line = getTSlotLine(w, compOrig, largOrig);
+            const pStart = toSvg(line.sx, line.sy);
+            const pEnd = toSvg(line.ex, line.ey);
+            const localLen = Math.hypot(line.ex - line.sx, line.ey - line.sy) || 1;
+            const ux = (line.ex - line.sx) / localLen;
+            const uy = (line.ey - line.sy) / localLen;
+            const startEdgeDist = Math.min(line.sx, compOrig - line.sx, line.sy, largOrig - line.sy);
+            const endEdgeDist = Math.min(line.ex, compOrig - line.ex, line.ey, largOrig - line.ey);
+            const edgePoint = startEdgeDist <= endEdgeDist ? { x: line.sx, y: line.sy, dirX: ux, dirY: uy } : { x: line.ex, y: line.ey, dirX: -ux, dirY: -uy };
+            const headDepth = numberValue(w.head_depth, w.t_depth, w.cava_depth, w.cava_profundidade, numberValue(w.slot_width, w.width_line, w.width, w.largura, 20) * 1.6);
+            const headWidth = numberValue(w.head_width, w.t_width, w.cava_width, w.cava_largura, numberValue(w.slot_width, w.width_line, w.width, w.largura, 20) * 2.8);
+            const headCenter = toSvg(edgePoint.x + edgePoint.dirX * headDepth / 2, edgePoint.y + edgePoint.dirY * headDepth / 2);
+            const shaftW = Math.max(1.5, numberValue(w.slot_width, w.width_line, w.width, w.largura, 20) * Math.min(pw / pieceW, ph / pieceH));
+            const headW = Math.max(shaftW, headWidth * Math.min(pw / pieceW, ph / pieceH));
+            const headD = Math.max(shaftW, headDepth * Math.min(pw / pieceW, ph / pieceH));
+            const angle = Math.atan2((py + pEnd.sy) - (py + pStart.sy), (px + pEnd.sx) - (px + pStart.sx)) * 180 / Math.PI;
+            const tipData = {
+                ...baseTip,
+                tipo: 'Rasgo T / cava composta',
+                largura: w.slot_width || w.width_line || w.width || w.largura || 20,
+                boca: `${Math.round(headWidth * 10) / 10}x${Math.round(headDepth * 10) / 10}`,
+                profundidade: w.depth || '-',
+            };
+            const color = isGhost ? ghostColor : '#06b6d4';
+            const strokeColor = isGhost ? ghostColor : '#0891b2';
+            const opacity = isGhost ? ghostOpacity : 0.42;
+            const dash = isGhost ? ghostDash : undefined;
+            const tSlotEl = (
+                <g key={`ts${k}`}>
+                    <line x1={px + pStart.sx} y1={py + pStart.sy} x2={px + pEnd.sx} y2={py + pEnd.sy}
+                        stroke={strokeColor} strokeWidth={shaftW} opacity={opacity} strokeLinecap="round" strokeDasharray={dash} />
+                    <g transform={`translate(${px + headCenter.sx} ${py + headCenter.sy}) rotate(${angle})`}>
+                        <rect x={-headD / 2} y={-headW / 2} width={headD} height={headW}
+                            fill={color} opacity={opacity} stroke={strokeColor} strokeWidth={isGhost ? 0.8 : 1.1}
+                            strokeDasharray={dash} rx={Math.min(3, headD / 2, headW / 2)} />
+                        <rect x={-headD / 2 - hitPad} y={-headW / 2 - hitPad} width={headD + hitPad * 2} height={headW + hitPad * 2} fill="transparent" />
+                    </g>
+                </g>
+            );
+            targetArr.push(wrapHoverRect(tSlotEl, tipData,
+                px + Math.min(pStart.sx, pEnd.sx, headCenter.sx) - headW,
+                py + Math.min(pStart.sy, pEnd.sy, headCenter.sy) - headW,
+                Math.abs(pEnd.sx - pStart.sx) + headW * 2,
+                Math.abs(pEnd.sy - pStart.sy) + headW * 2
+            ));
+            continue;
+        }
 
         // ── Rasgos / Canais (saw cut, grooves) ──
         if (cat.includes('saw_cut') || w.tool === 'r_f') {
@@ -196,20 +402,18 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
             }
 
         // ── Contornos interiores fechados (porta provençal, cutouts) ──
-        } else if (isPassanteMilling && isClosedInterior && w.positions) {
-            const positions = w.positions;
-            const keys = Object.keys(positions).sort((a, b) => Number(a) - Number(b));
-            if (keys.length >= 2) {
-                const svgPts = keys.map(ky => {
-                    const pt = positions[ky];
-                    const ptx = Array.isArray(pt) ? pt[0] : Number(pt.x ?? pt.position_x ?? 0);
-                    const pty = Array.isArray(pt) ? pt[1] : Number(pt.y ?? pt.position_y ?? 0);
-                    const s = toSvg(ptx, pty);
-                    return `${px + s.sx},${py + s.sy}`;
-                }).join(' ');
+        } else if (isPassanteMilling && isClosedInterior && (w.positions || w.positions_origin)) {
+            const pts = orderedMachiningPoints(w);
+                if (pts.length >= 2) {
+                    const svgPts = pts.map(pt => {
+                        const ptx = pt[0];
+                        const pty = pt[1];
+                        const s = toSvg(ptx, pty);
+                        return `${px + s.sx},${py + s.sy}`;
+                    }).join(' ');
                 const depth = w.depth || w.usedepth || 0;
                 const isThrough = depth >= espVal * 0.9;
-                const tipData = { ...baseTip, tipo: isThrough ? 'Contorno interior passante' : 'Contorno interior', profundidade: depth || '-', vertices: keys.length };
+                    const tipData = { ...baseTip, tipo: isThrough ? 'Contorno interior passante' : 'Contorno interior', profundidade: depth || '-', vertices: pts.length };
                 if (isGhost) {
                     const pathEl = <polygon key={`ic${k}`} points={svgPts}
                         fill={ghostColor} fillOpacity={ghostOpacity * 0.5} stroke={ghostColor}
@@ -228,18 +432,16 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
         // ── Rebaixos / Pockets (simples — sem contorno complexo) ──
         } else if (cat.includes('pocket') || cat.includes('rebaixo') || cat.includes('milling')) {
             // Se tem positions com vértices, renderizar como polígono (pocket com forma)
-            if (w.positions && typeof w.positions === 'object') {
-                const positions = w.positions;
-                const keys = Object.keys(positions).sort((a, b) => Number(a) - Number(b));
-                if (keys.length >= 3) {
-                    const svgPts = keys.map(ky => {
-                        const pt = positions[ky];
-                        const ptx = Array.isArray(pt) ? pt[0] : Number(pt.x ?? pt.position_x ?? 0);
-                        const pty = Array.isArray(pt) ? pt[1] : Number(pt.y ?? pt.position_y ?? 0);
+            if ((w.positions && typeof w.positions === 'object') || (w.positions_origin && typeof w.positions_origin === 'object')) {
+                const pts = orderedMachiningPoints(w);
+                if (pts.length >= 3) {
+                    const svgPts = pts.map(pt => {
+                        const ptx = pt[0];
+                        const pty = pt[1];
                         const s = toSvg(ptx, pty);
                         return `${px + s.sx},${py + s.sy}`;
                     }).join(' ');
-                    const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', profundidade: w.depth || '-', vertices: keys.length };
+                    const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', profundidade: w.depth || '-', vertices: pts.length };
                     if (isGhost) {
                         const pathEl = <polygon key={`p${k}`} points={svgPts}
                             fill={ghostColor} fillOpacity={ghostOpacity} stroke={ghostColor}
@@ -255,22 +457,24 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
                     // Poucos vértices — fallback para retângulo
                     const rw = (w.pocket_width || w.width || w.length || 20) * (pw / pieceW);
                     const rh = (w.pocket_height || w.height || 20) * (ph / pieceH);
+                    const radius = machiningRadiusPx(w, rw, rh, pw / pieceW, ph / pieceH);
                     const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', largura: w.pocket_width || w.width || w.length || 20, altura: w.pocket_height || w.height || 20, profundidade: w.depth || '-' };
                     const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
-                            fill={isGhost ? ghostColor : '#f97316'} opacity={isGhost ? ghostOpacity : 0.35} stroke={isGhost ? ghostColor : '#ea580c'} strokeWidth={isGhost ? 1 : 1.2} strokeDasharray={isGhost ? ghostDash : '3,1.5'} rx={1} />;
+                            fill={isGhost ? ghostColor : '#f97316'} opacity={isGhost ? ghostOpacity : 0.35} stroke={isGhost ? ghostColor : '#ea580c'} strokeWidth={isGhost ? 1 : 1.2} strokeDasharray={isGhost ? ghostDash : '3,1.5'} rx={radius} />;
                     targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
                 }
             } else {
                 const rw = (w.pocket_width || w.width || w.length || 20) * (pw / pieceW);
                 const rh = (w.pocket_height || w.height || 20) * (ph / pieceH);
+                const radius = machiningRadiusPx(w, rw, rh, pw / pieceW, ph / pieceH);
                 const tipData = { ...baseTip, tipo: 'Rebaixo / Pocket', largura: w.pocket_width || w.width || w.length || 20, altura: w.pocket_height || w.height || 20, profundidade: w.depth || '-' };
                 if (isGhost) {
                     const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
-                            fill={ghostColor} opacity={ghostOpacity} stroke={ghostColor} strokeWidth={1} strokeDasharray={ghostDash} rx={1} />;
+                            fill={ghostColor} opacity={ghostOpacity} stroke={ghostColor} strokeWidth={1} strokeDasharray={ghostDash} rx={radius} />;
                     targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
                 } else {
                     const rectEl = <rect key={`p${k}`} x={px + p1.sx - rw / 2} y={py + p1.sy - rh / 2} width={rw} height={rh}
-                            fill="#f97316" opacity={0.35} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="3,1.5" rx={1} />;
+                            fill="#f97316" opacity={0.35} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="3,1.5" rx={radius} />;
                     targetArr.push(wrapHoverRect(rectEl, tipData, px + p1.sx - rw / 2, py + p1.sy - rh / 2, rw, rh));
                 }
             }
@@ -325,31 +529,41 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
                 const edgeSize = Math.max(2, r * 0.8);
                 const visualRight = face === 'left';
                 const visualLeft = face === 'right';
+                const edgeFill = isGhost ? ghostColor : '#2563eb';
+                const edgeStroke = isGhost ? ghostColor : '#1d4ed8';
+                const edgeOpacity = isGhost ? ghostOpacity + 0.12 : 0.6;
                 // Semicircle on edge (more realistic than triangle)
                 if (visualRight) {
                     const semiD = `M ${px + pw},${py + p1.sy - edgeSize} A ${edgeSize},${edgeSize} 0 0,0 ${px + pw},${py + p1.sy + edgeSize}`;
                     const semiEl = <path key={`h${k}`} d={semiD}
-                            fill="#2563eb" opacity={0.6} stroke="#1d4ed8" strokeWidth={0.5} />;
+                            fill={edgeFill} opacity={edgeOpacity} stroke={edgeStroke} strokeWidth={0.5}
+                            strokeDasharray={isGhost ? ghostDash : undefined} />;
                     targetArr.push(wrapHover(semiEl, tipData, px + pw - edgeSize, py + p1.sy, edgeSize));
                 } else if (visualLeft) {
                     const semiD = `M ${px},${py + p1.sy - edgeSize} A ${edgeSize},${edgeSize} 0 0,1 ${px},${py + p1.sy + edgeSize}`;
                     const semiEl = <path key={`h${k}`} d={semiD}
-                            fill="#2563eb" opacity={0.6} stroke="#1d4ed8" strokeWidth={0.5} />;
+                            fill={edgeFill} opacity={edgeOpacity} stroke={edgeStroke} strokeWidth={0.5}
+                            strokeDasharray={isGhost ? ghostDash : undefined} />;
                     targetArr.push(wrapHover(semiEl, tipData, px + edgeSize, py + p1.sy, edgeSize));
                 }
             } else if (isFrontRear) {
                 // Front/rear holes: semicircles on top/bottom edges (green)
                 const edgeSize = Math.max(2, r * 0.8);
                 const atBottom = face === 'front'; // front = y=0 = bottom edge in SVG (after Y-flip)
+                const edgeFill = isGhost ? ghostColor : '#16a34a';
+                const edgeStroke = isGhost ? ghostColor : '#15803d';
+                const edgeOpacity = isGhost ? ghostOpacity + 0.12 : 0.6;
                 if (atBottom) {
                     const semiD = `M ${px + p1.sx - edgeSize},${py + ph} A ${edgeSize},${edgeSize} 0 0,0 ${px + p1.sx + edgeSize},${py + ph}`;
                     const semiEl = <path key={`h${k}`} d={semiD}
-                            fill="#16a34a" opacity={0.6} stroke="#15803d" strokeWidth={0.5} />;
+                            fill={edgeFill} opacity={edgeOpacity} stroke={edgeStroke} strokeWidth={0.5}
+                            strokeDasharray={isGhost ? ghostDash : undefined} />;
                     targetArr.push(wrapHover(semiEl, tipData, px + p1.sx, py + ph - edgeSize, edgeSize));
                 } else {
                     const semiD = `M ${px + p1.sx - edgeSize},${py} A ${edgeSize},${edgeSize} 0 0,1 ${px + p1.sx + edgeSize},${py}`;
                     const semiEl = <path key={`h${k}`} d={semiD}
-                            fill="#16a34a" opacity={0.6} stroke="#15803d" strokeWidth={0.5} />;
+                            fill={edgeFill} opacity={edgeOpacity} stroke={edgeStroke} strokeWidth={0.5}
+                            strokeDasharray={isGhost ? ghostDash : undefined} />;
                     targetArr.push(wrapHover(semiEl, tipData, px + p1.sx, py + edgeSize, edgeSize));
                 }
             }
@@ -376,7 +590,7 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
 }
 
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
-export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [], notify, onInspect, printStatusMap = {} }) {
+export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, setPanOffset, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [], notify, onInspect, printStatusMap = {} }) {
     const [hovered, setHovered] = useState(null);
     const [showCuts, setShowCuts] = useState(false);
     const [showMachining, setShowMachining] = useState(true);
@@ -1291,7 +1505,10 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                             <circle cx="6" cy="6" r="4" fill="none" stroke="#64748b" strokeWidth="1" strokeDasharray="2,1.5" opacity="0.5"/>
                             <line x1="10" y1="2" x2="14" y2="10" stroke="#64748b" strokeWidth="1" strokeDasharray="2,1.5" opacity="0.5"/>
                         </svg>
-                        <span style={{ fontStyle: 'italic' }}>Lado oposto</span>
+                        <span style={{ fontStyle: 'italic' }}>Face oposta opaca</span>
+                    </span>
+                    <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-muted)' }}>
+                        A/B: face para cima em destaque; face oposta como referencia.
                     </span>
                 </div>
             )}
@@ -1622,34 +1839,40 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                         if (piece?.machining_json && piece.machining_json !== '{}') {
                                             try {
                                                 const mach = typeof piece.machining_json === 'string' ? JSON.parse(piece.machining_json) : piece.machining_json;
-                                                if (mach.workers) {
-                                                    const wArr = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+                                                if (mach.workers || mach.side_a || mach.side_b) {
+                                                    const wArr = [];
+                                                    const addWorkers = (source) => {
+                                                        if (!source) return;
+                                                        wArr.push(...(Array.isArray(source) ? source : Object.values(source)));
+                                                    };
+                                                    addWorkers(mach.workers);
+                                                    addWorkers(mach.side_a);
+                                                    addWorkers(mach.side_b);
                                                     const espVal = Number(piece.espessura) || 18;
                                                     const compOrig = Number(piece.comprimento) || p.w;
                                                     const largOrig = Number(piece.largura) || p.h;
                                                     const openPaths = [];
+                                                    let outerContourPath = null;
                                                     for (const w of wArr) {
                                                         if (!w) continue;
                                                         const cat = (w.category || '').toLowerCase();
                                                         if (!cat.includes('milling')) continue;
                                                         const depth = w.depth || w.usedepth || 0;
                                                         if (depth < espVal * 0.9) continue;
-                                                        if (String(w.close) === '1') continue; // closed = internal cutout, not edge
-                                                        const positions = w.positions;
-                                                        if (!positions || typeof positions !== 'object') continue;
-                                                        const keys = Object.keys(positions).sort((a, b) => Number(a) - Number(b));
-                                                        if (keys.length < 2) continue;
-                                                        const pts = keys.map(k => {
-                                                            const pt = positions[k];
-                                                            if (Array.isArray(pt)) return [pt[0], pt[1]];
-                                                            return [Number(pt.x ?? pt.position_x ?? 0), Number(pt.y ?? pt.position_y ?? 0)];
-                                                        });
+                                                        const pts = orderedMachiningPoints(w);
+                                                        if (pts.length < 2) continue;
+                                                        if (String(w.close) === '1') {
+                                                            if (!outerContourPath && isOuterContourMachiningPath(pts, compOrig, largOrig)) {
+                                                                outerContourPath = cleanClosedMachiningPath(pts);
+                                                            }
+                                                            continue; // other closed paths are internal cutouts, not edge
+                                                        }
                                                         openPaths.push(pts);
                                                     }
-                                                    if (openPaths.length > 0) {
+                                                    if (outerContourPath || openPaths.length > 0) {
                                                         // buildOutlineWithCuts works in shape space [0..SX, 0..SZ]
                                                         // Use piece original dimensions as shape space
-                                                        const outline = buildMillingOutline(compOrig, largOrig, openPaths);
+                                                        const outline = outerContourPath || buildMillingOutline(compOrig, largOrig, openPaths);
                                                         // Detect rotation by comparing placed dimensions with original
                                                         const wMatchC = Math.abs(p.w - compOrig) <= 1;
                                                         const wMatchL = Math.abs(p.w - largOrig) <= 1;
@@ -2324,7 +2547,7 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                     : machTip.tipo?.includes('Rasgo') ? 'var(--warning)'
                                     : machTip.tipo?.includes('Rebaixo') ? 'var(--warning)'
                                     : machTip.tipo?.includes('Fresa') ? 'var(--info)'
-                                    : machTip.face === 'Fundo' ? 'var(--cnc-face-b, #0891b2)'
+                                    : machTip.face?.includes('Fundo') || machTip.face?.includes('Face B') ? 'var(--cnc-face-b, #0891b2)'
                                     : machTip.face?.includes('Lateral') ? 'var(--primary)'
                                     : 'var(--danger)',
                                 border: machTip.ghost ? '1.5px dashed var(--border)' : 'none',

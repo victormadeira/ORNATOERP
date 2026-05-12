@@ -10,6 +10,13 @@
     "pino": { "diametro": 10, "comprimento": 60 },
     "furo_parede": { "diametro": 10, "profundidade": 40 },
     "furo_prateleira": { "diametro": 10, "profundidade": 60 },
+    "rebaixo_prateleira": {
+      "largura": 20,
+      "comprimento": 160,
+      "profundidade": 5.5,
+      "raio_ponta": 10,
+      "recuo_traseiro": 0
+    },
     "distancia_entre": 200,
     "capacidade_kg": 15,
     "quantidade_por_prateleira": {
@@ -29,6 +36,31 @@
         "lado": "b",
         "descricao": "Furo na borda da prateleira para pino invisivel",
         "posicao": { "x": "{dist}", "y": "centro_espessura" }
+      },
+      {
+        "tipo": "rasgo",
+        "categoria": "transfer_slot",
+        "shape": "t_slot",
+        "ferramenta": "fresa_12mm",
+        "tool_code": "f_12mm",
+        "axis": "y",
+        "edge": "y_min",
+        "slot_width": 20,
+        "slot_length": 160,
+        "head_width": 56,
+        "head_depth": 28,
+        "head_radius": 2,
+        "largura": 20,
+        "comprimento": 160,
+        "profundidade": 5.5,
+        "raio": 10,
+        "width": 20,
+        "length": 160,
+        "depth": 5.5,
+        "radius": 10,
+        "lado": "b",
+        "descricao": "Rasgo T generico para encaixe e embutimento de ferragem na prateleira",
+        "posicao": { "x": "{dist}", "y": "{recuo_traseiro}" }
       }
     ]
   },

@@ -25,6 +25,36 @@ function gcodeLineColor(line) {
     return 'inherit';
 }
 
+function buildSimulatorChapa(chapa, maquina = {}) {
+    if (!chapa) return null;
+
+    // O G-code sai nas coordenadas da maquina. O plano de corte fica no sistema
+    // interno (x=comprimento, y=largura). Para o simulador nao desenhar a chapa
+    // girada em relacao ao percurso, aplicamos a mesma regra usada no TabPlano.
+    const swapOff = Number(maquina?.trocar_eixos_xy) === 1;
+    const comprimento = Number(chapa.comprimento) || Number(chapa.largura) || 0;
+    const largura = Number(chapa.largura) || Number(chapa.comprimento) || 0;
+
+    const mapRect = (r = {}) => ({
+        ...r,
+        x: swapOff ? (r.x ?? 0) : (r.y ?? 0),
+        y: swapOff ? (r.y ?? 0) : (r.x ?? 0),
+        w: swapOff ? (r.w ?? 0) : (r.h ?? 0),
+        h: swapOff ? (r.h ?? 0) : (r.w ?? 0),
+        nome: r.nome || r.descricao,
+    });
+
+    return {
+        ...chapa,
+        comprimento: swapOff ? comprimento : largura,
+        largura: swapOff ? largura : comprimento,
+        refilo: chapa.refilo ?? 10,
+        espessura: chapa.espessura_real || chapa.espessura || 18.5,
+        pecas: (chapa.pecas || []).map(mapRect),
+        retalhos: (chapa.retalhos || []).map(mapRect),
+    };
+}
+
 export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     const [gcodeSubTab, setGcodeSubTab]     = useState('gcode');
     const [result, setResult]               = useState(null);
@@ -182,7 +212,14 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     // Dados para o simulador da chapa selecionada
     const simChapa    = result?.chapas?.[selectedChapaIdx] || result;
     const simGcode    = simChapa?.gcode || result?.gcode || '';
-    const simChapaData = result?.chapas?.[selectedChapaIdx];
+    const simMaquina  = useMemo(() => {
+        const simMachineId = simChapa?.maquina?.id;
+        return maquinas.find(m => String(m.id) === String(simMachineId))
+            || maquinaSel
+            || maquinas.find(m => m.padrao)
+            || {};
+    }, [maquinas, maquinaSel, simChapa?.maquina?.id]);
+    const simChapaData = useMemo(() => buildSimulatorChapa(simChapa, simMaquina), [simChapa, simMaquina]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

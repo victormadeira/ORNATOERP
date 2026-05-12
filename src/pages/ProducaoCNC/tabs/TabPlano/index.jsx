@@ -1009,6 +1009,11 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 const f = fases[faseIdx++];
                 setOtimProgress({ fase: f.msg, pct: f.pct });
                 progressTimer = setTimeout(tick, f.delay);
+            } else {
+                setOtimProgress({
+                    fase: 'Finalizando otimizacao no servidor...',
+                    pct: qualidade === 'maximo' ? 94 : 92,
+                });
             }
         };
         progressTimer = setTimeout(tick, 200);
@@ -1053,6 +1058,9 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 setPecasMap(map);
                 setLoteAtual(d);
                 setTimeout(() => setOtimProgress(null), 2000);
+            } else {
+                notify(r.error || 'Otimizacao nao retornou um plano valido.');
+                setOtimProgress(null);
             }
         } catch (err) {
             clearTimeout(progressTimer);
@@ -1418,6 +1426,19 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         return m ? { x_max: m.x_max || 2800, y_max: m.y_max || 1900, nome: m.nome } : null;
     }, [maquinaGcode, maquinas, machineAssignments, selectedChapa]);
 
+    const handleExportarDxf = useCallback((chapaIndexes = []) => {
+        if (!loteAtual?.id) return;
+        const indexes = [...new Set(chapaIndexes.map(Number).filter(n => Number.isInteger(n) && n >= 0))];
+        const query = indexes.length ? `?chapas=${indexes.join(',')}` : '';
+        const a = document.createElement('a');
+        a.href = `/api/cnc/export-dxf/${loteAtual.id}${query}`;
+        a.download = `${(loteAtual.nome || 'lote').replace(/[^a-zA-Z0-9_-]/g, '_')}_dxf.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        notify?.(`Exportando DXF ${indexes.length ? `(${indexes.length} chapa${indexes.length > 1 ? 's' : ''})` : 'do lote'}...`, 'success');
+    }, [loteAtual?.id, loteAtual?.nome, notify]);
+
     const handleGerarGcode = async (chapaIdx) => {
         if (!loteAtual) return;
         setGcodeLoading(chapaIdx);
@@ -1476,41 +1497,47 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 });
             } else if (r.ferramentas_faltando?.length > 0) {
                 // Mostrar detalhes de ferramentas faltantes no preview modal (sem G-code)
-                abrirGcodePreview({
-                    gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
-                    contorno_tool: r.contorno_tool || null, chapa: null,
-                    maquina: r.maquina || null,
-                    alertas: [
-                        { tipo: 'erro_critico', msg: `BLOQUEADO: ${r.ferramentas_faltando.length} ferramenta(s) faltando no magazine${r.maquina?.nome ? ` da ${r.maquina.nome}` : ' da máquina'}` },
-                        ...(r.ferramentas_faltando_detalhes || []).map(d =>
-                            ({ tipo: 'erro_critico', msg: `Ferramenta "${d.tool_code}" necessária para ${d.operacao} na peça "${d.peca}"` })
-                        ),
-                        ...(r.alertas || []),
-                    ],
-                    ferramentas_faltando: r.ferramentas_faltando,
-                });
+	                abrirGcodePreview({
+	                    gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
+	                    contorno_tool: r.contorno_tool || null, chapa: null,
+	                    maquina: r.maquina || null,
+	                    alertas: [
+	                        { tipo: 'erro_critico', msg: `BLOQUEADO: ${r.ferramentas_faltando.length} ferramenta(s) faltando no magazine${r.maquina?.nome ? ` da ${r.maquina.nome}` : ' da máquina'}` },
+	                        ...(r.ferramentas_faltando_detalhes || []).map(d =>
+	                            ({ tipo: 'erro_critico', msg: `Ferramenta "${d.tool_code}" necessária para ${d.operacao} na peça "${d.peca}"` })
+	                        ),
+	                        ...(r.alertas || []),
+	                    ],
+	                    ferramentas_faltando: r.ferramentas_faltando,
+	                    generation_blocked: true,
+	                    generation_error: r.error || `Ferramentas faltando: ${r.ferramentas_faltando.join(', ')}`,
+	                });
                 notify(`G-Code bloqueado: ${r.ferramentas_faltando.length} ferramenta(s) faltando`, 'error');
             } else {
                 // Show error in modal with details instead of just a toast
-                abrirGcodePreview({
-                    gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
-                    contorno_tool: null, chapa: null,
-                    maquina: r.maquina || null,
-                    alertas: [{ tipo: 'erro_critico', msg: r.error || 'Erro desconhecido ao gerar G-Code' }, ...(r.alertas || [])],
-                    ferramentas_faltando: [],
-                });
+	                abrirGcodePreview({
+	                    gcode: '', filename: '', stats: r.stats || {}, chapaIdx,
+	                    contorno_tool: null, chapa: null,
+	                    maquina: r.maquina || null,
+	                    alertas: [{ tipo: 'erro_critico', msg: r.error || 'Erro desconhecido ao gerar G-Code' }, ...(r.alertas || [])],
+	                    ferramentas_faltando: [],
+	                    generation_blocked: true,
+	                    generation_error: r.error || 'Erro desconhecido ao gerar G-Code',
+	                });
                 notify(r.error || 'Erro ao gerar G-Code', 'error');
             }
         } catch (err) {
             // Network/server error — show in modal too
             const errMsg = err.error || err.message || 'Erro de rede ou servidor indisponível';
-            abrirGcodePreview({
-                gcode: '', filename: '', stats: {}, chapaIdx,
-                contorno_tool: null, chapa: null,
-                maquina: null,
-                alertas: [{ tipo: 'erro_critico', msg: errMsg }],
-                ferramentas_faltando: [],
-            });
+	            abrirGcodePreview({
+	                gcode: '', filename: '', stats: {}, chapaIdx,
+	                contorno_tool: null, chapa: null,
+	                maquina: null,
+	                alertas: [{ tipo: 'erro_critico', msg: errMsg }],
+	                ferramentas_faltando: [],
+	                generation_blocked: true,
+	                generation_error: errMsg,
+	            });
             notify('Erro ao gerar G-Code: ' + errMsg, 'error');
         } finally {
             setGcodeLoading(null);
@@ -2710,10 +2737,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                                                                     Gerar G-Code ({grp.chapas.length} chapas)
                                                                                 </button>
                                                                                 <button
-                                                                                    onClick={() => notify('Exportação DXF em desenvolvimento', 'info')}
+                                                                                    onClick={() => handleExportarDxf(grp.chapas.map(({ ci }) => ci))}
                                                                                     style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 10, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
                                                                                     <FileDown size={10} style={{ flexShrink: 0 }} />
-                                                                                    Exportar DXF
+                                                                                    Exportar DXF ({grp.chapas.length} chapas)
                                                                                 </button>
                                                                             </div>
                                                                         </div>
@@ -2782,9 +2809,10 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                                             pecasMap={pecasMap}
                                             notify={notify}
                                             modo={plano.modo}
-                                            zoomLevel={zoomLevel}
-                                            setZoomLevel={setZoomLevel}
-                                            panOffset={panOffset}
+	                                            zoomLevel={zoomLevel}
+	                                            setZoomLevel={setZoomLevel}
+	                                            setPanOffset={setPanOffset}
+	                                            panOffset={panOffset}
                                             onWheel={handleWheel}
                                             onPanStart={handlePanStart}
                                             onPanMove={handlePanMove}

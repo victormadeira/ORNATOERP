@@ -61,3 +61,6 @@ O plugin cuida do resto.
 | 08_MATERIAIS_BORDAS | Nomenclatura de materiais, acabamentos e bordas |
 | 09_EXPORTACAO_JSON | Formato de saida e campos do JSON |
 | 10_EXEMPLOS_PRATICOS | Casos reais passo a passo |
+| 11_FUNCIONALIDADES_AVANCADAS | Recursos avancados do plugin |
+| 12_COMPONENTES_DINAMICOS | Componentes dinamicos e parametrizacao |
+| 13_PLANO_UX_MIRAS_MENUS | Plano UX para miras, menus contextuais e biblioteca inteligente |

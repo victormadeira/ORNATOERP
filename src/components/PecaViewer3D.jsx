@@ -79,6 +79,76 @@ function hasGrain(mat) {
         && !/branco|blanc|white|cru|preto|black|cinza|gris|fendi|titanio/i.test(m);
 }
 
+const BACKGROUND_MODES = {
+    studio: {
+        label: 'Estudio',
+        title: 'Fundo claro de inspeção',
+        colors: ['#fbfdff', '#edf3f8', '#dbe5ee'],
+        grid: 'rgba(100,116,139,0.13)',
+        horizon: 'rgba(100,116,139,0.18)',
+    },
+    technical: {
+        label: 'Tecnico',
+        title: 'Fundo técnico com grade',
+        colors: ['#f8fafc', '#e8eef5', '#d4deea'],
+        grid: 'rgba(37,99,235,0.18)',
+        horizon: 'rgba(37,99,235,0.22)',
+    },
+    contrast: {
+        label: 'Contraste',
+        title: 'Fundo alto contraste',
+        colors: ['#eef2f7', '#d7e0ea', '#c2cfdd'],
+        grid: 'rgba(15,23,42,0.18)',
+        horizon: 'rgba(15,23,42,0.20)',
+    },
+};
+
+const BACKGROUND_MODE_ORDER = ['studio', 'technical', 'contrast'];
+
+function createInspectionBackground(mode = 'studio') {
+    const cfg = BACKGROUND_MODES[mode] || BACKGROUND_MODES.studio;
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = 640;
+    bgCanvas.height = 480;
+    const ctx = bgCanvas.getContext('2d');
+
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, bgCanvas.height);
+    bgGrad.addColorStop(0, cfg.colors[0]);
+    bgGrad.addColorStop(0.58, cfg.colors[1]);
+    bgGrad.addColorStop(1, cfg.colors[2]);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+    ctx.strokeStyle = cfg.grid;
+    ctx.lineWidth = 1;
+    const grid = mode === 'studio' ? 56 : 40;
+    for (let x = 0; x <= bgCanvas.width; x += grid) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, bgCanvas.height);
+        ctx.stroke();
+    }
+    for (let y = 0; y <= bgCanvas.height; y += grid) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(bgCanvas.width, y + 0.5);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle = cfg.horizon;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, bgCanvas.height * 0.68);
+    ctx.lineTo(bgCanvas.width, bgCanvas.height * 0.68);
+    ctx.stroke();
+
+    const tex = new THREE.CanvasTexture(bgCanvas);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+
 // ═══════════════════════════════════════════════════════════
 // TEXTURAS
 // ═══════════════════════════════════════════════════════════
@@ -134,6 +204,16 @@ function parseMachining(mj) {
         let workers = [];
         if (Array.isArray(d)) workers = d;
         else if (d.workers) workers = Array.isArray(d.workers) ? d.workers : Object.values(d.workers);
+        if (d && typeof d === 'object' && !Array.isArray(d)) {
+            if (d.side_a) {
+                const sideA = Array.isArray(d.side_a) ? d.side_a : Object.values(d.side_a);
+                workers.push(...sideA.map(w => ({ ...w, face: w?.face || w?.quadrant || 'top', side: w?.side || 'A' })));
+            }
+            if (d.side_b) {
+                const sideB = Array.isArray(d.side_b) ? d.side_b : Object.values(d.side_b);
+                workers.push(...sideB.map(w => ({ ...w, face: w?.face || w?.quadrant || 'bottom', side: w?.side || 'B' })));
+            }
+        }
         return workers.filter(w => w && typeof w === 'object').map(w => {
             const n = { ...w };
             if (n.position_x !== undefined && n.x === undefined) n.x = n.position_x;
@@ -146,6 +226,11 @@ function parseMachining(mj) {
             return n;
         });
     } catch { return []; }
+}
+
+function parseMachiningPayload(mj) {
+    if (!mj || mj === '{}') return {};
+    try { return typeof mj === 'string' ? JSON.parse(mj) : (mj || {}); } catch { return {}; }
 }
 
 function classifyWorker(cat) {
@@ -182,10 +267,13 @@ function getToolLabel(toolCode) {
  */
 function extractMillingPts(w, sc) {
     let pts = [];
-    if (w.positions && typeof w.positions === 'object' && !Array.isArray(w.positions)) {
-        const keys = Object.keys(w.positions).sort((a, b) => Number(a) - Number(b));
+    const pointSource = w.positions_origin && typeof w.positions_origin === 'object'
+        ? w.positions_origin
+        : w.positions;
+    if (pointSource && typeof pointSource === 'object' && !Array.isArray(pointSource)) {
+        const keys = Object.keys(pointSource).sort((a, b) => Number(a) - Number(b));
         pts = keys.map(k => {
-            const p = w.positions[k];
+            const p = pointSource[k];
             if (Array.isArray(p)) return [p[0] * sc, p[1] * sc];
             return [Number(p.x ?? p.position_x ?? 0) * sc, Number(p.y ?? p.position_y ?? 0) * sc];
         });
@@ -193,6 +281,243 @@ function extractMillingPts(w, sc) {
         pts = w.path.map(p => [Number(p.x ?? 0) * sc, Number(p.y ?? 0) * sc]);
     }
     return pts;
+}
+
+function getNumber(...values) {
+    for (const value of values) {
+        if (value === null || value === undefined || value === '') continue;
+        const n = Number(value);
+        if (Number.isFinite(n)) return n;
+    }
+    return 0;
+}
+
+function workerCategoryText(w) {
+    return [
+        w?.category,
+        w?.type,
+        w?.tipo,
+        w?.tool,
+        w?.tool_code,
+        w?.descricao,
+        w?.description,
+        w?.name,
+    ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function isHiddenSupportWorker(w) {
+    return /suporte[_\s-]*invis|invisible[_\s-]*shelf|hidden[_\s-]*shelf|transfer_slot/.test(workerCategoryText(w));
+}
+
+function isTSlotWorker(w) {
+    const shape = String(w?.shape || w?.slot_shape || w?.forma || w?.perfil || '').toLowerCase();
+    const hasHead = getNumber(w?.head_width, w?.head_depth, w?.t_width, w?.t_depth, w?.cava_width, w?.cava_largura, w?.cava_depth, w?.cava_profundidade) > 0;
+    return /t[_\s-]*slot|slot[_\s-]*t|rasgo[_\s-]*t|perfil[_\s-]*t/.test(shape) || (isHiddenSupportWorker(w) && hasHead);
+}
+
+function isChamferWorker(w) {
+    return /chanfro|chamfer|45/.test(workerCategoryText(w));
+}
+
+function isClosedAreaPocketWorker(w, esp, pts = null) {
+    const path = pts || extractMillingPts(w, 1);
+    const depth = getNumber(w?.depth, w?.usedepth, w?.profundidade);
+    return String(w?.close) === '1' && path.length >= 3 && depth > 0 && depth < esp * 0.9 && !isChamferWorker(w);
+}
+
+function pathBBox2D(pts) {
+    if (!Array.isArray(pts) || pts.length === 0) return null;
+    const xs = pts.map(pt => Number(pt[0] || 0));
+    const ys = pts.map(pt => Number(pt[1] || 0));
+    return {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys),
+    };
+}
+
+function bboxContains2D(outer, inner, tol = 0) {
+    if (!outer || !inner) return false;
+    return inner.minX >= outer.minX - tol
+        && inner.maxX <= outer.maxX + tol
+        && inner.minY >= outer.minY - tol
+        && inner.maxY <= outer.maxY + tol;
+}
+
+function cleanClosedPath2D(pts) {
+    if (!Array.isArray(pts)) return [];
+    const clean = pts.filter(pt => Number.isFinite(pt?.[0]) && Number.isFinite(pt?.[1]));
+    if (clean.length > 2) {
+        const first = clean[0];
+        const last = clean[clean.length - 1];
+        if (Math.hypot(first[0] - last[0], first[1] - last[1]) < 0.001) clean.pop();
+    }
+    return clean;
+}
+
+function contourPointToXY(point, sc) {
+    if (Array.isArray(point)) return [Number(point[0] || 0) * sc, Number(point[1] || 0) * sc];
+    return [
+        Number(point?.x ?? point?.x2 ?? point?.position_x ?? 0) * sc,
+        Number(point?.y ?? point?.y2 ?? point?.position_y ?? 0) * sc,
+    ];
+}
+
+function contourOuterPoints(payload, sc) {
+    const outer = payload?.contour?.outer;
+    if (!Array.isArray(outer) || outer.length < 3) return null;
+    return cleanClosedPath2D(outer.map(point => contourPointToXY(point, sc)));
+}
+
+function contourHolePaths(payload, sc) {
+    const holes = payload?.contour?.holes || payload?.contour?.inner || [];
+    if (!Array.isArray(holes)) return [];
+    return holes
+        .map(hole => {
+            const pts = Array.isArray(hole) ? hole : (hole?.points || hole?.outer || hole?.path || []);
+            return cleanClosedPath2D((pts || []).map(point => contourPointToXY(point, sc)));
+        })
+        .filter(pts => pts.length >= 3);
+}
+
+function isOuterContourPath2D(pts, width, height) {
+    const bbox = pathBBox2D(pts);
+    if (!bbox || width <= 0 || height <= 0) return false;
+    const tol = Math.max(0.25, Math.min(width, height) * 0.02);
+    const spansX = (bbox.maxX - bbox.minX) >= width - tol * 2;
+    const spansY = (bbox.maxY - bbox.minY) >= height - tol * 2;
+    return spansX && spansY
+        && bbox.minX <= tol
+        && bbox.minY <= tol
+        && bbox.maxX >= width - tol
+        && bbox.maxY >= height - tol;
+}
+
+function shapeFromPts(pts) {
+    if (!Array.isArray(pts) || pts.length < 3) return null;
+    const shape = new THREE.Shape();
+    shape.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
+    shape.closePath();
+    return shape;
+}
+
+function getCornerRadiusMm(w, fallback = 0) {
+    const explicit = getNumber(w?.radius, w?.raio, w?.corner_radius, w?.cornerradius, w?.cornerRadius);
+    if (explicit > 0) return explicit;
+    return fallback;
+}
+
+function createRoundedRectShape(minX, minY, maxX, maxY, radius) {
+    const w = Math.max(0.01, maxX - minX);
+    const h = Math.max(0.01, maxY - minY);
+    const r = Math.max(0, Math.min(radius, w / 2, h / 2));
+    const shape = new THREE.Shape();
+    if (r <= 0.001) {
+        shape.moveTo(minX, minY);
+        shape.lineTo(maxX, minY);
+        shape.lineTo(maxX, maxY);
+        shape.lineTo(minX, maxY);
+        shape.closePath();
+        return shape;
+    }
+
+    shape.moveTo(minX + r, minY);
+    shape.lineTo(maxX - r, minY);
+    shape.quadraticCurveTo(maxX, minY, maxX, minY + r);
+    shape.lineTo(maxX, maxY - r);
+    shape.quadraticCurveTo(maxX, maxY, maxX - r, maxY);
+    shape.lineTo(minX + r, maxY);
+    shape.quadraticCurveTo(minX, maxY, minX, maxY - r);
+    shape.lineTo(minX, minY + r);
+    shape.quadraticCurveTo(minX, minY, minX + r, minY);
+    shape.closePath();
+    return shape;
+}
+
+function buildPlanarShapeBrush(shape, face, depth, SY, material, position = [0, 0, 0], rotationZ = 0) {
+    const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: depth + 0.5,
+        bevelEnabled: false,
+        curveSegments: 10,
+    });
+    const brush = new Brush(geo, material);
+    const isTop = face === 'top' || face === 'side_a';
+    const z = isTop ? SY - depth + 0.1 : -0.25;
+    brush.position.set(position[0], position[1], z + position[2]);
+    if (rotationZ) brush.rotation.z = rotationZ;
+    brush.updateMatrixWorld(true);
+    return brush;
+}
+
+function getTSlotLine(w, comp, larg, sc) {
+    if (w.pos_start_for_line && w.pos_end_for_line) {
+        return {
+            sx: getNumber(w.pos_start_for_line.position_x, w.pos_start_for_line.x) * sc,
+            sy: getNumber(w.pos_start_for_line.position_y, w.pos_start_for_line.y) * sc,
+            ex: getNumber(w.pos_end_for_line.position_x, w.pos_end_for_line.x) * sc,
+            ey: getNumber(w.pos_end_for_line.position_y, w.pos_end_for_line.y) * sc,
+        };
+    }
+
+    const x = getNumber(w.x, w.position_x, w.slot_x) * sc;
+    const y = getNumber(w.y, w.position_y, w.slot_y) * sc;
+    const len = getNumber(w.slot_length, w.length, w.comprimento, w.comprimento_haste, 160) * sc;
+    const axis = String(w.axis || w.eixo || 'y').toLowerCase();
+    const edge = String(w.edge || w.entrada || 'y_min').toLowerCase();
+
+    if (axis === 'x' || edge.includes('x_')) {
+        const fromMax = edge.includes('max') || edge.includes('right');
+        const sx = fromMax ? comp * sc : x;
+        const ex = fromMax ? sx - len : sx + len;
+        return { sx, sy: y, ex, ey: y };
+    }
+
+    const fromMax = edge.includes('max') || edge.includes('rear') || edge.includes('back');
+    const sy = fromMax ? larg * sc : y;
+    const ey = fromMax ? sy - len : sy + len;
+    return { sx: x, sy, ex: x, ey };
+}
+
+function buildTSlotBrushes(w, comp, larg, esp, sc, material) {
+    if (!isTSlotWorker(w)) return null;
+
+    const SY = esp * sc;
+    const face = (w.face || 'top').toLowerCase();
+    const depthMm = getNumber(w.depth, w.usedepth, w.profundidade, 5.5);
+    if (depthMm <= 0) return null;
+    const depth = Math.min(depthMm * sc, SY + 0.1);
+    const line = getTSlotLine(w, comp, larg, sc);
+    const dx = line.ex - line.sx;
+    const dy = line.ey - line.sy;
+    const lineLen = Math.hypot(dx, dy);
+    if (lineLen < 0.01) return null;
+
+    const ux = dx / lineLen;
+    const uy = dy / lineLen;
+    const angle = Math.atan2(dy, dx);
+    const shaftW = Math.max(getNumber(w.slot_width, w.width_line, w.width, w.largura, 20) * sc, 0.3);
+    const shaftRadius = getCornerRadiusMm(w, shaftW / (2 * sc)) * sc;
+    const shaftShape = createRoundedRectShape(-lineLen / 2 - 0.2, -shaftW / 2 - 0.1, lineLen / 2 + 0.2, shaftW / 2 + 0.1, shaftRadius);
+    const shaftBrush = buildPlanarShapeBrush(shaftShape, face, depth, SY, material, [(line.sx + line.ex) / 2, (line.sy + line.ey) / 2, 0], angle);
+
+    const startEdgeDist = Math.min(line.sx, comp * sc - line.sx, line.sy, larg * sc - line.sy);
+    const endEdgeDist = Math.min(line.ex, comp * sc - line.ex, line.ey, larg * sc - line.ey);
+    const edgePoint = startEdgeDist <= endEdgeDist ? [line.sx, line.sy] : [line.ex, line.ey];
+    const dir = startEdgeDist <= endEdgeDist ? [ux, uy] : [-ux, -uy];
+    const headWidth = Math.max(getNumber(w.head_width, w.t_width, w.cava_width, w.cava_largura, shaftW / sc * 2.8) * sc, shaftW);
+    const headDepth = Math.max(getNumber(w.head_depth, w.t_depth, w.cava_depth, w.cava_profundidade, shaftW / sc * 1.6) * sc, shaftW);
+    const headRadius = Math.max(0, Math.min(getNumber(w.head_radius, w.t_radius, w.cava_radius, w.cava_raio, 2) * sc, headWidth / 2, headDepth / 2));
+    const headShape = createRoundedRectShape(-headDepth / 2, -headWidth / 2, headDepth / 2, headWidth / 2, headRadius);
+    const headCenter = [
+        edgePoint[0] + dir[0] * headDepth / 2,
+        edgePoint[1] + dir[1] * headDepth / 2,
+        0,
+    ];
+    const headBrush = buildPlanarShapeBrush(headShape, face, depth, SY, material, headCenter, Math.atan2(dir[1], dir[0]));
+
+    return [shaftBrush, headBrush];
 }
 
 /**
@@ -338,7 +663,7 @@ function buildOutlineWithCuts(SX, SZ, openPaths) {
  *
  * Shape is defined in XY plane (X=comp, Y=larg), extruded along Z (espessura).
  */
-function buildBaseShape(comp, larg, esp, workersA, sc) {
+function buildBaseShape(comp, larg, esp, workersA, sc, machPayload = {}) {
     const SX = comp * sc;
     const SZ = larg * sc;
     const SY = esp * sc;
@@ -346,6 +671,7 @@ function buildBaseShape(comp, larg, esp, workersA, sc) {
     // Separate passante millings into open and closed
     const openPaths = [];
     const closedPaths = [];
+    let outerContour = contourOuterPoints(machPayload, sc);
 
     for (const w of workersA) {
         const cat = (w.category || '').toLowerCase();
@@ -358,14 +684,19 @@ function buildBaseShape(comp, larg, esp, workersA, sc) {
 
         const isClosed = String(w.close) === '1';
         if (isClosed && pts.length >= 3) {
-            closedPaths.push(pts);
+            const cleanPts = cleanClosedPath2D(pts);
+            if (!outerContour && isOuterContourPath2D(cleanPts, SX, SZ)) outerContour = cleanPts;
+            else closedPaths.push(cleanPts);
         } else {
             openPaths.push(pts);
         }
     }
+    closedPaths.push(...contourHolePaths(machPayload, sc));
 
-    // Build outline incorporating open paths (waste removed from contour)
-    const outlinePts = buildOutlineWithCuts(SX, SZ, openPaths);
+    // Build outline incorporating open paths (waste removed from contour).
+    // A closed passante path that spans the whole blank is the real external
+    // contour, not an internal hole. This covers organic tops/contour pieces.
+    const outlinePts = cleanClosedPath2D(outerContour || buildOutlineWithCuts(SX, SZ, openPaths));
 
     const shape = new THREE.Shape();
     shape.moveTo(outlinePts[0][0], outlinePts[0][1]);
@@ -456,6 +787,8 @@ function buildGrooveBrush(w, comp, larg, esp, sc, material) {
     const depthMm = w.depth || w.usedepth || 0;
     if (depthMm <= 0) return null;
     const depth = Math.min(depthMm * sc, SY + 0.1);
+    const tSlotBrushes = buildTSlotBrushes(w, comp, larg, esp, sc, material);
+    if (tSlotBrushes) return tSlotBrushes;
 
     // Method 1: pos_corners (rectangular area)
     if (w.pos_corners && Array.isArray(w.pos_corners) && w.pos_corners.length >= 4) {
@@ -466,6 +799,13 @@ function buildGrooveBrush(w, comp, larg, esp, sc, material) {
         const minY = Math.min(...ys), maxY = Math.max(...ys);
         const gw = maxX - minX, gh = maxY - minY;
         if (gw < 0.01 || gh < 0.01) return null;
+
+        const radiusMm = getCornerRadiusMm(w, isHiddenSupportWorker(w) ? Math.min(gw, gh) / (2 * sc) : 0);
+        const radius = radiusMm * sc;
+        if (radius > 0.001) {
+            const shape = createRoundedRectShape(minX - 0.1, minY - 0.1, maxX + 0.1, maxY + 0.1, radius);
+            return buildPlanarShapeBrush(shape, face, depth, SY, material);
+        }
 
         const boxGeo = new THREE.BoxGeometry(gw + 0.2, gh + 0.2, depth + 0.5);
         const brush = new Brush(boxGeo, material);
@@ -488,6 +828,13 @@ function buildGrooveBrush(w, comp, larg, esp, sc, material) {
         if (lineLen < 0.01) return null;
 
         const grooveW = Math.max((w.width_line || w.width || 3) * sc, 0.3);
+        const radiusMm = getCornerRadiusMm(w, isHiddenSupportWorker(w) ? (grooveW / sc) / 2 : 0);
+        const radius = radiusMm * sc;
+        if (radius > 0.001) {
+            const shape = createRoundedRectShape(-lineLen / 2 - 0.25, -grooveW / 2 - 0.1, lineLen / 2 + 0.25, grooveW / 2 + 0.1, radius);
+            return buildPlanarShapeBrush(shape, face, depth, SY, material, [(sx + ex) / 2, (sy + ey) / 2, 0], Math.atan2(dy, dx));
+        }
+
         const boxGeo = new THREE.BoxGeometry(lineLen + 0.5, grooveW + 0.2, depth + 0.5);
         const brush = new Brush(boxGeo, material);
         const cx = (sx + ex) / 2, cy = (sy + ey) / 2;
@@ -509,6 +856,13 @@ function buildGrooveBrush(w, comp, larg, esp, sc, material) {
         const rawY = Number(w.y ?? w.position_y ?? 0) * sc;
         const grooveLen = Number(w.length) * sc;
         const grooveW = Math.max((w.width_line || w.width || 3) * sc, 0.3);
+        const radiusMm = getCornerRadiusMm(w, isHiddenSupportWorker(w) ? (grooveW / sc) / 2 : 0);
+        const radius = radiusMm * sc;
+        if (radius > 0.001) {
+            const shape = createRoundedRectShape(-grooveLen / 2 - 0.2, -grooveW / 2 - 0.1, grooveLen / 2 + 0.2, grooveW / 2 + 0.1, radius);
+            return buildPlanarShapeBrush(shape, face, depth, SY, material, [rawX + grooveLen / 2, rawY, 0]);
+        }
+
         const boxGeo = new THREE.BoxGeometry(grooveLen + 0.4, grooveW + 0.2, depth + 0.5);
         const brush = new Brush(boxGeo, material);
         const isTop = face === 'top' || face === 'side_a';
@@ -532,10 +886,13 @@ function buildMillingPocketBrush(w, comp, larg, esp, sc, material) {
     const depth = Math.min(depthMm * sc, SY + 0.1);
 
     let pts = [];
-    if (w.positions && typeof w.positions === 'object' && !Array.isArray(w.positions)) {
-        const keys = Object.keys(w.positions).sort((a, b) => Number(a) - Number(b));
+    const pointSource = w.positions_origin && typeof w.positions_origin === 'object'
+        ? w.positions_origin
+        : w.positions;
+    if (pointSource && typeof pointSource === 'object' && !Array.isArray(pointSource)) {
+        const keys = Object.keys(pointSource).sort((a, b) => Number(a) - Number(b));
         pts = keys.map(k => {
-            const p = w.positions[k];
+            const p = pointSource[k];
             if (Array.isArray(p)) return [p[0] * sc, p[1] * sc];
             return [Number(p.x ?? p.position_x ?? 0) * sc, Number(p.y ?? p.position_y ?? 0) * sc];
         });
@@ -543,6 +900,14 @@ function buildMillingPocketBrush(w, comp, larg, esp, sc, material) {
         pts = w.path.map(p => [Number(p.x ?? 0) * sc, Number(p.y ?? 0) * sc]);
     }
     if (pts.length < 2) return null;
+
+    if (isClosedAreaPocketWorker(w, esp, pts)) {
+        const shape = new THREE.Shape();
+        shape.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
+        shape.closePath();
+        return buildPlanarShapeBrush(shape, face, depth, SY, material);
+    }
 
     const toolW = (w.width_tool || w.diameter || 6) * sc;
     const halfW = toolW / 2;
@@ -586,6 +951,7 @@ function buildCSGPiece(peca, sc) {
 
     const workersA = parseMachining(peca.machining_json);
     const workersB = parseMachining(peca.machining_json_b);
+    const machPayload = parseMachiningPayload(peca.machining_json);
 
     // Material for the piece surface
     const grainType = peca.grain || 'sem_veio';
@@ -622,8 +988,9 @@ function buildCSGPiece(peca, sc) {
         polygonOffsetUnits: 1,
     });
 
-    // Build base geometry (with closed passante millings as holes)
-    const baseGeo = buildBaseShape(comp, larg, esp, workersA, sc);
+    // Build base geometry. Full-size closed passante paths become the external
+    // contour; smaller closed paths remain internal cutouts.
+    const baseGeo = buildBaseShape(comp, larg, esp, [...workersA, ...workersB], sc, machPayload);
 
     // Create the base Brush
     let resultBrush = new Brush(baseGeo, surfaceMat);
@@ -631,6 +998,13 @@ function buildCSGPiece(peca, sc) {
 
     // Collect all subtraction brushes
     const subtractions = [];
+    const addSubtractions = (brushOrBrushes, worker, type) => {
+        if (!brushOrBrushes) return;
+        const list = Array.isArray(brushOrBrushes) ? brushOrBrushes : [brushOrBrushes];
+        for (const brush of list) {
+            if (brush) subtractions.push({ brush, worker, type });
+        }
+    };
     const allWorkers = [
         ...workersA.map(w => ({ ...w, _side: 'A', face: w.face || w.quadrant || 'top' })),
         ...workersB.map(w => ({ ...w, _side: 'B', face: w.face || w.quadrant || 'bottom' })),
@@ -648,32 +1022,39 @@ function buildCSGPiece(peca, sc) {
             // 1. Transfer holes (top/bottom and lateral)
             if (/hole|furo/.test(cat)) {
                 const brush = buildHoleBrush(w, comp, larg, esp, sc, cutMat);
-                if (brush) subtractions.push({ brush, worker: w, type: 'hole' });
+                addSubtractions(brush, w, 'hole');
                 continue;
             }
 
             // 2. Saw cuts / grooves / rebaixos (top/bottom only for CSG)
             if ((/saw_cut|groove|rasgo|canal/.test(cat) || (w.tool_code || w.tool || '').toLowerCase() === 'r_f') && !isLat) {
                 const brush = buildGrooveBrush(w, comp, larg, esp, sc, cutMat);
-                if (brush) subtractions.push({ brush, worker: w, type: 'groove' });
+                addSubtractions(brush, w, 'groove');
                 continue;
             }
 
             // 3. Pockets / rebaixos (milling-based)
             if (/pocket|rebaixo/.test(cat) && !isLat) {
                 const brush = buildGrooveBrush(w, comp, larg, esp, sc, cutMat);
-                if (brush) subtractions.push({ brush, worker: w, type: 'pocket' });
+                addSubtractions(brush, w, 'pocket');
                 continue;
             }
 
-            // 4. Milling operations
+            // 4. Composite T-slot profiles can arrive without pocket/rebaixo aliases.
+            if (isTSlotWorker(w) && !isLat) {
+                const brush = buildGrooveBrush(w, comp, larg, esp, sc, cutMat);
+                addSubtractions(brush, w, 't_slot');
+                continue;
+            }
+
+            // 5. Milling operations
             if (cat.includes('milling') && !isLat) {
                 // Skip passante millings — already incorporated into base shape contour
-                if (depth >= esp * 0.9 && (w.positions || w.path)) continue;
+                if (depth >= esp * 0.9 && (w.positions || w.positions_origin || w.path)) continue;
                 // Non-passante milling with positions/path -> CSG subtract
-                if (w.positions || w.path) {
+                if (w.positions || w.positions_origin || w.path) {
                     const brush = buildMillingPocketBrush(w, comp, larg, esp, sc, cutMat);
-                    if (brush) subtractions.push({ brush, worker: w, type: 'milling' });
+                    addSubtractions(brush, w, 'milling');
                 }
                 continue;
             }
@@ -786,6 +1167,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
     const [error, setError] = useState(false);
     const [showWireframe, setShowWireframe] = useState(true);
     const [showEdgeBands, setShowEdgeBands] = useState(true);
+    const [backgroundMode, setBackgroundMode] = useState('studio');
     const [activeView, setActiveView] = useState('perspective');
     const tooltipRef = useRef(null);
 
@@ -794,6 +1176,12 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         s.disposed = true;
         if (s.raf) cancelAnimationFrame(s.raf);
         if (s.ctrl) { s.ctrl.dispose(); s.ctrl = null; }
+        if (s._bgTex) {
+            const bg = s._bgTex;
+            if (s.scene?.background === bg) s.scene.background = null;
+            try { bg.dispose(); } catch {}
+            s._bgTex = null;
+        }
         if (s.scene) {
             s.scene.traverse(obj => {
                 if (obj.geometry) obj.geometry.dispose();
@@ -807,6 +1195,10 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             }
             s.scene = null;
         }
+        s._groundGroup = null;
+        s._edges = null;
+        s._ebGroup = null;
+        s._recessGroup = null;
         if (s._envTex) { try { s._envTex.dispose(); } catch {} s._envTex = null; }
         s.cam = null;
     }, []);
@@ -819,6 +1211,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         const view = VIEWS[viewName]?.(SX, SY, SZ);
         if (!view) return;
         const target = new THREE.Vector3(SX / 2, SY / 2, SZ / 2);
+        if (s._groundGroup) s._groundGroup.visible = viewName !== 'bottom';
         // Smooth transition
         const startPos = s.cam.position.clone();
         const endPos = new THREE.Vector3(...view.pos);
@@ -866,22 +1259,12 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         const SZ = larg * sc;
         stateRef.current.dims = { SX, SY, SZ };
 
-        // ── Scene — light studio background (peça destacada com clareza) ──
+        // ── Scene — fundo de inspeção claro para leitura técnica da peça ──
         const scene = new THREE.Scene();
-        const bgCanvas = document.createElement('canvas');
-        bgCanvas.width = 2; bgCanvas.height = 256;
-        const bgCtx = bgCanvas.getContext('2d');
-        const bgGrad = bgCtx.createLinearGradient(0, 0, 0, 256);
-        bgGrad.addColorStop(0, '#5a6b80');   // azul-acinzentado topo
-        bgGrad.addColorStop(0.5, '#475568');
-        bgGrad.addColorStop(1, '#2f3a4a');   // mais escuro na base (chão)
-        bgCtx.fillStyle = bgGrad;
-        bgCtx.fillRect(0, 0, 2, 256);
-        const bgTex = new THREE.CanvasTexture(bgCanvas);
-        bgTex.minFilter = THREE.LinearFilter;
-        bgTex.colorSpace = THREE.SRGBColorSpace;
+        const bgTex = createInspectionBackground(backgroundMode);
         scene.background = bgTex;
         stateRef.current.scene = scene;
+        stateRef.current._bgTex = bgTex;
 
         // ── Camera ──
         const cam = new THREE.PerspectiveCamera(32, W / H, 0.1, 800);
@@ -906,24 +1289,48 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         // IMPORTANT: posições baseadas em maxD (dimensão 3D da cena) e NÃO SY (espessura ≈ 2-3 unidades).
         const maxD = Math.max(SX, SZ);
         // Hemisfério — céu claro + chão claro para iluminar a parte inferior da peça
-        const hemi = new THREE.HemisphereLight(0xa8c0e0, 0x9098a8, 0.85);
+        const hemi = new THREE.HemisphereLight(0xffffff, 0xb6c2d1, 1.05);
         scene.add(hemi);
         // Key light: principal, quente (luz principal do produto)
-        const keyLight = new THREE.DirectionalLight(0xfff2e0, 1.2);
+        const keyLight = new THREE.DirectionalLight(0xfff6e8, 1.25);
         keyLight.position.set(SX * 0.6, maxD * 1.4, SZ * 0.9);
         scene.add(keyLight);
         // Fill light: mais suave, lateral (suaviza sombras)
-        const fillLight = new THREE.DirectionalLight(0xb0c8e8, 0.5);
+        const fillLight = new THREE.DirectionalLight(0xd8e8ff, 0.7);
         fillLight.position.set(-SX * 1.2, maxD * 0.8, -SZ * 1.2);
         scene.add(fillLight);
         // Rim light: contraluz (destaca bordas — look industrial/produto)
-        const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
+        const rimLight = new THREE.DirectionalLight(0xffffff, 0.7);
         rimLight.position.set(-SX * 0.5, maxD * 0.3, SZ * 2.5);
         scene.add(rimLight);
         // Up-light: ilumina a parte de baixo da peça pra evitar que se misture com o fundo escuro
         const underLight = new THREE.DirectionalLight(0xffffff, 0.65);
         underLight.position.set(SX * 0.3, -maxD * 1.5, SZ * 0.4);
         scene.add(underLight);
+
+        // ── Referência de chão: sutil, ajuda a ler profundidade sem competir com a usinagem ──
+        const groundGroup = new THREE.Group();
+        const gridSize = Math.max(SX, SZ) * 1.75;
+        const grid = new THREE.GridHelper(gridSize, 12, 0x94a3b8, 0xcbd5e1);
+        grid.position.set(SX / 2, -0.35, SZ / 2);
+        grid.material.transparent = true;
+        grid.material.opacity = backgroundMode === 'contrast' ? 0.28 : 0.18;
+        groundGroup.add(grid);
+
+        const shadowGeo = new THREE.CircleGeometry(Math.max(SX, SZ) * 0.34, 48);
+        const shadowMat = new THREE.MeshBasicMaterial({
+            color: 0x0f172a,
+            transparent: true,
+            opacity: backgroundMode === 'contrast' ? 0.10 : 0.07,
+            depthWrite: false,
+        });
+        const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.scale.set(Math.max(SX / Math.max(SX, SZ), 0.38), Math.max(SZ / Math.max(SX, SZ), 0.38), 1);
+        shadow.position.set(SX / 2, -0.32, SZ / 2);
+        groundGroup.add(shadow);
+        scene.add(groundGroup);
+        stateRef.current._groundGroup = groundGroup;
 
         // ── Environment map (PMREM) para reflexos PBR sutis ──
         try {
@@ -935,8 +1342,6 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             pmrem.dispose();
             stateRef.current._envTex = envTex;
         } catch { /* PMREM pode falhar em contextos limitados */ }
-
-        // Grid removido — peça flutua no espaço para melhor visualização
 
         // ═══════════════════════════════════════════════════
         // CSG BUILD
@@ -969,7 +1374,74 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         scene.add(edges);
         stateRef.current._edges = edges;
 
-        // ── Edge bands — extraídas da geometria CSG real (respeitam usinagens) ──
+        // ── Recess floors — deixa molduras/rebaixos rasos legíveis mesmo quando há
+        // recorte passante dentro. É uma superfície visual no fundo do pocket, furada
+        // pelas ilhas/recortes internos, sem alterar a geometria CSG de produção.
+        const recessGroup = new THREE.Group();
+        const recessMat = new THREE.MeshStandardMaterial({
+            color: 0x8a6b44,
+            roughness: 0.96,
+            metalness: 0,
+            transparent: true,
+            opacity: 0.72,
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+        });
+        const recessLineMat = new THREE.LineBasicMaterial({
+            color: 0x6f5537,
+            transparent: true,
+            opacity: 0.55,
+        });
+        const throughPaths = allWorkers
+            .map(worker => {
+                const pts = extractMillingPts(worker, sc);
+                const depthMm = getNumber(worker?.depth, worker?.usedepth, worker?.profundidade);
+                if (String(worker?.close) !== '1' || pts.length < 3 || depthMm < esp * 0.9) return null;
+                return { worker, pts, bbox: pathBBox2D(pts) };
+            })
+            .filter(Boolean);
+
+        for (const worker of allWorkers) {
+            const pts = extractMillingPts(worker, sc);
+            if (!isClosedAreaPocketWorker(worker, esp, pts)) continue;
+            const shape = shapeFromPts(pts);
+            if (!shape) continue;
+
+            const outerBox = pathBBox2D(pts);
+            const holes = throughPaths.filter(h => h.worker !== worker && bboxContains2D(outerBox, h.bbox, sc * 2));
+            for (const hole of holes) {
+                const hp = new THREE.Path();
+                hp.moveTo(hole.pts[0][0], hole.pts[0][1]);
+                for (let i = 1; i < hole.pts.length; i++) hp.lineTo(hole.pts[i][0], hole.pts[i][1]);
+                hp.closePath();
+                shape.holes.push(hp);
+            }
+
+            const depthMm = getNumber(worker?.depth, worker?.usedepth, worker?.profundidade);
+            const face = String(worker?.face || worker?.quadrant || 'top').toLowerCase();
+            const isTopFace = face === 'top' || face === 'side_a' || face === 'a';
+            const rawZ = isTopFace ? SY - depthMm * sc + 0.035 : depthMm * sc - 0.035;
+            const geo = new THREE.ShapeGeometry(shape, 12);
+            geo.translate(0, 0, rawZ);
+            const mesh = new THREE.Mesh(geo, recessMat);
+            mesh.rotation.copy(pieceMesh.rotation);
+            mesh.position.copy(pieceMesh.position);
+            recessGroup.add(mesh);
+
+            const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 5), recessLineMat);
+            outline.rotation.copy(pieceMesh.rotation);
+            outline.position.copy(pieceMesh.position);
+            recessGroup.add(outline);
+        }
+        scene.add(recessGroup);
+        stateRef.current._recessGroup = recessGroup;
+
+        // ── Edge bands — somente nas bordas externas reais da peça.
+        // A geometria CSG pode ter recortes internos, rebaixos e molduras; se filtrarmos
+        // só por normal, a fita "vaza" para dentro desses cortes. Por isso também exigimos
+        // que os triângulos estejam no limite externo bruto da peça.
         const hasEB = (code) => code && code !== '-' && code !== '';
         const ebGroup = new THREE.Group();
         const ebMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false });
@@ -984,12 +1456,18 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             const count = idx ? idx.count : posAttr.count;
             const get = (i) => idx ? idx.getX(i) : i;
             const newPos = [];
+            const maxCoord = rawAxis === 'x' ? SX : SZ;
+            const edgeTol = Math.max(sc * 1.25, 0.06);
             for (let i = 0; i < count; i += 3) {
                 const i0 = get(i), i1 = get(i + 1), i2 = get(i + 2);
                 const nv = rawAxis === 'x'
                     ? (normAttr.getX(i0) + normAttr.getX(i1) + normAttr.getX(i2)) / 3
                     : (normAttr.getY(i0) + normAttr.getY(i1) + normAttr.getY(i2)) / 3;
-                if (nv * rawDir > 0.85) {
+                const cv = rawAxis === 'x'
+                    ? (posAttr.getX(i0) + posAttr.getX(i1) + posAttr.getX(i2)) / 3
+                    : (posAttr.getY(i0) + posAttr.getY(i1) + posAttr.getY(i2)) / 3;
+                const isOuterEdge = rawDir > 0 ? cv >= maxCoord - edgeTol : cv <= edgeTol;
+                if (nv * rawDir > 0.85 && isOuterEdge) {
                     for (const ii of [i0, i1, i2]) {
                         newPos.push(posAttr.getX(ii), posAttr.getY(ii), posAttr.getZ(ii));
                     }
@@ -1148,7 +1626,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
         };
         animate();
 
-    }, [peca, width, height, disposeScene]);
+    }, [peca, width, height, backgroundMode, disposeScene]);
 
     useEffect(() => {
         if (canvasRef.current) {
@@ -1192,18 +1670,18 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
     if (error || force2d) return <Fallback2D peca={peca} width={width} height={height} style={style} />;
 
     // Count machining operations for info bar
-    const opsCount = (() => {
-        try {
-            const d = typeof peca.machining_json === 'string' ? JSON.parse(peca.machining_json) : peca.machining_json;
-            const w = d?.workers;
-            return w ? (Array.isArray(w) ? w.length : Object.keys(w).length) : 0;
-        } catch { return 0; }
-    })();
+    const opsCount = parseMachining(peca.machining_json).length + parseMachining(peca.machining_json_b).length;
 
     const ebCount = [peca.borda_frontal, peca.borda_traseira, peca.borda_dir, peca.borda_esq].filter(b => b && b !== '-').length;
+    const bgMode = BACKGROUND_MODES[backgroundMode] || BACKGROUND_MODES.studio;
+    const cycleBackgroundMode = () => {
+        const idx = BACKGROUND_MODE_ORDER.indexOf(backgroundMode);
+        const next = BACKGROUND_MODE_ORDER[(idx + 1) % BACKGROUND_MODE_ORDER.length] || 'studio';
+        setBackgroundMode(next);
+    };
 
     // ── Toolbar button style ──
-    const tbBtn = (active, title) => ({
+    const tbBtn = (active) => ({
         background: active ? '#1379F0' : 'rgba(255,255,255,0.95)',
         border: active ? '1px solid #0d5fc4' : '1px solid rgba(0,0,0,0.12)',
         borderRadius: 6, cursor: 'pointer', padding: '5px 7px', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1226,29 +1704,32 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             }}>
                 {/* View buttons */}
                 <div style={{ display: 'flex', gap: 3 }}>
-                    <button onClick={() => setCameraView('perspective')} title="Perspectiva" style={tbBtn(activeView === 'perspective')}>
+                    <button onClick={() => setCameraView('perspective')} title="Perspectiva" aria-label="Vista em perspectiva" style={tbBtn(activeView === 'perspective')}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
                     </button>
-                    <button onClick={() => setCameraView('top')} title="Topo" style={tbBtn(activeView === 'top')}>
+                    <button onClick={() => setCameraView('top')} title="Topo" aria-label="Vista de topo" style={tbBtn(activeView === 'top')}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="4" width="16" height="16" rx="1"/><circle cx="12" cy="12" r="2"/></svg>
                     </button>
-                    <button onClick={() => setCameraView('front')} title="Frontal" style={tbBtn(activeView === 'front')}>
+                    <button onClick={() => setCameraView('front')} title="Frontal" aria-label="Vista frontal" style={tbBtn(activeView === 'front')}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="6" width="16" height="12" rx="1"/><line x1="4" y1="12" x2="20" y2="12" opacity="0.3"/></svg>
                     </button>
-                    <button onClick={() => setCameraView('right')} title="Lateral" style={tbBtn(activeView === 'right')}>
+                    <button onClick={() => setCameraView('right')} title="Lateral" aria-label="Vista lateral" style={tbBtn(activeView === 'right')}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="12" height="16" rx="1"/><line x1="12" y1="4" x2="12" y2="20" opacity="0.3"/></svg>
                     </button>
-                    <button onClick={() => setCameraView('bottom')} title="Fundo" style={tbBtn(activeView === 'bottom')}>
+                    <button onClick={() => setCameraView('bottom')} title="Fundo" aria-label="Vista do fundo" style={tbBtn(activeView === 'bottom')}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="4" x2="20" y2="20" opacity="0.3"/><line x1="20" y1="4" x2="4" y2="20" opacity="0.3"/></svg>
                     </button>
                 </div>
                 {/* Toggle buttons */}
                 <div style={{ display: 'flex', gap: 3 }}>
-                    <button onClick={() => setShowWireframe(v => !v)} title="Wireframe" style={tbBtn(showWireframe)}>
+                    <button onClick={() => setShowWireframe(v => !v)} title="Wireframe" aria-label="Alternar wireframe" style={tbBtn(showWireframe)}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3h18v18H3z"/><path d="M3 12h18M12 3v18M3 3l18 18M21 3L3 21" opacity="0.5"/></svg>
                     </button>
-                    <button onClick={() => setShowEdgeBands(v => !v)} title="Fitas de borda" style={tbBtn(showEdgeBands)}>
+                    <button onClick={() => setShowEdgeBands(v => !v)} title="Fitas de borda" aria-label="Alternar fitas de borda" style={tbBtn(showEdgeBands)}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 3h18M3 21h18" strokeWidth="3" stroke={showEdgeBands ? 'var(--info)' : 'currentColor'}/></svg>
+                    </button>
+                    <button onClick={cycleBackgroundMode} title={`${bgMode.title}: ${bgMode.label}`} aria-label="Alternar fundo da pré-visualização 3D" style={tbBtn(backgroundMode !== 'studio')}>
+                        BG
                     </button>
                 </div>
             </div>
@@ -1256,7 +1737,7 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             {/* ── Info bar (bottom) ── */}
             <div style={{
                 position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5,
-                background: 'linear-gradient(transparent, rgba(15,23,42,0.75))',
+                background: 'linear-gradient(transparent, rgba(15,23,42,0.66))',
                 padding: '20px 12px 8px',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
                 pointerEvents: 'none',
@@ -1291,10 +1772,10 @@ export default function PecaViewer3D({ peca, width = 400, height = 300, style, f
             {/* ── Legend (top-right) ── */}
             <div style={{
                 position: 'absolute', top: 8, right: 8, zIndex: 5,
-                background: 'rgba(14,17,23,0.82)', backdropFilter: 'blur(8px)',
+                background: 'rgba(255,255,255,0.86)', backdropFilter: 'blur(8px)',
                 borderRadius: 6, padding: '6px 8px', fontSize: 9, lineHeight: 1.7,
-                border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                color: '#94a3b8',
+                border: '1px solid rgba(15,23,42,0.10)', boxShadow: '0 8px 22px rgba(15,23,42,0.12)',
+                color: '#475569',
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: '#C4A672', display: 'inline-block', border: '1px solid #a08850' }} />
@@ -1338,11 +1819,7 @@ const MAT_SEM_VEIO = { base: '#F0EBE0', rebaixo: '#C4B99E', furo: '#3D3529', str
 
 function extractContourPaths(machJson, espessura) {
     if (!machJson) return { closed: [], open: [], toolWidths: [] };
-    let mach;
-    try { mach = typeof machJson === 'string' ? JSON.parse(machJson) : machJson; } catch { return { closed: [], open: [], toolWidths: [] }; }
-    if (!mach.workers) return { closed: [], open: [], toolWidths: [] };
-
-    const workers = Array.isArray(mach.workers) ? mach.workers : Object.values(mach.workers);
+    const workers = parseMachining(machJson);
     const closed = [], open = [], toolWidths = [];
 
     for (const w of workers) {
@@ -1352,7 +1829,9 @@ function extractContourPaths(machJson, espessura) {
         const depth = w.depth || w.usedepth || 0;
         if (depth < espessura * 0.9) continue;
 
-        const positions = w.positions;
+        const positions = w.positions_origin && typeof w.positions_origin === 'object'
+            ? w.positions_origin
+            : w.positions;
         if (!positions || typeof positions !== 'object') continue;
 
         const keys = Object.keys(positions).sort((a, b) => Number(a) - Number(b));
@@ -1549,9 +2028,10 @@ function Fallback2D({ peca, width, height, style }) {
                         );
                     }
 
-                    if (w.path && Array.isArray(w.path) && w.path.length >= 2) {
+                    const linePath = extractMillingPts(w, 1);
+                    if (linePath.length >= 2) {
                         const grooveW = Math.max((w.width_line || w.width || w.diameter || 3) * scale, 2);
-                        const pts = w.path.map(pt => `${ox + Number(pt.x ?? 0) / comp * pw},${oy + (1 - Number(pt.y ?? 0) / larg) * ph}`).join(' ');
+                        const pts = linePath.map(pt => `${ox + Number(pt[0] ?? 0) / comp * pw},${oy + (1 - Number(pt[1] ?? 0) / larg) * ph}`).join(' ');
                         return (
                             <g key={`reb${i}`} style={{ cursor: 'pointer' }}
                                 onMouseEnter={(e) => workerTip(w, e)} onMouseMove={(e) => workerTip(w, e)} onMouseLeave={() => setTip(null)}>
@@ -1571,7 +2051,7 @@ function Fallback2D({ peca, width, height, style }) {
                     if (!isPocket) return null;
                     if (['front', 'rear', 'back', 'left', 'right'].includes(wFace)) return null;
                     const wDepth = w.depth || w.usedepth || 0;
-                    if (cat.includes('milling') && wDepth >= esp * 0.9 && (w.positions || w.path)) return null;
+                    if (cat.includes('milling') && wDepth >= esp * 0.9 && (w.positions || w.positions_origin || w.path)) return null;
 
                     let rawX2p = Number(w.x ?? w.position_x ?? 0);
                     let rawY2p = Number(w.y ?? w.position_y ?? 0);
@@ -1579,17 +2059,32 @@ function Fallback2D({ peca, width, height, style }) {
                     const cy2 = oy + (1 - rawY2p / larg) * ph;
                     const rw = Math.max((w.pocket_width || w.width || w.length || 20) * scale, 6);
                     const rh = Math.max((w.pocket_height || w.height || 20) * scale, 6);
+                    const radius = Math.max(1, Math.min(getCornerRadiusMm(w, isHiddenSupportWorker(w) ? Math.min(rw, rh) / (2 * scale) : 1) * scale, rw / 2, rh / 2));
                     const depthRatio = Math.min((w.depth || 0) / esp, 1);
                     const darkness = wFace === 'bottom'
                         ? `rgba(255,255,255,${0.1 + depthRatio * 0.2})`
                         : `rgba(0,0,0,${0.06 + depthRatio * 0.3})`;
                     const faceIcon = wFace === 'bottom' ? '\u25BC' : '\u25B2';
+                    const pocketPts = extractMillingPts(w, 1);
+
+                    if (pocketPts.length >= 3) {
+                        const pts = pocketPts.map(pt => `${ox + Number(pt[0] ?? 0) / comp * pw},${oy + (1 - Number(pt[1] ?? 0) / larg) * ph}`).join(' ');
+                        return (
+                            <g key={`pkt${i}`} style={{ cursor: 'pointer' }}
+                                onMouseEnter={(e) => workerTip(w, e)} onMouseMove={(e) => workerTip(w, e)} onMouseLeave={() => setTip(null)}>
+                                <polygon points={pts} fill={darkness} stroke={M.rebaixo} strokeWidth="1.2" opacity={0.8} />
+                                <polygon points={pts} fill={M.rebaixo} opacity={0.22 + depthRatio * 0.25} />
+                                <text x={ox + pocketPts[0][0] / comp * pw + 4} y={oy + (1 - pocketPts[0][1] / larg) * ph - 4}
+                                    fontSize="9" fill={M.rebaixo} opacity="0.8">{faceIcon}</text>
+                            </g>
+                        );
+                    }
 
                     return (
                         <g key={`pkt${i}`} style={{ cursor: 'pointer' }}
                             onMouseEnter={(e) => workerTip(w, e)} onMouseMove={(e) => workerTip(w, e)} onMouseLeave={() => setTip(null)}>
                             <rect x={cx2 - rw / 2} y={cy2 - rh / 2} width={rw} height={rh}
-                                fill={darkness} stroke={M.rebaixo} strokeWidth={1} strokeDasharray="3,1.5" rx={1} />
+                                fill={darkness} stroke={M.rebaixo} strokeWidth={1} strokeDasharray="3,1.5" rx={radius} />
                             {rw > 12 && rh > 12 && (
                                 <text x={cx2 - rw / 2 + 3} y={cy2 - rh / 2 + 9}
                                     fontSize="7" fill={wFace === 'bottom' ? '#6366f1' : 'var(--danger-hover)'} fontWeight="700" opacity="0.6">{faceIcon}</text>
