@@ -5,6 +5,23 @@ import './index.css';
 import App from './App';
 import { installGlobalErrorHandlers } from './lib/errorReporter';
 
+// Dev safety: limpa SW antigo + caches em localhost. Em produção o guard do
+// index.html já impede registro novo, mas pode haver SW antigo persistido em
+// devs que abriram o app antes do fix. Roda de forma assíncrona; o React pode
+// montar enquanto a limpeza acontece.
+if (typeof window !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations()
+            .then(regs => Promise.all(regs.map(reg => reg.unregister())))
+            .catch(() => {});
+    }
+    if (window.caches?.keys) {
+        caches.keys()
+            .then(keys => Promise.all(keys.map(key => caches.delete(key))))
+            .catch(() => {});
+    }
+}
+
 // Instala listeners globais de erro ANTES de montar — pega erros de init também
 installGlobalErrorHandlers();
 
