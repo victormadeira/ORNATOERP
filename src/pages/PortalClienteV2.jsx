@@ -834,19 +834,34 @@ function Empty({ icon, title, sub }) {
     );
 }
 
-// ─── Status bar (sticky) ──────────────────────────────────────────────────────
-function StatusBar({ projeto, etapas, atividades }) {
-    const ultima = atividades?.[0]?.criado_em || etapas?.find(e => e.status === 'concluida' && e.data_fim)?.data_fim;
-    if (!ultima) return null;
-    const ultimaDescr = atividades?.[0]?.descricao || 'última atualização';
+// ─── Status bar ───────────────────────────────────────────────────────────────
+function StatusBar({ projeto, etapas, atividades, ocorrencias }) {
+    // Pega o mais recente entre nota manual (ocorrência) e atividade auto-gerada
+    const ultimaOc = ocorrencias?.[0];
+    const ultimaAt = atividades?.[0];
+    const tsOc = ultimaOc?.criado_em ? new Date(ultimaOc.criado_em).getTime() : 0;
+    const tsAt = ultimaAt?.criado_em ? new Date(ultimaAt.criado_em).getTime() : 0;
+
+    let fonte = null;
+    if (tsOc > 0 && tsOc >= tsAt) {
+        fonte = { criado_em: ultimaOc.criado_em, descricao: ultimaOc.assunto || ultimaOc.descricao, manual: true };
+    } else if (tsAt > 0) {
+        fonte = { criado_em: ultimaAt.criado_em, descricao: ultimaAt.descricao, manual: false };
+    } else {
+        const ultEtapa = etapas?.find(e => e.status === 'concluida' && e.data_fim);
+        if (ultEtapa) fonte = { criado_em: ultEtapa.data_fim, descricao: `Etapa "${ultEtapa.nome}" concluída`, manual: false };
+    }
+
+    if (!fonte) return null;
+    const descr = fonte.descricao || 'última atualização';
 
     return (
         <div className="v2-statusbar">
             <StatusDot tone="active" pulse />
             <span className="v2-statusbar-text">
-                <strong>Atualizado {timeAgo(ultima)}</strong>
-                {ultimaDescr && ultimaDescr !== 'última atualização' && (
-                    <> · {ultimaDescr.length > 60 ? ultimaDescr.slice(0, 60) + '…' : ultimaDescr}</>
+                <strong>Atualizado {timeAgo(fonte.criado_em)}</strong>
+                {descr !== 'última atualização' && (
+                    <> · {descr.length > 70 ? descr.slice(0, 70) + '…' : descr}</>
                 )}
             </span>
         </div>
@@ -917,6 +932,7 @@ export default function PortalClienteV2({ token }) {
     const mensagens = projeto.mensagens || [];
     const pagamento = projeto.pagamento || null;
     const atividades = projeto.atividades || [];
+    const ocorrencias = projeto.ocorrencias || [];
     const msgNaoLidas = projeto.msgNaoLidas || 0;
     const concluidasPct = etapas.length
         ? Math.round(etapas.filter(e => e.status === 'concluida').length / etapas.length * 100)
@@ -960,7 +976,7 @@ export default function PortalClienteV2({ token }) {
 
             <main className="v2-main">
                 <Hero projeto={projeto} empresa={empresa} concluidasPct={concluidasPct} etapas={etapas} />
-                <StatusBar projeto={projeto} etapas={etapas} atividades={atividades} />
+                <StatusBar projeto={projeto} etapas={etapas} atividades={atividades} ocorrencias={ocorrencias} />
                 <Cronograma etapas={etapas} />
                 <Ambientes ambientes={ambientes} />
                 <Fotos token={token} />
