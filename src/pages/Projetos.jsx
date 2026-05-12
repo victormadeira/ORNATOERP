@@ -145,13 +145,15 @@ function GanttChart({ etapas, onEdit, zoom = 1 }) {
         const base = { position: 'absolute', height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 2, cursor: onEdit ? 'pointer' : 'default' };
         switch (status) {
             case 'em_andamento':
-                return { ...base, background: 'linear-gradient(135deg, var(--primary), #3b93f7)', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' };
+                // Âmbar sólido — universal "ativo/em andamento". Substituiu gradiente
+                // sienna→azul que confundia visualmente.
+                return { ...base, background: '#F59E0B', boxShadow: '0 2px 8px rgba(245,158,11,0.35)' };
             case 'concluida':
-                return { ...base, background: 'linear-gradient(135deg, var(--success), var(--success-hover))', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
+                return { ...base, background: 'var(--success)', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
             case 'nao_iniciado': case 'pendente':
                 return { ...base, background: 'var(--bg-muted)', border: 'none' };
             case 'atrasada':
-                return { ...base, background: 'linear-gradient(135deg, var(--danger), var(--danger-hover))', boxShadow: '0 2px 6px rgba(239,68,68,0.2)' };
+                return { ...base, background: 'var(--danger)', boxShadow: '0 2px 6px rgba(239,68,68,0.2)' };
             default:
                 return { ...base, background: 'var(--muted)' };
         }
