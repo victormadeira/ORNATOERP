@@ -926,15 +926,24 @@ export default function PortalClienteV2({ token }) {
         <div className="v2-shell">
             <style>{V2_STYLES}</style>
 
-            {/* Background brand — papel quente + vignette sienna + diagonais (grafismo Ornato) */}
+            {/* Background brand — papel quente + vignette sienna + diagonais + watermark do símbolo */}
             <div className="v2-bg" aria-hidden="true">
                 <div className="v2-bg-vignette" />
                 <div className="v2-bg-diagonals" />
-                {/* Grafismo brand: paralelogramo diagonal como marca d'água sutil no canto */}
-                <svg className="v2-bg-grafismo" viewBox="0 0 100 100" fill="none">
-                    <path d="M 30 10 L 70 10 L 60 50 L 20 50 Z" fill="var(--v2-cobre-deep)" />
-                    <path d="M 40 50 L 80 50 L 70 90 L 30 90 Z" fill="var(--v2-cobre-deep)" />
-                </svg>
+                {/* Símbolo da marca como watermark centralizado (fallback: grafismo SVG paralelogramo) */}
+                {empresa.logo_watermark_path ? (
+                    <img
+                        className="v2-bg-watermark"
+                        src={empresa.logo_watermark_path}
+                        alt=""
+                        style={{ opacity: empresa.logo_watermark_opacity ?? 0.04 }}
+                    />
+                ) : (
+                    <svg className="v2-bg-grafismo" viewBox="0 0 100 100" fill="none">
+                        <path d="M 30 10 L 70 10 L 60 50 L 20 50 Z" fill="var(--v2-cobre-deep)" />
+                        <path d="M 40 50 L 80 50 L 70 90 L 30 90 Z" fill="var(--v2-cobre-deep)" />
+                    </svg>
+                )}
             </div>
 
             {/* Topo: logo + experimento ribbon */}
@@ -1039,8 +1048,16 @@ const V2_STYLES = `
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 85%, transparent 100%);
 }
 .v2-bg-grafismo {
-    position: absolute; bottom: -120px; right: -80px;
-    width: 380px; height: 380px; opacity: 0.05;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    width: 540px; height: 540px; opacity: 0.045;
+}
+.v2-bg-watermark {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 540px; max-width: 80vw; height: auto;
+    mix-blend-mode: multiply;
+    user-select: none; pointer-events: none;
 }
 
 /* ── Ring de progresso ── */
