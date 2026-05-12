@@ -17,6 +17,11 @@ server/database.sqlite
 server/database.db
 server/backups/
 /backups/
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
 server/.jwt_secret
 
 # Environment variables
