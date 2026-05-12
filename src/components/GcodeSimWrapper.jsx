@@ -1418,8 +1418,11 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 10,
-                        overflowY: 'auto',
+                        // Sequência operacional (flex:1 abaixo) cresce e rola por dentro;
+                        // outras seções mantêm tamanho natural. Aside como flex container fixo.
+                        overflow: 'hidden',
                         height: dims.h,
+                        minHeight: 0,
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                             <div>
@@ -1501,9 +1504,41 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                             {renderMiniMetric({ label: 'Rápido', value: `${stats.rapidDistM}m`, tone: '#c2410c' })}
                         </div>
 
+                        <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', flexShrink: 0 }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Camadas</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {renderLayerButton({ active: showRapids, label: 'Movimentos rápidos', color: '#8a7050', dashed: true, onClick: () => setShowRapids(r => !r) })}
+                                {foundOps.map(cat => (
+                                    <span key={cat.key}>
+                                        {renderLayerButton({ active: !hiddenCats.has(cat.key), label: cat.label, color: cat.glow, onClick: () => toggleCat(cat.key) })}
+                                    </span>
+                                ))}
+                                {hasActiveFilters && (
+                                    <button onClick={() => { setHiddenCats(new Set()); setShowRapids(true); }} style={{
+                                        marginTop: 2,
+                                        padding: '7px 9px',
+                                        borderRadius: 7,
+                                        border: '1px solid #d7cbbb',
+                                        background: 'var(--bg-card)',
+                                        color: '#2563eb',
+                                        cursor: 'pointer',
+                                        fontSize: 11,
+                                        fontWeight: 800,
+                                    }}>
+                                        Restaurar camadas
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
                         {operationBlocks.length > 0 && (
-                            <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <div style={{
+                                padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                // Cresce pra preencher o espaço vertical disponível no aside
+                                flex: 1, minHeight: 140,
+                                display: 'flex', flexDirection: 'column',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
                                     <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                         Sequência operacional
                                     </div>
@@ -1511,7 +1546,7 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                         {operationBlocks.length} etapas
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto', paddingRight: 2 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
                                     {operationBlocks.map((op, idx) => {
                                         const isActive = curMove >= op.start && curMove <= op.end;
                                         const opProgress = isActive
@@ -1580,33 +1615,6 @@ export default function GcodeSimWrapper({ gcode, chapa }) {
                                 </div>
                             </div>
                         )}
-
-                        <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Camadas</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {renderLayerButton({ active: showRapids, label: 'Movimentos rápidos', color: '#8a7050', dashed: true, onClick: () => setShowRapids(r => !r) })}
-                                {foundOps.map(cat => (
-                                    <span key={cat.key}>
-                                        {renderLayerButton({ active: !hiddenCats.has(cat.key), label: cat.label, color: cat.glow, onClick: () => toggleCat(cat.key) })}
-                                    </span>
-                                ))}
-                                {hasActiveFilters && (
-                                    <button onClick={() => { setHiddenCats(new Set()); setShowRapids(true); }} style={{
-                                        marginTop: 2,
-                                        padding: '7px 9px',
-                                        borderRadius: 7,
-                                        border: '1px solid #d7cbbb',
-                                        background: 'var(--bg-card)',
-                                        color: '#2563eb',
-                                        cursor: 'pointer',
-                                        fontSize: 11,
-                                        fontWeight: 800,
-                                    }}>
-                                        Restaurar camadas
-                                    </button>
-                                )}
-                            </div>
-                        </div>
                     </aside>
                 </div>
 
