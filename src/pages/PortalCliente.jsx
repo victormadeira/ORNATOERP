@@ -1093,7 +1093,7 @@ export default function PortalCliente({ token, isPreview = false }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState('cronograma');
+    const [chatOpen, setChatOpen] = useState(false);
 
     useEffect(() => {
         const authToken = localStorage.getItem('erp_token');
@@ -1205,8 +1205,9 @@ export default function PortalCliente({ token, isPreview = false }) {
                 .portal-card button { border: 0; box-shadow: none; }
                 .portal-card button:focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; border-radius: 6px; }
                 .portal-card a:focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; border-radius: 6px; }
-                .portal-tab { transition: color 180ms cubic-bezier(0.4, 0, 0.2, 1), border-color 180ms cubic-bezier(0.4, 0, 0.2, 1); }
-                .portal-tab:hover { color: ${ink} !important; }
+                @media (max-width: 600px) {
+                    .portal-card > div { padding-left: 18px !important; padding-right: 18px !important; }
+                }
                 @media (prefers-reduced-motion: reduce) {
                     .portal-card, .gantt-progress-active::after { animation: none !important; }
                 }
@@ -1366,43 +1367,7 @@ export default function PortalCliente({ token, isPreview = false }) {
                     );
                 })()}
 
-                {/* ─── Tab Navigation ──────────────────────────── */}
-                <div className="no-print" style={{
-                    background: '#fff', borderBottom: '2px solid #e2e8f0',
-                    display: 'flex', gap: 0,
-                    position: 'sticky', top: 0, zIndex: 10,
-                }}>
-                    {[
-                        { id: 'cronograma', label: 'Cronograma', icon: Calendar },
-                        { id: 'mensagens', label: 'Mensagens', icon: MessageSquare, badge: msgNaoLidas },
-                        ...(pagamento ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
-                        { id: 'fotos', label: 'Fotos', icon: Camera },
-                        { id: 'docs', label: 'Documentos', icon: FileText },
-                    ].map(t => (
-                        <button key={t.id} className="portal-tab" onClick={() => setTab(t.id)} aria-pressed={tab === t.id} style={{
-                            padding: '14px 20px', border: 0, borderTop: 0, borderLeft: 0, borderRight: 0,
-                            background: 'none', outline: 'none',
-                            cursor: 'pointer', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
-                            color: tab === t.id ? ink : 'var(--muted)',
-                            borderBottom: tab === t.id ? `2px solid ${accent}` : '2px solid transparent',
-                            marginBottom: -2, display: 'flex', alignItems: 'center', gap: 6,
-                            whiteSpace: 'nowrap', transition: 'all 0.2s',
-                        }}>
-                            <t.icon size={15} />
-                            {t.label}
-                            {t.badge > 0 && (
-                                <span style={{
-                                    background: 'var(--danger)', color: '#fff', fontSize: 10,
-                                    fontWeight: 700, padding: '1px 6px', borderRadius: 10,
-                                }}>{t.badge}</span>
-                            )}
-                        </button>
-                    ))}
-                </div>
-
-                {/* ─── Tab: Cronograma ─────────────────────────── */}
-                {tab === 'cronograma' && (
-                <>
+                {/* ─── Seção: Cronograma ───────────────────────── */}
                 {/* ─── Etapas / Cronograma ────────────────────── */}
                 <div style={{ background: '#fff', padding: '24px 32px' }}>
                     <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}><Calendar size={16} style={{ color: accent }} /> Cronograma</h2>
@@ -1583,27 +1548,15 @@ export default function PortalCliente({ token, isPreview = false }) {
                     </div>
                 )}
 
-                {/* Feed de Atividades removido */}
-                </>
-                )}
+                {/* ─── Seção: Fotos ────────────────────────────── */}
+                <PortalGaleria token={token} accent={accent} primary={primary} />
 
-                {/* ─── Tab: Mensagens ──────────────────────────── */}
-                {tab === 'mensagens' && (
-                <div className="no-print">
-                    <PortalChat
-                        token={token}
-                        mensagens={mensagens}
-                        accent={accent}
-                        primary={primary}
-                        clienteNome={projeto.cliente_nome}
-                        msgNaoLidas={msgNaoLidas}
-                    />
-                </div>
-                )}
+                {/* ─── Seção: Documentos ───────────────────────── */}
+                <PortalDocumentos token={token} accent={accent} />
 
-                {/* ─── Tab: Financeiro ─────────────────────────── */}
-                {tab === 'financeiro' && pagamento && (
-                    <div style={{ background: '#fff', padding: '24px 32px' }}>
+                {/* ─── Seção: Financeiro ───────────────────────── */}
+                {pagamento && (
+                    <div style={{ background: '#fff', padding: '24px 32px', borderTop: '1px solid #f1f5f9' }}>
                         <h2 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                             <DollarSign size={16} style={{ color: accent }} /> Financeiro
                         </h2>
@@ -1657,16 +1610,6 @@ export default function PortalCliente({ token, isPreview = false }) {
                     </div>
                 )}
 
-                {/* ─── Tab: Fotos ──────────────────────────────── */}
-                {tab === 'fotos' && (
-                <PortalGaleria token={token} accent={accent} primary={primary} />
-                )}
-
-                {/* ─── Tab: Documentos ─────────────────────────── */}
-                {tab === 'docs' && (
-                <PortalDocumentos token={token} accent={accent} />
-                )}
-
                 {/* ─── Rodapé ─────────────────────────────────── */}
                 <div style={{
                     background: '#fff', padding: '20px 32px',
@@ -1692,10 +1635,107 @@ export default function PortalCliente({ token, isPreview = false }) {
                     </button>
                 </div>
 
-                <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--muted)' }}>
+                <div style={{ textAlign: 'center', marginTop: 20, marginBottom: 80, fontSize: 12, color: 'var(--muted)' }}>
                     Portal gerado pelo sistema Ornato ERP
                 </div>
             </div>
+
+            {/* ─── Chat FAB ────────────────────────────────── */}
+            <button
+                className="no-print"
+                onClick={() => setChatOpen(true)}
+                aria-label={msgNaoLidas > 0 ? `Abrir mensagens (${msgNaoLidas} nova${msgNaoLidas > 1 ? 's' : ''})` : 'Abrir mensagens'}
+                style={{
+                    position: 'fixed', bottom: 20, right: 20, zIndex: 100,
+                    width: 58, height: 58, borderRadius: '50%',
+                    background: accent, color: '#fff', border: 'none',
+                    boxShadow: '0 10px 28px rgba(15,23,42,0.25), 0 4px 8px rgba(15,23,42,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', transition: 'transform 0.18s, box-shadow 0.18s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+            >
+                <MessageSquare size={24} aria-hidden="true" />
+                {msgNaoLidas > 0 && (
+                    <span aria-hidden="true" style={{
+                        position: 'absolute', top: -3, right: -3,
+                        background: 'var(--danger)', color: '#fff',
+                        minWidth: 22, height: 22, borderRadius: 11,
+                        fontSize: 11, fontWeight: 800,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '0 6px', border: '2px solid #fff',
+                        fontVariantNumeric: 'tabular-nums',
+                    }}>
+                        {msgNaoLidas > 9 ? '9+' : msgNaoLidas}
+                    </span>
+                )}
+            </button>
+
+            {/* ─── Chat Drawer ─────────────────────────────── */}
+            {chatOpen && (
+                <div
+                    className="no-print"
+                    onClick={() => setChatOpen(false)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Mensagens"
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 200,
+                        background: 'rgba(15,23,42,0.55)',
+                        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                        animation: 'portalChatFade 0.2s ease-out',
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            width: '100%', maxWidth: 520,
+                            background: '#fff',
+                            borderRadius: '16px 16px 0 0',
+                            maxHeight: '88vh',
+                            display: 'flex', flexDirection: 'column',
+                            overflow: 'hidden',
+                            animation: 'portalChatSlide 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+                        }}
+                    >
+                        <div style={{
+                            padding: '12px 16px', borderBottom: '1px solid #e2e8f0',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            flexShrink: 0,
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: ink, fontSize: 15 }}>
+                                <MessageSquare size={16} style={{ color: accent }} aria-hidden="true" /> Mensagens
+                            </div>
+                            <button
+                                onClick={() => setChatOpen(false)}
+                                aria-label="Fechar mensagens"
+                                style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    padding: 8, color: 'var(--muted)', borderRadius: 6,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                            <PortalChat
+                                token={token}
+                                mensagens={mensagens}
+                                accent={accent}
+                                primary={primary}
+                                clienteNome={projeto.cliente_nome}
+                                msgNaoLidas={msgNaoLidas}
+                            />
+                        </div>
+                    </div>
+                    <style>{`
+                        @keyframes portalChatFade { from { opacity: 0; } to { opacity: 1; } }
+                        @keyframes portalChatSlide { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                    `}</style>
+                </div>
+            )}
         </div>
     );
 }

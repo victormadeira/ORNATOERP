@@ -159,7 +159,7 @@ router.get('/portal/:token', (req, res) => {
     ).all(proj.id);
 
     const empresa = db.prepare(
-        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent, portal_mostrar_pagamento FROM empresa_config WHERE id = 1'
+        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, logo_watermark_path, logo_watermark_opacity, proposta_cor_primaria, proposta_cor_accent, portal_mostrar_pagamento FROM empresa_config WHERE id = 1'
     ).get() || {};
 
     // Portal v2: mensagens do chat
@@ -279,7 +279,7 @@ router.get('/portal-preview/:token', (req, res) => {
     ).all(proj.id);
 
     const empresa = db.prepare(
-        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, proposta_cor_primaria, proposta_cor_accent, portal_mostrar_pagamento FROM empresa_config WHERE id = 1'
+        'SELECT nome, telefone, email, cidade, estado, cnpj, logo_header_path, logo_watermark_path, logo_watermark_opacity, proposta_cor_primaria, proposta_cor_accent, portal_mostrar_pagamento FROM empresa_config WHERE id = 1'
     ).get() || {};
 
     const mensagens = db.prepare(`

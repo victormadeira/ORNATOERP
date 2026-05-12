@@ -13,6 +13,7 @@ installGlobalErrorHandlers();
 const ProposalPublic        = lazy(() => import('./pages/ProposalPublic'));
 const ProposalLanding       = lazy(() => import('./pages/ProposalLanding'));
 const PortalCliente         = lazy(() => import('./pages/PortalCliente'));
+const PortalClienteV2       = lazy(() => import('./pages/PortalClienteV2'));
 const MontadorUpload        = lazy(() => import('./pages/MontadorUpload'));
 const LandingPageV2         = lazy(() => import('./pages/LandingPageV2'));
 const PropostaApresentacao  = lazy(() => import('./pages/PropostaApresentacao'));
@@ -65,6 +66,9 @@ const portalToken = params.get('portal')
     || (path.match(/^\/portal\/([a-f0-9]+)$/i) || [])[1]
     || null;
 
+// Portal v2 (experimento — link paralelo): /portal-v2/TOKEN
+const portalV2Token = (path.match(/^\/portal-v2\/([a-f0-9]+)$/i) || [])[1] || null;
+
 // Suporta: ?montador=TOKEN ou /montador/TOKEN
 const montadorToken = params.get('montador')
     || (path.match(/^\/montador\/([a-f0-9]+)$/i) || [])[1]
@@ -116,7 +120,9 @@ function renderRoute() {
     if (previewPropostaToken)   return <ProposalPublic token={previewPropostaToken} isPreview />;
     if (previewPortalToken)     return <PortalCliente token={previewPortalToken} isPreview />;
     if (proposalToken)          return <ProposalPublic token={proposalToken} />;
-    if (portalToken)            return <PortalCliente token={portalToken} />;
+    // Portal v2 (oficial). /portal-v2/TOKEN mantido como alias durante transição.
+    if (portalV2Token)          return <PortalClienteV2 token={portalV2Token} />;
+    if (portalToken)            return <PortalClienteV2 token={portalToken} />;
     if (montadorToken)          return <MontadorUpload token={montadorToken} />;
     if (assinaturaToken)        return <AssinaturaPublic token={assinaturaToken} />;
     if (verificacaoCodigo)      return <VerificacaoAssinatura codigo={verificacaoCodigo} />;
