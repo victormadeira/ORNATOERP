@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { randomBytes } from 'crypto';
@@ -12,6 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+// Upload em memória (até 12MB por foto) — backend salva pro Drive ou disco
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -141,9 +145,10 @@ router.get('/public/:token', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-// POST /api/montador/public/:token/upload — upload de foto (sem auth)
+// POST /api/montador/public/:token/upload — upload de foto via multipart (sem auth)
+// FormData: arquivo (file), ambiente (text), foto_tirada_em (text ISO), lat (text), lon (text)
 // ═══════════════════════════════════════════════════
-router.post('/public/:token/upload', async (req, res) => {
+router.post('/public/:token/upload', upload.single('arquivo'), async (req, res) => {
     try {
         const tokenRow = db.prepare(`
             SELECT mt.*, p.id as projeto_id
@@ -154,32 +159,24 @@ router.post('/public/:token/upload', async (req, res) => {
 
         if (!tokenRow) return res.status(403).json({ error: 'Link invalido ou desativado' });
 
-        const { filename, data, ambiente } = req.body;
-        if (!filename || !data) return res.status(400).json({ error: 'Filename e data obrigatorios' });
+        if (!req.file) return res.status(400).json({ error: 'Arquivo obrigatorio' });
+        const { originalname, mimetype, buffer } = req.file;
+        const { ambiente = '', foto_tirada_em = '', lat = '', lon = '' } = req.body;
 
-        // Validar tipo de arquivo (apenas imagens)
+        // Validar tipo (apenas imagens)
         const ALLOWED_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'];
-        const ext = path.extname(filename).toLowerCase();
+        const ext = path.extname(originalname || '').toLowerCase();
         if (!ALLOWED_EXTS.includes(ext)) return res.status(400).json({ error: `Tipo nao permitido (${ext}). Use: ${ALLOWED_EXTS.join(', ')}` });
 
         const timestamp = Date.now();
-        const safeName = `${timestamp}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const base64Data = data.includes(',') ? data.split(',')[1] : data;
-        const buffer = Buffer.from(base64Data, 'base64');
-
-        // Validar tamanho (max 10MB)
-        const MAX_SIZE = 10 * 1024 * 1024;
-        if (buffer.length > MAX_SIZE) return res.status(400).json({ error: `Arquivo muito grande (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Max: 10MB` });
-
-        const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif' };
-        const mime = mimeMap[ext] || 'image/jpeg';
+        const safeName = `${timestamp}_${(originalname || 'foto.jpg').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
         let gdriveFileId = '';
 
         if (gdrive.isConfigured()) {
             try {
                 const folderId = await gdrive.getProjectMontadorFolder(tokenRow.projeto_id);
-                const result = await gdrive.uploadFile(folderId, safeName, mime, buffer);
+                const result = await gdrive.uploadFile(folderId, safeName, mimetype || 'image/jpeg', buffer);
                 gdriveFileId = result.id;
             } catch (err) {
                 console.error('Drive montador upload erro:', err.message);
@@ -198,10 +195,16 @@ router.post('/public/:token/upload', async (req, res) => {
         const tokenStillValid = db.prepare('SELECT id FROM montador_tokens WHERE id = ? AND ativo = 1').get(tokenRow.id);
         if (!tokenStillValid) return res.status(403).json({ error: 'Link foi desativado durante o upload' });
 
-        db.prepare(`
-            INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName, gdriveFileId);
+        // EXIF parseado: data da foto + GPS (silenciosos — null se não vieram)
+        const tiradaEm = foto_tirada_em && /^\d{4}-\d{2}-\d{2}/.test(foto_tirada_em) ? foto_tirada_em : null;
+        const latNum = lat && !isNaN(parseFloat(lat)) ? parseFloat(lat) : null;
+        const lonNum = lon && !isNaN(parseFloat(lon)) ? parseFloat(lon) : null;
+
+        const insertResult = db.prepare(`
+            INSERT INTO montador_fotos (projeto_id, token_id, nome_montador, ambiente, filename, gdrive_file_id, foto_tirada_em, lat, lon)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(tokenRow.projeto_id, tokenRow.id, tokenRow.nome_montador, ambiente || '', safeName, gdriveFileId, tiradaEm, latNum, lonNum);
+        const fotoId = insertResult.lastInsertRowid;
 
         // Notificar equipe sobre a foto enviada
         const projNome = db.prepare('SELECT nome FROM projetos WHERE id = ?').get(tokenRow.projeto_id)?.nome || '';
@@ -216,11 +219,27 @@ router.post('/public/:token/upload', async (req, res) => {
             );
         } catch (_) { /* não bloqueia */ }
 
-        res.json({ ok: true, nome: safeName });
+        res.json({ ok: true, id: fotoId, nome: safeName });
     } catch (err) {
         console.error('Montador upload erro:', err.message);
-        res.status(500).json({ error: 'Erro ao fazer upload da foto' });
+        const msg = err.code === 'LIMIT_FILE_SIZE' ? 'Arquivo muito grande (max 12MB)' : 'Erro ao fazer upload da foto';
+        res.status(500).json({ error: msg });
     }
+});
+
+// ═══════════════════════════════════════════════════
+// PUT /api/montador/public/:token/foto/:id/ambiente — montador ajusta ambiente após upload
+// (apenas se a foto foi criada por esse mesmo token, evita interferir em fotos da equipe)
+// ═══════════════════════════════════════════════════
+router.put('/public/:token/foto/:id/ambiente', (req, res) => {
+    const tokenRow = db.prepare('SELECT id FROM montador_tokens WHERE token = ? AND ativo = 1').get(req.params.token);
+    if (!tokenRow) return res.status(403).json({ error: 'Link invalido' });
+    const fotoId = parseInt(req.params.id);
+    const foto = db.prepare('SELECT id, token_id FROM montador_fotos WHERE id = ?').get(fotoId);
+    if (!foto || foto.token_id !== tokenRow.id) return res.status(404).json({ error: 'Foto não encontrada' });
+    const ambiente = (req.body?.ambiente || '').toString().slice(0, 80);
+    db.prepare('UPDATE montador_fotos SET ambiente = ? WHERE id = ?').run(ambiente, fotoId);
+    res.json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════

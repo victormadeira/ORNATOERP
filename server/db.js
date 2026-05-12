@@ -2610,6 +2610,11 @@ const migrations = [
 
   // ═══ Plugin SketchUp — BOM ao vivo ═══
   "ALTER TABLE orcamentos ADD COLUMN plugin_bom TEXT DEFAULT NULL",
+
+  // ═══ Montador fotos — metadados EXIF (data + GPS da foto) ═══
+  "ALTER TABLE montador_fotos ADD COLUMN foto_tirada_em DATETIME DEFAULT NULL",
+  "ALTER TABLE montador_fotos ADD COLUMN lat REAL DEFAULT NULL",
+  "ALTER TABLE montador_fotos ADD COLUMN lon REAL DEFAULT NULL",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══
