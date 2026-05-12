@@ -356,11 +356,17 @@ function GanttChart({ etapas }) {
                     const leftPct = ((start - minD) / totalMs) * 100;
                     const widthPct = Math.max(2, ((end - start) / totalMs) * 100);
 
+                    // Status explícito vence — quando vier vazio, infere pela data atual
                     const isDone = e.status === 'concluida';
-                    const isActive = e.status === 'em_andamento' || e.status === 'atrasada';
-                    const isLate = e.status === 'atrasada';
-                    const tone = isDone ? 'done' : isActive ? 'active' : 'neutral';
-                    const progresso = isDone ? 100 : (e.progresso ?? (isActive ? Math.max(5, Math.min(95, ((now - start) / (end - start)) * 100)) : 0));
+                    const isExplicitActive = e.status === 'em_andamento' || e.status === 'atrasada';
+                    const containsToday = start <= now && now <= end;
+                    const isImplicitActive = !isDone && !isExplicitActive && containsToday;
+                    const isPastImplicit = !isDone && !isExplicitActive && end < now;
+                    const isActive = isExplicitActive || isImplicitActive;
+                    const tone = isDone ? 'done' : isActive ? 'active' : isPastImplicit ? 'past' : 'neutral';
+                    const progresso = isDone
+                        ? 100
+                        : (e.progresso ?? (isActive ? Math.max(5, Math.min(95, ((now - start) / Math.max(1, end - start)) * 100)) : 0));
 
                     return (
                         <div key={e.id || i} className="v2-gantt-row" style={{ animationDelay: `${i * 80}ms` }}>
@@ -1291,6 +1297,12 @@ const V2_STYLES = `
 .v2-gantt-bar-neutral {
     background: color-mix(in oklch, var(--v2-ink) 8%, transparent);
     border: 1px solid color-mix(in oklch, var(--v2-ink) 12%, transparent);
+}
+/* past: etapa cuja data já passou mas equipe ainda não marcou status. Sutilmente "feita" — cinza mais escuro. */
+.v2-gantt-bar-past {
+    background: color-mix(in oklch, var(--v2-ink) 14%, transparent);
+    border: 1px solid color-mix(in oklch, var(--v2-ink) 20%, transparent);
+    opacity: 0.85;
 }
 .v2-gantt-bar-active {
     background: color-mix(in oklch, var(--v2-cobre) 18%, var(--v2-surface));
