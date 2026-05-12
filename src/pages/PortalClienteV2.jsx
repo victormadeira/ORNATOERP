@@ -945,9 +945,13 @@ export default function PortalClienteV2({ token }) {
     const atividades = projeto.atividades || [];
     const ocorrencias = projeto.ocorrencias || [];
     const msgNaoLidas = projeto.msgNaoLidas || 0;
-    const concluidasPct = etapas.length
-        ? Math.round(etapas.filter(e => e.status === 'concluida').length / etapas.length * 100)
-        : 0;
+    // Backend agora calcula com pesos por categoria. Fallback pro modelo antigo
+    // se a API for antiga (compat com versões anteriores do portal).
+    const concluidasPct = projeto.progresso_calculado != null
+        ? projeto.progresso_calculado
+        : (etapas.length
+            ? Math.round(etapas.filter(e => e.status === 'concluida').length / etapas.length * 100)
+            : 0);
 
     return (
         <div className="v2-shell">

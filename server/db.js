@@ -2615,6 +2615,11 @@ const migrations = [
   "ALTER TABLE montador_fotos ADD COLUMN foto_tirada_em DATETIME DEFAULT NULL",
   "ALTER TABLE montador_fotos ADD COLUMN lat REAL DEFAULT NULL",
   "ALTER TABLE montador_fotos ADD COLUMN lon REAL DEFAULT NULL",
+
+  // ═══ Progresso ponderado de projeto — pesos editáveis por etapa ═══
+  // JSON: { medicao, aprovacao, compra, producao, acabamento, entrega, default }
+  // Service calcularProgressoProjeto usa esses pesos via regex de nome.
+  `ALTER TABLE empresa_config ADD COLUMN progresso_pesos_json TEXT DEFAULT '{"medicao":5,"aprovacao":5,"compra":5,"producao":35,"acabamento":20,"entrega":30,"default":10}'`,
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

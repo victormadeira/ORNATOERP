@@ -3,6 +3,7 @@ import db from '../db.js';
 import { requireAuth } from '../auth.js';
 import { randomBytes } from 'crypto';
 import { createNotification, logActivity } from '../services/notificacoes.js';
+import { calcularProgressoProjeto } from '../services/progresso.js';
 import { calcularListaCorte, loadBiblioteca } from './producao.js';
 import fs from 'fs';
 import path from 'path';
@@ -236,6 +237,7 @@ router.get('/portal/:token', (req, res) => {
             pagamento,
             atividades,
             msgNaoLidas,
+            progresso_calculado: calcularProgressoProjeto(etapas),
         },
         empresa,
     });
@@ -321,6 +323,7 @@ router.get('/portal-preview/:token', (req, res) => {
             data_inicio: proj.data_inicio, data_vencimento: proj.data_vencimento,
             cliente_nome: proj.cliente_nome, etapas, ocorrencias, mensagens, ambientes,
             pagamento, atividades, msgNaoLidas: 0,
+            progresso_calculado: calcularProgressoProjeto(etapas),
         },
         empresa,
         preview: true,
@@ -562,7 +565,8 @@ router.get('/:id', requireAuth, (req, res) => {
         } catch (_) {}
     }
 
-    res.json({ ...proj, etapas, ocorrencias, ambientes_parsed });
+    const progresso_calculado = calcularProgressoProjeto(etapas);
+    res.json({ ...proj, etapas, ocorrencias, ambientes_parsed, progresso_calculado });
 });
 
 // ═══════════════════════════════════════════════════

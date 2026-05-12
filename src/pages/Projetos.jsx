@@ -750,7 +750,11 @@ function TabCronograma({ data, load, notify, users }) {
             .catch(() => notify('Erro ao registrar ocorrência'));
     };
 
-    const progresso = data.etapas?.length ? Math.round((data.etapas.filter(e => e.status === 'concluida').length / data.etapas.length) * 100) : 0;
+    // Backend retorna progresso ponderado em data.progresso_calculado.
+    // Fallback ao cálculo antigo se a API for antiga.
+    const progresso = data.progresso_calculado != null
+        ? data.progresso_calculado
+        : (data.etapas?.length ? Math.round((data.etapas.filter(e => e.status === 'concluida').length / data.etapas.length) * 100) : 0);
 
     const todayStr = new Date().toISOString().slice(0, 10);
 

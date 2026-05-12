@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin, Zap } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin, Zap, BarChart3 } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -140,6 +140,111 @@ function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 2 * 1
 // Backwards-compatible alias
 function LogoUploader({ logo, onChange, disabled }) {
     return <ImageUploader label="Logo da Empresa" image={logo} onChange={onChange} disabled={disabled} />;
+}
+
+// ─── Card: Pesos do Cálculo de Progresso ──────────────
+// Configura o peso de cada categoria de etapa pra calcular o % de progresso
+// do projeto. Antes era (concluídas/total)*100 — Medição+Aprovação+Compra dava
+// 50% sem nada produzido. Agora cada categoria tem peso configurável.
+function PesosProgressoCard({ notify }) {
+    const DEFAULTS = { medicao: 5, aprovacao: 5, compra: 5, producao: 35, acabamento: 20, entrega: 30, default: 10 };
+    const LABELS = {
+        medicao:    { lb: 'Medição / Levantamento', dica: 'Match: nomes com "medição" ou "levantamento"' },
+        aprovacao:  { lb: 'Aprovação / Projeto 3D',  dica: 'Match: "aprovação", "projeto 3D", "render"' },
+        compra:     { lb: 'Compra de Materiais',     dica: 'Match: "compra" ou "material"' },
+        producao:   { lb: 'Produção',                dica: 'Match: "produção" ou "fábrica"' },
+        acabamento: { lb: 'Acabamento / Pintura',    dica: 'Match: "acabamento", "pintura", "laca"' },
+        entrega:    { lb: 'Entrega / Instalação',    dica: 'Match: "entrega", "instalação", "montagem"' },
+        default:    { lb: 'Etapa customizada',       dica: 'Peso para etapas com nome fora do padrão' },
+    };
+    const [pesos, setPesos] = useState(DEFAULTS);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setLoading(true);
+        api.get('/config/progresso-pesos')
+            .then(p => setPesos({ ...DEFAULTS, ...p }))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, []);
+
+    const total = (pesos.medicao || 0) + (pesos.aprovacao || 0) + (pesos.compra || 0)
+        + (pesos.producao || 0) + (pesos.acabamento || 0) + (pesos.entrega || 0);
+
+    const upd = (key, val) => {
+        const v = Math.max(0, Math.min(100, Number(val) || 0));
+        setPesos(prev => ({ ...prev, [key]: v }));
+    };
+
+    const salvar = async () => {
+        setSaving(true);
+        try {
+            await api.put('/config/progresso-pesos', pesos);
+            notify?.('Pesos de progresso salvos. Próximas requisições já usam os novos valores.', 'success');
+        } catch (e) {
+            notify?.('Falha ao salvar pesos: ' + (e.error || e.message), 'error');
+        } finally { setSaving(false); }
+    };
+
+    const reset = () => setPesos({ ...DEFAULTS });
+
+    return (
+        <div className={Z.card + ' mt-4'}>
+            <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                    <BarChart3 size={20} style={{ color: 'var(--primary)' }} />
+                </div>
+                <div>
+                    <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Pesos do Cálculo de Progresso</h2>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Define o peso de cada fase no % de progresso do projeto. Detecção automática pelo nome da etapa.
+                    </p>
+                </div>
+            </div>
+
+            <div className="mb-3 p-3 rounded-lg flex items-center justify-between" style={{ background: total === 100 ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)' }}>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Soma das 6 fases principais: <strong style={{ color: total === 100 ? 'var(--success)' : 'var(--warning)' }}>{total}%</strong>
+                    {total !== 100 && <span style={{ marginLeft: 8 }}>(idealmente 100%, mas backend normaliza)</span>}
+                </span>
+            </div>
+
+            {loading ? (
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Carregando...</div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.keys(LABELS).map(key => (
+                        <div key={key}>
+                            <label className={Z.lbl} title={LABELS[key].dica}>{LABELS[key].lb}</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={pesos[key] ?? 0}
+                                    onChange={e => upd(key, e.target.value)}
+                                    className={Z.inp}
+                                />
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-4">
+                <button onClick={reset} className={Z.btn2} disabled={loading || saving}>Restaurar Padrão</button>
+                <button onClick={salvar} className={Z.btn} disabled={loading || saving}>
+                    {saving ? 'Salvando...' : 'Salvar Pesos'}
+                </button>
+            </div>
+
+            <p className="text-[10px] mt-3" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Como funciona: o sistema detecta a categoria de cada etapa pelo nome (regex case-insensitive) e soma <code>peso × progresso/100</code> de cada uma. Etapas em andamento contam parcialmente. Etapas com nome fora dos padrões usam o peso "Etapa customizada".
+            </p>
+        </div>
+    );
 }
 
 export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos, onMenusChange }) {
@@ -5070,6 +5175,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 Ao criar um novo projeto, basta informar a data de início. As datas de cada etapa serão calculadas automaticamente com base nas durações acima, em sequência.
                             </p>
                         </div>
+
+                        <PesosProgressoCard notify={notify} />
                     </div>
                 );
             })()}
