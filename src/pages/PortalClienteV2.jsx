@@ -926,16 +926,13 @@ export default function PortalClienteV2({ token }) {
         <div className="v2-shell">
             <style>{V2_STYLES}</style>
 
-            {/* Background editorial — papel quente + formas orgânicas suaves */}
+            {/* Background editorial — papel suave + vignette cobre minimalíssima */}
             <div className="v2-bg" aria-hidden="true">
-                <div className="v2-bg-blob v2-bg-blob-1" />
-                <div className="v2-bg-blob v2-bg-blob-2" />
-                <div className="v2-bg-blob v2-bg-blob-3" />
                 <div className="v2-bg-vignette" />
                 <svg className="v2-bg-noise" viewBox="0 0 200 200" preserveAspectRatio="none">
                     <filter id="v2NoiseFilter">
                         <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3" />
-                        <feColorMatrix values="0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0.14 0" />
+                        <feColorMatrix values="0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0.08 0" />
                     </filter>
                     <rect width="100%" height="100%" filter="url(#v2NoiseFilter)" />
                 </svg>
@@ -983,9 +980,9 @@ const V2_STYLES = `
     --v2-display: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-body: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-    --v2-paper: #FAF8F3;
+    --v2-paper: #FCFAF6;
     --v2-surface: #ffffff;
-    --v2-surface-2: #F3EFE7;
+    --v2-surface-2: #F5F1EA;
     --v2-ink: oklch(0.20 0.012 60);
     --v2-ink-2: oklch(0.46 0.012 60);
     --v2-ink-3: oklch(0.68 0.012 60);
@@ -1020,56 +1017,13 @@ const V2_STYLES = `
 .v2-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
 .v2-bg-vignette {
     position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
-    width: 140vw; height: 80vh; max-height: 800px;
-    background: radial-gradient(ellipse at center top, color-mix(in oklch, var(--v2-cobre) 10%, transparent) 0%, transparent 55%);
+    width: 140vw; height: 70vh; max-height: 700px;
+    background: radial-gradient(ellipse at center top, color-mix(in oklch, var(--v2-cobre) 7%, transparent) 0%, transparent 55%);
     filter: blur(24px);
-}
-.v2-bg-blob {
-    position: absolute;
-    filter: blur(60px);
-    will-change: transform;
-}
-.v2-bg-blob-1 {
-    top: -5%; right: -8%;
-    width: 540px; height: 540px;
-    background: color-mix(in oklch, var(--v2-cobre) 22%, transparent);
-    border-radius: 63% 37% 54% 46% / 41% 51% 49% 59%;
-    opacity: 0.55;
-    animation: v2BlobDrift1 42s ease-in-out infinite;
-}
-.v2-bg-blob-2 {
-    top: 35%; left: -15%;
-    width: 480px; height: 480px;
-    background: color-mix(in oklch, var(--v2-cobre) 12%, transparent);
-    border-radius: 42% 58% 38% 62% / 56% 47% 53% 44%;
-    opacity: 0.42;
-    animation: v2BlobDrift2 56s ease-in-out infinite;
-}
-.v2-bg-blob-3 {
-    bottom: -10%; right: -5%;
-    width: 600px; height: 600px;
-    background: color-mix(in oklch, var(--v2-cobre) 9%, transparent);
-    border-radius: 58% 42% 47% 53% / 62% 39% 61% 38%;
-    opacity: 0.35;
-    animation: v2BlobDrift3 64s ease-in-out infinite;
 }
 .v2-bg-noise {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0.45; mix-blend-mode: multiply;
-}
-@keyframes v2BlobDrift1 {
-    0%, 100% { transform: translate(0, 0) rotate(0deg); }
-    33% { transform: translate(-30px, 25px) rotate(8deg); }
-    66% { transform: translate(20px, -15px) rotate(-5deg); }
-}
-@keyframes v2BlobDrift2 {
-    0%, 100% { transform: translate(0, 0) rotate(0deg); }
-    50% { transform: translate(40px, -30px) rotate(-10deg); }
-}
-@keyframes v2BlobDrift3 {
-    0%, 100% { transform: translate(0, 0) rotate(0deg); }
-    40% { transform: translate(-25px, -35px) rotate(6deg); }
-    80% { transform: translate(15px, 20px) rotate(-4deg); }
+    opacity: 0.35; mix-blend-mode: multiply;
 }
 
 /* ── Ring de progresso ── */
