@@ -120,8 +120,9 @@ function renderRoute() {
     if (previewPropostaToken)   return <ProposalPublic token={previewPropostaToken} isPreview />;
     if (previewPortalToken)     return <PortalCliente token={previewPortalToken} isPreview />;
     if (proposalToken)          return <ProposalPublic token={proposalToken} />;
+    // Portal v2 (oficial). /portal-v2/TOKEN mantido como alias durante transição.
     if (portalV2Token)          return <PortalClienteV2 token={portalV2Token} />;
-    if (portalToken)            return <PortalCliente token={portalToken} />;
+    if (portalToken)            return <PortalClienteV2 token={portalToken} />;
     if (montadorToken)          return <MontadorUpload token={montadorToken} />;
     if (assinaturaToken)        return <AssinaturaPublic token={assinaturaToken} />;
     if (verificacaoCodigo)      return <VerificacaoAssinatura codigo={verificacaoCodigo} />;
