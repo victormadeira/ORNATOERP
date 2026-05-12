@@ -204,9 +204,9 @@ function Hero({ projeto, empresa, concluidasPct, etapas }) {
                     </Reveal>
 
                     <Reveal delay={80} as="h1" className="v2-hero-title" style={{
-                        margin: '20px 0 0', fontFamily: 'var(--v2-display)',
-                        fontSize: 'clamp(2.25rem, 6vw, 4rem)', fontWeight: 600,
-                        letterSpacing: '-0.04em', lineHeight: 1.02,
+                        margin: '18px 0 0', fontFamily: 'var(--v2-display-condensed)',
+                        fontSize: 'clamp(2.75rem, 7.2vw, 4.75rem)', fontWeight: 400,
+                        letterSpacing: '-0.01em', lineHeight: 1.0,
                         color: 'var(--v2-ink)',
                     }}>
                         Olá, <span className="v2-hero-name">{(projeto.cliente_nome || 'Cliente').trim().split(' ')[0]}</span>.
@@ -866,7 +866,7 @@ export default function PortalClienteV2({ token }) {
             const link = document.createElement('link');
             link.id = id;
             link.rel = 'stylesheet';
-            link.href = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap';
+            link.href = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Oswald:wght@300;400;500;600&display=swap';
             document.head.appendChild(link);
         }
     }, []);
@@ -926,15 +926,14 @@ export default function PortalClienteV2({ token }) {
         <div className="v2-shell">
             <style>{V2_STYLES}</style>
 
-            {/* Background editorial — papel suave + vignette cobre minimalíssima */}
+            {/* Background brand — papel quente + vignette sienna + diagonais (grafismo Ornato) */}
             <div className="v2-bg" aria-hidden="true">
                 <div className="v2-bg-vignette" />
-                <svg className="v2-bg-noise" viewBox="0 0 200 200" preserveAspectRatio="none">
-                    <filter id="v2NoiseFilter">
-                        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3" />
-                        <feColorMatrix values="0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0.08 0" />
-                    </filter>
-                    <rect width="100%" height="100%" filter="url(#v2NoiseFilter)" />
+                <div className="v2-bg-diagonals" />
+                {/* Grafismo brand: paralelogramo diagonal como marca d'água sutil no canto */}
+                <svg className="v2-bg-grafismo" viewBox="0 0 100 100" fill="none">
+                    <path d="M 30 10 L 70 10 L 60 50 L 20 50 Z" fill="var(--v2-cobre-deep)" />
+                    <path d="M 40 50 L 80 50 L 70 90 L 30 90 Z" fill="var(--v2-cobre-deep)" />
                 </svg>
             </div>
 
@@ -977,18 +976,23 @@ export default function PortalClienteV2({ token }) {
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const V2_STYLES = `
 .v2-shell {
+    /* Tipografia da marca: Oswald-condensed pros títulos grandes (lembra o lettering ORNATO em CAPS),
+       Geist pra body + títulos médios, Geist Mono pros numéricos */
+    --v2-display-condensed: 'Oswald', 'Geist', system-ui, sans-serif;
     --v2-display: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-body: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-    --v2-paper: #FCFAF6;
+    /* Paleta da marca Ornato (do Manual de Identidade Visual): bege #DDD2CC, sienna #93614C, cinza quente #847974, preto quente #1E1917 */
+    --v2-paper: #FAF7F2;
     --v2-surface: #ffffff;
-    --v2-surface-2: #F5F1EA;
-    --v2-ink: oklch(0.20 0.012 60);
-    --v2-ink-2: oklch(0.46 0.012 60);
-    --v2-ink-3: oklch(0.68 0.012 60);
-    --v2-border: oklch(0.91 0.006 70);
-    --v2-border-soft: oklch(0.94 0.005 70);
-    --v2-cobre: oklch(0.71 0.078 70);
+    --v2-surface-2: #F2EDE5;
+    --v2-ink: #1A1614;
+    --v2-ink-2: #5C544E;
+    --v2-ink-3: #847974;
+    --v2-border: #E5DED5;
+    --v2-border-soft: #EDE8DF;
+    --v2-cobre: #B7654A; /* sienna brand — variável mantém nome "cobre" por compat interna */
+    --v2-cobre-deep: #93614C; /* sienna profundo do manual */
     --v2-cobre-soft: color-mix(in oklch, var(--v2-cobre) 12%, transparent);
 
     min-height: 100vh;
@@ -1013,17 +1017,30 @@ const V2_STYLES = `
 @keyframes v2DrawerIn { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes v2ScrimIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* ── Background editorial ── */
+/* ── Background editorial — vignette sienna + diagonais sutis (grafismo da marca) ── */
 .v2-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
 .v2-bg-vignette {
     position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
     width: 140vw; height: 70vh; max-height: 700px;
-    background: radial-gradient(ellipse at center top, color-mix(in oklch, var(--v2-cobre) 7%, transparent) 0%, transparent 55%);
+    background: radial-gradient(ellipse at center top, color-mix(in oklch, var(--v2-cobre) 8%, transparent) 0%, transparent 55%);
     filter: blur(24px);
 }
-.v2-bg-noise {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0.35; mix-blend-mode: multiply;
+.v2-bg-diagonals {
+    position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(
+        62deg,
+        transparent 0,
+        transparent 88px,
+        color-mix(in oklch, var(--v2-ink) 3.5%, transparent) 88px,
+        color-mix(in oklch, var(--v2-ink) 3.5%, transparent) 89px
+    );
+    opacity: 0.9;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 85%, transparent 100%);
+}
+.v2-bg-grafismo {
+    position: absolute; bottom: -120px; right: -80px;
+    width: 380px; height: 380px; opacity: 0.05;
 }
 
 /* ── Ring de progresso ── */
@@ -1052,7 +1069,7 @@ const V2_STYLES = `
     padding: 22px 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
 .v2-logo { height: 32px; max-width: 160px; object-fit: contain; }
-.v2-logo-text { font-family: var(--v2-display); font-weight: 600; font-size: 18px; letter-spacing: -0.02em; color: var(--v2-ink); }
+.v2-logo-text { font-family: var(--v2-display-condensed); font-weight: 500; font-size: 22px; letter-spacing: 0.04em; color: var(--v2-ink); text-transform: uppercase; }
 .v2-topbar-label {
     font-family: var(--v2-mono); font-size: 11px; font-weight: 500;
     letter-spacing: 0.16em; text-transform: uppercase; color: var(--v2-ink-3);
@@ -1134,9 +1151,9 @@ const V2_STYLES = `
     opacity: 0.85;
 }
 .v2-section h2 {
-    margin: 0; font-family: var(--v2-display);
-    font-size: clamp(1.625rem, 2.8vw, 2.125rem);
-    font-weight: 600; letter-spacing: -0.028em; color: var(--v2-ink); line-height: 1.15;
+    margin: 0; font-family: var(--v2-display-condensed);
+    font-size: clamp(1.875rem, 3.4vw, 2.5rem);
+    font-weight: 500; letter-spacing: -0.005em; color: var(--v2-ink); line-height: 1.0;
 }
 
 /* ── Status pill ── */
