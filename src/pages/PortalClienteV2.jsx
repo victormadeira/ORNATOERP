@@ -209,7 +209,12 @@ function Hero({ projeto, empresa, concluidasPct, etapas }) {
                         letterSpacing: '-0.01em', lineHeight: 1.0,
                         color: 'var(--v2-ink)',
                     }}>
-                        Olá, <span className="v2-hero-name">{(projeto.cliente_nome || 'Cliente').trim().split(' ')[0]}</span>.
+                        Olá, <span className="v2-hero-name">{(() => {
+                            const nome = (projeto.cliente_nome || 'Cliente').trim();
+                            // Casal ("Diego e Tamara Silva") → mantém os dois primeiros nomes
+                            const casal = nome.match(/^([^\s]+)\s+e\s+([^\s]+)/i);
+                            return casal ? `${casal[1]} e ${casal[2]}` : nome.split(' ')[0];
+                        })()}</span>.
                     </Reveal>
 
                     <Reveal delay={140} as="p" style={{
@@ -1133,7 +1138,8 @@ const V2_STYLES = `
     content: '';
     position: absolute;
     left: 2%; right: 2%;
-    bottom: -0.06em;
+    /* Posicionada abaixo dos descenders (g, j, p, q, y) — não corta a letra */
+    bottom: -0.18em;
     height: 0.06em;
     background: var(--v2-cobre);
     border-radius: 2px;
