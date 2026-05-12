@@ -4879,12 +4879,37 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     }
 
     // --- Ferramenta de contorno (prioridade: config > fresa_compressao > fresa_reta > fresa genérica) ---
+    // Filtra por profundidade_max >= espChapa pra evitar pegar uma fresa de gravação Ø3mm
+    // pra cortar chapa de 18mm. Ordena por diâmetro DESC dentro de cada categoria — fresas
+    // maiores cortam mais rápido. Se nenhuma compatível, escolhe a mais profunda disponível
+    // e emite alerta crítico.
     let contTool = cfg.contorno_tool_code ? toolMap[cfg.contorno_tool_code] : null;
     if (!contTool) {
         const allTools = Object.values(toolMap);
-        contTool = allTools.find(t => t.tipo_corte === 'fresa_compressao')
-            || allTools.find(t => t.tipo_corte === 'fresa_reta')
-            || allTools.find(t => t.tipo === 'fresa');
+        const espNeeded = espChapa + (profExtraMaq || 0);
+        const isCompat = (t) => (t.profundidade_max ?? 0) >= espNeeded;
+        const byDiamDesc = (a, b) => (b.diametro || 0) - (a.diametro || 0);
+        const pickCompat = (pred) => allTools.filter(t => pred(t) && isCompat(t)).sort(byDiamDesc)[0];
+
+        contTool = pickCompat(t => t.tipo_corte === 'fresa_compressao')
+            || pickCompat(t => t.tipo_corte === 'fresa_reta')
+            || pickCompat(t => t.tipo === 'fresa');
+
+        // Fallback final: nenhuma compatível com a profundidade da chapa — pega a melhor disponível
+        // mas alerta o usuário que pode quebrar a fresa ou não cortar a peça inteira.
+        if (!contTool) {
+            const desperate = (allTools.filter(t => t.tipo_corte === 'fresa_compressao')
+                || allTools.filter(t => t.tipo_corte === 'fresa_reta')
+                || allTools.filter(t => t.tipo === 'fresa') || [])
+                .sort((a, b) => (b.profundidade_max || 0) - (a.profundidade_max || 0));
+            contTool = desperate[0] || null;
+            if (contTool) {
+                alertas.push({
+                    tipo: 'erro_critico',
+                    msg: `Fresa de contorno "${contTool.nome}" tem profundidade_max=${contTool.profundidade_max ?? 'indef.'}mm < chapa=${fmt(espNeeded)}mm. Cadastre fresa compatível ou ajuste profundidade_max em Config → Ferramentas.`,
+                });
+            }
+        }
     }
     if (!contTool) {
         alertas.push({ tipo: 'aviso', msg: 'Nenhuma fresa de contorno no magazine. Contornos não serão gerados.' });
@@ -5575,6 +5600,12 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
     // ═══ PASSO 3: Gerar G-code ═══
     const onionOps = [];
+    // Defesa: Set de op-keys que efetivamente emitiram contorno principal (desbaste até depthCont).
+    // Antes de processar o passe diferido, verificamos que cada onionOp está nesse Set.
+    // Sem isso, qualquer `continue` futuro no loop de geração entre push(allOps) e push(onionOps)
+    // criaria um passe diferido cortando 17mm a F1500 em material maciço = quebra fresa.
+    const roughedContourOps = new Set();
+    const opKey = (op) => `${op.pecaId ?? '?'}:${op.toolCode ?? '?'}:${op.absX ?? 0},${op.absY ?? 0}`;
     let onionInlineCount = 0;
     let trocas = 0, totalOps = 0, curTool = null;
     // Centro da chapa para otimização "entrada pelo interior" (usado em múltiplos blocos)
@@ -5746,16 +5777,21 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     const path = op.contornoPath;
                     if (path && path.length >= 4) {
                         const dFull = op.onionDepthFull || op.depthTotal;
-                        const velFinal = Math.round(op.velCorte * 0.6);
+                        const velFinal = Math.max(velMergulho + 200, Math.round(op.velCorte * 0.6));
                         L.push(`${cmt} Breakthrough (por peça): ${op.pecaDesc} — skin=${onionEsp}mm`);
                         // Mesma rotação "entrada pelo interior" do desbaste
                         const _bk = (() => { if(!entradaPeloInterior) return 0; let b=0, bd=Infinity; for (let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
                         const _bp = _bk===0?path:[...path.slice(_bk),...path.slice(0,_bk)];
                         const p0=_bp[0],p1=_bp[1],p2=_bp[2],p3=_bp[3];
+                        // SAFE PLUNGE: G0 até logo acima do skin, G1 só nos últimos onionEsp + profExtra
+                        const _skinTopZ = zCut(Math.max(0, dFull - onionEsp));
+                        const _clearance = Math.min(1.0, Math.max(0.3, onionEsp * 0.5));
+                        const _safePreZ = _skinTopZ + _clearance;
+                        const _plungeMm = _safePreZ - zCut(dFull);
                         emit(`G0 ${XY(p0.x, p0.y)}`);
-                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G0 Z${fmt(_safePreZ)}`);
                         emit(`G1 Z${fmt(zCut(dFull))} F${Math.min(velMergulho, velFinal)}`);
-                        L.push(`${cmt}   vel. reduzida (breakthrough ${onionEsp}mm)`);
+                        L.push(`${cmt}   plunge ${fmt(_plungeMm)}mm em skin (${fmt(onionEsp)}mm) + profExtra`);
                         if (dirCorte === 'climb') {
                             emit(`G1 ${XY(p3.x, p3.y)} F${velFinal}`);
                             emit(`G1 ${XY(p2.x, p2.y)} F${velFinal}`);
@@ -5771,7 +5807,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         onionInlineCount++;
                     }
                 } else {
-                    onionOps.push({ ...op, velFinal: Math.round(op.velCorte * 0.6) });
+                    // Modo diferido — marca que o contorno principal foi emitido com sucesso
+                    // antes de agendar o passe de breakthrough.
+                    roughedContourOps.add(opKey(op));
+                    onionOps.push({ ...op, velFinal: Math.max(velMergulho + 200, Math.round(op.velCorte * 0.6)) });
                 }
             }
             L.push('');
@@ -6148,16 +6187,21 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     const path = op.contornoPath;
                     if (path && path.length >= 4) {
                         const dFull = op.onionDepthFull || op.depthTotal;
-                        const velFinal = Math.round(op.velCorte * 0.6);
+                        const velFinal = Math.max(velMergulho + 200, Math.round(op.velCorte * 0.6));
                         L.push(`${cmt} Breakthrough (por peça): ${op.pecaDesc} — skin=${onionEsp}mm`);
                         // Mesma rotação "entrada pelo interior"
                         const _bk2 = (() => { if(!entradaPeloInterior) return 0; let b=0,bd=Infinity; for(let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
                         const _bp2 = _bk2===0?path:[...path.slice(_bk2),...path.slice(0,_bk2)];
                         const p0=_bp2[0],p1=_bp2[1],p2=_bp2[2],p3=_bp2[3];
+                        // SAFE PLUNGE (idem demais locais de breakthrough)
+                        const _skinTopZ = zCut(Math.max(0, dFull - onionEsp));
+                        const _clearance = Math.min(1.0, Math.max(0.3, onionEsp * 0.5));
+                        const _safePreZ = _skinTopZ + _clearance;
+                        const _plungeMm = _safePreZ - zCut(dFull);
                         emit(`G0 ${XY(p0.x, p0.y)}`);
-                        emit(`G0 Z${fmt(zApproach())}`);
+                        emit(`G0 Z${fmt(_safePreZ)}`);
                         emit(`G1 Z${fmt(zCut(dFull))} F${Math.min(velMergulho, velFinal)}`);
-                        L.push(`${cmt}   vel. reduzida (breakthrough ${onionEsp}mm)`);
+                        L.push(`${cmt}   plunge ${fmt(_plungeMm)}mm em skin (${fmt(onionEsp)}mm) + profExtra`);
                         if (dirCorte === 'climb') {
                             emit(`G1 ${XY(p3.x, p3.y)} F${velFinal}`);
                             emit(`G1 ${XY(p2.x, p2.y)} F${velFinal}`);
@@ -6173,7 +6217,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         onionInlineCount++;
                     }
                 } else {
-                    onionOps.push({ ...op, velFinal: Math.round(op.velCorte * 0.6) });
+                    // Modo diferido — marca que o contorno principal foi emitido com sucesso
+                    // antes de agendar o passe de breakthrough.
+                    roughedContourOps.add(opKey(op));
+                    onionOps.push({ ...op, velFinal: Math.max(velMergulho + 200, Math.round(op.velCorte * 0.6)) });
                 }
             }
             L.push('');
@@ -6545,13 +6592,28 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
     // ═══ PASSE FINAL: Onion-skin breakthrough (modo diferido) ═══
     if (onionOps.length > 0) {
+        // Defesa: filtra apenas ops cujo contorno principal foi REALMENTE emitido.
+        // Sem isso, um `continue` futuro entre push(allOps) e push(onionOps) deixaria
+        // este passe cortando material maciço a F vel_corte. Risco: quebra de fresa.
+        const safeOnionOps = onionOps.filter(o => roughedContourOps.has(opKey(o)));
+        const skipped = onionOps.length - safeOnionOps.length;
+        if (skipped > 0) {
+            alertas.push({
+                tipo: 'erro_critico',
+                msg: `${skipped} contorno(s) marcado(s) pra breakthrough sem ter sido desbastado. Pulei pra evitar quebra de fresa. Reporte ao suporte.`,
+            });
+            console.warn(`[CNC] Passe diferido: ${skipped} ops removidas por falta de desbaste prévio.`);
+        }
+        if (safeOnionOps.length === 0) {
+            L.push('', `${cmt} (Passe diferido pulado — nenhum contorno foi desbastado validamente)`);
+        }
         L.push('', `${cmt} ════════════════════════════════════════════════════════`);
-        L.push(`${cmt} PASSE FINAL -- Onion-skin breakthrough diferido (${onionOps.length} contornos)`);
+        L.push(`${cmt} PASSE FINAL -- Onion-skin breakthrough diferido (${safeOnionOps.length} contornos)`);
         L.push(`${cmt} Corte dos ultimos ${onionEsp}mm com velocidade reduzida (60%)`);
         L.push(`${cmt} ════════════════════════════════════════════════════════`, '');
 
         const onionByTool = {};
-        for (const o of onionOps) { (onionByTool[o.toolCode] ||= []).push(o); }
+        for (const o of safeOnionOps) { (onionByTool[o.toolCode] ||= []).push(o); }
 
         for (const [tc, ops] of Object.entries(onionByTool)) {
             const tl = toolMap[tc];
@@ -6586,11 +6648,17 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
                 L.push(`${cmt} Breakthrough: ${os.pecaDesc} Prof=${fmt(dFull)} (${os.areaCm2.toFixed(0)}cm2)`);
 
-                // Para breakthrough, entrada direta (pele fina, sem necessidade de rampa complexa)
+                // SAFE PLUNGE: o desbaste anterior já abriu até `dFull - onionEsp`.
+                // G0 rápido até logo acima do skin, G1 cortando só os últimos onionEsp + profExtra.
+                // Antes: G0 Z(approach=espChapa+2) → G1 Z(dFull) F1500 desce chapa inteira em ar e mata fresa se vácuo soltar.
+                const _skinTopZ = zCut(Math.max(0, dFull - onionEsp));
+                const _clearance = Math.min(1.0, Math.max(0.3, onionEsp * 0.5));
+                const _safePreZ = _skinTopZ + _clearance;
+                const _plungeMm = _safePreZ - zCut(dFull);
                 emit(`G0 ${XY(p0.x, p0.y)}`);
-                emit(`G0 Z${fmt(zApproach())}`);
+                emit(`G0 Z${fmt(_safePreZ)}`);
                 emit(`G1 Z${fmt(zCut(dFull))} F${Math.min(velMergulho, os.velFinal)}`);
-                L.push(`${cmt}   vel. reduzida (breakthrough ${onionEsp}mm)`);
+                L.push(`${cmt}   plunge ${fmt(_plungeMm)}mm em skin (${fmt(onionEsp)}mm) + profExtra`);
 
                 // Climb=CCW (p0→p3→p2→p1), Conv=CW (p0→p1→p2→p3)
                 if (dirCorte === 'climb') {
@@ -6783,15 +6851,29 @@ function updateToolWear(toolMap, toolWearMap, loteId, userId) {
 // ─── Endpoints G-code v2 ───────────────────────────────
 
 function loadToolMapForMachine(maquinaId) {
+    // ORDER BY id ASC garante ordem determinística — se houver tool_code duplicado,
+    // a ferramenta de menor id (mais antiga/canônica) fica no map e a mais recente
+    // dispara warning no console.log pra a equipe corrigir no Cfg.
     const ferramentas = db.prepare(`
         SELECT f.*, m.nome as maquina_nome
         FROM cnc_ferramentas f
         LEFT JOIN cnc_maquinas m ON m.id = f.maquina_id
         WHERE f.maquina_id = ? AND f.ativo = 1
+        ORDER BY f.id ASC
     `).all(maquinaId);
     const toolMap = {};
+    const collisions = [];
     for (const f of ferramentas) {
-        if (f.tool_code) toolMap[f.tool_code] = f;
+        if (!f.tool_code) continue;
+        if (toolMap[f.tool_code]) {
+            collisions.push({ tool_code: f.tool_code, keptId: toolMap[f.tool_code].id, droppedId: f.id, droppedNome: f.nome });
+            continue;
+        }
+        toolMap[f.tool_code] = f;
+    }
+    if (collisions.length > 0) {
+        const dets = collisions.map(c => `tool_code="${c.tool_code}" → manteve id=${c.keptId}, descartou id=${c.droppedId} "${c.droppedNome}"`).join('; ');
+        console.warn(`[CNC] Máquina ${maquinaId}: ${collisions.length} colisão(ões) de tool_code: ${dets}`);
     }
     return toolMap;
 }
