@@ -84,19 +84,14 @@ function Reveal({ delay = 0, children, as: Tag = 'div', ...rest }) {
     );
 }
 
-function SectionLabel({ children, dot = true }) {
+function SectionLabel({ children }) {
     return (
         <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
+            display: 'inline-flex', alignItems: 'center',
+            fontSize: 11, fontWeight: 600, letterSpacing: '0.16em',
             textTransform: 'uppercase', color: 'var(--v2-ink-3)',
             fontFamily: 'var(--v2-mono)',
         }}>
-            {dot && <span aria-hidden="true" style={{
-                width: 5, height: 5, borderRadius: '50%',
-                background: 'var(--v2-cobre)',
-                boxShadow: '0 0 0 3px color-mix(in oklch, var(--v2-cobre) 18%, transparent)',
-            }} />}
             {children}
         </div>
     );
@@ -208,13 +203,13 @@ function Hero({ projeto, empresa, concluidasPct, etapas }) {
                         <SectionLabel>Projeto · {projeto.numero ? `Nº ${projeto.numero}` : 'em andamento'}</SectionLabel>
                     </Reveal>
 
-                    <Reveal delay={80} as="h1" style={{
-                        margin: '14px 0 0', fontFamily: 'var(--v2-display)',
-                        fontSize: 'clamp(2rem, 5.2vw, 3.4rem)', fontWeight: 600,
-                        letterSpacing: '-0.035em', lineHeight: 1.05,
+                    <Reveal delay={80} as="h1" className="v2-hero-title" style={{
+                        margin: '20px 0 0', fontFamily: 'var(--v2-display)',
+                        fontSize: 'clamp(2.25rem, 6vw, 4rem)', fontWeight: 600,
+                        letterSpacing: '-0.04em', lineHeight: 1.02,
                         color: 'var(--v2-ink)',
                     }}>
-                        Olá, {(projeto.cliente_nome || 'Cliente').trim().split(' ')[0]}.
+                        Olá, <span className="v2-hero-name">{(projeto.cliente_nome || 'Cliente').trim().split(' ')[0]}</span>.
                     </Reveal>
 
                     <Reveal delay={140} as="p" style={{
@@ -391,7 +386,7 @@ function GanttChart({ etapas }) {
 function Cronograma({ etapas }) {
     if (!etapas || etapas.length === 0) {
         return (
-            <Section title="Cronograma" eyebrow="Linha do tempo">
+            <Section title="Cronograma" number={1} eyebrow="Linha do tempo">
                 <Empty
                     icon={<Calendar size={20} />}
                     title="Sem etapas cadastradas ainda"
@@ -402,7 +397,7 @@ function Cronograma({ etapas }) {
     }
 
     return (
-        <Section title="Cronograma" eyebrow="Linha do tempo">
+        <Section title="Cronograma" number={1} eyebrow="Linha do tempo">
             {/* Gantt horizontal — só desktop */}
             <GanttChart etapas={etapas} />
 
@@ -482,7 +477,7 @@ function Ambientes({ ambientes }) {
     const ambs = ambientes.map(a => ({ ...a, status: AMB_COMPAT[a.status] || a.status }));
 
     return (
-        <Section title="Ambientes" eyebrow="Por cômodo">
+        <Section title="Ambientes" number={2} eyebrow="Por cômodo">
             <div className="v2-ambientes">
                 {ambs.map((amb, i) => {
                     const st = stMap[amb.status] || stMap.aguardando;
@@ -541,7 +536,7 @@ function Fotos({ token }) {
     }, [lightbox, fotos]);
 
     if (loading) return (
-        <Section title="Fotos" eyebrow="Da obra">
+        <Section title="Fotos" number={3} eyebrow="Da obra">
             <div className="v2-skel-grid">
                 {[1, 2, 3].map(i => <div key={i} className="v2-skel-img" />)}
             </div>
@@ -549,7 +544,7 @@ function Fotos({ token }) {
     );
 
     if (fotos.length === 0) return (
-        <Section title="Fotos" eyebrow="Da obra">
+        <Section title="Fotos" number={3} eyebrow="Da obra">
             <Empty
                 icon={<Camera size={20} />}
                 title="Ainda sem fotos"
@@ -560,7 +555,7 @@ function Fotos({ token }) {
 
     return (
         <>
-            <Section title="Fotos" eyebrow={`${fotos.length} registro${fotos.length > 1 ? 's' : ''}`}>
+            <Section title="Fotos" number={3} eyebrow={`${fotos.length} registro${fotos.length > 1 ? 's' : ''}`}>
                 <div className="v2-foto-grid">
                     {fotos.map((f, i) => (
                         <Reveal key={f.id} delay={i * 40} className="v2-foto-cell" as="button"
@@ -599,7 +594,7 @@ function Documentos({ token }) {
     }, [token]);
 
     if (loading) return (
-        <Section title="Documentos" eyebrow="Arquivos do projeto">
+        <Section title="Documentos" number={4} eyebrow="Arquivos do projeto">
             <div className="v2-skel-list">
                 {[1, 2].map(i => <div key={i} className="v2-skel-row" />)}
             </div>
@@ -607,7 +602,7 @@ function Documentos({ token }) {
     );
 
     if (docs.length === 0) return (
-        <Section title="Documentos" eyebrow="Arquivos do projeto">
+        <Section title="Documentos" number={4} eyebrow="Arquivos do projeto">
             <Empty
                 icon={<FileText size={20} />}
                 title="Nenhum documento disponível"
@@ -617,7 +612,7 @@ function Documentos({ token }) {
     );
 
     return (
-        <Section title="Documentos" eyebrow={`${docs.length} arquivo${docs.length > 1 ? 's' : ''}`}>
+        <Section title="Documentos" number={4} eyebrow={`${docs.length} arquivo${docs.length > 1 ? 's' : ''}`}>
             <ul className="v2-doc-list">
                 {docs.map((d, i) => (
                     <Reveal key={d.id || i} delay={i * 40} as="li" className="v2-doc-row">
@@ -651,7 +646,7 @@ function Financeiro({ pagamento }) {
     const restante = (pagamento.totalGeral || 0) - (pagamento.totalPago || 0);
 
     return (
-        <Section title="Financeiro" eyebrow="Pagamentos">
+        <Section title="Financeiro" number={5} eyebrow="Pagamentos">
             <Reveal className="v2-fin-summary">
                 <div className="v2-fin-stat">
                     <div className="v2-fin-stat-label">Pago</div>
@@ -814,12 +809,15 @@ function ChatFAB({ token, mensagens: initialMsgs = [], clienteNome, msgNaoLidas 
 }
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
-function Section({ title, eyebrow, children }) {
+function Section({ title, eyebrow, number, children }) {
     return (
         <section className="v2-section">
             <Reveal className="v2-section-head">
                 {eyebrow && <SectionLabel>{eyebrow}</SectionLabel>}
-                <h2>{title}</h2>
+                <div className="v2-section-title-row">
+                    {number && <span className="v2-section-num">{String(number).padStart(2, '0')}</span>}
+                    <h2>{title}</h2>
+                </div>
             </Reveal>
             {children}
         </section>
@@ -928,13 +926,16 @@ export default function PortalClienteV2({ token }) {
         <div className="v2-shell">
             <style>{V2_STYLES}</style>
 
-            {/* Background editorial — papel quente + vignette cobre sutil */}
+            {/* Background editorial — papel quente + formas orgânicas suaves */}
             <div className="v2-bg" aria-hidden="true">
+                <div className="v2-bg-blob v2-bg-blob-1" />
+                <div className="v2-bg-blob v2-bg-blob-2" />
+                <div className="v2-bg-blob v2-bg-blob-3" />
                 <div className="v2-bg-vignette" />
                 <svg className="v2-bg-noise" viewBox="0 0 200 200" preserveAspectRatio="none">
                     <filter id="v2NoiseFilter">
                         <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3" />
-                        <feColorMatrix values="0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0.18 0" />
+                        <feColorMatrix values="0 0 0 0 0.15  0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0.14 0" />
                     </filter>
                     <rect width="100%" height="100%" filter="url(#v2NoiseFilter)" />
                 </svg>
@@ -982,9 +983,9 @@ const V2_STYLES = `
     --v2-display: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-body: 'Geist', system-ui, -apple-system, sans-serif;
     --v2-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-    --v2-paper: #F8F6F1;
+    --v2-paper: #FAF8F3;
     --v2-surface: #ffffff;
-    --v2-surface-2: #F4F1EB;
+    --v2-surface-2: #F3EFE7;
     --v2-ink: oklch(0.20 0.012 60);
     --v2-ink-2: oklch(0.46 0.012 60);
     --v2-ink-3: oklch(0.68 0.012 60);
@@ -1019,13 +1020,56 @@ const V2_STYLES = `
 .v2-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
 .v2-bg-vignette {
     position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
-    width: 140vw; height: 90vh; max-height: 900px;
-    background: radial-gradient(ellipse at center top, color-mix(in oklch, var(--v2-cobre) 14%, transparent) 0%, transparent 55%);
-    filter: blur(20px);
+    width: 140vw; height: 80vh; max-height: 800px;
+    background: radial-gradient(ellipse at center top, color-mix(in oklch, var(--v2-cobre) 10%, transparent) 0%, transparent 55%);
+    filter: blur(24px);
+}
+.v2-bg-blob {
+    position: absolute;
+    filter: blur(60px);
+    will-change: transform;
+}
+.v2-bg-blob-1 {
+    top: -5%; right: -8%;
+    width: 540px; height: 540px;
+    background: color-mix(in oklch, var(--v2-cobre) 22%, transparent);
+    border-radius: 63% 37% 54% 46% / 41% 51% 49% 59%;
+    opacity: 0.55;
+    animation: v2BlobDrift1 42s ease-in-out infinite;
+}
+.v2-bg-blob-2 {
+    top: 35%; left: -15%;
+    width: 480px; height: 480px;
+    background: color-mix(in oklch, var(--v2-cobre) 12%, transparent);
+    border-radius: 42% 58% 38% 62% / 56% 47% 53% 44%;
+    opacity: 0.42;
+    animation: v2BlobDrift2 56s ease-in-out infinite;
+}
+.v2-bg-blob-3 {
+    bottom: -10%; right: -5%;
+    width: 600px; height: 600px;
+    background: color-mix(in oklch, var(--v2-cobre) 9%, transparent);
+    border-radius: 58% 42% 47% 53% / 62% 39% 61% 38%;
+    opacity: 0.35;
+    animation: v2BlobDrift3 64s ease-in-out infinite;
 }
 .v2-bg-noise {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0.55; mix-blend-mode: multiply;
+    opacity: 0.45; mix-blend-mode: multiply;
+}
+@keyframes v2BlobDrift1 {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33% { transform: translate(-30px, 25px) rotate(8deg); }
+    66% { transform: translate(20px, -15px) rotate(-5deg); }
+}
+@keyframes v2BlobDrift2 {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(40px, -30px) rotate(-10deg); }
+}
+@keyframes v2BlobDrift3 {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    40% { transform: translate(-25px, -35px) rotate(6deg); }
+    80% { transform: translate(15px, 20px) rotate(-4deg); }
 }
 
 /* ── Ring de progresso ── */
@@ -1076,6 +1120,24 @@ const V2_STYLES = `
     .v2-hero-grid { grid-template-columns: 1.4fr 1fr; gap: 64px; }
 }
 .v2-hero-right { display: flex; justify-content: center; }
+.v2-hero-title .v2-hero-name {
+    position: relative;
+    color: var(--v2-ink);
+    display: inline-block;
+}
+.v2-hero-title .v2-hero-name::after {
+    content: '';
+    position: absolute;
+    left: 2%; right: 2%;
+    bottom: -0.06em;
+    height: 0.06em;
+    background: var(--v2-cobre);
+    border-radius: 2px;
+    transform: scaleX(0); transform-origin: left center;
+    animation: v2NameUnderline 900ms cubic-bezier(0.22, 1, 0.36, 1) 420ms forwards;
+}
+@keyframes v2NameUnderline { to { transform: scaleX(1); } }
+
 .v2-hero-meta {
     display: grid; gap: 24px 32px;
     grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
@@ -1105,11 +1167,22 @@ const V2_STYLES = `
 .v2-statusbar-text strong { color: var(--v2-ink); font-weight: 500; }
 
 /* ── Section ── */
-.v2-section { margin-bottom: 72px; }
-.v2-section-head { margin-bottom: 28px; }
+.v2-section { margin-bottom: 80px; }
+.v2-section-head { margin-bottom: 32px; }
+.v2-section-title-row {
+    margin-top: 14px;
+    display: flex; align-items: baseline; gap: 16px;
+}
+.v2-section-num {
+    font-family: var(--v2-mono); font-variant-numeric: tabular-nums;
+    font-size: 1.5rem; font-weight: 500; color: var(--v2-cobre);
+    letter-spacing: -0.02em; line-height: 1;
+    opacity: 0.85;
+}
 .v2-section h2 {
-    margin: 10px 0 0; font-family: var(--v2-display); font-size: clamp(1.5rem, 2.6vw, 1.875rem);
-    font-weight: 600; letter-spacing: -0.025em; color: var(--v2-ink); line-height: 1.2;
+    margin: 0; font-family: var(--v2-display);
+    font-size: clamp(1.625rem, 2.8vw, 2.125rem);
+    font-weight: 600; letter-spacing: -0.028em; color: var(--v2-ink); line-height: 1.15;
 }
 
 /* ── Status pill ── */
