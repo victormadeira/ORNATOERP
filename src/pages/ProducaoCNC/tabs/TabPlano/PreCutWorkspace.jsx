@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
     ArrowLeft, Download, Send, Play, Pause, RotateCcw, Cpu,
-    AlertTriangle, CheckCircle2, X, ChevronRight,
+    AlertTriangle, CheckCircle2, X, ChevronRight, Clock,
     Wrench, FlipVertical2, Shield, BarChart2,
     ZapOff, Zap, Maximize2, Tag as TagIcon,
     SkipBack, SkipForward, ChevronLeft, ChevronRight as ChevronRightIcon,
@@ -54,7 +54,13 @@ function StatusPill({ hasBlocking }) {
     );
 }
 
-function CheckItem({ label, ok, detail }) {
+// Estados: 'ok' (verde — feito), 'pending' (cinza — aguarda gerar), 'error' (vermelho — bloqueio real)
+function CheckItem({ label, state = 'pending', detail }) {
+    const tone = state === 'ok'
+        ? { bg: 'rgba(46,160,67,0.14)', border: 'rgba(46,160,67,0.4)', color: C.success, Icon: CheckCircle2 }
+        : state === 'error'
+            ? { bg: 'rgba(248,81,73,0.12)', border: 'rgba(248,81,73,0.35)', color: C.danger, Icon: AlertTriangle }
+            : { bg: 'rgba(139,148,158,0.10)', border: 'rgba(139,148,158,0.28)', color: C.muted, Icon: Clock };
     return (
         <div style={{
             display: 'flex', alignItems: 'flex-start', gap: 9,
@@ -64,19 +70,14 @@ function CheckItem({ label, ok, detail }) {
             <div style={{
                 width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: ok ? 'rgba(46,160,67,0.14)' : 'rgba(248,81,73,0.12)',
-                border: `1px solid ${ok ? 'rgba(46,160,67,0.4)' : 'rgba(248,81,73,0.35)'}`,
-                color: ok ? C.success : C.danger,
+                background: tone.bg, border: `1px solid ${tone.border}`, color: tone.color,
             }}>
-                {ok
-                    ? <CheckCircle2 size={10} strokeWidth={2.5} />
-                    : <AlertTriangle size={10} strokeWidth={2.5} />
-                }
+                <tone.Icon size={10} strokeWidth={2.5} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: C.text, lineHeight: 1.2 }}>{label}</div>
                 {detail && (
-                    <div style={{ fontSize: 10.5, color: ok ? C.muted : C.danger, marginTop: 2, lineHeight: 1.3 }}>
+                    <div style={{ fontSize: 10.5, color: tone.color, marginTop: 2, lineHeight: 1.3, opacity: state === 'pending' ? 0.85 : 1 }}>
                         {detail}
                     </div>
                 )}
@@ -303,23 +304,58 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const etiquetasOk     = totalPecasChapa === 0 || impressasCount === totalPecasChapa;
 
     // ── Checklist ─────────────────────────────────────────────────────────────
+    // Tri-state: 'ok' (verde) | 'pending' (cinza — aguarda gerar g-code) | 'error' (vermelho — bloqueio real)
+    const hasGcode = Boolean(gcode);
     const checklist = [
-        { label: 'G-code gerado',          ok: Boolean(gcode),                    detail: filename || 'Arquivo pendente' },
-        { label: 'Máquina selecionada',     ok: Boolean(maquinaInfo?.nome),        detail: maquinaInfo?.nome || 'Padrão do servidor' },
-        { label: 'Ferramenta de contorno',  ok: Boolean(contorno_tool),            detail: contorno_tool ? `${contorno_tool.nome || contorno_tool.codigo} Ø${contorno_tool.diametro}mm` : 'Não identificada' },
-        { label: 'Alertas críticos',        ok: criticalAlerts.length === 0,       detail: criticalAlerts.length ? `${criticalAlerts.length} pendência(s)` : 'Sem bloqueios' },
-        { label: 'Validação operacional',   ok: operational.critical.length === 0, detail: operational.warning.length ? `${operational.warning.length} atenção(ões)` : 'Sem risco crítico' },
-        { label: 'Movimentos de corte',     ok: gcodeCutMoves > 0,                detail: `${gcodeCutMoves} movimento(s)` },
+        {
+            label: 'G-code gerado',
+            state: hasGcode ? 'ok' : 'pending',
+            detail: filename || (hasGcode ? '' : 'Será gerado quando você clicar em "Gerar G-code"'),
+        },
+        {
+            label: 'Máquina selecionada',
+            // Máquina é configuração — bloqueia mesmo sem gcode
+            state: maquinaInfo?.nome ? 'ok' : 'error',
+            detail: maquinaInfo?.nome || 'Cadastre uma máquina em Config → Máquinas',
+        },
+        {
+            label: 'Ferramenta de contorno',
+            // Antes do gcode: pending. Depois: error se não achou.
+            state: contorno_tool ? 'ok' : (hasGcode ? 'error' : 'pending'),
+            detail: contorno_tool
+                ? `${contorno_tool.nome || contorno_tool.codigo} Ø${contorno_tool.diametro}mm`
+                : (hasGcode ? 'Nenhuma fresa de contorno encontrada — verifique Config → Ferramentas' : 'Será identificada ao gerar'),
+        },
+        {
+            label: 'Alertas críticos',
+            state: !hasGcode ? 'pending' : (criticalAlerts.length === 0 ? 'ok' : 'error'),
+            detail: !hasGcode
+                ? 'Aguardando geração'
+                : (criticalAlerts.length ? `${criticalAlerts.length} pendência(s)` : 'Sem bloqueios'),
+        },
+        {
+            label: 'Validação operacional',
+            state: !hasGcode ? 'pending' : (operational.critical.length === 0 ? 'ok' : 'error'),
+            detail: !hasGcode
+                ? 'Aguardando geração'
+                : (operational.warning.length ? `${operational.warning.length} atenção(ões)` : 'Sem risco crítico'),
+        },
+        {
+            label: 'Movimentos de corte',
+            state: !hasGcode ? 'pending' : (gcodeCutMoves > 0 ? 'ok' : 'error'),
+            detail: !hasGcode ? 'Aguardando geração' : `${gcodeCutMoves} movimento(s)`,
+        },
         ...(totalPecasChapa > 0 ? [{
             label: 'Etiquetas impressas',
-            ok: etiquetasOk,
+            state: etiquetasOk ? 'ok' : 'error',
             detail: etiquetasOk
                 ? `${impressasCount}/${totalPecasChapa} etiqueta(s) confirmadas`
                 : `${impressasCount}/${totalPecasChapa} — imprima antes de cortar`,
         }] : []),
     ];
 
-    const hasBlocking  = operational.critical.length > 0 || !gcode || gcodeCutMoves === 0;
+    // Bloqueia o corte SE houver erro REAL, não se está apenas aguardando geração
+    const hasBlocking  = checklist.some(c => c.state === 'error') || !gcode || gcodeCutMoves === 0;
     const scoreColor   = operational.score >= 85 ? C.success : operational.score >= 70 ? C.warning : C.danger;
 
     // ── Actions ───────────────────────────────────────────────────────────────
@@ -624,7 +660,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         </div>
                         <div style={{ fontSize: 10, color: hasBlocking ? C.danger : C.success, lineHeight: 1.4 }}>
                             {hasBlocking
-                                ? checklist.filter(c => !c.ok).map(c => c.label).join(' · ')
+                                ? checklist.filter(c => c.state === 'error').map(c => c.label).join(' · ') || 'Aguardando geração de g-code'
                                 : 'Todos os itens verificados.'
                             }
                         </div>
