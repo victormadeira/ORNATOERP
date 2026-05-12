@@ -1,16 +1,49 @@
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createGzip } from 'zlib';
 import { Readable } from 'stream';
 import db from '../db.js';
 import * as gdrive from './gdrive.js';
+import { createNotification } from './notificacoes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const DB_PATH = join(__dirname, '..', 'marcenaria.db');
+const LOCAL_BACKUP_DIR = join(__dirname, '..', '..', 'backups');
 
 const MAX_BACKUPS = 30;
+const MAX_LOCAL_BACKUPS = 14; // ~2 semanas de backup local na VPS
+let _failureCount = 0; // sequência de falhas — alerta a equipe quando ≥ 2
+
+// ─── Backup LOCAL da DB (sempre, mesmo sem Drive) ────
+// Mantém ~14 backups na própria VPS — sobrevive a Drive offline ou DB corrompida
+export async function backupLocal() {
+    try {
+        if (!existsSync(LOCAL_BACKUP_DIR)) mkdirSync(LOCAL_BACKUP_DIR, { recursive: true });
+        const dbBuffer = readFileSync(DB_PATH);
+        const compressed = await gzipBuffer(dbBuffer);
+        const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+        const filePath = join(LOCAL_BACKUP_DIR, `backup-${ts}.db.gz`);
+        writeFileSync(filePath, compressed);
+
+        // Rotation: mantém apenas os MAX_LOCAL_BACKUPS mais recentes
+        const files = readdirSync(LOCAL_BACKUP_DIR)
+            .filter(f => f.startsWith('backup-') && f.endsWith('.db.gz'))
+            .map(f => ({ name: f, path: join(LOCAL_BACKUP_DIR, f), mtime: statSync(join(LOCAL_BACKUP_DIR, f)).mtimeMs }))
+            .sort((a, b) => b.mtime - a.mtime);
+        files.slice(MAX_LOCAL_BACKUPS).forEach(f => {
+            try { unlinkSync(f.path); } catch (_) {}
+        });
+
+        const sizeMB = (compressed.length / 1024 / 1024).toFixed(2);
+        console.log(`[Backup] Local: ${filePath} (${sizeMB} MB)`);
+        return { ok: true, filePath, sizeMB: parseFloat(sizeMB) };
+    } catch (err) {
+        console.error('[Backup] Local falhou:', err.message);
+        return { ok: false, error: err.message };
+    }
+}
 
 // ─── Backup do banco para o Google Drive ─────────────
 export async function backupToDrive() {
@@ -108,10 +141,26 @@ export function iniciarBackupDiario() {
 }
 
 async function executarBackupSilencioso() {
+    // Backup LOCAL sempre roda primeiro (não depende do Drive)
+    await backupLocal();
+
+    // Backup Drive (best-effort — se falhar, notifica após 2 falhas consecutivas)
     try {
         await backupToDrive();
+        _failureCount = 0; // reseta contador
     } catch (err) {
-        console.error('[Backup] Erro no backup automático:', err.message);
+        _failureCount += 1;
+        console.error(`[Backup] Drive falhou (${_failureCount}x):`, err.message);
+        if (_failureCount >= 2) {
+            try {
+                createNotification(
+                    'backup_falhou',
+                    'Backup do Drive falhou',
+                    `${_failureCount} tentativas consecutivas falharam. Verifique credenciais do Google Drive em /configuracoes. Backup local continua rodando.`,
+                    null, 'sistema'
+                );
+            } catch (_) {}
+        }
     }
 }
 
