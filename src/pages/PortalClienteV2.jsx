@@ -1,0 +1,1292 @@
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+    Calendar, MessageCircle, Lock, CheckCircle2, Clock, Play,
+    AlertCircle, Send, User, Camera, X, ChevronLeft, ChevronRight,
+    Ruler, ClipboardCheck, ShoppingCart, Factory, Paintbrush, Truck,
+    Wrench, ListChecks, Layers, FileText, Download, ArrowDownToLine,
+    ArrowUpRight, Sparkle,
+} from 'lucide-react';
+import { initClarity, identifyClarity, setClarityTag } from '../utils/clarity';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const dtFmt = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—';
+const dtFmtFull = (s) => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+const moneyFmt = (n) => `R$ ${(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const timeAgo = (s) => {
+    if (!s) return '';
+    const d = new Date(s.includes('Z') || s.includes('T') ? s : s + 'Z');
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60) return 'agora';
+    if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
+    if (diff < 604800) return `há ${Math.floor(diff / 86400)} d`;
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
+
+const getEtapaIcon = (nome) => {
+    const n = (nome || '').toLowerCase();
+    if (/medi|levantamento/.test(n)) return Ruler;
+    if (/aprova/.test(n)) return ClipboardCheck;
+    if (/compra|material/.test(n)) return ShoppingCart;
+    if (/produ|fabrica/.test(n)) return Factory;
+    if (/acabamento|pintura/.test(n)) return Paintbrush;
+    if (/entrega/.test(n)) return Truck;
+    if (/instala|montagem/.test(n)) return Wrench;
+    return ListChecks;
+};
+
+// Contador animado — easing exponencial pra parecer "natural"
+function useCountUp(target, duration = 1400) {
+    const [val, setVal] = useState(0);
+    useEffect(() => {
+        if (!target) { setVal(0); return; }
+        const start = performance.now();
+        let raf;
+        const tick = (now) => {
+            const t = Math.min(1, (now - start) / duration);
+            const eased = 1 - Math.pow(1 - t, 4);
+            setVal(Math.round(target * eased));
+            if (t < 1) raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [target, duration]);
+    return val;
+}
+
+// Hook genérico de scroll reveal
+function useReveal() {
+    const ref = useRef(null);
+    const [shown, setShown] = useState(false);
+    useEffect(() => {
+        if (!ref.current || shown) return;
+        const io = new IntersectionObserver(([e]) => {
+            if (e.isIntersecting) { setShown(true); io.disconnect(); }
+        }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+        io.observe(ref.current);
+        return () => io.disconnect();
+    }, [shown]);
+    return [ref, shown];
+}
+
+// ─── Subcomponentes ───────────────────────────────────────────────────────────
+function Reveal({ delay = 0, children, as: Tag = 'div', ...rest }) {
+    const [ref, shown] = useReveal();
+    return (
+        <Tag ref={ref} {...rest} style={{
+            ...rest.style,
+            opacity: shown ? 1 : 0,
+            transform: shown ? 'translateY(0)' : 'translateY(16px)',
+            transition: `opacity 720ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, transform 720ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
+        }}>
+            {children}
+        </Tag>
+    );
+}
+
+function SectionLabel({ children, dot = true }) {
+    return (
+        <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
+            textTransform: 'uppercase', color: 'var(--v2-ink-3)',
+            fontFamily: 'var(--v2-mono)',
+        }}>
+            {dot && <span aria-hidden="true" style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: 'var(--v2-cobre)',
+                boxShadow: '0 0 0 3px color-mix(in oklch, var(--v2-cobre) 18%, transparent)',
+            }} />}
+            {children}
+        </div>
+    );
+}
+
+function StatusDot({ tone = 'neutral', pulse = false }) {
+    const colors = {
+        active: 'var(--v2-cobre)',
+        done: 'oklch(0.7 0.13 155)',
+        late: 'oklch(0.62 0.18 27)',
+        neutral: 'var(--v2-ink-3)',
+    };
+    return (
+        <span aria-hidden="true" style={{
+            display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+            background: colors[tone] || colors.neutral,
+            boxShadow: pulse ? `0 0 0 4px color-mix(in oklch, ${colors[tone]} 22%, transparent)` : 'none',
+            animation: pulse ? 'v2Pulse 2.2s ease-out infinite' : 'none',
+            flexShrink: 0,
+        }} />
+    );
+}
+
+function ProgressRing({ value, size = 168, stroke = 6 }) {
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    const animated = useCountUp(value, 1600);
+    const offset = c - (c * animated) / 100;
+    return (
+        <div style={{ position: 'relative', width: size, height: size }}>
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" style={{ display: 'block' }}>
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+                        stroke="color-mix(in oklch, var(--v2-cobre) 14%, transparent)"
+                        strokeWidth={stroke} />
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+                        stroke="var(--v2-cobre)" strokeWidth={stroke}
+                        strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+                        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                        style={{ transition: 'stroke-dashoffset 240ms linear' }} />
+            </svg>
+            <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+            }}>
+                <div style={{
+                    fontFamily: 'var(--v2-mono)', fontVariantNumeric: 'tabular-nums',
+                    fontSize: Math.round(size * 0.32), fontWeight: 500,
+                    color: 'var(--v2-ink)', letterSpacing: '-0.04em', lineHeight: 1,
+                }}>{animated}<span style={{ color: 'var(--v2-cobre)', fontSize: '0.45em', marginLeft: 1 }}>%</span></div>
+                <div style={{
+                    fontSize: 10, fontWeight: 600, letterSpacing: '0.18em',
+                    textTransform: 'uppercase', color: 'var(--v2-ink-3)',
+                    fontFamily: 'var(--v2-mono)', marginTop: 8,
+                }}>concluído</div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+function Hero({ projeto, empresa, concluidasPct, etapas }) {
+    const currentEtapa = etapas.find(e => e.status === 'em_andamento' || e.status === 'atrasada')
+        || etapas.find(e => e.status === 'pendente' || e.status === 'nao_iniciado')
+        || etapas[etapas.length - 1];
+
+    const ultimaEntrega = etapas.length ? etapas[etapas.length - 1] : null;
+
+    return (
+        <header className="v2-hero">
+            <div className="v2-hero-grid">
+                <div className="v2-hero-left">
+                    <Reveal delay={0}>
+                        <SectionLabel>Projeto · {projeto.numero ? `Nº ${projeto.numero}` : 'em andamento'}</SectionLabel>
+                    </Reveal>
+
+                    <Reveal delay={80} as="h1" style={{
+                        margin: '14px 0 0', fontFamily: 'var(--v2-display)',
+                        fontSize: 'clamp(2rem, 5.2vw, 3.4rem)', fontWeight: 600,
+                        letterSpacing: '-0.035em', lineHeight: 1.05,
+                        color: 'var(--v2-ink)',
+                    }}>
+                        Olá, {(projeto.cliente_nome || 'Cliente').trim().split(' ')[0]}.
+                    </Reveal>
+
+                    <Reveal delay={140} as="p" style={{
+                        margin: '14px 0 0', maxWidth: '38ch',
+                        fontSize: 'clamp(1rem, 1.6vw, 1.125rem)', lineHeight: 1.55,
+                        color: 'var(--v2-ink-2)',
+                    }}>
+                        {projeto.nome ? <>Estamos cuidando do seu <strong style={{ color: 'var(--v2-ink)', fontWeight: 600 }}>{projeto.nome}</strong>.</> : <>Seu projeto está em curso.</>}
+                        {' '}
+                        {concluidasPct >= 100
+                            ? 'Tudo entregue — foi um prazer.'
+                            : currentEtapa
+                                ? <>Estamos na fase de <strong style={{ color: 'var(--v2-ink)', fontWeight: 600 }}>{currentEtapa.nome?.toLowerCase()}</strong>.</>
+                                : 'Em breve mais atualizações.'}
+                    </Reveal>
+
+                    <Reveal delay={200} style={{ marginTop: 28 }}>
+                        <div className="v2-hero-meta">
+                            {ultimaEntrega?.data_vencimento && (
+                                <div className="v2-hero-meta-item">
+                                    <div className="v2-meta-label">Previsão</div>
+                                    <div className="v2-meta-value">{dtFmt(ultimaEntrega.data_vencimento)}</div>
+                                </div>
+                            )}
+                            <div className="v2-hero-meta-item">
+                                <div className="v2-meta-label">Etapas</div>
+                                <div className="v2-meta-value">
+                                    <span style={{ color: 'var(--v2-ink)' }}>
+                                        {etapas.filter(e => e.status === 'concluida').length}
+                                    </span>
+                                    <span style={{ color: 'var(--v2-ink-3)' }}>/{etapas.length}</span>
+                                </div>
+                            </div>
+                            <div className="v2-hero-meta-item">
+                                <div className="v2-meta-label">Status</div>
+                                <div className="v2-meta-value" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95em' }}>
+                                    <StatusDot tone={concluidasPct >= 100 ? 'done' : 'active'} pulse={concluidasPct < 100 && concluidasPct > 0} />
+                                    <span style={{ color: 'var(--v2-ink)', fontWeight: 500, letterSpacing: '-0.01em' }}>
+                                        {concluidasPct >= 100 ? 'Concluído' : 'Em andamento'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </Reveal>
+                </div>
+
+                <Reveal delay={240} className="v2-hero-right">
+                    <ProgressRing value={concluidasPct} />
+                </Reveal>
+            </div>
+        </header>
+    );
+}
+
+// ─── Cronograma ───────────────────────────────────────────────────────────────
+function Cronograma({ etapas }) {
+    if (!etapas || etapas.length === 0) {
+        return (
+            <Section title="Cronograma" eyebrow="Linha do tempo">
+                <Empty
+                    icon={<Calendar size={20} />}
+                    title="Sem etapas cadastradas ainda"
+                    sub="Em breve a equipe vai definir a linha do tempo do seu projeto."
+                />
+            </Section>
+        );
+    }
+
+    return (
+        <Section title="Cronograma" eyebrow="Linha do tempo">
+            <ol className="v2-timeline">
+                {etapas.map((e, i) => {
+                    const Icon = getEtapaIcon(e.nome);
+                    const isDone = e.status === 'concluida';
+                    const isActive = e.status === 'em_andamento' || e.status === 'atrasada';
+                    const isLate = e.status === 'atrasada';
+                    const tone = isDone ? 'done' : isActive ? 'active' : 'neutral';
+                    const progresso = e.progresso ?? (isDone ? 100 : 0);
+
+                    return (
+                        <Reveal key={e.id || i} delay={i * 60} as="li" className="v2-timeline-item">
+                            <div className="v2-timeline-node">
+                                <div className={`v2-timeline-icon v2-tone-${tone}`}>
+                                    {isDone ? <CheckCircle2 size={14} strokeWidth={2.2} /> : <Icon size={14} strokeWidth={2} />}
+                                </div>
+                                {i < etapas.length - 1 && <div className={`v2-timeline-line ${isDone ? 'v2-timeline-line-done' : ''} ${isActive ? 'v2-timeline-line-active' : ''}`} />}
+                            </div>
+
+                            <div className="v2-timeline-body">
+                                <div className="v2-timeline-row">
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                        <div className="v2-timeline-num">{String(i + 1).padStart(2, '0')}</div>
+                                        <div className="v2-timeline-name">{e.nome}</div>
+                                        {e.data_inicio || e.data_vencimento ? (
+                                            <div className="v2-timeline-meta">
+                                                {e.data_inicio && <span>{dtFmt(e.data_inicio)}</span>}
+                                                {e.data_inicio && e.data_vencimento && <span style={{ color: 'var(--v2-ink-3)' }}>→</span>}
+                                                {e.data_vencimento && <span>{dtFmt(e.data_vencimento)}</span>}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                    <StatusPill tone={tone} label={
+                                        isDone ? 'Concluída' : isLate ? 'Em andamento' : isActive ? 'Em andamento' : e.status === 'pendente' ? 'Pendente' : 'Aguardando'
+                                    } pulse={isActive} />
+                                </div>
+
+                                {isActive && (
+                                    <div className="v2-progress-bar" aria-label={`Progresso: ${progresso}%`}>
+                                        <div className="v2-progress-fill" style={{ width: `${progresso}%` }} />
+                                    </div>
+                                )}
+                            </div>
+                        </Reveal>
+                    );
+                })}
+            </ol>
+        </Section>
+    );
+}
+
+function StatusPill({ tone = 'neutral', label, pulse = false }) {
+    return (
+        <span className={`v2-status-pill v2-tone-${tone}`}>
+            <StatusDot tone={tone} pulse={pulse} />
+            {label}
+        </span>
+    );
+}
+
+// ─── Ambientes ────────────────────────────────────────────────────────────────
+function Ambientes({ ambientes }) {
+    if (!ambientes || ambientes.length === 0) return null;
+
+    const AMB_COMPAT = { corte: 'producao', acabamento: 'expedicao' };
+    const AMB_ST = [
+        { key: 'aguardando', label: 'Aguardando', tone: 'neutral' },
+        { key: 'producao', label: 'Produção', tone: 'active' },
+        { key: 'expedicao', label: 'Expedição', tone: 'active' },
+        { key: 'instalacao', label: 'Instalação', tone: 'active' },
+        { key: 'concluido', label: 'Concluído', tone: 'done' },
+    ];
+    const stMap = Object.fromEntries(AMB_ST.map(s => [s.key, s]));
+    const stIdx = (k) => AMB_ST.findIndex(s => s.key === (AMB_COMPAT[k] || k));
+    const ambs = ambientes.map(a => ({ ...a, status: AMB_COMPAT[a.status] || a.status }));
+
+    return (
+        <Section title="Ambientes" eyebrow="Por cômodo">
+            <div className="v2-ambientes">
+                {ambs.map((amb, i) => {
+                    const st = stMap[amb.status] || stMap.aguardando;
+                    const pct = Math.round((stIdx(amb.status) / (AMB_ST.length - 1)) * 100);
+                    return (
+                        <Reveal key={amb.id || i} delay={i * 50} className="v2-ambiente">
+                            <div className="v2-ambiente-head">
+                                <div className="v2-ambiente-name">{amb.nome}</div>
+                                <StatusPill tone={st.tone} label={st.label} pulse={st.tone === 'active' && amb.status !== 'concluido'} />
+                            </div>
+                            <div className="v2-progress-bar v2-progress-bar-thin">
+                                <div className="v2-progress-fill" style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="v2-ambiente-foot">
+                                <span>{pct}%</span>
+                                <span style={{ color: 'var(--v2-ink-3)' }}>·</span>
+                                <span>{AMB_ST.slice(stIdx(amb.status) + 1).length} fase{AMB_ST.slice(stIdx(amb.status) + 1).length !== 1 ? 's' : ''} restante{AMB_ST.slice(stIdx(amb.status) + 1).length !== 1 ? 's' : ''}</span>
+                            </div>
+                        </Reveal>
+                    );
+                })}
+            </div>
+        </Section>
+    );
+}
+
+// ─── Fotos ────────────────────────────────────────────────────────────────────
+function Fotos({ token }) {
+    const [fotos, setFotos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [lightbox, setLightbox] = useState(null);
+
+    useEffect(() => {
+        fetch(`/api/projetos/portal/${token}/fotos`)
+            .then(r => r.json())
+            .then(d => setFotos(Array.isArray(d) ? d.filter(f => f.visivel_portal) : []))
+            .catch(() => setFotos([]))
+            .finally(() => setLoading(false));
+    }, [token]);
+
+    useEffect(() => {
+        if (!lightbox) return;
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLightbox(null);
+            if (e.key === 'ArrowLeft') setLightbox(prev => {
+                const i = fotos.findIndex(f => f.id === prev?.id);
+                return fotos[(i - 1 + fotos.length) % fotos.length];
+            });
+            if (e.key === 'ArrowRight') setLightbox(prev => {
+                const i = fotos.findIndex(f => f.id === prev?.id);
+                return fotos[(i + 1) % fotos.length];
+            });
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [lightbox, fotos]);
+
+    if (loading) return (
+        <Section title="Fotos" eyebrow="Da obra">
+            <div className="v2-skel-grid">
+                {[1, 2, 3].map(i => <div key={i} className="v2-skel-img" />)}
+            </div>
+        </Section>
+    );
+
+    if (fotos.length === 0) return (
+        <Section title="Fotos" eyebrow="Da obra">
+            <Empty
+                icon={<Camera size={20} />}
+                title="Ainda sem fotos"
+                sub="Quando a equipe registrar o progresso, as fotos aparecem aqui."
+            />
+        </Section>
+    );
+
+    return (
+        <>
+            <Section title="Fotos" eyebrow={`${fotos.length} registro${fotos.length > 1 ? 's' : ''}`}>
+                <div className="v2-foto-grid">
+                    {fotos.map((f, i) => (
+                        <Reveal key={f.id} delay={i * 40} className="v2-foto-cell" as="button"
+                                onClick={() => setLightbox(f)}>
+                            <img src={f.thumb_url || f.url} alt={f.descricao || `Foto ${i + 1}`} loading="lazy" />
+                            <div className="v2-foto-overlay">
+                                <ArrowUpRight size={14} strokeWidth={2.2} />
+                            </div>
+                        </Reveal>
+                    ))}
+                </div>
+            </Section>
+            {lightbox && (
+                <div className="v2-lightbox" onClick={() => setLightbox(null)} role="dialog" aria-modal="true">
+                    <img src={lightbox.url} alt={lightbox.descricao || ''} onClick={e => e.stopPropagation()} />
+                    <button className="v2-lightbox-close" onClick={() => setLightbox(null)} aria-label="Fechar">
+                        <X size={22} />
+                    </button>
+                </div>
+            )}
+        </>
+    );
+}
+
+// ─── Documentos ───────────────────────────────────────────────────────────────
+function Documentos({ token }) {
+    const [docs, setDocs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch(`/api/projetos/portal/${token}/arquivos`)
+            .then(r => r.json())
+            .then(d => setDocs(Array.isArray(d) ? d : []))
+            .catch(() => setDocs([]))
+            .finally(() => setLoading(false));
+    }, [token]);
+
+    if (loading) return (
+        <Section title="Documentos" eyebrow="Arquivos do projeto">
+            <div className="v2-skel-list">
+                {[1, 2].map(i => <div key={i} className="v2-skel-row" />)}
+            </div>
+        </Section>
+    );
+
+    if (docs.length === 0) return (
+        <Section title="Documentos" eyebrow="Arquivos do projeto">
+            <Empty
+                icon={<FileText size={20} />}
+                title="Nenhum documento disponível"
+                sub="Contratos, projetos 3D e desenhos técnicos aparecem aqui assim que liberados."
+            />
+        </Section>
+    );
+
+    return (
+        <Section title="Documentos" eyebrow={`${docs.length} arquivo${docs.length > 1 ? 's' : ''}`}>
+            <ul className="v2-doc-list">
+                {docs.map((d, i) => (
+                    <Reveal key={d.id || i} delay={i * 40} as="li" className="v2-doc-row">
+                        <a href={d.url} target="_blank" rel="noopener noreferrer" download>
+                            <div className="v2-doc-icon"><FileText size={16} strokeWidth={1.8} /></div>
+                            <div className="v2-doc-info">
+                                <div className="v2-doc-name">{d.nome || 'Documento'}</div>
+                                <div className="v2-doc-meta">
+                                    {d.tipo && <span>{d.tipo}</span>}
+                                    {d.tipo && d.criado_em && <span aria-hidden="true">·</span>}
+                                    {d.criado_em && <span>{timeAgo(d.criado_em)}</span>}
+                                </div>
+                            </div>
+                            <div className="v2-doc-action">
+                                <ArrowDownToLine size={14} strokeWidth={2} />
+                            </div>
+                        </a>
+                    </Reveal>
+                ))}
+            </ul>
+        </Section>
+    );
+}
+
+// ─── Financeiro ───────────────────────────────────────────────────────────────
+function Financeiro({ pagamento }) {
+    const pct = pagamento.totalGeral > 0
+        ? Math.round((pagamento.totalPago / pagamento.totalGeral) * 100)
+        : 0;
+    const animatedPct = useCountUp(pct, 1400);
+    const restante = (pagamento.totalGeral || 0) - (pagamento.totalPago || 0);
+
+    return (
+        <Section title="Financeiro" eyebrow="Pagamentos">
+            <Reveal className="v2-fin-summary">
+                <div className="v2-fin-stat">
+                    <div className="v2-fin-stat-label">Pago</div>
+                    <div className="v2-fin-stat-value v2-fin-paid">{moneyFmt(pagamento.totalPago)}</div>
+                </div>
+                <div className="v2-fin-stat">
+                    <div className="v2-fin-stat-label">Restante</div>
+                    <div className="v2-fin-stat-value">{moneyFmt(restante)}</div>
+                </div>
+                <div className="v2-fin-stat v2-fin-stat-total">
+                    <div className="v2-fin-stat-label">Total</div>
+                    <div className="v2-fin-stat-value">{moneyFmt(pagamento.totalGeral)}</div>
+                </div>
+            </Reveal>
+
+            <div className="v2-fin-bar-wrap">
+                <div className="v2-fin-bar">
+                    <div className="v2-fin-bar-fill" style={{ width: `${animatedPct}%` }} />
+                </div>
+                <div className="v2-fin-bar-label">
+                    <span style={{ fontFamily: 'var(--v2-mono)', fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--v2-ink)' }}>{animatedPct}%</span>
+                    <span style={{ color: 'var(--v2-ink-3)' }}>pago</span>
+                </div>
+            </div>
+
+            <ul className="v2-parcela-list">
+                {pagamento.contas.map((c, i) => {
+                    const vencida = c.status === 'pendente' && c.data_vencimento && new Date(c.data_vencimento + 'T12:00:00') < new Date();
+                    const paga = c.status === 'pago';
+                    const tone = paga ? 'done' : vencida ? 'late' : 'neutral';
+                    return (
+                        <Reveal key={c.id} delay={i * 40} as="li" className="v2-parcela-row">
+                            <div className="v2-parcela-left">
+                                <div className="v2-parcela-desc">{c.descricao || `Parcela ${i + 1}`}</div>
+                                <div className="v2-parcela-date">
+                                    {paga
+                                        ? <>Pago em {dtFmtFull(c.data_pagamento)}</>
+                                        : <>Vence {dtFmtFull(c.data_vencimento)}</>}
+                                </div>
+                            </div>
+                            <div className="v2-parcela-right">
+                                <div className="v2-parcela-value" style={{ color: paga ? 'oklch(0.55 0.14 155)' : vencida ? 'oklch(0.55 0.18 27)' : 'var(--v2-ink)' }}>
+                                    {moneyFmt(c.valor)}
+                                </div>
+                                <StatusPill tone={tone} label={paga ? 'Pago' : vencida ? 'Vencida' : 'Pendente'} />
+                            </div>
+                        </Reveal>
+                    );
+                })}
+            </ul>
+        </Section>
+    );
+}
+
+// ─── Chat FAB + Drawer ────────────────────────────────────────────────────────
+function ChatFAB({ token, mensagens: initialMsgs = [], clienteNome, msgNaoLidas = 0 }) {
+    const [open, setOpen] = useState(false);
+    const [msgs, setMsgs] = useState(initialMsgs);
+    const [text, setText] = useState('');
+    const [nome, setNome] = useState(localStorage.getItem('portal_v2_nome') || clienteNome || '');
+    const [sending, setSending] = useState(false);
+    const scrollRef = useRef(null);
+
+    useEffect(() => { setMsgs(initialMsgs); }, [initialMsgs]);
+    useEffect(() => {
+        if (open && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [open, msgs]);
+    useEffect(() => {
+        if (nome) localStorage.setItem('portal_v2_nome', nome);
+    }, [nome]);
+
+    const send = async () => {
+        if (!text.trim() || sending) return;
+        setSending(true);
+        try {
+            const r = await fetch(`/api/projetos/portal/${token}/mensagens`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ autor_nome: nome || 'Cliente', conteudo: text.trim() }),
+            });
+            if (r.ok) {
+                const msg = await r.json();
+                setMsgs(prev => [...prev, msg]);
+                setText('');
+            }
+        } finally { setSending(false); }
+    };
+
+    return (
+        <>
+            <button className="v2-fab no-print" onClick={() => setOpen(true)}
+                    aria-label={msgNaoLidas > 0 ? `Abrir conversa (${msgNaoLidas} nova${msgNaoLidas > 1 ? 's' : ''})` : 'Abrir conversa'}>
+                <MessageCircle size={22} strokeWidth={2} />
+                {msgNaoLidas > 0 && <span className="v2-fab-badge">{msgNaoLidas > 9 ? '9+' : msgNaoLidas}</span>}
+            </button>
+
+            {open && (
+                <div className="v2-drawer-scrim no-print" onClick={() => setOpen(false)} role="dialog" aria-modal="true" aria-label="Conversa com a equipe">
+                    <div className="v2-drawer" onClick={e => e.stopPropagation()}>
+                        <header className="v2-drawer-head">
+                            <div>
+                                <div className="v2-drawer-title">Conversa</div>
+                                <div className="v2-drawer-sub">com a equipe Ornato · resposta em até 1 dia útil</div>
+                            </div>
+                            <button onClick={() => setOpen(false)} aria-label="Fechar" className="v2-drawer-close">
+                                <X size={18} />
+                            </button>
+                        </header>
+
+                        <div ref={scrollRef} className="v2-drawer-msgs">
+                            {msgs.length === 0 ? (
+                                <div className="v2-drawer-empty">
+                                    <div className="v2-drawer-empty-icon"><Sparkle size={18} /></div>
+                                    <p>Mande sua primeira mensagem. Estamos por aqui.</p>
+                                </div>
+                            ) : msgs.map(m => {
+                                const isEquipe = m.autor_tipo === 'equipe';
+                                return (
+                                    <div key={m.id} className={`v2-msg ${isEquipe ? 'v2-msg-team' : 'v2-msg-me'}`}>
+                                        <div className="v2-msg-meta">
+                                            <span>{m.autor_nome || (isEquipe ? 'Equipe Ornato' : 'Você')}</span>
+                                            <span style={{ color: 'var(--v2-ink-3)' }}>·</span>
+                                            <span>{timeAgo(m.criado_em)}</span>
+                                        </div>
+                                        <div className="v2-msg-bubble">{m.conteudo}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="v2-drawer-input">
+                            <input
+                                type="text"
+                                placeholder="Seu nome"
+                                value={nome}
+                                onChange={e => setNome(e.target.value)}
+                                className="v2-drawer-name"
+                            />
+                            <div className="v2-drawer-send-row">
+                                <input
+                                    type="text"
+                                    placeholder="Mensagem para a equipe..."
+                                    value={text}
+                                    onChange={e => setText(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                                    className="v2-drawer-text"
+                                />
+                                <button onClick={send} disabled={!text.trim() || sending} className="v2-drawer-send">
+                                    <Send size={16} strokeWidth={2} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
+// ─── Section wrapper ──────────────────────────────────────────────────────────
+function Section({ title, eyebrow, children }) {
+    return (
+        <section className="v2-section">
+            <Reveal className="v2-section-head">
+                {eyebrow && <SectionLabel>{eyebrow}</SectionLabel>}
+                <h2>{title}</h2>
+            </Reveal>
+            {children}
+        </section>
+    );
+}
+
+function Empty({ icon, title, sub }) {
+    return (
+        <div className="v2-empty">
+            <div className="v2-empty-icon">{icon}</div>
+            <div className="v2-empty-title">{title}</div>
+            <div className="v2-empty-sub">{sub}</div>
+        </div>
+    );
+}
+
+// ─── Status bar (sticky) ──────────────────────────────────────────────────────
+function StatusBar({ projeto, etapas, atividades }) {
+    const ultima = atividades?.[0]?.criado_em || etapas?.find(e => e.status === 'concluida' && e.data_fim)?.data_fim;
+    if (!ultima) return null;
+    const ultimaDescr = atividades?.[0]?.descricao || 'última atualização';
+
+    return (
+        <div className="v2-statusbar">
+            <StatusDot tone="active" pulse />
+            <span className="v2-statusbar-text">
+                <strong>Atualizado {timeAgo(ultima)}</strong>
+                {ultimaDescr && ultimaDescr !== 'última atualização' && (
+                    <> · {ultimaDescr.length > 60 ? ultimaDescr.slice(0, 60) + '…' : ultimaDescr}</>
+                )}
+            </span>
+        </div>
+    );
+}
+
+// ─── Página ───────────────────────────────────────────────────────────────────
+export default function PortalClienteV2({ token }) {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // Injeta fonts uma vez
+        const id = 'v2-fonts';
+        if (!document.getElementById(id)) {
+            const link = document.createElement('link');
+            link.id = id;
+            link.rel = 'stylesheet';
+            link.href = 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap';
+            document.head.appendChild(link);
+        }
+    }, []);
+
+    useEffect(() => {
+        const authToken = localStorage.getItem('erp_token');
+        const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+        fetch(`/api/projetos/portal/${token}`, { headers })
+            .then(r => r.json())
+            .then(d => { if (d.error) setError(d.error); else setData(d); })
+            .catch(() => setError('Não foi possível carregar o projeto'))
+            .finally(() => setLoading(false));
+
+        initClarity();
+        setClarityTag('page', 'portal-cliente-v2');
+        if (token) identifyClarity(token, '', '', `Portal V2 ${token.slice(0, 8)}`);
+    }, [token]);
+
+    if (loading) return (
+        <div className="v2-shell v2-state">
+            <style>{V2_STYLES}</style>
+            <div className="v2-loader">
+                <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+                    <circle cx="20" cy="20" r="16" fill="none" stroke="color-mix(in oklch, var(--v2-cobre) 16%, transparent)" strokeWidth="2.5" />
+                    <circle cx="20" cy="20" r="16" fill="none" stroke="var(--v2-cobre)" strokeWidth="2.5"
+                            strokeLinecap="round" strokeDasharray="30 70"
+                            style={{ transformOrigin: 'center', animation: 'v2Spin 1s linear infinite' }} />
+                </svg>
+                <div className="v2-loader-text">Carregando seu portal</div>
+            </div>
+        </div>
+    );
+
+    if (error) return (
+        <div className="v2-shell v2-state">
+            <style>{V2_STYLES}</style>
+            <div className="v2-error">
+                <div className="v2-error-icon"><Lock size={22} /></div>
+                <h2>Link indisponível</h2>
+                <p>{error}</p>
+            </div>
+        </div>
+    );
+
+    const { projeto, empresa } = data;
+    const etapas = projeto.etapas || [];
+    const ambientes = projeto.ambientes || [];
+    const mensagens = projeto.mensagens || [];
+    const pagamento = projeto.pagamento || null;
+    const atividades = projeto.atividades || [];
+    const msgNaoLidas = projeto.msgNaoLidas || 0;
+    const concluidasPct = etapas.length
+        ? Math.round(etapas.filter(e => e.status === 'concluida').length / etapas.length * 100)
+        : 0;
+
+    return (
+        <div className="v2-shell">
+            <style>{V2_STYLES}</style>
+
+            {/* Background decorativo — grid + mesh cobre */}
+            <div className="v2-bg" aria-hidden="true">
+                <div className="v2-bg-grid" />
+                <div className="v2-bg-mesh" />
+            </div>
+
+            {/* Topo: logo + experimento ribbon */}
+            <div className="v2-topbar">
+                <div className="v2-topbar-inner">
+                    {empresa.logo_header_path ? (
+                        <img src={empresa.logo_header_path} alt={empresa.nome || 'Ornato'} className="v2-logo" />
+                    ) : (
+                        <span className="v2-logo-text">{empresa.nome || 'Ornato'}</span>
+                    )}
+                    <span className="v2-topbar-label">Portal do Cliente</span>
+                </div>
+            </div>
+
+            <main className="v2-main">
+                <Hero projeto={projeto} empresa={empresa} concluidasPct={concluidasPct} etapas={etapas} />
+                <StatusBar projeto={projeto} etapas={etapas} atividades={atividades} />
+                <Cronograma etapas={etapas} />
+                <Ambientes ambientes={ambientes} />
+                <Fotos token={token} />
+                <Documentos token={token} />
+                {pagamento && <Financeiro pagamento={pagamento} />}
+
+                <footer className="v2-footer">
+                    <div className="v2-footer-contact">
+                        {empresa.email && <span>{empresa.email}</span>}
+                        {empresa.email && empresa.telefone && <span aria-hidden="true">·</span>}
+                        {empresa.telefone && <span>{empresa.telefone}</span>}
+                    </div>
+                    <div className="v2-footer-meta">Portal Ornato · {new Date().getFullYear()}</div>
+                </footer>
+            </main>
+
+            <ChatFAB token={token} mensagens={mensagens} clienteNome={projeto.cliente_nome} msgNaoLidas={msgNaoLidas} />
+        </div>
+    );
+}
+
+// ─── CSS ──────────────────────────────────────────────────────────────────────
+const V2_STYLES = `
+.v2-shell {
+    --v2-display: 'Geist', system-ui, -apple-system, sans-serif;
+    --v2-body: 'Geist', system-ui, -apple-system, sans-serif;
+    --v2-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --v2-paper: oklch(0.985 0.005 75);
+    --v2-surface: #ffffff;
+    --v2-surface-2: oklch(0.975 0.005 75);
+    --v2-ink: oklch(0.20 0.012 60);
+    --v2-ink-2: oklch(0.46 0.012 60);
+    --v2-ink-3: oklch(0.68 0.012 60);
+    --v2-border: oklch(0.91 0.006 70);
+    --v2-border-soft: oklch(0.94 0.005 70);
+    --v2-cobre: oklch(0.71 0.078 70);
+    --v2-cobre-soft: color-mix(in oklch, var(--v2-cobre) 12%, transparent);
+
+    min-height: 100vh;
+    background: var(--v2-paper);
+    color: var(--v2-ink);
+    font-family: var(--v2-body);
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
+}
+
+.v2-shell * { box-sizing: border-box; }
+
+@keyframes v2Pulse { 0%, 100% { box-shadow: 0 0 0 4px color-mix(in oklch, var(--v2-cobre) 22%, transparent); } 50% { box-shadow: 0 0 0 7px color-mix(in oklch, var(--v2-cobre) 6%, transparent); } }
+@keyframes v2Spin { to { transform: rotate(360deg); } }
+@keyframes v2Shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes v2FabBreathe { 0%, 100% { box-shadow: 0 12px 32px -8px color-mix(in oklch, var(--v2-cobre) 50%, transparent), 0 0 0 0 color-mix(in oklch, var(--v2-cobre) 30%, transparent); } 50% { box-shadow: 0 12px 32px -8px color-mix(in oklch, var(--v2-cobre) 60%, transparent), 0 0 0 12px color-mix(in oklch, var(--v2-cobre) 0%, transparent); } }
+@keyframes v2DrawerIn { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes v2ScrimIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Background decorativo ── */
+.v2-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.v2-bg-grid {
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(to right, color-mix(in oklch, var(--v2-ink) 4%, transparent) 1px, transparent 1px),
+        linear-gradient(to bottom, color-mix(in oklch, var(--v2-ink) 4%, transparent) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: linear-gradient(to bottom, black 0%, black 60%, transparent 100%);
+}
+.v2-bg-mesh {
+    position: absolute; top: -10%; right: -20%; width: 60vw; height: 60vw;
+    background: radial-gradient(circle at center, color-mix(in oklch, var(--v2-cobre) 22%, transparent) 0%, transparent 65%);
+    filter: blur(40px);
+    opacity: 0.7;
+}
+
+/* ── Topbar ── */
+.v2-topbar { position: relative; z-index: 2; }
+.v2-topbar-inner {
+    max-width: 880px; margin: 0 auto;
+    padding: 22px 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.v2-logo { height: 32px; max-width: 160px; object-fit: contain; }
+.v2-logo-text { font-family: var(--v2-display); font-weight: 600; font-size: 18px; letter-spacing: -0.02em; color: var(--v2-ink); }
+.v2-topbar-label {
+    font-family: var(--v2-mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--v2-ink-3);
+}
+
+/* ── Main ── */
+.v2-main {
+    position: relative; z-index: 1;
+    max-width: 880px; margin: 0 auto;
+    padding: 56px 24px 120px;
+}
+
+/* ── Hero ── */
+.v2-hero { margin-bottom: 64px; }
+.v2-hero-grid {
+    display: grid; grid-template-columns: 1fr; gap: 48px; align-items: center;
+}
+@media (min-width: 720px) {
+    .v2-hero-grid { grid-template-columns: 1.4fr 1fr; gap: 64px; }
+}
+.v2-hero-right { display: flex; justify-content: center; }
+.v2-hero-meta {
+    display: grid; gap: 24px 32px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
+}
+.v2-hero-meta-item { min-width: 0; }
+.v2-hero-meta-item .v2-meta-value { white-space: nowrap; }
+.v2-meta-label {
+    font-family: var(--v2-mono); font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--v2-ink-3);
+    margin-bottom: 8px;
+}
+.v2-meta-value {
+    font-family: var(--v2-mono); font-variant-numeric: tabular-nums;
+    font-size: 18px; font-weight: 500; color: var(--v2-ink); letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+/* ── Statusbar (não sticky — banner discreto) ── */
+.v2-statusbar {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 10px 16px; margin-bottom: 56px;
+    background: var(--v2-surface); border: 1px solid var(--v2-border);
+    border-radius: 999px; font-size: 13px;
+    box-shadow: 0 1px 3px color-mix(in oklch, var(--v2-ink) 4%, transparent);
+}
+.v2-statusbar-text { color: var(--v2-ink-2); }
+.v2-statusbar-text strong { color: var(--v2-ink); font-weight: 500; }
+
+/* ── Section ── */
+.v2-section { margin-bottom: 72px; }
+.v2-section-head { margin-bottom: 28px; }
+.v2-section h2 {
+    margin: 10px 0 0; font-family: var(--v2-display); font-size: clamp(1.5rem, 2.6vw, 1.875rem);
+    font-weight: 600; letter-spacing: -0.025em; color: var(--v2-ink); line-height: 1.2;
+}
+
+/* ── Status pill ── */
+.v2-status-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 10px 4px 9px; border-radius: 999px;
+    font-family: var(--v2-mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.02em; white-space: nowrap;
+    background: var(--v2-surface-2); border: 1px solid var(--v2-border-soft);
+    color: var(--v2-ink-2);
+}
+.v2-status-pill.v2-tone-active { color: var(--v2-ink); background: color-mix(in oklch, var(--v2-cobre) 8%, var(--v2-surface)); border-color: color-mix(in oklch, var(--v2-cobre) 22%, var(--v2-border)); }
+.v2-status-pill.v2-tone-done { color: oklch(0.42 0.13 155); background: oklch(0.97 0.04 155); border-color: oklch(0.88 0.06 155); }
+.v2-status-pill.v2-tone-late { color: oklch(0.45 0.18 27); background: oklch(0.97 0.04 27); border-color: oklch(0.88 0.08 27); }
+
+/* ── Timeline ── */
+.v2-timeline { list-style: none; padding: 0; margin: 0; }
+.v2-timeline-item { display: grid; grid-template-columns: 36px 1fr; gap: 16px; padding-bottom: 28px; }
+.v2-timeline-node { display: flex; flex-direction: column; align-items: center; padding-top: 2px; }
+.v2-timeline-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--v2-surface); border: 1px solid var(--v2-border);
+    color: var(--v2-ink-2); flex-shrink: 0;
+    transition: all 240ms ease-out;
+}
+.v2-timeline-icon.v2-tone-done { background: oklch(0.97 0.05 155); border-color: oklch(0.85 0.1 155); color: oklch(0.45 0.14 155); }
+.v2-timeline-icon.v2-tone-active { background: color-mix(in oklch, var(--v2-cobre) 12%, var(--v2-surface)); border-color: color-mix(in oklch, var(--v2-cobre) 35%, var(--v2-border)); color: oklch(0.50 0.085 70); box-shadow: 0 0 0 4px color-mix(in oklch, var(--v2-cobre) 8%, transparent); }
+.v2-timeline-line { width: 1px; flex: 1; min-height: 28px; margin: 8px 0 -8px; background: var(--v2-border); }
+.v2-timeline-line-done { background: oklch(0.85 0.08 155); }
+.v2-timeline-line-active { background: linear-gradient(to bottom, color-mix(in oklch, var(--v2-cobre) 60%, transparent), var(--v2-border) 80%); }
+
+.v2-timeline-body { min-width: 0; padding-top: 2px; }
+.v2-timeline-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.v2-timeline-num {
+    font-family: var(--v2-mono); font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.14em; color: var(--v2-ink-3); margin-bottom: 3px;
+}
+.v2-timeline-name {
+    font-family: var(--v2-display); font-size: 16px; font-weight: 500;
+    color: var(--v2-ink); letter-spacing: -0.015em; line-height: 1.35;
+}
+.v2-timeline-meta {
+    margin-top: 6px; display: flex; align-items: center; gap: 6px;
+    font-family: var(--v2-mono); font-variant-numeric: tabular-nums;
+    font-size: 12px; color: var(--v2-ink-2);
+}
+
+/* ── Progress bar reusável ── */
+.v2-progress-bar {
+    margin-top: 14px; height: 4px; border-radius: 999px;
+    background: var(--v2-border-soft); overflow: hidden;
+}
+.v2-progress-bar-thin { height: 3px; margin-top: 10px; }
+.v2-progress-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, color-mix(in oklch, var(--v2-cobre) 65%, white) 0%, var(--v2-cobre) 100%);
+    transition: width 720ms cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative; overflow: hidden;
+}
+.v2-progress-fill::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, color-mix(in oklch, white 50%, transparent), transparent);
+    background-size: 200% 100%; animation: v2Shimmer 2.6s ease-in-out infinite;
+}
+
+/* ── Ambientes ── */
+.v2-ambientes {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.v2-ambiente {
+    padding: 18px 20px; background: var(--v2-surface);
+    border: 1px solid var(--v2-border); border-radius: 14px;
+    transition: border-color 200ms, transform 200ms, box-shadow 200ms;
+}
+.v2-ambiente:hover {
+    border-color: color-mix(in oklch, var(--v2-cobre) 30%, var(--v2-border));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -4px color-mix(in oklch, var(--v2-ink) 8%, transparent);
+}
+.v2-ambiente-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.v2-ambiente-name { font-family: var(--v2-display); font-size: 15px; font-weight: 500; color: var(--v2-ink); letter-spacing: -0.015em; }
+.v2-ambiente-foot {
+    margin-top: 10px; display: flex; align-items: center; gap: 8px;
+    font-family: var(--v2-mono); font-variant-numeric: tabular-nums;
+    font-size: 11.5px; color: var(--v2-ink-2);
+}
+
+/* ── Fotos grid ── */
+.v2-foto-grid {
+    display: grid; gap: 8px;
+    grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 540px) {
+    .v2-foto-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+}
+.v2-foto-cell {
+    position: relative; aspect-ratio: 1; overflow: hidden;
+    border-radius: 12px; border: 1px solid var(--v2-border);
+    background: var(--v2-surface-2); cursor: pointer;
+    padding: 0; transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.v2-foto-cell img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.v2-foto-cell:hover img { transform: scale(1.05); }
+.v2-foto-overlay {
+    position: absolute; top: 8px; right: 8px;
+    width: 28px; height: 28px; border-radius: 8px;
+    background: color-mix(in oklch, white 90%, transparent);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--v2-ink); opacity: 0; transition: opacity 200ms;
+}
+.v2-foto-cell:hover .v2-foto-overlay { opacity: 1; }
+
+/* ── Skeletons ── */
+.v2-skel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.v2-skel-img { aspect-ratio: 1; border-radius: 12px; background: linear-gradient(90deg, var(--v2-surface-2) 0%, var(--v2-border-soft) 50%, var(--v2-surface-2) 100%); background-size: 200% 100%; animation: v2Shimmer 1.6s ease-in-out infinite; }
+.v2-skel-list { display: grid; gap: 8px; }
+.v2-skel-row { height: 56px; border-radius: 10px; background: linear-gradient(90deg, var(--v2-surface-2) 0%, var(--v2-border-soft) 50%, var(--v2-surface-2) 100%); background-size: 200% 100%; animation: v2Shimmer 1.6s ease-in-out infinite; }
+
+/* ── Documentos ── */
+.v2-doc-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.v2-doc-row a {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; background: var(--v2-surface);
+    border: 1px solid var(--v2-border); border-radius: 12px;
+    color: inherit; text-decoration: none;
+    transition: border-color 180ms, transform 180ms, box-shadow 180ms;
+}
+.v2-doc-row a:hover {
+    border-color: color-mix(in oklch, var(--v2-cobre) 30%, var(--v2-border));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -4px color-mix(in oklch, var(--v2-ink) 8%, transparent);
+}
+.v2-doc-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--v2-surface-2); border: 1px solid var(--v2-border-soft);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--v2-ink-2); flex-shrink: 0;
+}
+.v2-doc-info { flex: 1; min-width: 0; }
+.v2-doc-name {
+    font-family: var(--v2-display); font-size: 14.5px; font-weight: 500;
+    color: var(--v2-ink); letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.v2-doc-meta {
+    margin-top: 3px; display: flex; align-items: center; gap: 6px;
+    font-family: var(--v2-mono); font-size: 11.5px; color: var(--v2-ink-3);
+}
+.v2-doc-action {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--v2-surface-2); display: flex; align-items: center; justify-content: center;
+    color: var(--v2-ink-2); flex-shrink: 0;
+    transition: background 200ms, color 200ms;
+}
+.v2-doc-row a:hover .v2-doc-action { background: var(--v2-cobre); color: white; }
+
+/* ── Financeiro ── */
+.v2-fin-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    padding: 24px; background: var(--v2-surface);
+    border: 1px solid var(--v2-border); border-radius: 16px;
+    margin-bottom: 24px;
+}
+.v2-fin-stat-label {
+    font-family: var(--v2-mono); font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--v2-ink-3);
+    margin-bottom: 8px;
+}
+.v2-fin-stat-value {
+    font-family: var(--v2-mono); font-variant-numeric: tabular-nums;
+    font-size: clamp(1.05rem, 2.4vw, 1.375rem); font-weight: 500;
+    color: var(--v2-ink); letter-spacing: -0.02em;
+}
+.v2-fin-paid { color: oklch(0.50 0.13 155); }
+.v2-fin-stat-total { padding-left: 16px; border-left: 1px solid var(--v2-border-soft); }
+
+.v2-fin-bar-wrap { margin-bottom: 24px; }
+.v2-fin-bar {
+    height: 6px; border-radius: 999px;
+    background: var(--v2-border-soft); overflow: hidden;
+}
+.v2-fin-bar-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, oklch(0.65 0.12 155) 0%, oklch(0.55 0.14 155) 100%);
+    transition: width 720ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.v2-fin-bar-label {
+    margin-top: 8px; display: flex; align-items: center; gap: 6px;
+    font-family: var(--v2-mono); font-size: 12px; color: var(--v2-ink-2);
+}
+
+.v2-parcela-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.v2-parcela-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 14px 16px; border-radius: 10px;
+    transition: background 180ms;
+}
+.v2-parcela-row:hover { background: var(--v2-surface-2); }
+.v2-parcela-desc {
+    font-family: var(--v2-display); font-size: 14px; font-weight: 500;
+    color: var(--v2-ink); letter-spacing: -0.01em;
+}
+.v2-parcela-date {
+    margin-top: 2px; font-family: var(--v2-mono); font-size: 11.5px; color: var(--v2-ink-3);
+}
+.v2-parcela-right { display: flex; align-items: center; gap: 14px; }
+.v2-parcela-value {
+    font-family: var(--v2-mono); font-variant-numeric: tabular-nums;
+    font-size: 14.5px; font-weight: 500; letter-spacing: -0.01em;
+}
+
+/* ── Empty state ── */
+.v2-empty {
+    padding: 32px 24px; text-align: center;
+    background: var(--v2-surface); border: 1px dashed var(--v2-border);
+    border-radius: 14px;
+}
+.v2-empty-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--v2-surface-2); border: 1px solid var(--v2-border-soft);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--v2-ink-3); margin-bottom: 14px;
+}
+.v2-empty-title { font-family: var(--v2-display); font-size: 15px; font-weight: 500; color: var(--v2-ink); letter-spacing: -0.015em; }
+.v2-empty-sub { margin-top: 6px; font-size: 13.5px; color: var(--v2-ink-2); max-width: 38ch; margin-left: auto; margin-right: auto; line-height: 1.55; }
+
+/* ── Footer ── */
+.v2-footer {
+    margin-top: 72px; padding-top: 32px;
+    border-top: 1px solid var(--v2-border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+    font-family: var(--v2-mono); font-size: 11.5px; color: var(--v2-ink-3);
+}
+.v2-footer-contact { display: flex; gap: 10px; align-items: center; }
+
+/* ── FAB ── */
+.v2-fab {
+    position: fixed; bottom: 24px; right: 24px; z-index: 50;
+    width: 56px; height: 56px; border-radius: 18px;
+    background: var(--v2-cobre); color: white; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; animation: v2FabBreathe 3.4s ease-in-out infinite;
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.v2-fab:hover { transform: translateY(-2px) scale(1.04); }
+.v2-fab-badge {
+    position: absolute; top: -4px; right: -4px;
+    min-width: 22px; height: 22px; padding: 0 6px;
+    border-radius: 12px; background: oklch(0.58 0.2 27);
+    color: white; font-family: var(--v2-mono); font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--v2-paper);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Drawer ── */
+.v2-drawer-scrim {
+    position: fixed; inset: 0; z-index: 100;
+    background: color-mix(in oklch, var(--v2-ink) 50%, transparent);
+    backdrop-filter: blur(6px) saturate(110%);
+    display: flex; align-items: flex-end; justify-content: center;
+    animation: v2ScrimIn 240ms ease-out;
+}
+.v2-drawer {
+    width: 100%; max-width: 540px; background: var(--v2-paper);
+    border-radius: 20px 20px 0 0; max-height: 88vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 -12px 40px -8px color-mix(in oklch, var(--v2-ink) 20%, transparent);
+    animation: v2DrawerIn 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow: hidden;
+}
+.v2-drawer-head {
+    padding: 18px 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    border-bottom: 1px solid var(--v2-border);
+}
+.v2-drawer-title { font-family: var(--v2-display); font-size: 17px; font-weight: 600; color: var(--v2-ink); letter-spacing: -0.02em; }
+.v2-drawer-sub { font-family: var(--v2-mono); font-size: 11.5px; color: var(--v2-ink-3); margin-top: 2px; }
+.v2-drawer-close { background: none; border: none; cursor: pointer; padding: 6px; color: var(--v2-ink-2); border-radius: 8px; transition: background 180ms; }
+.v2-drawer-close:hover { background: var(--v2-surface-2); }
+
+.v2-drawer-msgs { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.v2-msg { display: flex; flex-direction: column; max-width: 80%; }
+.v2-msg-me { align-self: flex-end; align-items: flex-end; }
+.v2-msg-team { align-self: flex-start; align-items: flex-start; }
+.v2-msg-meta {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--v2-mono); font-size: 10.5px; color: var(--v2-ink-3);
+    margin-bottom: 4px;
+}
+.v2-msg-bubble {
+    padding: 10px 14px; border-radius: 14px;
+    font-size: 14px; line-height: 1.45; color: var(--v2-ink);
+    white-space: pre-wrap; word-break: break-word;
+}
+.v2-msg-me .v2-msg-bubble { background: var(--v2-cobre-soft); border: 1px solid color-mix(in oklch, var(--v2-cobre) 30%, var(--v2-border)); border-top-right-radius: 4px; }
+.v2-msg-team .v2-msg-bubble { background: var(--v2-surface); border: 1px solid var(--v2-border); border-top-left-radius: 4px; }
+
+.v2-drawer-empty { padding: 40px 24px; text-align: center; color: var(--v2-ink-2); }
+.v2-drawer-empty-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--v2-cobre-soft); color: var(--v2-cobre); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+.v2-drawer-empty p { font-size: 13.5px; margin: 0; }
+
+.v2-drawer-input {
+    padding: 16px 20px 20px; border-top: 1px solid var(--v2-border);
+    background: var(--v2-paper); display: grid; gap: 8px;
+}
+.v2-drawer-name {
+    padding: 8px 12px; font-size: 12.5px; font-family: var(--v2-mono);
+    border: 1px solid var(--v2-border); border-radius: 8px;
+    background: var(--v2-surface); color: var(--v2-ink-2);
+    outline: none; transition: border-color 180ms;
+}
+.v2-drawer-name:focus { border-color: color-mix(in oklch, var(--v2-cobre) 50%, var(--v2-border)); }
+.v2-drawer-send-row { display: flex; gap: 8px; }
+.v2-drawer-text {
+    flex: 1; padding: 11px 14px; font-size: 14px;
+    border: 1px solid var(--v2-border); border-radius: 10px;
+    background: var(--v2-surface); color: var(--v2-ink);
+    outline: none; transition: border-color 180ms;
+    font-family: inherit;
+}
+.v2-drawer-text:focus { border-color: color-mix(in oklch, var(--v2-cobre) 50%, var(--v2-border)); }
+.v2-drawer-send {
+    width: 42px; height: 42px; border-radius: 10px;
+    background: var(--v2-cobre); color: white; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: opacity 180ms, transform 180ms;
+}
+.v2-drawer-send:disabled { opacity: 0.4; cursor: not-allowed; }
+.v2-drawer-send:not(:disabled):hover { transform: scale(1.05); }
+
+/* ── Lightbox ── */
+.v2-lightbox {
+    position: fixed; inset: 0; z-index: 200;
+    background: color-mix(in oklch, var(--v2-ink) 90%, black);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; animation: v2ScrimIn 240ms ease-out;
+}
+.v2-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; }
+.v2-lightbox-close { position: fixed; top: 20px; right: 20px; width: 40px; height: 40px; border-radius: 12px; background: color-mix(in oklch, white 12%, transparent); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+
+/* ── Estados de page ── */
+.v2-state { display: flex; align-items: center; justify-content: center; padding: 32px; }
+.v2-loader { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.v2-loader-text { font-family: var(--v2-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--v2-ink-2); }
+.v2-error { max-width: 380px; padding: 36px 28px; background: var(--v2-surface); border: 1px solid var(--v2-border); border-radius: 16px; text-align: center; }
+.v2-error-icon { width: 48px; height: 48px; border-radius: 14px; background: var(--v2-cobre-soft); color: var(--v2-cobre); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.v2-error h2 { margin: 0 0 6px; font-family: var(--v2-display); font-size: 18px; font-weight: 600; color: var(--v2-ink); letter-spacing: -0.02em; }
+.v2-error p { margin: 0; color: var(--v2-ink-2); font-size: 13.5px; line-height: 1.55; }
+
+@media (prefers-reduced-motion: reduce) {
+    .v2-shell *, .v2-shell *::before, .v2-shell *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+`;
