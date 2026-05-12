@@ -109,8 +109,8 @@ function renderRoute() {
     if (isTVCorte)              return <ProducaoCNCTV />;
     if (pecaPublicId)           return <ScanPeca3D codigo={pecaPublicId} />;
     if (scanCodigo || isScanPage) return <ScanPeca3D codigo={scanCodigo} />;
-    if (isLandingV2)            return <LandingPageV2 />;
-    if (isPortfolio)            return <PortfolioPublico />;
+    // Tokens públicos antes da landing: links com ?portal=/?proposta=/?montador= chegam com path='/'
+    // e precisam ser interceptados antes do match de isLandingV2.
     if (apresentacaoToken)      return <PropostaApresentacao token={apresentacaoToken} />;
     if (lpToken)                return <ProposalLanding token={lpToken} />;
     if (previewPropostaToken)   return <ProposalPublic token={previewPropostaToken} isPreview />;
@@ -120,6 +120,8 @@ function renderRoute() {
     if (montadorToken)          return <MontadorUpload token={montadorToken} />;
     if (assinaturaToken)        return <AssinaturaPublic token={assinaturaToken} />;
     if (verificacaoCodigo)      return <VerificacaoAssinatura codigo={verificacaoCodigo} />;
+    if (isLandingV2)            return <LandingPageV2 />;
+    if (isPortfolio)            return <PortfolioPublico />;
     return null; // → cai no App logado (/app, /clientes, /orcs, etc.)
 }
 
