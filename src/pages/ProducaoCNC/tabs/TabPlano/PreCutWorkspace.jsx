@@ -555,7 +555,6 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                         chapa={chapaData}
                                         playing={simPlaying}
                                         speed={simSpeed}
-                                        curMove={curMove}
                                         onMoveChange={handleMoveChange}
                                         onPlayEnd={handlePlayEnd}
                                     />

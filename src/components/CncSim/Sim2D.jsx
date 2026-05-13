@@ -36,7 +36,7 @@ function getColor(m, done) {
 
 // ── Componente ────────────────────────────────────────────────────────────────
 const Sim2D = forwardRef(function Sim2D(
-    { parsed, chapa, playing, speed, curMove: curMoveProp, onMoveChange, onPlayEnd },
+    { parsed, chapa, playing, speed, onMoveChange, onPlayEnd },
     ref
 ) {
     const canvasRef = useRef(null);
@@ -69,6 +69,7 @@ const Sim2D = forwardRef(function Sim2D(
     s.events       = parsed?.events ?? [];
     s.onMoveChange = onMoveChange;
     s.onPlayEnd    = onPlayEnd;
+    s.chapa        = chapaStable;   // evita stale closure em draw()
 
     // Chapa estável por valor
     const chapaKey = `${chapa?.comprimento}|${chapa?.largura}|${chapa?.espessura}|${chapa?.refilo}`;
@@ -88,7 +89,7 @@ const Sim2D = forwardRef(function Sim2D(
             ctx.clearRect(0, 0, w, h);
 
             const mvs   = s.moves;
-            const chapa = chapaStable;
+            const chapa = s.chapa;       // lê do ref, nunca closure stale
             const cW    = chapa?.comprimento ?? 2750;
             const cH    = chapa?.largura     ?? 1850;
             const thick = chapa?.espessura   ?? 18;
@@ -304,18 +305,9 @@ const Sim2D = forwardRef(function Sim2D(
         s.draw?.();
     }, [parsed, chapaStable]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Seek externo (slider, step buttons) quando não estiver tocando ────────
-    useEffect(() => {
-        if (s.playing) return; // ignora durante playback (sim já drive curMove)
-        if (curMoveProp === undefined || curMoveProp === null) return;
-        const idx = Math.max(-1, Math.min(s.moves.length - 1, curMoveProp));
-        if (idx !== s.curMove) {
-            s.curMove = idx;
-            s.acc     = 0;
-            s.draw?.();
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [curMoveProp]);
+    // Seek externo: feito exclusivamente via API imperativa seekTo()
+    // NÃO usar prop curMove para drive — causaria backward-jump ao pausar
+    // (React state fica defasado em relação a s.curMove durante playback rápido)
 
     // ── API imperativa ────────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
