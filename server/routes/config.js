@@ -72,8 +72,14 @@ router.put('/', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
 // GET /api/config/empresa/public — sem autenticação (login page)
 // ═══════════════════════════════════════════════════════
 router.get('/empresa/public', (req, res) => {
-    const emp = db.prepare('SELECT nome, logo_sistema, sistema_cor_primaria FROM empresa_config WHERE id = 1').get();
-    res.json(emp || {});
+    const emp = db.prepare('SELECT nome, logo_header_path, logo_sistema, sistema_cor_primaria FROM empresa_config WHERE id = 1').get();
+    if (!emp) return res.json({});
+
+    res.json({
+        ...emp,
+        logo_empresa: emp.logo_header_path || '',
+        logo_login: emp.logo_header_path || emp.logo_sistema || '',
+    });
 });
 
 // ═══════════════════════════════════════════════════════

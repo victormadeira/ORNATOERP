@@ -11,21 +11,36 @@ import {
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 
-function BrandIdentity({ logoSistema, empNome, compact = false }) {
+function BrandIdentity({ brandLogo, empNome, compact = false }) {
     const label = (empNome || 'Ornato').trim();
     const initials = label.slice(0, 2).toUpperCase();
+    const [imageFailed, setImageFailed] = useState(false);
+    const showLogo = Boolean(brandLogo) && !imageFailed;
+
+    useEffect(() => {
+        setImageFailed(false);
+    }, [brandLogo]);
 
     return (
-        <div className={`login-brand-lockup${compact ? ' login-brand-lockup-compact' : ''}`}>
-            <div className="login-brand-mark" aria-hidden="true">
-                {logoSistema
-                    ? <img src={logoSistema} alt="" />
-                    : <span>{initials}</span>}
-            </div>
-            <div className="login-brand-text">
-                <strong>{label}</strong>
-                <span>Sistema interno</span>
-            </div>
+        <div className={`login-brand-lockup${showLogo ? ' login-brand-lockup-logo' : ''}${compact ? ' login-brand-lockup-compact' : ''}`}>
+            {showLogo ? (
+                <>
+                    <div className="login-brand-company-logo">
+                        <img src={brandLogo} alt={label} onError={() => setImageFailed(true)} />
+                    </div>
+                    <span className="login-brand-subtitle">Sistema interno</span>
+                </>
+            ) : (
+                <>
+                    <div className="login-brand-mark" aria-hidden="true">
+                        <span>{initials}</span>
+                    </div>
+                    <div className="login-brand-text">
+                        <strong>{label}</strong>
+                        <span>Sistema interno</span>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -157,6 +172,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [logoSistema, setLogoSistema] = useState(logoProp || localStorage.getItem('logo_sistema') || '');
+    const [logoEmpresa, setLogoEmpresa] = useState(localStorage.getItem('logo_empresa') || '');
     const [empNome, setEmpNome] = useState(nomeProp || localStorage.getItem('emp_nome') || 'Ornato');
     const panelRef = useRef(null);
 
@@ -172,9 +188,16 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
             .then(r => r.json())
             .then(d => {
                 if (!alive) return;
-                if (d.logo_sistema) {
-                    setLogoSistema(d.logo_sistema);
-                    localStorage.setItem('logo_sistema', d.logo_sistema);
+                const publicLogo = d.logo_login || d.logo_header_path || d.logo_empresa || d.logo_sistema || '';
+                const hasLogoConfig = ['logo_login', 'logo_header_path', 'logo_empresa', 'logo_sistema']
+                    .some(key => Object.prototype.hasOwnProperty.call(d, key));
+                if (hasLogoConfig) {
+                    setLogoEmpresa(publicLogo);
+                    localStorage.setItem('logo_empresa', publicLogo);
+                }
+                if (Object.prototype.hasOwnProperty.call(d, 'logo_sistema')) {
+                    setLogoSistema(d.logo_sistema || '');
+                    localStorage.setItem('logo_sistema', d.logo_sistema || '');
                 }
                 if (d.nome) {
                     setEmpNome(d.nome);
@@ -188,6 +211,8 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
 
         return () => { alive = false; };
     }, []);
+
+    const brandLogo = logoEmpresa || logoSistema;
 
     const shakePanel = () => {
         if (!panelRef.current) return;
@@ -225,7 +250,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
 
             <section className="login-main login-main-clean" aria-label="Login">
                 <div className="login-brand-top">
-                    <BrandIdentity logoSistema={logoSistema} empNome={empNome} />
+                    <BrandIdentity brandLogo={brandLogo} empNome={empNome} />
                 </div>
 
                 <div ref={panelRef} className={`login-panel${success ? ' login-success' : ''}`}>

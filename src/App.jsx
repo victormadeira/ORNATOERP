@@ -369,10 +369,12 @@ export default function App() {
     const loadEmpresa = useCallback(() => {
         if (user) api.get('/config/empresa').then(d => {
             const ls = d.logo_sistema || '';
+            const le = d.logo_header_path || '';
             const nm = d.nome || 'Ornato';
             setLogoSistema(ls);
             setEmpNome(nm);
             localStorage.setItem('logo_sistema', ls);
+            localStorage.setItem('logo_empresa', le);
             localStorage.setItem('emp_nome', nm);
             if (d.sistema_cor_primaria) applyPrimaryColor(d.sistema_cor_primaria);
             // Menus ocultos
