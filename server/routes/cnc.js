@@ -17,6 +17,7 @@ import {
     optimizeLastBin, crossBinOptimize,
     calculatePolygonArea, isPointInPolygon, contourBoundingBox,
 } from '../lib/nesting-engine.js';
+import { detectCommonLines, commonLineSavings, partInPartNest, runNFPNesting, convertBinToNFPFormat } from '../lib/nfp-engine.js';
 import { isPythonAvailable, callPython } from '../lib/python-bridge.js';
 import { parseDxf } from '../utils/dxfParser.js';
 import { seedTestData } from '../utils/seedTestData.js';
@@ -2409,6 +2410,21 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                         }
                     }
 
+                    // ═══ NFP Post-processing: Common-line detection ═══
+                    // Detect pairs of adjacent pieces that share a cut edge (saves kerf/2 per edge)
+                    if (chapaInfo.pecas.length > 1) {
+                        const placedForNFP = chapaInfo.pecas.map(p => ({
+                            id: p.pecaId,
+                            x: p.x, y: p.y, w: p.w, h: p.h,
+                        }));
+                        const commonLines = detectCommonLines(placedForNFP, kerf);
+                        if (commonLines.length > 0) {
+                            chapaInfo.linhas_comuns = commonLines;
+                            chapaInfo.linhas_comuns_pares = commonLines.length;
+                            chapaInfo.economia_kerf_mm2 = Math.round(commonLineSavings(commonLines));
+                        }
+                    }
+
                     gerarCortesRetalhos(chapaInfo);
                     plano.chapas.push(chapaInfo);
                 }
@@ -3188,6 +3204,20 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
                             chapa_ref_id: chapa.id || null,
                             status: 'prevista',
                         });
+                    }
+                }
+
+                // ═══ NFP Post-processing: Common-line detection (multi-lote) ═══
+                if (chapaInfo.pecas.length > 1) {
+                    const placedForNFP2 = chapaInfo.pecas.map(p => ({
+                        id: p.pecaId,
+                        x: p.x, y: p.y, w: p.w, h: p.h,
+                    }));
+                    const commonLines2 = detectCommonLines(placedForNFP2, kerf);
+                    if (commonLines2.length > 0) {
+                        chapaInfo.linhas_comuns = commonLines2;
+                        chapaInfo.linhas_comuns_pares = commonLines2.length;
+                        chapaInfo.economia_kerf_mm2 = Math.round(commonLineSavings(commonLines2));
                     }
                 }
 
@@ -5013,6 +5043,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             msg: `Tabs desativados para ${materialDesc.trim() || 'MDF/melamina'}: em MDF melamínico a remoção pode quebrar a face. Usando small-first + onion-skin/feed reduzido.`,
         });
     }
+    // ─── Tab/ponte params (Sprint 6) ───
+    const useTabs       = maquina.usar_tabs === 1 && !avoidTabsForMaterial;
+    const tabLarguraMaq = maquina.tab_largura ?? 4;    // mm — largura da ponte
+    const tabAlturaMaq  = maquina.tab_altura  ?? 1.5;  // mm — altura da ponte (material não cortado)
+    const tabQtdMaq     = maquina.tab_qtd     ?? 2;    // número de tabs por contorno
+    const tabAreaMaxCm2 = (maquina.tab_area_max ?? 800) / 100; // cm² — peças maiores não usam tabs
+
     // Espessura real da chapa — resolve do plano, ou busca no DB pelo material_code, ou fallback
     // SEGURANÇA: espChapa NaN/null causaria "Z NaN" no G-code → falha de segurança na máquina
     let espChapa = Number(chapa.espessura_real) || 0;
@@ -5685,7 +5722,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     isContorno: true, isComplexContour: true,
                     needsOnionSkin: needsOnion, onionDepthFull: depthTotal,
                     vacuumRiskIndex, distBorda: Math.round(distBorda),
-                    tabsAllowed: false, highVacuumRisk,
+                    tabsAllowed: useTabs && areaCm2 <= tabAreaMaxCm2, highVacuumRisk,
+                    tabLargura: tabLarguraMaq, tabAltura: tabAlturaMaq, tabQtd: tabQtdMaq,
                 });
 
                 // Furos/recortes internos (cada um = operação separada, ANTES do contorno externo)
@@ -5730,7 +5768,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     isContorno: true, isComplexContour: false,
                     needsOnionSkin: needsOnion, onionDepthFull: depthTotal,
                     vacuumRiskIndex, distBorda: Math.round(distBorda),
-                    tabsAllowed: false, highVacuumRisk,
+                    tabsAllowed: useTabs && areaCm2 <= tabAreaMaxCm2, highVacuumRisk,
+                    tabLargura: tabLarguraMaq, tabAltura: tabAlturaMaq, tabQtd: tabQtdMaq,
                 });
             }
         }
@@ -5910,6 +5949,56 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     const rotaOtimizadaMm = routeRapidDistance(sortedOps);
     const economiaRotaMm = Math.max(0, rotaBaseMm - rotaOtimizadaMm);
 
+    // ═══ Sprint 6: Common-line G-code skip-edge detection ═══
+    // For each adjacent contour pair (detected during nesting), mark the SECOND op
+    // to skip its shared edge via G0 rapid — the first op already cut through it.
+    {
+        const gcodeKerf = chapa.kerf || 4;
+        // Map: pecaId → {sortedIdx, op} for each non-complex rectangular contour
+        const cOpMap = new Map();
+        for (let _i = 0; _i < sortedOps.length; _i++) {
+            const _o = sortedOps[_i];
+            if (_o.isContorno && !_o.isComplexContour && _o.contornoPath && !cOpMap.has(_o.pecaId)) {
+                cOpMap.set(_o.pecaId, { idx: _i, op: _o });
+            }
+        }
+        // Check all pairs of adjacent contour ops
+        const cpEntries = [...cOpMap.values()];
+        for (let _ai = 0; _ai < cpEntries.length; _ai++) {
+            for (let _bi = _ai + 1; _bi < cpEntries.length; _bi++) {
+                const { idx: idxA, op: opA } = cpEntries[_ai];
+                const { idx: idxB, op: opB } = cpEntries[_bi];
+                const tDiam = Math.max(opA.toolDiam || 6, opB.toolDiam || 6);
+                const tol = gcodeKerf + tDiam * 0.6; // adjacency tolerance
+                const aFirst = idxA < idxB;
+                const firstOp = aFirst ? opA : opB;
+                const secondOp = aFirst ? opB : opA;
+                // Already skip-marked → skip
+                if (secondOp.skipEdge) continue;
+                // A's right edge adjacent to B's left edge
+                if (Math.abs(opA.absX2 - opB.absX) <= tol) {
+                    const oY = Math.min(opA.absY2, opB.absY2) - Math.max(opA.absY, opB.absY);
+                    if (oY > 5) { secondOp.skipEdge = aFirst ? 'left' : 'right'; continue; }
+                }
+                // B's right edge adjacent to A's left edge
+                if (Math.abs(opB.absX2 - opA.absX) <= tol) {
+                    const oY = Math.min(opA.absY2, opB.absY2) - Math.max(opA.absY, opB.absY);
+                    if (oY > 5) { secondOp.skipEdge = aFirst ? 'right' : 'left'; continue; }
+                }
+                // A's top edge adjacent to B's bottom edge
+                if (Math.abs(opA.absY2 - opB.absY) <= tol) {
+                    const oX = Math.min(opA.absX2, opB.absX2) - Math.max(opA.absX, opB.absX);
+                    if (oX > 5) { secondOp.skipEdge = aFirst ? 'bottom' : 'top'; continue; }
+                }
+                // B's top edge adjacent to A's bottom edge
+                if (Math.abs(opB.absY2 - opA.absY) <= tol) {
+                    const oX = Math.min(opA.absX2, opB.absX2) - Math.max(opA.absX, opB.absX);
+                    if (oX > 5) { secondOp.skipEdge = aFirst ? 'top' : 'bottom'; continue; }
+                }
+            }
+        }
+    }
+
     // ═══ PASSO 3: Gerar G-code ═══
     const onionOps = [];
     // Defesa: Set de op-keys que efetivamente emitiram contorno principal (desbaste até depthCont).
@@ -6075,7 +6164,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             for (let pi = 0; pi < op.passes.length; pi++) {
                 const pd = op.passes[pi];
                 const zTarget = zCut(pd);
-                if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+                L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)} (prof=${fmt(pd)}mm)`);
+                if (zTarget >= 0) {
+                    L.push(`${cmt}   ATENCAO: Z_alvo=${fmt(zTarget)} >= 0 — ferramenta nao ira cortar! Verifique espessura (${fmt(espChapa)}mm) e Z-origin (${zOrigin}).`);
+                    alertas.push({ tipo: 'aviso', msg: `Contorno complexo ${op.pecaDesc}: Z-alvo=${fmt(zTarget)}mm (≥0). Ferramenta não irá usinar. Verifique espessura (${fmt(espChapa)}mm) e Z-origin (${zOrigin}).` });
+                }
 
                 // Posicionar
                 emit(`G0 ${XY(startX, startY)}`);
@@ -6092,10 +6185,10 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const rampFrac = rampLen / segLen;
                         const rampX = startX + dx * rampFrac;
                         const rampY = startY + dy * rampFrac;
-                        L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo primeiro segmento`);
+                        L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo primeiro segmento, ${rampaAngulo}deg`);
                         emit(`G1 ${XY(rampX, rampY)} Z${fmt(zTarget)} F${velMergulho}`);
-                        emit(`G1 ${XY(startX, startY)} F${op.velCorte}`);
-                        curX = startX; curY = startY;
+                        // Continuar a partir do ponto de rampa — sem volta ao startX,startY
+                        curX = rampX; curY = rampY;
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
@@ -6431,10 +6524,132 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 }
             };
 
+            // ─── Sprint 6: Tab/ponte distribution across the 4 contour edges ───
+            // Distributes op.tabQtd bridges evenly around the perimeter.
+            // tabIntervalsByEdge[i] = [{from:0..1, to:0..1}, ...] for edge i in traversal order.
+            let tabIntervalsByEdge = null;
+            if (op.tabsAllowed && op.tabQtd > 0) {
+                const climbOrder = dirCorte === 'climb';
+                // Edges in traversal order (climb=CCW: p0→p3→p2→p1→p0; conv=CW: p0→p1→p2→p3→p0)
+                const tabEdges = climbOrder
+                    ? [{ from: p0, to: p3 }, { from: p3, to: p2 }, { from: p2, to: p1 }, { from: p1, to: p0 }]
+                    : [{ from: p0, to: p1 }, { from: p1, to: p2 }, { from: p2, to: p3 }, { from: p3, to: p0 }];
+                const edgeLens = tabEdges.map(e => Math.hypot(e.to.x - e.from.x, e.to.y - e.from.y));
+                const perimeter = edgeLens.reduce((a, b) => a + b, 0);
+                if (perimeter > 1) {
+                    const spacing = perimeter / op.tabQtd;
+                    tabIntervalsByEdge = tabEdges.map(() => []);
+                    for (let ti = 0; ti < op.tabQtd; ti++) {
+                        const center = spacing * ti + spacing * 0.5;
+                        // Cap tab width to 70% of spacing to prevent overlapping tabs
+                        const halfW = Math.min(op.tabLargura / 2, spacing * 0.35);
+                        let cumLen = 0;
+                        for (let ei = 0; ei < tabEdges.length; ei++) {
+                            const eLen = edgeLens[ei];
+                            if (eLen < 0.01) { cumLen += eLen; continue; }
+                            const gFrom = center - halfW, gTo = center + halfW;
+                            const lFrom = Math.max(gFrom - cumLen, 0) / eLen;
+                            const lTo   = Math.min(gTo   - cumLen, eLen) / eLen;
+                            if (lFrom < lTo) tabIntervalsByEdge[ei].push({ from: lFrom, to: Math.min(lTo, 1) });
+                            cumLen += eLen;
+                        }
+                    }
+                    L.push(`${cmt}   TABS: ${op.tabQtd}x pontes ${fmt(op.tabLargura)}mm larg. ${fmt(op.tabAltura)}mm alt.`);
+                }
+            }
+
+            // ─── Tab-aware edge emitter ───
+            // Falls back to emitRectEdge (with arc corners, feed-at-corners) when no tabs on this edge.
+            // edgeTabIvs: [{from:0..1, to:0..1}] or null/empty; zFull/zBridge: Z values
+            const emitEdgeTabbed = (from, to, nextDir, vel, edgeTabIvs, zFull, zBridge) => {
+                if (!edgeTabIvs || edgeTabIvs.length === 0) {
+                    return emitRectEdge(from, to, nextDir, vel);
+                }
+                const dx = to.x - from.x, dy = to.y - from.y;
+                const eLen = Math.hypot(dx, dy);
+                if (eLen < 0.01) return { x: to.x, y: to.y };
+                const lerpPt = t => ({ x: from.x + dx * t, y: from.y + dy * t });
+                const sorted = [...edgeTabIvs].sort((a, b) => a.from - b.from);
+                let curT = 0;
+                for (const iv of sorted) {
+                    // Cut up to tab start at full depth
+                    if (iv.from > curT + 0.001) {
+                        const pt = lerpPt(iv.from);
+                        emit(`G1 ${XY(pt.x, pt.y)} F${vel}`);
+                    }
+                    // Lift to bridge height (leaves tabAltura mm of material)
+                    emit(`G1 Z${fmt(zBridge)} F${velMergulho}`);
+                    // Bridge move at lifted height
+                    const ptE = lerpPt(iv.to);
+                    emit(`G1 ${XY(ptE.x, ptE.y)} F${vel}`);
+                    // Plunge back to full cut depth
+                    emit(`G1 Z${fmt(zFull)} F${velMergulho}`);
+                    curT = iv.to;
+                }
+                // Cut remainder to edge end
+                if (curT < 0.999) emit(`G1 ${XY(to.x, to.y)} F${vel}`);
+                return { x: to.x, y: to.y };
+            };
+
+            // Helper: get tab intervals for edge i (or empty if tabs not active)
+            const tIv = tabIntervalsByEdge ? (i => tabIntervalsByEdge[i] || []) : (() => []);
+
+            // ─── Sprint 6: Common-line skip-edge index ───
+            // Identify which traversal edge (0..3) is the shared/pre-cut edge to skip.
+            let skipEdgeIdx = -1;
+            if (op.skipEdge && !op.isComplexContour) {
+                const skipEdge = op.skipEdge;
+                const cx1s = op.absX, cy1s = op.absY, cx2s = op.absX2, cy2s = op.absY2;
+                const eps = 2; // mm tolerance
+                const checkEdges = dirCorte === 'climb'
+                    ? [{from:p0,to:p3},{from:p3,to:p2},{from:p2,to:p1},{from:p1,to:p0}]
+                    : [{from:p0,to:p1},{from:p1,to:p2},{from:p2,to:p3},{from:p3,to:p0}];
+                for (let _ei = 0; _ei < checkEdges.length; _ei++) {
+                    const _e = checkEdges[_ei];
+                    if (skipEdge === 'left'   && Math.abs(_e.from.x - cx1s) < eps && Math.abs(_e.to.x - cx1s) < eps) { skipEdgeIdx = _ei; break; }
+                    if (skipEdge === 'right'  && Math.abs(_e.from.x - cx2s) < eps && Math.abs(_e.to.x - cx2s) < eps) { skipEdgeIdx = _ei; break; }
+                    if (skipEdge === 'bottom' && Math.abs(_e.from.y - cy1s) < eps && Math.abs(_e.to.y - cy1s) < eps) { skipEdgeIdx = _ei; break; }
+                    if (skipEdge === 'top'    && Math.abs(_e.from.y - cy2s) < eps && Math.abs(_e.to.y - cy2s) < eps) { skipEdgeIdx = _ei; break; }
+                }
+                if (skipEdgeIdx >= 0) {
+                    L.push(`${cmt}   LINHA-COMUM: borda ${skipEdge} (edge ${skipEdgeIdx}) ja cortada pelo contorno adjacente — G0 sobre kerf`);
+                }
+            }
+
             for (let pi = 0; pi < op.passes.length; pi++) {
                 const pd = op.passes[pi];
                 const zTarget = zCut(pd);
-                if (op.passes.length > 1) L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)}`);
+                // Z height for bridge/tab material (leaves op.tabAltura mm of stock above cut floor)
+                const zBridge = op.tabsAllowed && tabIntervalsByEdge
+                    ? zCut(Math.max(pd - op.tabAltura, 0.1))
+                    : zTarget;
+
+                // ─── Rapid skip-edge emitter (common-line optimization) ───
+                // Lifts, rapids over already-cut gap, plunges back to cut depth.
+                const emitSkipEdge = (from, to, zFull) => {
+                    emit(`${cmt} Linha-comum: G0 sobre gap ja cortado`);
+                    emit(`G1 Z${fmt(zApproach())} F${velMergulho}`);
+                    emit(`G0 ${XY(to.x, to.y)}`);
+                    emit(`G1 Z${fmt(zFull)} F${velMergulho}`);
+                    return { x: to.x, y: to.y };
+                };
+
+                // ─── Combined contour-edge emitter: skip > tabs > regular ───
+                const emitContourEdge = (from, to, nextDir, vel, eIdx, zFull, zBridge_) => {
+                    if (skipEdgeIdx === eIdx) return emitSkipEdge(from, to, zFull);
+                    return emitEdgeTabbed(from, to, nextDir, vel, tIv(eIdx), zFull, zBridge_);
+                };
+                // Sempre logar profundidade da passada (facilita diagnóstico de "Z errado")
+                L.push(`${cmt}   Passada ${pi + 1}/${op.passes.length} Z=${fmt(zTarget)} (prof=${fmt(pd)}mm)`);
+                if (zTarget >= 0) {
+                    // zTarget positivo/zero = ferramenta ACIMA ou NA SUPERFICIE (não corta material)
+                    // Causa: espessura da chapa = 0, Z-origin errado, ou profundidade = 0.
+                    L.push(`${cmt}   ATENCAO: Z_alvo=${fmt(zTarget)} >= 0 — ferramenta nao ira cortar! Verifique espessura (${fmt(espChapa)}mm) e Z-origin (${zOrigin}).`);
+                    alertas.push({
+                        tipo: 'aviso',
+                        msg: `Contorno ${op.pecaDesc}: Z-alvo=${fmt(zTarget)}mm (≥0) na passada ${pi+1}. Ferramenta não irá usinar. Verifique espessura da chapa (${fmt(espChapa)}mm) e Z-origin (${zOrigin}).`,
+                    });
+                }
 
                 // ─── Calcular comprimento da primeira aresta para rampa ───
                 // Climb=CCW starts toward p3, Conv=CW starts toward p1
@@ -6454,38 +6669,44 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
 
                     // 3. Descer: rampa ao longo da primeira aresta OU plunge no ponto de entrada
+                    // rampStart: posição de onde começa a travessia do contorno (contPt ou pós-rampa)
+                    let rampStartPos = { x: contX, y: contY };
                     if (useRampa && rampLen > 5) {
                         // Rampa ao longo da primeira aresta (climb=CCW→p0, conv=CW→p1)
                         const nextPt = dirCorte === 'climb' ? p0 : p1;
-                        const dx = nextPt.x - contX, dy = nextPt.y - contY;
-                        const edgeLenFromCont = Math.sqrt(dx * dx + dy * dy);
+                        const rdx = nextPt.x - contX, rdy = nextPt.y - contY;
+                        const edgeLenFromCont = Math.sqrt(rdx * rdx + rdy * rdy);
                         const rampFrac = Math.min(rampLen / edgeLenFromCont, 0.9);
-                        const rampX = contX + dx * rampFrac;
-                        const rampY = contY + dy * rampFrac;
+                        const rampX = contX + rdx * rampFrac;
+                        const rampY = contY + rdy * rampFrac;
                         L.push(`${cmt}   Rampa ${fmt(rampLen)}mm ao longo aresta, ${rampaAngulo}deg`);
                         emit(`G1 ${XY(rampX, rampY)} Z${fmt(zTarget)} F${velMergulho}`);
-                        // Voltar ao ponto de entrada do contorno na profundidade de corte
-                        emit(`G1 ${XY(contX, contY)} F${op.velCorte}`);
+                        // Continuar a partir do ponto de rampa — sem volta ao ponto de entrada
+                        rampStartPos = { x: rampX, y: rampY };
                     } else {
                         // Plunge no ponto de entrada (fora da peça, marca aceitável)
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
 
-                    // 4. Percorrer contorno completo a partir do meio da aresta
-                    // Climb=CCW (contX→p0→p3→p2→p1→contX), Conv=CW (contX→p1→p2→p3→p0→contX)
+                    // 4. Percorrer contorno completo a partir do ponto de entrada / pós-rampa
+                    // Climb=CCW: rampStartPos→p0→p3→p2→p1→contX
+                    // Conv=CW:   rampStartPos→p1→p2→p3→p0→contX
                     const contPt = { x: contX, y: contY };
                     if (dirCorte === 'climb') {
-                        let pos = emitRectEdge(contPt,  p0, p3,    op.velCorte); // contX→p0 (arc at p0 toward p3)
-                        pos     = emitRectEdge(pos,     p3, p2,    op.velCorte); // p0→p3 (arc at p3 toward p2)
-                        pos     = emitRectEdge(pos,     p2, p1,    op.velCorte); // p3→p2 (arc at p2 toward p1)
-                        pos     = emitRectEdge(pos,     p1, contPt,op.velCorte); // p2→p1 (arc at p1 toward contX)
-                        emitRectEdge(pos, contPt, null, op.velCorte);            // p1→contX (fechamento, sem arc)
+                        // rampStartPos→p0: finaliza a chegada ao canto (sem tabs/skip no segmento de entrada)
+                        let pos = emitRectEdge(rampStartPos, p0, p3, op.velCorte);
+                        // Edges 0..3 com tabs e/ou common-line skip
+                        pos     = emitContourEdge(pos, p3, p2,     op.velCorte, 0, zTarget, zBridge); // edge 0: p0→p3
+                        pos     = emitContourEdge(pos, p2, p1,     op.velCorte, 1, zTarget, zBridge); // edge 1: p3→p2
+                        pos     = emitContourEdge(pos, p1, contPt, op.velCorte, 2, zTarget, zBridge); // edge 2: p2→p1
+                        emitContourEdge(pos, contPt, null,          op.velCorte, 3, zTarget, zBridge); // edge 3: p1→contX
                     } else {
-                        let pos = emitRectEdge(contPt,  p1, p2,    op.velCorte);
-                        pos     = emitRectEdge(pos,     p2, p3,    op.velCorte);
-                        pos     = emitRectEdge(pos,     p3, p0,    op.velCorte);
-                        pos     = emitRectEdge(pos,     p0, contPt,op.velCorte);
-                        emitRectEdge(pos, contPt, null, op.velCorte);
+                        // rampStartPos→p1: sem tabs/skip
+                        let pos = emitRectEdge(rampStartPos, p1, p2, op.velCorte);
+                        pos     = emitContourEdge(pos, p2, p3,     op.velCorte, 0, zTarget, zBridge); // edge 0: p1→p2
+                        pos     = emitContourEdge(pos, p3, p0,     op.velCorte, 1, zTarget, zBridge); // edge 1: p2→p3
+                        pos     = emitContourEdge(pos, p0, contPt, op.velCorte, 2, zTarget, zBridge); // edge 2: p3→p0
+                        emitContourEdge(pos, contPt, null,          op.velCorte, 3, zTarget, zBridge); // edge 3: p0→contX
                     }
 
                     // 5. Lead-out: sair do contorno (já garantido pela saída para entryX,entryY)
@@ -6496,32 +6717,36 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     emit(`G0 ${XY(p0.x, p0.y)}`);
                     emit(`G0 Z${fmt(zApproach())}`);
 
+                    // rampPos: onde a ferramenta fica após a rampa (começa a travessia do contorno daqui)
+                    let noLeadRampPos = { x: p0.x, y: p0.y };
                     if (useRampa && rampLen > 5) {
-                        // Rampa ao longo da primeira aresta do contorno (climb=CCW→p3, conv=CW→p1)
+                        // Rampa ao longo da primeira aresta (climb=CCW→p3, conv=CW→p1)
                         const nextPt = dirCorte === 'climb' ? p3 : p1;
-                        const dx = nextPt.x - p0.x, dy = nextPt.y - p0.y;
-                        const edgeL = Math.sqrt(dx * dx + dy * dy);
+                        const rdx = nextPt.x - p0.x, rdy = nextPt.y - p0.y;
+                        const edgeL = Math.sqrt(rdx * rdx + rdy * rdy);
                         const rampFrac = Math.min(rampLen / edgeL, 0.9);
-                        const rampX = p0.x + dx * rampFrac;
-                        const rampY = p0.y + dy * rampFrac;
+                        const rampX = p0.x + rdx * rampFrac;
+                        const rampY = p0.y + rdy * rampFrac;
                         L.push(`${cmt}   Rampa ${fmt(rampLen)}mm, ${rampaAngulo}deg`);
                         emit(`G1 ${XY(rampX, rampY)} Z${fmt(zTarget)} F${velMergulho}`);
-                        emit(`G1 ${XY(p0.x, p0.y)} F${op.velCorte}`);
+                        // Continuar a partir do ponto de rampa — sem volta ao p0
+                        noLeadRampPos = { x: rampX, y: rampY };
                     } else {
                         emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
                     }
 
-                    // Direção do contorno: climb=CCW (p0→p3→p2→p1→p0), conv=CW (p0→p1→p2→p3→p0)
+                    // Direção do contorno: climb=CCW, conv=CW — parte do ponto de rampa
                     if (dirCorte === 'climb') {
-                        let pos = emitRectEdge({ x: p0.x, y: p0.y }, p3, p2, op.velCorte);
-                        pos     = emitRectEdge(pos, p2, p1, op.velCorte);
-                        pos     = emitRectEdge(pos, p1, p0, op.velCorte); // arc at p1 toward p0
-                        emitRectEdge(pos, p0, null, op.velCorte);          // fechamento em p0, sem arc
+                        // rampPos→p3 (restante da aresta 0 após rampa), depois p3→p2→p1→p0
+                        let pos = emitContourEdge(noLeadRampPos, p3, p2, op.velCorte, 0, zTarget, zBridge); // edge 0 (parcial se rampa)
+                        pos     = emitContourEdge(pos, p2, p1, op.velCorte, 1, zTarget, zBridge); // edge 1
+                        pos     = emitContourEdge(pos, p1, p0, op.velCorte, 2, zTarget, zBridge); // edge 2
+                        emitContourEdge(pos, p0, null, op.velCorte, 3, zTarget, zBridge);          // edge 3 (fechamento em p0)
                     } else {
-                        let pos = emitRectEdge({ x: p0.x, y: p0.y }, p1, p2, op.velCorte);
-                        pos     = emitRectEdge(pos, p2, p3, op.velCorte);
-                        pos     = emitRectEdge(pos, p3, p0, op.velCorte); // arc at p3 toward p0
-                        emitRectEdge(pos, p0, null, op.velCorte);
+                        let pos = emitContourEdge(noLeadRampPos, p1, p2, op.velCorte, 0, zTarget, zBridge); // edge 0 (parcial se rampa)
+                        pos     = emitContourEdge(pos, p2, p3, op.velCorte, 1, zTarget, zBridge); // edge 1
+                        pos     = emitContourEdge(pos, p3, p0, op.velCorte, 2, zTarget, zBridge); // edge 2
+                        emitContourEdge(pos, p0, null, op.velCorte, 3, zTarget, zBridge);          // edge 3 (fechamento em p0)
                     }
                     // Lead-out tangencial: sair do ponto de fechamento evitando dwell mark
                     if (usarLeadOut && leadOutR > 0) {
@@ -7159,19 +7384,64 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         }
     }
 
-    // ─── Estimativa de tempo REAL baseada em distâncias e velocidades ───
-    // Também calcula metros cortados por ferramenta para tool wear tracking
+    // ─── Estimativa de tempo com modelo de aceleração/desaceleração ─────────
+    // Modelo cinemático: perfil trapezoidal de velocidade por segmento.
+    // Para moves curtos (dist < v²/a) o eixo nunca atinge feedrate máximo →
+    // tempo real = 2*sqrt(dist/a) em vez de dist/v. Isso elimina o erro de ±40%.
+    // Ref: "Accurate prediction of CNC cycle time" (CIRP, 2021).
+    //
+    // Parâmetros de aceleração (mm/s²) lidos da máquina ou defaults conservadores:
+    //   aceleracao_xy: típico router 3-eixos = 1500–5000 mm/s²
+    //   aceleracao_z:  típico router 3-eixos = 500–1500 mm/s²
+    const acXY = Math.max(500, maquina.aceleracao_xy ?? 2000);  // mm/s²
+    const acZ  = Math.max(200, maquina.aceleracao_z  ?? 800);   // mm/s²
+
+    /**
+     * Tempo de um segmento linear com perfil trapezoidal de velocidade.
+     * @param {number} dist_mm    Comprimento do segmento (mm)
+     * @param {number} feed_mmpm  Feedrate (mm/min)
+     * @param {number} accel_s2   Aceleração do eixo dominante (mm/s²)
+     * @returns {number}          Tempo em MINUTOS
+     */
+    const segTime = (dist_mm, feed_mmpm, accel_s2) => {
+        if (dist_mm <= 0) return 0;
+        const v_s = feed_mmpm / 60;           // velocidade máxima (mm/s)
+        const d_full = v_s * v_s / accel_s2;  // distância mínima para atingir v_max
+        let t_s;
+        if (dist_mm >= d_full) {
+            // Perfil trapezoidal: aceleração + cruzeiro + desaceleração
+            const t_ramp = v_s / accel_s2;                    // tempo de cada rampa (s)
+            t_s = 2 * t_ramp + (dist_mm - d_full) / v_s;
+        } else {
+            // Perfil triangular: nunca atinge v_max (move muito curto)
+            t_s = 2 * Math.sqrt(dist_mm / accel_s2);
+        }
+        return t_s / 60; // converter para minutos
+    };
+
+    /** Comprimento de arco G2/G3 dado inicio(cx,cy), fim(nx,ny) e centro offset (I,J) */
+    const arcLength = (cx, cy, nx, ny, I, J, clockwise) => {
+        const ocx = cx + I, ocy = cy + J;
+        const r = Math.sqrt(I * I + J * J);
+        if (r < 0.001) return Math.hypot(nx - cx, ny - cy); // degenerate → straight
+        const a1 = Math.atan2(cy - ocy, cx - ocx);
+        const a2 = Math.atan2(ny - ocy, nx - ocx);
+        let da = clockwise ? a1 - a2 : a2 - a1;
+        if (da <= 0) da += 2 * Math.PI;
+        return r * da;
+    };
+
     const gcodeText = L.join('\n');
     const toolWearMap = {}; // { toolCode: metros_cortados_mm }
     const tempoReal = (() => {
         let cx = 0, cy = 0, cz = zSafe(), cf = maquina.vel_vazio || 20000;
         let distRapido = 0, distCorte = 0, distMergulho = 0;
-        let tempoTrocas = trocas * (dwellSpindle + 3); // tempo troca + dwell spindle
+        let tRapido = 0, tCorte = 0, tMergulho = 0;
+        let tempoTrocas = trocas * (dwellSpindle + 3);
         let activeTool = null;
         for (const line of L) {
             const stripped = line.replace(/^N\d+\s*/, '').trim();
             if (!stripped || stripped.startsWith(cmt) || stripped.startsWith('(') || stripped.startsWith('%')) continue;
-            // Detectar troca de ferramenta (Txx M6)
             const toolMatch = stripped.match(/^(T\S+)\s/);
             if (toolMatch) { activeTool = null; for (const [tc, t] of Object.entries(toolMap)) { if (t.codigo === toolMatch[1]) { activeTool = tc; break; } } }
             const gMatch = stripped.match(/^G([0-3])\b/);
@@ -7179,30 +7449,49 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const gCode = parseInt(gMatch[1]);
             const xM = stripped.match(/X(-?[\d.]+)/), yM = stripped.match(/Y(-?[\d.]+)/), zM = stripped.match(/Z(-?[\d.]+)/);
             const fM = stripped.match(/F([\d.]+)/);
+            const iM = stripped.match(/I(-?[\d.]+)/), jM = stripped.match(/J(-?[\d.]+)/);
             const nx = xM ? parseFloat(xM[1]) : cx, ny = yM ? parseFloat(yM[1]) : cy, nz = zM ? parseFloat(zM[1]) : cz;
             if (fM) cf = parseFloat(fM[1]);
-            const dxy = Math.sqrt((nx - cx) ** 2 + (ny - cy) ** 2);
-            const dz = Math.abs(nz - cz);
-            const d3d = Math.sqrt(dxy ** 2 + dz ** 2);
-            if (gCode === 0) {
-                distRapido += d3d;
+            const I = iM ? parseFloat(iM[1]) : 0, J = jM ? parseFloat(jM[1]) : 0;
+
+            // Calcular distância do segmento (arco ou linear)
+            let dxy, dz = Math.abs(nz - cz);
+            if ((gCode === 2 || gCode === 3) && (iM || jM)) {
+                dxy = arcLength(cx, cy, nx, ny, I, J, gCode === 2);
             } else {
-                if (dxy < 0.01 && dz > 0.01) distMergulho += dz; // pure Z move
-                else distCorte += d3d;
-                // Acumular distância de corte (G1/G2/G3) por ferramenta
-                if (activeTool) toolWearMap[activeTool] = (toolWearMap[activeTool] || 0) + d3d;
+                dxy = Math.sqrt((nx - cx) ** 2 + (ny - cy) ** 2);
+            }
+            const d3d = Math.sqrt(dxy ** 2 + dz ** 2);
+
+            if (gCode === 0) {
+                // Rápido: aceleração alta (G0 usa aceleração máxima da máquina)
+                const velVazio_ = maquina.vel_vazio || 20000;
+                const acG0 = acXY * 2.0; // G0 geralmente tem aceleração 2× maior que G1
+                distRapido += d3d;
+                if (dxy > 0.1) tRapido += segTime(dxy, velVazio_, acG0);
+                if (dz  > 0.1) tRapido += segTime(dz,  velVazio_, acZ * 2.0);
+            } else {
+                const isZOnly = dxy < 0.05 && dz > 0.05;
+                if (isZOnly) {
+                    distMergulho += dz;
+                    tMergulho += segTime(dz, cf, acZ);
+                } else {
+                    // Move de corte: usa aceleração XY para componente planar
+                    distCorte += d3d;
+                    // Componente XY (dominante para corte)
+                    if (dxy > 0.01) tCorte += segTime(dxy, cf, acXY);
+                    // Componente Z adicional em move helicoidal
+                    if (dz  > 0.01) tCorte += segTime(dz, cf * 0.4, acZ) * 0.5;
+                    if (activeTool) toolWearMap[activeTool] = (toolWearMap[activeTool] || 0) + d3d;
+                }
             }
             cx = nx; cy = ny; cz = nz;
         }
-        const velVazio = maquina.vel_vazio || 20000;
-        const tRapido = distRapido / velVazio; // minutos
-        const tCorte = distCorte > 0 ? distCorte / (velCorteMaq || 4000) : 0;
-        const tMergulho = distMergulho / (velMergulho || 1500);
         const totalMin = tRapido + tCorte + tMergulho + tempoTrocas / 60;
         return {
             tempo_min: Math.round(totalMin * 10) / 10,
             dist_rapido_m: Math.round(distRapido / 100) / 10,
-            dist_corte_m: Math.round(distCorte / 100) / 10,
+            dist_corte_m:  Math.round(distCorte  / 100) / 10,
             dist_mergulho_m: Math.round(distMergulho / 100) / 10,
         };
     })();
@@ -7246,6 +7535,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             pecas_pequenas: allOps.filter(o => o.isPequena && o.isContorno).length,
             pecas_alto_risco: allOps.filter(o => o.highVacuumRisk && o.isContorno).length,
             tabs_desativados_mdf: avoidTabsForMaterial ? 1 : 0,
+            tabs_ativos: useTabs ? allOps.filter(o => o.tabsAllowed && o.isContorno).length : 0,
+            linhas_comuns_skip: sortedOps.filter(o => o.skipEdge && o.isContorno).length,
             ferramentas_adaptadas: allOps.filter(o => o.toolAdapted).length,
             rasgos_multi_pass: allOps.filter(o => o.grooveMultiPass).length,
             ordenacao_contornos: ordenarContornos,
@@ -7967,7 +8258,9 @@ router.post('/maquinas', requireAuth, (req, res) => {
         compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
         margem_mesa_sacrificio, g0_com_feed, capacidade_magazine, operador,
         tipo, pode_virar, estrategia_face,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        aceleracao_xy, aceleracao_z,
+        vacuo_zonas,
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(req.user.id, m.nome, m.fabricante || '', m.modelo || '', m.tipo_pos || 'generic', m.extensao_arquivo || '.nc',
             m.x_max || 2800, m.y_max || 1900, m.z_max || 200,
             m.gcode_header || '%\nG90 G54 G17',
@@ -7996,6 +8289,8 @@ router.post('/maquinas', requireAuth, (req, res) => {
             m.margem_mesa_sacrificio ?? 0.5, m.g0_com_feed ?? 0,
             m.capacidade_magazine ?? 35, m.operador || '',
             m.tipo || 'router', m.pode_virar ?? 0, m.estrategia_face || 'mais_usinagens',
+            m.aceleracao_xy ?? 2000, m.aceleracao_z ?? 800,
+            m.vacuo_zonas || '[]',
             m.padrao || 0);
     res.json({ id: Number(r.lastInsertRowid) });
 });
@@ -8026,6 +8321,8 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
         margem_mesa_sacrificio=?, g0_com_feed=?,
         capacidade_magazine=?, operador=?,
         tipo=?, pode_virar=?, estrategia_face=?,
+        aceleracao_xy=?, aceleracao_z=?,
+        vacuo_zonas=?,
         padrao=?, ativo=?, atualizado_em=CURRENT_TIMESTAMP WHERE id=?`)
         .run(m.nome, m.fabricante, m.modelo, m.tipo_pos, m.extensao_arquivo,
             m.x_max, m.y_max, m.z_max, m.gcode_header, m.gcode_footer,
@@ -8051,6 +8348,8 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
             m.margem_mesa_sacrificio ?? 0.5, m.g0_com_feed ?? 0,
             m.capacidade_magazine ?? 35, m.operador || '',
             m.tipo || 'router', m.pode_virar ?? 0, m.estrategia_face || 'mais_usinagens',
+            m.aceleracao_xy ?? 2000, m.aceleracao_z ?? 800,
+            m.vacuo_zonas || '[]',
             m.padrao ?? 0, m.ativo ?? 1, req.params.id);
     res.json({ ok: true });
 });
@@ -8081,7 +8380,9 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
         rampa_tipo, vel_rampa, rampa_diametro_pct, stepover_pct, pocket_acabamento, pocket_acabamento_offset, pocket_direcao,
         compensar_raio_canal, compensacao_tipo, circular_passes_acabamento, circular_offset_desbaste, vel_acabamento_pct,
         margem_mesa_sacrificio, g0_com_feed,
-        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
+        aceleracao_xy, aceleracao_z,
+        vacuo_zonas,
+        padrao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
         .run(req.user.id, `${original.nome} (cópia)`, original.fabricante, original.modelo, original.tipo_pos, original.extensao_arquivo,
             original.x_max, original.y_max, original.z_max, original.gcode_header, original.gcode_footer,
             original.z_seguro, original.vel_vazio, original.vel_corte, original.vel_aproximacao, original.rpm_padrao, original.profundidade_extra,
@@ -8103,7 +8404,9 @@ router.post('/maquinas/:id/duplicar', requireAuth, (req, res) => {
             original.stepover_pct ?? 60, original.pocket_acabamento ?? 1, original.pocket_acabamento_offset ?? 0.2, original.pocket_direcao || 'auto',
             original.compensar_raio_canal ?? 1, original.compensacao_tipo || 'overcut',
             original.circular_passes_acabamento ?? 1, original.circular_offset_desbaste ?? 0.3, original.vel_acabamento_pct ?? 80,
-            original.margem_mesa_sacrificio ?? 0.5, original.g0_com_feed ?? 0);
+            original.margem_mesa_sacrificio ?? 0.5, original.g0_com_feed ?? 0,
+            original.aceleracao_xy ?? 2000, original.aceleracao_z ?? 800,
+            original.vacuo_zonas || '[]');
 
     const newId = Number(r.lastInsertRowid);
     // Duplicate tools

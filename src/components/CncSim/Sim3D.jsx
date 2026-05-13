@@ -13,7 +13,8 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { getOpCat, getToolDiameter } from './parseGcode.js';
 
 // ─── Texture resolution for material removal canvas ──────────────────────────
-const MAT_TEX_SIZE = 1024; // pixels; higher = sharper cuts but more memory
+const MAT_TEX_SIZE  = 1024; // pixels; higher = sharper cuts but more memory
+const DEPTH_MAP_RES = 256;  // depth-tracking heightmap resolution (256×256 = 256KB Float32)
 
 // ─── Scene colors ─────────────────────────────────────────────────────────────
 const MDF_TOP_COLOR   = '#c2a46a'; // uncut MDF surface (tan)
@@ -56,8 +57,52 @@ function paintMdfBase(ctx, w, h) {
     ctx.restore();
 }
 
-/** Draw one cut move on the material canvas. Returns true if anything was drawn. */
-function paintCutMove(ctx, m, chapaW, chapaH, texW, texH, toolDiam) {
+/**
+ * Update the depth heightmap for a cut move.
+ * heightmap: Float32Array[DEPTH_MAP_RES * DEPTH_MAP_RES], values = max depth removed (mm)
+ * Returns true if any cell was updated.
+ */
+function updateDepthMap(heightmap, m, chapaW, chapaH, toolDiam) {
+    if (m.type === 'G0') return false;
+    const depth = Math.max(0, -Math.min(m.z1, m.z2));
+    if (depth < 0.02) return false;
+
+    const scaleX = DEPTH_MAP_RES / chapaW;
+    const scaleY = DEPTH_MAP_RES / chapaH;
+    const radius = Math.max(0.5, toolDiam / 2);
+    const px1 = m.x1 * scaleX, py1 = m.y1 * scaleY;
+    const px2 = m.x2 * scaleX, py2 = m.y2 * scaleY;
+    const dx = px2 - px1, dy = py2 - py1;
+    const len = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.ceil(len * 2));
+    const rCells = Math.max(1, Math.ceil(radius * Math.min(scaleX, scaleY)));
+
+    let changed = false;
+    for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const cx = px1 + dx * t, cy = py1 + dy * t;
+        const x0 = Math.max(0, Math.floor(cx - rCells));
+        const x1 = Math.min(DEPTH_MAP_RES - 1, Math.ceil(cx + rCells));
+        const y0 = Math.max(0, Math.floor(cy - rCells));
+        const y1 = Math.min(DEPTH_MAP_RES - 1, Math.ceil(cy + rCells));
+        for (let gx = x0; gx <= x1; gx++) {
+            for (let gy = y0; gy <= y1; gy++) {
+                const dist = Math.hypot(gx - cx, gy - cy);
+                if (dist <= rCells) {
+                    const idx = gy * DEPTH_MAP_RES + gx;
+                    if (depth > heightmap[idx]) {
+                        heightmap[idx] = depth;
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+    return changed;
+}
+
+/** Draw one cut move on the material canvas using the heightmap for accurate depth. Returns true if anything was drawn. */
+function paintCutMove(ctx, m, chapaW, chapaH, texW, texH, toolDiam, heightmap) {
     if (m.type === 'G0') return false;
     const depth = Math.max(0, -Math.min(m.z1, m.z2)); // how deep below surface
     if (depth < 0.02) return false; // tool not cutting
@@ -66,8 +111,19 @@ function paintCutMove(ctx, m, chapaW, chapaH, texW, texH, toolDiam) {
     const scaleY = texH / chapaH;
     const lw = Math.max(1.5, toolDiam * Math.min(scaleX, scaleY));
 
+    // If heightmap available, use heightmap depth at midpoint for accurate coloring
+    let renderDepth = depth;
+    if (heightmap) {
+        const midX = (m.x1 + m.x2) / 2 * (DEPTH_MAP_RES / chapaW);
+        const midY = (m.y1 + m.y2) / 2 * (DEPTH_MAP_RES / chapaH);
+        const gx = Math.max(0, Math.min(DEPTH_MAP_RES - 1, Math.round(midX)));
+        const gy = Math.max(0, Math.min(DEPTH_MAP_RES - 1, Math.round(midY)));
+        const hmDepth = heightmap[gy * DEPTH_MAP_RES + gx];
+        renderDepth = hmDepth > 0 ? hmDepth : depth;
+    }
+
     // Depth-based color: light brown (shallow) → dark brown → near black (full depth)
-    const ratio  = Math.min(1, depth / 18); // normalized 0-1 over 18mm
+    const ratio  = Math.min(1, renderDepth / 18); // normalized 0-1 over 18mm
     const light  = Math.round(55 - ratio * 35); // hsl lightness: 55→20
     ctx.strokeStyle = `hsl(22, 38%, ${light}%)`;
     ctx.lineWidth = lw;
@@ -124,7 +180,7 @@ export const Sim3D = forwardRef(function Sim3D(
     const [curMoveIdx, setCurMoveIdx] = useState(-1);
     const [activeView, setActiveView] = useState('iso');
     const [showRapids, setShowRapids] = useState(false);
-    const [viewMode,   setViewMode]   = useState('cutting'); // 'cutting' | 'full'
+    const [viewMode,   setViewMode]   = useState('full');    // 'cutting' | 'full'
     const viewModeRef   = useRef('cutting');
     const showRapidsRef = useRef(false); // mirror of showRapids — avoids stale closure in setTimeInternal
 
@@ -140,6 +196,10 @@ export const Sim3D = forwardRef(function Sim3D(
         const { texW, texH } = tc.matDims || {};
         if (!texW) return;
 
+        // Reset heightmap
+        const heightmap = new Float32Array(DEPTH_MAP_RES * DEPTH_MAP_RES);
+        tc.depthMap = heightmap;
+
         paintMdfBase(tc.matCtx, texW, texH);
         let curDiam = 6;
         let dirty = false;
@@ -149,7 +209,8 @@ export const Sim3D = forwardRef(function Sim3D(
             for (const ev of (parsed?.events ?? [])) {
                 if (ev.moveIdx === i && ev.type === 'tool') curDiam = getToolDiameter(ev.label);
             }
-            if (paintCutMove(tc.matCtx, m, chapaW, chapaH, texW, texH, curDiam)) dirty = true;
+            updateDepthMap(heightmap, m, chapaW, chapaH, curDiam);
+            if (paintCutMove(tc.matCtx, m, chapaW, chapaH, texW, texH, curDiam, heightmap)) dirty = true;
         }
         if (dirty || upToIdx >= 0) tc.matTexture.needsUpdate = true;
         lastCutIdx.current = upToIdx;
@@ -160,6 +221,10 @@ export const Sim3D = forwardRef(function Sim3D(
         if (!tc.matCanvas || !tc.matCtx || !tc.matTexture) return;
         const { texW, texH } = tc.matDims || {};
         if (!texW) return;
+
+        // Initialize heightmap if not present yet
+        if (!tc.depthMap) tc.depthMap = new Float32Array(DEPTH_MAP_RES * DEPTH_MAP_RES);
+        const heightmap = tc.depthMap;
 
         let curDiam = 6;
         // Walk events to find tool at fromIdx
@@ -174,7 +239,8 @@ export const Sim3D = forwardRef(function Sim3D(
             for (const ev of (parsed?.events ?? [])) {
                 if (ev.moveIdx === i && ev.type === 'tool') curDiam = getToolDiameter(ev.label);
             }
-            if (paintCutMove(tc.matCtx, m, chapaW, chapaH, texW, texH, curDiam)) dirty = true;
+            updateDepthMap(heightmap, m, chapaW, chapaH, curDiam);
+            if (paintCutMove(tc.matCtx, m, chapaW, chapaH, texW, texH, curDiam, heightmap)) dirty = true;
         }
         if (dirty) tc.matTexture.needsUpdate = true;
         lastCutIdx.current = toIdx;
@@ -219,6 +285,7 @@ export const Sim3D = forwardRef(function Sim3D(
         controls.screenSpacePanning = true;
         controls.minDistance = 10;
         controls.maxDistance = 300000;
+        controls.zoomToCursor = true;  // zoom toward mouse cursor, not orbit center
 
         // Groups
         const stockGroup = new THREE.Group();
@@ -353,6 +420,13 @@ export const Sim3D = forwardRef(function Sim3D(
             const last = moves[curIdx];
             toolX = last.x2; toolY = last.y2; toolZ = last.z2;
             curFeed = last.feed || 0; curOp = last.op || '';
+        } else if (curIdx < 0 && lo > 0) {
+            // safeT falls in a gap between moves (e.g. between G0 and G1) —
+            // use end position of the last completed move to avoid snapping to origin.
+            curIdx = lo - 1;
+            const prev = moves[curIdx];
+            toolX = prev.x2; toolY = prev.y2; toolZ = prev.z2;
+            curFeed = prev.feed || 0; curOp = prev.op || '';
         }
 
         // ── Segment colors ────────────────────────────────────────────────
@@ -370,15 +444,24 @@ export const Sim3D = forwardRef(function Sim3D(
             }
         }
 
-        // ── Progress line ─────────────────────────────────────────────────
+        // ── Progress line — direction arrow anchored at current tool position ──
+        // Anchored at toolX/Y/Z pointing forward avoids the "snap-back" visual
+        // that occurred when using m.x1 as the anchor (jumping at every move boundary).
         const { progressLine, progressGeom, progressMat } = three.current;
         if (progressLine && curIdx >= 0 && curIdx < moves.length && !atEnd) {
             const m = moves[curIdx];
-            if (m.type !== 'G0') {
+            const moveDist = m.dist ?? 0;
+            if (m.type !== 'G0' && moveDist > 0.1) {
                 const isCut = m.z2 <= 0.1;
                 const opCat = getOpCat(m.op);
                 progressMat.color.set(isCut ? opCat.color : '#fde047');
-                progressGeom.setPositions([m.x1, m.y1, m.z1, toolX, toolY, toolZ]);
+                // Forward arrow from current tool pos in direction of travel
+                const dx = m.x2 - m.x1, dy = m.y2 - m.y1, dz = m.z2 - m.z1;
+                const arrowLen = Math.min(40, moveDist * 0.25); // max 40mm, 25% of move
+                const ex = toolX + (dx / moveDist) * arrowLen;
+                const ey = toolY + (dy / moveDist) * arrowLen;
+                const ez = toolZ + (dz / moveDist) * arrowLen;
+                progressGeom.setPositions([toolX, toolY, toolZ, ex, ey, ez]);
                 progressLine.visible = true;
             } else {
                 progressLine.visible = false;
@@ -439,6 +522,7 @@ export const Sim3D = forwardRef(function Sim3D(
         lastIdxRef.current = -1;
         lastCutIdx.current = -1;
         lastCanvasUpdate.current = 0;
+        tc.depthMap = null; // reset depth heightmap
 
         pb.current.time = 0;
         pb.current.totalTime = totalTime;

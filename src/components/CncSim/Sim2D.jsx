@@ -57,6 +57,7 @@ export default function Sim2D({
     const [dims,     setDims]     = useState({ w: 800, h: 560 });
     const [zoom,     setZoom]     = useState(1);
     const [panOff,   setPanOff]   = useState({ x: 0, y: 0 });
+    const [userRot,  setUserRot]  = useState(0);   // user view rotation (radians)
     const [hoverPiece, setHoverPiece] = useState(null);
     const [showRapids,  setShowRapids]  = useState(false);
     const [showPlunge,  setShowPlunge]  = useState(true);   // Sprint 0
@@ -66,7 +67,10 @@ export default function Sim2D({
     const [autoOrient,  setAutoOrient]  = useState(true);
 
     const panRef   = useRef(null);
+    const rotRef   = useRef(null);  // right-click drag rotation: { startX, startRot }
     const touchRef = useRef({ lastDist: 0, lastCenter: null });
+    // Stores latest transform params for zoom-toward-cursor computation
+    const viewRef  = useRef(null);
 
     const moves      = parsed?.moves    ?? [];
     const events     = parsed?.events   ?? [];
@@ -140,6 +144,14 @@ export default function Sim2D({
             return;
         }
 
+        // ── User view rotation (right-click drag / buttons) ──────────────────
+        if (userRot !== 0) {
+            ctx.save();
+            ctx.translate(W / 2, H / 2);
+            ctx.rotate(userRot);
+            ctx.translate(-W / 2, -H / 2);
+        }
+
         // Bounds
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const m of moves) {
@@ -174,6 +186,8 @@ export default function Sim2D({
             tx = (v) => offX + (v - minX) * sc;
             ty = (v) => offY + (maxY - v) * sc;
         }
+        // Cache transform for zoom-toward-cursor
+        viewRef.current = { sc, offX, offY, minX, minY, maxX, maxY, fitX, fitY, W, H, pad, dpr, doRotate, userRot };
 
         // ── Sheet ────────────────────────────────────────────────────────────
         if (chapa) {
@@ -635,7 +649,8 @@ export default function Sim2D({
         }
 
         if (doRotate) ctx.restore();
-    }, [moves, chapa, dims, zoom, panOff, showRapids, showPlunge, hiddenOps, sideFilter, autoOrient, moveToolDiam, effectiveTotal, hoverPiece]);
+        if (userRot !== 0) ctx.restore();   // close outer user-rotation transform
+    }, [moves, chapa, dims, zoom, panOff, userRot, showRapids, showPlunge, hiddenOps, sideFilter, autoOrient, moveToolDiam, effectiveTotal, hoverPiece]);
 
     // ── RAF playback loop ─────────────────────────────────────────────────────
     useEffect(() => {
@@ -682,22 +697,68 @@ export default function Sim2D({
         if (!playing) renderCanvas(curTime ?? pbRef.current.time);
     }, [playing, renderCanvas, curTime]);
 
-    // ── Mouse pan ─────────────────────────────────────────────────────────────
+    // ── Mouse pan (left) / rotate (right) ────────────────────────────────────
     const onMouseDown = (e) => {
-        if (e.button !== 0) return;
-        panRef.current = { startX: e.clientX - panOff.x, startY: e.clientY - panOff.y };
+        if (e.button === 0) {
+            panRef.current = { startX: e.clientX - panOff.x, startY: e.clientY - panOff.y };
+        } else if (e.button === 2) {
+            rotRef.current = { startX: e.clientX, startRot: userRot };
+        }
     };
     const onMouseMove = (e) => {
-        if (!panRef.current) return;
-        setPanOff({ x: e.clientX - panRef.current.startX, y: e.clientY - panRef.current.startY });
+        if (panRef.current) {
+            setPanOff({ x: e.clientX - panRef.current.startX, y: e.clientY - panRef.current.startY });
+        }
+        if (rotRef.current) {
+            // horizontal drag = rotation; full canvas width ≈ 360°
+            const delta = (e.clientX - rotRef.current.startX) * (Math.PI / 300);
+            setUserRot(rotRef.current.startRot + delta);
+        }
     };
-    const onMouseUp = () => { panRef.current = null; };
+    const onMouseUp   = () => { panRef.current = null; rotRef.current = null; };
+    const onContextMenu = (e) => e.preventDefault(); // suppress right-click menu
 
-    // ── Scroll zoom ───────────────────────────────────────────────────────────
+    // ── Scroll zoom toward cursor ─────────────────────────────────────────────
     const onWheel = useCallback((e) => {
         e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.88 : 1.14;
-        setZoom(z => Math.max(0.3, Math.min(40, z * delta)));
+        const factor = e.deltaY > 0 ? 0.88 : 1.14;
+        const v = viewRef.current;
+        if (!v) {
+            setZoom(z => Math.max(0.3, Math.min(40, z * factor)));
+            return;
+        }
+        const { sc, offX, offY, minX, maxY, fitX, fitY, W, H, pad, dpr, doRotate, userRot: rot } = v;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mxRaw = (e.clientX - rect.left) * dpr;
+        const myRaw = (e.clientY - rect.top)  * dpr;
+
+        // Un-rotate cursor from viewport center so we work in the un-rotated canvas space
+        let mx = mxRaw, my = myRaw;
+        if (rot) {
+            const cosR = Math.cos(-rot), sinR = Math.sin(-rot);
+            const dx = mxRaw - W / 2, dy = myRaw - H / 2;
+            mx = dx * cosR - dy * sinR + W / 2;
+            my = dx * sinR + dy * cosR + H / 2;
+        }
+
+        setZoom(prevZoom => {
+            const newZoom = Math.max(0.3, Math.min(40, prevZoom * factor));
+            const actualFactor = newZoom / prevZoom;
+            if (!doRotate) {
+                // Compute world point under (un-rotated) cursor
+                const worldX = (mx - offX) / sc + minX;
+                const worldY = maxY - (my - offY) / sc;
+                // After zoom, keep that world point fixed:
+                const newSc = sc * actualFactor;
+                const newOffX = mx - (worldX - minX) * newSc;
+                const newOffY = my - (maxY - worldY) * newSc;
+                // Extract panOff: offX = pad + panX + ((W-pad*2) - fitX*sc)/2
+                const newPanX = newOffX - pad - ((W - pad * 2) - fitX * newSc) / 2;
+                const newPanY = newOffY - pad - ((H - pad * 2) - fitY * newSc) / 2;
+                setPanOff({ x: newPanX / dpr, y: newPanY / dpr });
+            }
+            return newZoom;
+        });
     }, []);
     useEffect(() => {
         const el = canvasRef.current;
@@ -735,7 +796,7 @@ export default function Sim2D({
     useEffect(() => {
         const handler = (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-            if (e.key === 'f' || e.key === 'F') { setZoom(1); setPanOff({ x: 0, y: 0 }); }
+            if (e.key === 'f' || e.key === 'F') { setZoom(1); setPanOff({ x: 0, y: 0 }); setUserRot(0); }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
@@ -760,9 +821,21 @@ export default function Sim2D({
                 borderBottom: '1px solid rgba(255,255,255,0.06)',
                 flexShrink: 0,
             }}>
-                <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); }} style={btnStyle()}>
+                <button onClick={() => { setZoom(1); setPanOff({ x: 0, y: 0 }); setUserRot(0); }} style={btnStyle()}>
                     Fit [F]
                 </button>
+                <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+                {/* View rotation buttons */}
+                <button onClick={() => setUserRot(r => r - Math.PI / 2)} style={btnStyle()} title="Girar 90° anti-horário">↺</button>
+                <button
+                    onClick={() => setUserRot(0)}
+                    style={btnStyle(Math.abs(userRot % (Math.PI * 2)) > 0.01)}
+                    title="Resetar rotação"
+                >
+                    {Math.round(((userRot * 180 / Math.PI) % 360 + 360) % 360)}°
+                </button>
+                <button onClick={() => setUserRot(r => r + Math.PI / 2)} style={btnStyle()} title="Girar 90° horário">↻</button>
                 <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
 
                 <button onClick={() => setShowRapids(p => !p)} style={btnStyle(showRapids, '#e44444')}>
@@ -808,7 +881,7 @@ export default function Sim2D({
                     ref={canvasRef}
                     style={{
                         width: dims.w, height: dims.h,
-                        cursor: panRef.current ? 'grabbing' : 'crosshair',
+                        cursor: 'crosshair',
                         display: 'block', flex: 1,
                         touchAction: 'none',
                     }}
@@ -816,6 +889,7 @@ export default function Sim2D({
                     onMouseMove={onMouseMove}
                     onMouseUp={onMouseUp}
                     onMouseLeave={onMouseUp}
+                    onContextMenu={onContextMenu}
                     onTouchStart={onTouchStart}
                     onTouchMove={onTouchMove}
                     onTouchEnd={onTouchEnd}
