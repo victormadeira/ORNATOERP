@@ -53,14 +53,20 @@ function compressImage(file, maxW = 1200, quality = 0.8) {
                     resolve(e.target.result);
                     return;
                 }
+                const isPng = file.type === 'image/png';
                 const canvas = document.createElement('canvas');
                 let w = img.width, h = img.height;
                 if (w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
                 canvas.width = w;
                 canvas.height = h;
                 const ctx = canvas.getContext('2d');
+                // PNG com transparência: não preencher fundo (preserva canal alfa)
+                if (!isPng) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                }
                 ctx.drawImage(img, 0, 0, w, h);
-                resolve(canvas.toDataURL('image/jpeg', quality));
+                resolve(isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', quality));
             };
             img.src = e.target.result;
         };
