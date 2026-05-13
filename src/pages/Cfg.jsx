@@ -1125,18 +1125,18 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     disabled={!isGerente}
                                 />
                                 <ImageUploader
-                                    label="Capa do Sistema"
+                                    label="Logo do Sistema"
                                     image={emp.logo_sistema}
                                     onChange={logo_sistema => setEmp({ ...emp, logo_sistema })}
                                     disabled={!isGerente}
-                                    hint="Aparece na barra lateral e na tela de login"
+                                    hint="Aparece no menu lateral, na tela de login e nas telas internas"
                                 />
                                 <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                     <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>Como a logo é usada</div>
                                     <ul style={{ paddingLeft: 18, margin: 0 }}>
-                                        <li>Cabeçalho da <strong>Proposta Comercial</strong> enviada ao cliente</li>
-                                        <li>Cabeçalho do <strong>Portal do Cliente</strong> (cronograma)</li>
-                                        <li>Futuramente: Ordem de Serviço e Contrato</li>
+                                        <li><strong>Logo da Empresa:</strong> proposta comercial, portal do cliente e documentos</li>
+                                        <li><strong>Logo do Sistema:</strong> menu lateral, tela de login e identidade interna</li>
+                                        <li>A tela de login lê automaticamente o campo <strong>Logo do Sistema</strong></li>
                                     </ul>
                                     <div style={{ marginTop: 10, fontSize: 11 }}>
                                         Formatos aceitos: <strong>PNG, JPG, SVG, WebP</strong> · Máx. 600 KB<br />
