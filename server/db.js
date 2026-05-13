@@ -2620,6 +2620,18 @@ const migrations = [
   // JSON: { medicao, aprovacao, compra, producao, acabamento, entrega, default }
   // Service calcularProgressoProjeto usa esses pesos via regex de nome.
   `ALTER TABLE empresa_config ADD COLUMN progresso_pesos_json TEXT DEFAULT '{"medicao":5,"aprovacao":5,"compra":5,"producao":35,"acabamento":20,"entrega":30,"default":10}'`,
+
+  // ═══ CNC v3: Zonas de vácuo configuráveis por máquina ═══
+  // JSON: [{id, nome, x, y, w, h, ativa, cor}] — coordenadas em mm na mesa da máquina
+  "ALTER TABLE cnc_maquinas ADD COLUMN vacuo_zonas TEXT DEFAULT '[]'",
+
+  // ═══ CNC v3: Modelo cinemático preciso — aceleração/desaceleração ═══
+  // Usado pelo gerador de G-code (cnc.js) no cálculo de tempo real via perfil
+  // trapezoidal: t = 2*(v/a) + (d - v²/a)/v   (ou t = 2*√(d/a) para deslocamentos curtos)
+  // aceleracao_xy: aceleração dos eixos lineares (mm/s²) — padrão 2000 mm/s² (±8% erro vs ±40% sem accel)
+  // aceleracao_z:  aceleração do eixo Z (mm/s²) — tipicamente 40% da XY
+  "ALTER TABLE cnc_maquinas ADD COLUMN aceleracao_xy REAL DEFAULT 2000",
+  "ALTER TABLE cnc_maquinas ADD COLUMN aceleracao_z  REAL DEFAULT 800",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

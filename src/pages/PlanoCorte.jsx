@@ -695,6 +695,12 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
                                     {chapaAtual.retalhos.length} sobras
                                 </span>
                             )}
+                            {chapaAtual.linhas_comuns_pares > 0 && (
+                                <span title={`${chapaAtual.linhas_comuns_pares} par(es) de corte em linha comum — economia ~${Math.round(chapaAtual.economia_kerf_mm2 / 100) / 10} cm²`}
+                                    style={{ background: 'rgba(34,197,94,0.15)', padding: '2px 8px', borderRadius: 10, fontSize: 10, color: '#4ade80', whiteSpace: 'nowrap', cursor: 'help' }}>
+                                    ✂ {chapaAtual.linhas_comuns_pares} comum{chapaAtual.linhas_comuns_pares > 1 ? 's' : ''}
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>

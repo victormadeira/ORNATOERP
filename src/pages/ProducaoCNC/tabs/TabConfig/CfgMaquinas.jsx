@@ -347,6 +347,7 @@ function MaquinaModal({ data, onSave, onClose }) {
         { id: 'velocidades', lb: 'Velocidades',   ic: '⚡' },
         { id: 'estrategias', lb: 'Estratégias',   ic: '⚙️' },
         { id: 'antiarrasto', lb: 'Anti-Arrasto',  ic: '🔒' },
+        { id: 'vacuo',       lb: 'Vácuo',         ic: '🌀' },
         { id: 'exportacao',  lb: 'Exportação',    ic: '📤' },
         { id: 'formato',     lb: 'Formato',       ic: '📋' },
         { id: 'envio',       lb: 'Envio',         ic: '📡' },
@@ -621,6 +622,14 @@ function MaquinaModal({ data, onSave, onClose }) {
                         </div>
                         <div><label className={Z.lbl}>RPM Padrão</label><input type="number" value={f.rpm_padrao} onChange={e => upd('rpm_padrao', Number(e.target.value))} className={Z.inp} /></div>
                         <div><label className={Z.lbl}>Dwell Spindle (s)</label><input type="number" value={f.dwell_spindle ?? 1} onChange={e => upd('dwell_spindle', Number(e.target.value))} className={Z.inp} step="0.5" min="0" /></div>
+                        <div>
+                            <label className={Z.lbl} title="Usado no cálculo de tempo real (perfil trapezoidal). Padrão típico: 1500–3000 mm/s².">Aceleração XY (mm/s²)</label>
+                            <input type="number" value={f.aceleracao_xy ?? 2000} onChange={e => upd('aceleracao_xy', Number(e.target.value))} className={Z.inp} step="100" min="200" max="10000" />
+                        </div>
+                        <div>
+                            <label className={Z.lbl} title="Aceleração do eixo Z. Geralmente 30–50% da XY.">Aceleração Z (mm/s²)</label>
+                            <input type="number" value={f.aceleracao_z ?? 800} onChange={e => upd('aceleracao_z', Number(e.target.value))} className={Z.inp} step="100" min="100" max="5000" />
+                        </div>
                     </div>
 
                     {/* ── Corte ── */}
@@ -793,21 +802,22 @@ function MaquinaModal({ data, onSave, onClose }) {
                     {/* Onion-Skin */}
                     <StrategyCard
                         title="Onion-Skin (2 Passes de Profundidade)"
-                        desc="Corta 95% da profundidade em todas as peças primeiro, depois volta e corta os últimos milímetros com velocidade reduzida. Mantém a chapa inteira durante o passe pesado."
+                        desc="Deixa uma película de material no desbaste e faz o breakthrough logo em seguida na mesma peça. Evita a peça ficar solta antes de terminar a própria usinagem."
                         checked={(f.usar_onion_skin ?? 1) === 1}
                         onChange={e => upd('usar_onion_skin', e.target.checked ? 1 : 0)}
                     >
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                            <div><label className={Z.lbl}>Espessura skin (mm)</label><input type="number" value={f.onion_skin_espessura ?? 0.5} onChange={e => upd('onion_skin_espessura', Number(e.target.value))} className={Z.inp} step="0.1" min="0.1" max="3" /></div>
+                            <div><label className={Z.lbl}>Espessura skin (mm)</label><input type="number" value={f.onion_skin_espessura ?? 1.0} onChange={e => upd('onion_skin_espessura', Number(e.target.value))} className={Z.inp} step="0.1" min="0.1" max="3" /></div>
                             <div><label className={Z.lbl}>Área máx. para onion (cm²)</label><input type="number" value={f.onion_skin_area_max ?? 500} onChange={e => upd('onion_skin_area_max', Number(e.target.value))} className={Z.inp} /></div>
                         </div>
                         <SectionLabel>Modo breakthrough</SectionLabel>
                         <div style={{ display: 'flex', gap: 8 }}>
                             {[
-                                { v: 'diferido', label: 'Diferido', desc: 'Desbaste de todas → breakthrough no final' },
                                 { v: 'por_peca', label: 'Por peça', desc: 'Desbaste + breakthrough imediato peça a peça' },
+                                { v: 'diferido_final', label: 'Diferido final', desc: 'Desbaste geral → breakthrough só no fim' },
                             ].map(({ v, label, desc }) => {
-                                const sel = (f.onion_skin_modo || 'diferido') === v;
+                                const modoAtual = f.onion_skin_modo === 'diferido_final' ? 'diferido_final' : 'por_peca';
+                                const sel = modoAtual === v;
                                 return (
                                     <button key={v} onClick={() => upd('onion_skin_modo', v)} style={{
                                         flex: 1, padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
@@ -981,6 +991,173 @@ function MaquinaModal({ data, onSave, onClose }) {
                     )}
                 </div>
             )}
+
+            {secao === 'vacuo' && (() => {
+                const zonas = (() => {
+                    try { return JSON.parse(f.vacuo_zonas || '[]'); } catch { return []; }
+                })();
+                const setZonas = (next) => upd('vacuo_zonas', JSON.stringify(next));
+                const mesaW = f.x_max || 2800;
+                const mesaH = f.y_max || 1900;
+                // Canvas display size
+                const CANVAS_W = 580, CANVAS_H = Math.round(CANVAS_W * (mesaH / mesaW));
+                const scaleX = CANVAS_W / mesaW, scaleY = CANVAS_H / mesaH;
+                const ZONE_COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#a855f7','#06b6d4'];
+
+                const addZona = () => {
+                    const id = Date.now();
+                    const n = zonas.length;
+                    setZonas([...zonas, {
+                        id, nome: `Zona ${n + 1}`,
+                        x: Math.round(mesaW * 0.1), y: Math.round(mesaH * 0.1),
+                        w: Math.round(mesaW * 0.35), h: Math.round(mesaH * 0.35),
+                        ativa: true, cor: ZONE_COLORS[n % ZONE_COLORS.length],
+                    }]);
+                };
+                const removeZona = (id) => setZonas(zonas.filter(z => z.id !== id));
+                const updZona = (id, key, val) => setZonas(zonas.map(z => z.id === id ? { ...z, [key]: val } : z));
+
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                            Configure as zonas de vácuo da mesa da sua CNC. Zonas ativas são usadas pelo otimizador
+                            de nesting para preferir peças posicionadas sobre a região de fixação.
+                        </p>
+
+                        {/* Visual editor: SVG table with draggable zones */}
+                        <div style={{ position: 'relative', userSelect: 'none' }}>
+                            <svg width={CANVAS_W} height={CANVAS_H}
+                                style={{ border: '1px solid var(--border)', borderRadius: 8, background: '#0d1219', display: 'block', cursor: 'default' }}>
+                                {/* Mesa background */}
+                                <rect x={0} y={0} width={CANVAS_W} height={CANVAS_H} fill="#12182b" rx={0} />
+                                {/* Grid lines */}
+                                {Array.from({ length: 10 }).map((_, i) => (
+                                    <g key={i}>
+                                        <line x1={CANVAS_W / 10 * i} y1={0} x2={CANVAS_W / 10 * i} y2={CANVAS_H}
+                                            stroke="#1e2d40" strokeWidth={0.5} />
+                                        <line x1={0} y1={CANVAS_H / 8 * i} x2={CANVAS_W} y2={CANVAS_H / 8 * i}
+                                            stroke="#1e2d40" strokeWidth={0.5} />
+                                    </g>
+                                ))}
+                                {/* Mesa outline */}
+                                <rect x={1} y={1} width={CANVAS_W - 2} height={CANVAS_H - 2}
+                                    fill="none" stroke="#30405a" strokeWidth={1.5} rx={2} />
+                                {/* Zones */}
+                                {zonas.map((z, idx) => {
+                                    const zx = z.x * scaleX, zy = (mesaH - z.y - z.h) * scaleY;
+                                    const zw = z.w * scaleX, zh = z.h * scaleY;
+                                    const col = z.cor || ZONE_COLORS[idx % ZONE_COLORS.length];
+                                    const alpha = z.ativa ? '33' : '11';
+                                    return (
+                                        <g key={z.id}>
+                                            <rect x={zx} y={zy} width={zw} height={zh}
+                                                fill={col + alpha}
+                                                stroke={col}
+                                                strokeWidth={z.ativa ? 1.5 : 0.8}
+                                                strokeDasharray={z.ativa ? '' : '4,3'}
+                                                rx={3}
+                                            />
+                                            <text x={zx + zw / 2} y={zy + zh / 2}
+                                                textAnchor="middle" dominantBaseline="middle"
+                                                fontSize={Math.min(12, zw / z.nome.length * 1.4)}
+                                                fill={col} opacity={z.ativa ? 0.85 : 0.4}
+                                                style={{ pointerEvents: 'none', fontFamily: 'monospace' }}>
+                                                {z.nome}
+                                            </text>
+                                        </g>
+                                    );
+                                })}
+                                {/* Origin marker */}
+                                <circle cx={8} cy={CANVAS_H - 8} r={4} fill="#22c55e" opacity={0.7} />
+                                <text x={15} y={CANVAS_H - 4} fill="#22c55e" fontSize={9} opacity={0.6}>0,0</text>
+                                <text x={CANVAS_W - 4} y={CANVAS_H - 4} fill="#546270" fontSize={9} textAnchor="end">{mesaW}mm × {mesaH}mm</text>
+                            </svg>
+                        </div>
+
+                        {/* Zone list */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {zonas.length === 0 && (
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: 12, background: 'var(--bg-muted)', borderRadius: 8 }}>
+                                    Nenhuma zona de vácuo configurada. Clique em "Adicionar Zona" para começar.
+                                </div>
+                            )}
+                            {zonas.map((z, idx) => {
+                                const col = z.cor || ZONE_COLORS[idx % ZONE_COLORS.length];
+                                return (
+                                    <div key={z.id} style={{
+                                        display: 'grid', gridTemplateColumns: 'auto 1fr 80px 80px 80px 80px 28px',
+                                        gap: 6, alignItems: 'center', padding: '6px 10px',
+                                        background: z.ativa ? 'var(--bg-muted)' : 'var(--bg-hover)',
+                                        borderRadius: 8, border: `1px solid ${z.ativa ? col + '40' : 'var(--border)'}`,
+                                        opacity: z.ativa ? 1 : 0.5,
+                                    }}>
+                                        <div style={{ width: 12, height: 12, borderRadius: 3, background: col, cursor: 'pointer', flexShrink: 0 }}
+                                            onClick={() => {
+                                                const next = ZONE_COLORS[(ZONE_COLORS.indexOf(col) + 1) % ZONE_COLORS.length];
+                                                updZona(z.id, 'cor', next);
+                                            }} title="Alterar cor" />
+                                        <input value={z.nome} onChange={e => updZona(z.id, 'nome', e.target.value)}
+                                            className={Z.inp} style={{ fontSize: 11, padding: '2px 6px' }} />
+                                        <div>
+                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>X (mm)</label>
+                                            <input type="number" value={z.x} onChange={e => updZona(z.id, 'x', Number(e.target.value))}
+                                                className={Z.inp} style={{ fontSize: 11, padding: '2px 4px' }} min={0} max={mesaW} />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Y (mm)</label>
+                                            <input type="number" value={z.y} onChange={e => updZona(z.id, 'y', Number(e.target.value))}
+                                                className={Z.inp} style={{ fontSize: 11, padding: '2px 4px' }} min={0} max={mesaH} />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Larg (mm)</label>
+                                            <input type="number" value={z.w} onChange={e => updZona(z.id, 'w', Number(e.target.value))}
+                                                className={Z.inp} style={{ fontSize: 11, padding: '2px 4px' }} min={10} max={mesaW} />
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block' }}>Alt (mm)</label>
+                                            <input type="number" value={z.h} onChange={e => updZona(z.id, 'h', Number(e.target.value))}
+                                                className={Z.inp} style={{ fontSize: 11, padding: '2px 4px' }} min={10} max={mesaH} />
+                                        </div>
+                                        <button onClick={() => removeZona(z.id)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, display: 'flex', alignItems: 'center' }}
+                                            title="Remover zona">
+                                            <X size={14} />
+                                        </button>
+                                        {/* Active toggle */}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={addZona} style={{
+                                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                                borderRadius: 8, border: '1px dashed var(--border)',
+                                background: 'var(--bg-muted)', color: 'var(--primary)',
+                                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                            }}>
+                                <Plus size={14} /> Adicionar Zona
+                            </button>
+                            {zonas.length > 0 && (
+                                <button onClick={() => setZonas(zonas.map(z => ({ ...z, ativa: !zonas.every(z2 => z2.ativa) })))}
+                                    style={{
+                                        padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                                        background: 'var(--bg-hover)', color: 'var(--text-muted)',
+                                        cursor: 'pointer', fontSize: 12,
+                                    }}>
+                                    {zonas.every(z => z.ativa) ? '⏸ Desativar todas' : '▶ Ativar todas'}
+                                </button>
+                            )}
+                        </div>
+
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0, padding: '8px 12px', background: 'rgba(59,130,246,0.08)', borderRadius: 8, lineHeight: 1.5 }}>
+                            💡 <strong>Dica:</strong> Zones com vácuo ativo orientam o otimizador a posicionar peças
+                            sobre as áreas de fixação, reduzindo vibração e melhorando a qualidade de corte.
+                            O nesting priorizará cobrir as zonas ativas sem forçar uma restrição rígida.
+                        </p>
+                    </div>
+                );
+            })()}
 
             {secao === 'envio' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

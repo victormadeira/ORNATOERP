@@ -129,6 +129,8 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                     acc.dist_corte_m     = (acc.dist_corte_m     || 0) + (s.dist_corte_m     || 0);
                     acc.trocas_ferramenta = (acc.trocas_ferramenta || 0) + (s.trocas_ferramenta || 0);
                     acc.onion_skin_ops   = (acc.onion_skin_ops   || 0) + (s.onion_skin_ops   || 0);
+                    acc.tabs_ativos        = (acc.tabs_ativos        || 0) + (s.tabs_ativos        || 0);
+                    acc.linhas_comuns_skip = (acc.linhas_comuns_skip || 0) + (s.linhas_comuns_skip || 0);
                     return acc;
                 }, {});
                 aggStats.tempo_estimado_min = Math.round(aggStats.tempo_estimado_min * 10) / 10;
@@ -677,6 +679,8 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                                 <CheckCircle2 size={13} />
                                 {result.total_pecas} peça(s) · {result.total_operacoes} op(s)
                                 {result.onion_skin_ops > 0 && ` · ${result.onion_skin_ops} onion`}
+                                {result.stats?.tabs_ativos > 0 && ` · ${result.stats.tabs_ativos} tabs`}
+                                {result.stats?.linhas_comuns_skip > 0 && ` · ${result.stats.linhas_comuns_skip} linha-comum`}
                             </div>
 
                             {/* Stats chips */}

@@ -1,28 +1,27 @@
-// CncSim/Sim3D.jsx — Three.js 3D simulator with real material removal
-// Material removal: CanvasTexture painted progressively as tool cuts (no geometry deformation needed)
-// Z-up convention matches CNC machine axes.
+// CncSim/Sim3D.jsx  — v4 (rewrite limpo)
+// Animação move-a-move: sem interpolação de tempo, sem busca binária, sem edge cases.
+// curMoveRef avança +1 por intervalo (igual ao GcodeSimWrapper que funciona).
+// Three.js scene: MDF com canvas texture, toolpath colorido por operação, camera presets.
 
 import {
     useEffect, useRef, useState, useMemo, forwardRef, useImperativeHandle, useCallback,
 } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { Line2 }        from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { getOpCat, getToolDiameter } from './parseGcode.js';
 
-// ─── Texture resolution for material removal canvas ──────────────────────────
-const MAT_TEX_SIZE  = 1024; // pixels; higher = sharper cuts but more memory
-const DEPTH_MAP_RES = 256;  // depth-tracking heightmap resolution (256×256 = 256KB Float32)
-
-// ─── Scene colors ─────────────────────────────────────────────────────────────
-const MDF_TOP_COLOR   = '#c2a46a'; // uncut MDF surface (tan)
-const MDF_SIDE_COLOR  = 0x8b6030; // MDF edge cross-section (darker brown)
-const MDF_BOTTOM      = 0x6b4820; // MDF bottom face (darkest)
-const SCENE_BG        = 0x0c1018; // very dark blue-black, like a CNC enclosure
-const RAPID_COLOR     = 0xe44444; // G0 rapid — red dashed
-const RAPID_EXEC      = 0x996666; // G0 executed
+// ─── Constantes ───────────────────────────────────────────────────────────────
+const MAT_TEX_SIZE  = 1024;
+const DEPTH_MAP_RES = 256;
+const MDF_TOP_COLOR = '#c2a46a';
+const MDF_SIDE_COLOR = 0x8b6030;
+const MDF_BOTTOM     = 0x6b4820;
+const SCENE_BG       = 0x0c1018;
+const RAPID_COLOR    = 0xe44444;
+const RAPID_EXEC     = 0x996666;
 
 function fmtTime(s) {
     if (!s || s < 0) return '0:00.0';
@@ -30,25 +29,20 @@ function fmtTime(s) {
     return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`;
 }
 
-// ─── MDF wood grain on canvas ────────────────────────────────────────────────
+// ─── MDF grain texture ────────────────────────────────────────────────────────
 function paintMdfBase(ctx, w, h) {
-    // Base warm sand
     ctx.fillStyle = MDF_TOP_COLOR;
     ctx.fillRect(0, 0, w, h);
-
-    // Subtle fiber bands (compressed wood fiber appearance)
     ctx.save();
     for (let i = 0; i < 80; i++) {
         const yy = Math.random() * h;
         const ht = 1 + Math.random() * 3;
         const alpha = 0.04 + Math.random() * 0.07;
-        const lighter = Math.random() > 0.5;
-        ctx.fillStyle = lighter
+        ctx.fillStyle = Math.random() > 0.5
             ? `rgba(255,235,180,${alpha})`
             : `rgba(140,90,30,${alpha})`;
         ctx.fillRect(0, yy, w, ht);
     }
-    // Vignette — slightly darker at edges
     const vgr = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
     vgr.addColorStop(0, 'rgba(0,0,0,0)');
     vgr.addColorStop(1, 'rgba(0,0,0,0.14)');
@@ -57,26 +51,19 @@ function paintMdfBase(ctx, w, h) {
     ctx.restore();
 }
 
-/**
- * Update the depth heightmap for a cut move.
- * heightmap: Float32Array[DEPTH_MAP_RES * DEPTH_MAP_RES], values = max depth removed (mm)
- * Returns true if any cell was updated.
- */
 function updateDepthMap(heightmap, m, chapaW, chapaH, toolDiam) {
     if (m.type === 'G0') return false;
     const depth = Math.max(0, -Math.min(m.z1, m.z2));
     if (depth < 0.02) return false;
-
     const scaleX = DEPTH_MAP_RES / chapaW;
     const scaleY = DEPTH_MAP_RES / chapaH;
-    const radius = Math.max(0.5, toolDiam / 2);
+    const radius  = Math.max(0.5, toolDiam / 2);
     const px1 = m.x1 * scaleX, py1 = m.y1 * scaleY;
     const px2 = m.x2 * scaleX, py2 = m.y2 * scaleY;
     const dx = px2 - px1, dy = py2 - py1;
     const len = Math.hypot(dx, dy);
-    const steps = Math.max(1, Math.ceil(len * 2));
+    const steps  = Math.max(1, Math.ceil(len * 2));
     const rCells = Math.max(1, Math.ceil(radius * Math.min(scaleX, scaleY)));
-
     let changed = false;
     for (let s = 0; s <= steps; s++) {
         const t = s / steps;
@@ -87,13 +74,9 @@ function updateDepthMap(heightmap, m, chapaW, chapaH, toolDiam) {
         const y1 = Math.min(DEPTH_MAP_RES - 1, Math.ceil(cy + rCells));
         for (let gx = x0; gx <= x1; gx++) {
             for (let gy = y0; gy <= y1; gy++) {
-                const dist = Math.hypot(gx - cx, gy - cy);
-                if (dist <= rCells) {
+                if (Math.hypot(gx - cx, gy - cy) <= rCells) {
                     const idx = gy * DEPTH_MAP_RES + gx;
-                    if (depth > heightmap[idx]) {
-                        heightmap[idx] = depth;
-                        changed = true;
-                    }
+                    if (depth > heightmap[idx]) { heightmap[idx] = depth; changed = true; }
                 }
             }
         }
@@ -101,17 +84,12 @@ function updateDepthMap(heightmap, m, chapaW, chapaH, toolDiam) {
     return changed;
 }
 
-/** Draw one cut move on the material canvas using the heightmap for accurate depth. Returns true if anything was drawn. */
 function paintCutMove(ctx, m, chapaW, chapaH, texW, texH, toolDiam, heightmap) {
     if (m.type === 'G0') return false;
-    const depth = Math.max(0, -Math.min(m.z1, m.z2)); // how deep below surface
-    if (depth < 0.02) return false; // tool not cutting
-
-    const scaleX = texW / chapaW;
-    const scaleY = texH / chapaH;
+    const depth = Math.max(0, -Math.min(m.z1, m.z2));
+    if (depth < 0.02) return false;
+    const scaleX = texW / chapaW, scaleY = texH / chapaH;
     const lw = Math.max(1.5, toolDiam * Math.min(scaleX, scaleY));
-
-    // If heightmap available, use heightmap depth at midpoint for accurate coloring
     let renderDepth = depth;
     if (heightmap) {
         const midX = (m.x1 + m.x2) / 2 * (DEPTH_MAP_RES / chapaW);
@@ -119,26 +97,17 @@ function paintCutMove(ctx, m, chapaW, chapaH, texW, texH, toolDiam, heightmap) {
         const gx = Math.max(0, Math.min(DEPTH_MAP_RES - 1, Math.round(midX)));
         const gy = Math.max(0, Math.min(DEPTH_MAP_RES - 1, Math.round(midY)));
         const hmDepth = heightmap[gy * DEPTH_MAP_RES + gx];
-        renderDepth = hmDepth > 0 ? hmDepth : depth;
+        if (hmDepth > 0) renderDepth = hmDepth;
     }
-
-    // Depth-based color: light brown (shallow) → dark brown → near black (full depth)
-    const ratio  = Math.min(1, renderDepth / 18); // normalized 0-1 over 18mm
-    const light  = Math.round(55 - ratio * 35); // hsl lightness: 55→20
+    const ratio = Math.min(1, renderDepth / 18);
+    const light = Math.round(55 - ratio * 35);
     ctx.strokeStyle = `hsl(22, 38%, ${light}%)`;
-    ctx.lineWidth = lw;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // Flip Y: G-code Y=0 is bottom-left; canvas Y=0 is top-left
-    const px1 = m.x1 * scaleX;
-    const py1 = texH - m.y1 * scaleY;
-    const px2 = m.x2 * scaleX;
-    const py2 = texH - m.y2 * scaleY;
-
+    ctx.lineWidth  = lw;
+    ctx.lineCap    = 'round';
+    ctx.lineJoin   = 'round';
     ctx.beginPath();
-    ctx.moveTo(px1, py1);
-    ctx.lineTo(px2, py2);
+    ctx.moveTo(m.x1 * scaleX, texH - m.y1 * scaleY);
+    ctx.lineTo(m.x2 * scaleX, texH - m.y2 * scaleY);
     ctx.stroke();
     return true;
 }
@@ -153,7 +122,7 @@ function clearGroup(group) {
     }
 }
 
-// ─── Main Sim3D component ─────────────────────────────────────────────────────
+// ─── Componente principal ──────────────────────────────────────────────────────
 export const Sim3D = forwardRef(function Sim3D(
     { parsed, chapa, playing: playingProp, speed: speedProp = 1, onPlayEnd, onMoveChange },
     ref
@@ -162,62 +131,69 @@ export const Sim3D = forwardRef(function Sim3D(
     const three = useRef({
         renderer: null, scene: null, camera: null, controls: null,
         stockGroup: null, pathGroup: null, toolGroup: null, gridGroup: null,
-        matCanvas: null, matCtx: null, matTexture: null,
+        matCanvas: null, matCtx: null, matTexture: null, matDims: null,
+        chapaW: 2750, chapaH: 1850,
+        depthMap: null,
         segments: [], lineMats: [],
         bbox: null,
+        rafId: null,
     });
 
-    // Stabilize chapa reference — only trigger scene rebuild when actual
-    // dimensions change, not when the parent re-creates the object reference
-    // (e.g., from a Zustand/WebSocket update that returns a new object with same values).
+    // Memoiza chapa pelos valores reais — evita rebuild ao receber nova referência
+    // com os mesmos dados (frequente com Zustand/WebSocket).
     const chapaKey = `${chapa?.comprimento}|${chapa?.largura}|${chapa?.espessura}|${chapa?.refilo}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const chapaStable = useMemo(() => chapa, [chapaKey]);
-    const pb = useRef({ time: 0, playing: false, speed: 1, lastAt: 0, totalTime: 0 });
-    const setTimeRef = useRef(null);
-    const lastHudRef = useRef(0);
-    const lastIdxRef  = useRef(-1);   // last reported move index (for onMoveChange)
-    const curIdxRef   = useRef(0);    // forward-scan cursor — NEVER goes backward during playback
-    const lastCutIdx  = useRef(-1);
-    const lastCanvasUpdate = useRef(0);
 
-    // React state — HUD only (no re-render from animation loop)
+    const moves     = parsed?.moves    ?? [];
+    const totalTime = parsed?.totalTime ?? 0;
+
+    // ── Refs da animação (sem React state no loop) ────────────────────────────
+    const curMoveRef   = useRef(-1);   // índice do move atual (-1 = antes do início)
+    const accRef       = useRef(0);    // acumulador de tempo (ms) entre moves
+    const playingRef   = useRef(false);
+    const speedRef     = useRef(speedProp);
+    const lastTickRef  = useRef(0);
+
+    // Refs para callbacks/dados mutáveis no loop (evita closures stale)
+    const movesRef         = useRef(moves);
+    const onPlayEndRef     = useRef(onPlayEnd);
+    const renderAtMoveRef  = useRef(null);
+    movesRef.current       = moves;
+    onPlayEndRef.current   = onPlayEnd;
+    speedRef.current       = speedProp;
+
+    // ── Refs de throttle ──────────────────────────────────────────────────────
+    const lastHudRef        = useRef(0);
+    const lastReportedRef   = useRef(-1);
+    const lastCutIdx        = useRef(-1);
+    const lastCanvasUpdate  = useRef(0);
+
+    // ── React state (apenas HUD — 20fps) ─────────────────────────────────────
     const [toolPos,    setToolPos]    = useState({ x: 0, y: 0, z: 0, f: 0, op: '' });
     const [curTime,    setCurTime]    = useState(0);
     const [curMoveIdx, setCurMoveIdx] = useState(-1);
     const [activeView, setActiveView] = useState('iso');
     const [showRapids, setShowRapids] = useState(false);
-    const [viewMode,   setViewMode]   = useState('full');    // 'cutting' | 'full'
-    const viewModeRef   = useRef('cutting');
-    const showRapidsRef = useRef(false); // mirror of showRapids — avoids stale closure in setTimeInternal
+    const [viewMode,   setViewMode]   = useState('full');
+    const viewModeRef   = useRef('full');
+    const showRapidsRef = useRef(false);
 
-    const moves     = parsed?.moves    ?? [];
-    const totalTime = parsed?.totalTime ?? 0;
-
-    // ── Material canvas helpers (called from animation loop — no React) ───────
-    const matCanvasRef = useRef(null); // mirrors three.current.matCanvas for closure access
-
+    // ── Canvas de remoção de material ──────────────────────────────────────────
     const rebuildMatCanvas = useCallback((upToIdx, chapaW, chapaH) => {
         const tc = three.current;
         if (!tc.matCanvas || !tc.matCtx || !tc.matTexture) return;
         const { texW, texH } = tc.matDims || {};
         if (!texW) return;
-
-        // Reset heightmap
         const heightmap = new Float32Array(DEPTH_MAP_RES * DEPTH_MAP_RES);
         tc.depthMap = heightmap;
-
         paintMdfBase(tc.matCtx, texW, texH);
-        let curDiam = 6;
-        let dirty = false;
+        let curDiam = 6, dirty = false;
+        const evts = parsed?.events ?? [];
         for (let i = 0; i <= upToIdx && i < moves.length; i++) {
-            const m = moves[i];
-            // Update tool diameter from events
-            for (const ev of (parsed?.events ?? [])) {
-                if (ev.moveIdx === i && ev.type === 'tool') curDiam = getToolDiameter(ev.label);
-            }
-            updateDepthMap(heightmap, m, chapaW, chapaH, curDiam);
-            if (paintCutMove(tc.matCtx, m, chapaW, chapaH, texW, texH, curDiam, heightmap)) dirty = true;
+            for (const ev of evts) { if (ev.moveIdx === i && ev.type === 'tool') curDiam = getToolDiameter(ev.label); }
+            updateDepthMap(heightmap, moves[i], chapaW, chapaH, curDiam);
+            if (paintCutMove(tc.matCtx, moves[i], chapaW, chapaH, texW, texH, curDiam, heightmap)) dirty = true;
         }
         if (dirty || upToIdx >= 0) tc.matTexture.needsUpdate = true;
         lastCutIdx.current = upToIdx;
@@ -228,32 +204,99 @@ export const Sim3D = forwardRef(function Sim3D(
         if (!tc.matCanvas || !tc.matCtx || !tc.matTexture) return;
         const { texW, texH } = tc.matDims || {};
         if (!texW) return;
-
-        // Initialize heightmap if not present yet
         if (!tc.depthMap) tc.depthMap = new Float32Array(DEPTH_MAP_RES * DEPTH_MAP_RES);
         const heightmap = tc.depthMap;
-
         let curDiam = 6;
-        // Walk events to find tool at fromIdx
-        for (const ev of (parsed?.events ?? [])) {
-            if (ev.moveIdx >= fromIdx) break;
-            if (ev.type === 'tool') curDiam = getToolDiameter(ev.label);
-        }
-
+        const evts = parsed?.events ?? [];
+        for (const ev of evts) { if (ev.moveIdx >= fromIdx) break; if (ev.type === 'tool') curDiam = getToolDiameter(ev.label); }
         let dirty = false;
         for (let i = fromIdx; i <= toIdx && i < moves.length; i++) {
-            const m = moves[i];
-            for (const ev of (parsed?.events ?? [])) {
-                if (ev.moveIdx === i && ev.type === 'tool') curDiam = getToolDiameter(ev.label);
-            }
-            updateDepthMap(heightmap, m, chapaW, chapaH, curDiam);
-            if (paintCutMove(tc.matCtx, m, chapaW, chapaH, texW, texH, curDiam, heightmap)) dirty = true;
+            for (const ev of evts) { if (ev.moveIdx === i && ev.type === 'tool') curDiam = getToolDiameter(ev.label); }
+            updateDepthMap(heightmap, moves[i], chapaW, chapaH, curDiam);
+            if (paintCutMove(tc.matCtx, moves[i], chapaW, chapaH, texW, texH, curDiam, heightmap)) dirty = true;
         }
         if (dirty) tc.matTexture.needsUpdate = true;
         lastCutIdx.current = toIdx;
     }, [moves, parsed?.events]);
 
-    // ── One-time Three.js setup ───────────────────────────────────────────────
+    // ── Renderiza cena no índice idx ──────────────────────────────────────────
+    // Esta função é chamada pelo loop de animação (via renderAtMoveRef).
+    // Não usa React state — pura manipulação Three.js + throttled HUD.
+    const renderAtMove = useCallback((idx) => {
+        const tc  = three.current;
+        const mvs = movesRef.current;
+        if (!tc.renderer || !mvs.length) return;
+
+        const clamped = Math.max(-1, Math.min(mvs.length - 1, idx));
+        const atEnd   = clamped >= mvs.length - 1;
+
+        // Posição da ferramenta
+        let toolX = mvs[0].x1, toolY = mvs[0].y1, toolZ = mvs[0].z1;
+        let curFeed = 0, curOp = '';
+        if (clamped >= 0) {
+            const m = mvs[clamped];
+            toolX = m.x2; toolY = m.y2; toolZ = m.z2;
+            curFeed = m.feed || 0; curOp = m.op || '';
+        }
+
+        // Cores dos segmentos (só atualiza o que mudou)
+        const { segments } = tc;
+        for (let i = 0; i < segments.length; i++) {
+            const seg  = segments[i];
+            const done = atEnd || i <= clamped;
+            if (seg.done !== done) {
+                seg.line.material.color.setHex(done ? seg.execColor : seg.pendColor);
+                seg.line.material.opacity = done
+                    ? (seg.isRapid ? 0.4 : 0.8)
+                    : (seg.isRapid
+                        ? (showRapidsRef.current ? 0.25 : 0.0)
+                        : (viewModeRef.current === 'full' ? 0.55 : 0.12));
+                seg.line.material.needsUpdate = true;
+                seg.done = done;
+            }
+        }
+
+        // Ferramenta: oculta durante G0 (rapids de posicionamento)
+        if (tc.toolGroup) {
+            const isRapid = clamped >= 0 && mvs[clamped]?.type === 'G0';
+            tc.toolGroup.visible = clamped >= 0 && !isRapid;
+            tc.toolGroup.position.set(toolX, toolY, toolZ);
+        }
+
+        // Canvas de remoção de material (throttled a 20fps)
+        const now = performance.now();
+        if (now - lastCanvasUpdate.current > 48 || !playingRef.current) {
+            const chW = chapaStable?.comprimento ?? tc.chapaW ?? 2750;
+            const chH = chapaStable?.largura    ?? tc.chapaH ?? 1850;
+            if (clamped < lastCutIdx.current) {
+                rebuildMatCanvas(clamped, chW, chH);
+            } else if (clamped > lastCutIdx.current) {
+                incrementalMatCanvas(lastCutIdx.current + 1, clamped, chW, chH);
+            }
+            lastCanvasUpdate.current = now;
+        }
+
+        // Notifica G-code editor (só quando muda)
+        if (clamped !== lastReportedRef.current) {
+            lastReportedRef.current = clamped;
+            const lineIdx = clamped >= 0 ? (mvs[clamped]?.lineIdx ?? -1) : -1;
+            const t       = clamped >= 0 ? (mvs[clamped]?.tEnd ?? 0) : 0;
+            onMoveChange?.(clamped, lineIdx, t);
+        }
+
+        // HUD — throttled a 20fps
+        if (now - lastHudRef.current > 50) {
+            lastHudRef.current = now;
+            setToolPos({ x: toolX, y: toolY, z: toolZ, f: curFeed, op: curOp });
+            setCurTime(clamped >= 0 ? (mvs[clamped]?.tEnd ?? 0) : 0);
+            setCurMoveIdx(clamped);
+        }
+    }, [chapaStable, rebuildMatCanvas, incrementalMatCanvas, onMoveChange]);
+
+    // Mantém ref atualizada para o loop
+    renderAtMoveRef.current = renderAtMove;
+
+    // ── Setup Three.js (uma vez) ───────────────────────────────────────────────
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
@@ -265,60 +308,41 @@ export const Sim3D = forwardRef(function Sim3D(
         renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
         el.appendChild(renderer.domElement);
 
-        const scene = new THREE.Scene();
-
-        // Z-up camera
+        const scene  = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, el.clientWidth / el.clientHeight, 0.01, 200000);
         camera.up.set(0, 0, 1);
         camera.position.set(3000, -3000, 3000);
         camera.lookAt(0, 0, 0);
 
-        // Lighting — studio 3-point setup
         scene.add(new THREE.AmbientLight(0x203040, 0.9));
-        const sun = new THREE.DirectionalLight(0xfff8f0, 1.2);
-        sun.position.set(800, 600, 2000);
-        scene.add(sun);
-        const fill = new THREE.DirectionalLight(0x4080c0, 0.35);
-        fill.position.set(-600, -800, 400);
-        scene.add(fill);
-        const back = new THREE.DirectionalLight(0x203050, 0.2);
-        back.position.set(0, 2000, -500);
-        scene.add(back);
+        const sun  = new THREE.DirectionalLight(0xfff8f0, 1.2); sun.position.set(800, 600, 2000);  scene.add(sun);
+        const fill = new THREE.DirectionalLight(0x4080c0, 0.35); fill.position.set(-600, -800, 400); scene.add(fill);
+        const back = new THREE.DirectionalLight(0x203050, 0.2);  back.position.set(0, 2000, -500);  scene.add(back);
 
-        // OrbitControls
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.07;
         controls.screenSpacePanning = true;
         controls.minDistance = 10;
         controls.maxDistance = 300000;
-        controls.zoomToCursor = true;  // zoom toward mouse cursor, not orbit center
+        controls.zoomToCursor = true;
 
-        // Groups
         const stockGroup = new THREE.Group();
         const pathGroup  = new THREE.Group();
         const toolGroup  = new THREE.Group();
         const gridGroup  = new THREE.Group();
         scene.add(stockGroup, pathGroup, toolGroup, gridGroup);
 
-        // Tool model — milling cutter: shank cylinder + tip cone + glow
-        const shankMat = new THREE.MeshStandardMaterial({
-            color: 0xd0d8e0, metalness: 0.9, roughness: 0.08,
-            emissive: 0x101820, emissiveIntensity: 0.5,
-        });
-        const tipMat = new THREE.MeshStandardMaterial({
-            color: 0xffd060, metalness: 0.95, roughness: 0.05,
-            emissive: 0xd08000, emissiveIntensity: 1.8,
-        });
+        // Modelo da ferramenta
+        const shankMat = new THREE.MeshStandardMaterial({ color: 0xd0d8e0, metalness: 0.9, roughness: 0.08, emissive: 0x101820, emissiveIntensity: 0.5 });
+        const tipMat   = new THREE.MeshStandardMaterial({ color: 0xffd060, metalness: 0.95, roughness: 0.05, emissive: 0xd08000, emissiveIntensity: 1.8 });
         const shank = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 60, 24), shankMat);
-        shank.rotation.x = Math.PI / 2;
-        shank.position.z = 32;
+        shank.rotation.x = Math.PI / 2; shank.position.z = 32;
         const tip = new THREE.Mesh(new THREE.ConeGeometry(5, 10, 24), tipMat);
-        tip.rotation.x = -Math.PI / 2;
-        tip.position.z = -5;
-        const glow = new THREE.PointLight(0xffaa30, 120, 180);
-        glow.position.z = -2;
+        tip.rotation.x = -Math.PI / 2; tip.position.z = -5;
+        const glow = new THREE.PointLight(0xffaa30, 120, 180); glow.position.z = -2;
         toolGroup.add(shank, tip, glow);
+        toolGroup.visible = false;
 
         three.current = {
             ...three.current,
@@ -327,7 +351,7 @@ export const Sim3D = forwardRef(function Sim3D(
             segments: [], lineMats: [],
         };
 
-        // Resize observer — updates LineMaterial resolution for correct line widths
+        // Resize
         const ro = new ResizeObserver(() => {
             const w = el.clientWidth, h = el.clientHeight;
             if (!w || !h) return;
@@ -339,36 +363,50 @@ export const Sim3D = forwardRef(function Sim3D(
         });
         ro.observe(el);
 
-        // Double-click → fit to bbox
+        // Double-click → fit view
         const onDblClick = () => {
             const { bbox, camera: cam, controls: ctrl } = three.current;
             if (!bbox) return;
             ctrl.target.set(bbox.cx, bbox.cy, bbox.cz);
             cam.position.set(bbox.cx + bbox.span * 0.9, bbox.cy - bbox.span * 1.1, bbox.cz + bbox.span * 0.85);
-            cam.up.set(0, 0, 1);
-            cam.lookAt(bbox.cx, bbox.cy, bbox.cz);
-            ctrl.update();
+            cam.up.set(0, 0, 1); cam.lookAt(bbox.cx, bbox.cy, bbox.cz); ctrl.update();
         };
         renderer.domElement.addEventListener('dblclick', onDblClick);
 
-        // Animation loop
+        // ── Loop de animação ─────────────────────────────────────────────────
+        // Animação move-a-move: sem interpolação de tempo, sem busca binária.
+        // interval = 60/speed ms por move (igual ao GcodeSimWrapper 2D que funciona bem).
         function tick(now) {
             three.current.rafId = requestAnimationFrame(tick);
-            const dt = Math.min((now - pb.current.lastAt) / 1000, 0.12);
-            pb.current.lastAt = now;
-            if (pb.current.playing && pb.current.totalTime > 0) {
-                const next = pb.current.time + dt * pb.current.speed;
-                if (next >= pb.current.totalTime) {
-                    setTimeRef.current?.(pb.current.totalTime);
-                    pb.current.playing = false;
-                    onPlayEnd?.();
-                } else {
-                    setTimeRef.current?.(next);
+
+            if (playingRef.current && movesRef.current.length > 0) {
+                const spd      = speedRef.current;
+                const interval = Math.max(1, 60 / spd);            // ms por move
+                const dt       = Math.min(now - lastTickRef.current, 200); // cap em 200ms (tab oculta)
+                accRef.current += dt;
+
+                let advanced = false;
+                while (accRef.current >= interval && curMoveRef.current < movesRef.current.length - 1) {
+                    curMoveRef.current++;
+                    accRef.current -= interval;
+                    advanced = true;
+                }
+
+                if (advanced) {
+                    renderAtMoveRef.current?.(curMoveRef.current);
+                }
+
+                if (curMoveRef.current >= movesRef.current.length - 1) {
+                    playingRef.current = false;
+                    onPlayEndRef.current?.();
                 }
             }
+
+            lastTickRef.current = now;
             controls.update();
             renderer.render(scene, camera);
         }
+        lastTickRef.current = performance.now();
         three.current.rafId = requestAnimationFrame(tick);
 
         return () => {
@@ -381,136 +419,35 @@ export const Sim3D = forwardRef(function Sim3D(
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Core: advance time → update scene (no React re-render) ───────────────
-    // Uses a forward-scan cursor (curIdxRef) instead of binary search.
-    // During playback, curIdxRef only ever advances → no backward snaps.
-    // On backward seek, cursor resets to 0 and rescans forward (O(n) once).
-    const setTimeInternal = useCallback((t) => {
-        if (!moves.length) return;
-        const safeT = Math.max(0, Math.min(pb.current.totalTime, t));
-        pb.current.time = safeT;
-
-        const atEnd = pb.current.totalTime > 0 && safeT >= pb.current.totalTime;
-
-        let curIdx = 0;
-        let toolX = moves[0].x1, toolY = moves[0].y1, toolZ = moves[0].z1;
-        let curFeed = 0, curOp = '';
-
-        if (atEnd) {
-            curIdx = moves.length - 1;
-            const last = moves[curIdx];
-            toolX = last.x2; toolY = last.y2; toolZ = last.z2;
-            curFeed = last.feed || 0; curOp = last.op || '';
-            curIdxRef.current = curIdx;
-        } else {
-            // ── Forward-scan cursor ───────────────────────────────────────
-            let i = curIdxRef.current;
-            // Backward seek: reset cursor to beginning
-            if (i > 0 && safeT < moves[i].tStart) i = 0;
-            // Advance cursor forward until safeT falls within moves[i]
-            while (i < moves.length - 1 && safeT > moves[i].tEnd) i++;
-
-            curIdx = i;
-            curIdxRef.current = i;
-            const m  = moves[i];
-            const u  = m.duration > 0
-                ? Math.max(0, Math.min(1, (safeT - m.tStart) / m.duration))
-                : 1;
-            toolX = m.x1 + (m.x2 - m.x1) * u;
-            toolY = m.y1 + (m.y2 - m.y1) * u;
-            toolZ = m.z1 + (m.z2 - m.z1) * u;
-            curFeed = m.feed || 0; curOp = m.op || '';
-        }
-
-        // ── Segment colors ────────────────────────────────────────────────
-        const { segments } = three.current;
-        for (let i = 0; i < segments.length; i++) {
-            const seg = segments[i];
-            const done = atEnd || i <= curIdx;
-            if (seg.done !== done) {
-                seg.line.material.color.setHex(done ? seg.execColor : seg.pendColor);
-                seg.line.material.opacity = done
-                    ? (seg.isRapid ? 0.4 : 0.8)
-                    : (seg.isRapid ? (showRapidsRef.current ? 0.25 : 0.0) : (viewModeRef.current === 'full' ? 0.55 : 0.12));
-                seg.line.material.needsUpdate = true;
-                seg.done = done;
-            }
-        }
-
-        // ── Tool position ─────────────────────────────────────────────────
-        // Hide tool during G0 rapids — tool only visible when actively cutting.
-        // This eliminates the "going backward" visual when the machine rapids
-        // back to the start position for the next pass.
-        if (three.current.toolGroup) {
-            const isRapid = curIdx >= 0 && moves[curIdx]?.type === 'G0';
-            three.current.toolGroup.visible = !isRapid;
-            three.current.toolGroup.position.set(toolX, toolY, toolZ);
-        }
-
-        // ── Material removal canvas — update at most 20fps ────────────────
-        const now = performance.now();
-        if (curIdx >= 0 && (now - lastCanvasUpdate.current > 48 || !pb.current.playing)) {
-            const chW = chapa?.comprimento ?? three.current.chapaW ?? 2750;
-            const chH = chapa?.largura    ?? three.current.chapaH ?? 1850;
-            if (curIdx < lastCutIdx.current) {
-                // Seeking backwards — rebuild from scratch
-                rebuildMatCanvas(curIdx, chW, chH);
-            } else if (curIdx > lastCutIdx.current) {
-                incrementalMatCanvas(lastCutIdx.current + 1, curIdx, chW, chH);
-            }
-            lastCanvasUpdate.current = now;
-        }
-
-        // ── Notify G-code editor (debounced by index change) ─────────────
-        if (curIdx !== lastIdxRef.current) {
-            lastIdxRef.current = curIdx;
-            const lineIdx = curIdx >= 0 ? (moves[curIdx]?.lineIdx ?? -1) : -1;
-            onMoveChange?.(curIdx, lineIdx, safeT);
-        }
-
-        // ── HUD (throttled to 20fps) ──────────────────────────────────────
-        if (now - lastHudRef.current > 50) {
-            lastHudRef.current = now;
-            setToolPos({ x: toolX, y: toolY, z: toolZ, f: curFeed, op: curOp });
-            setCurTime(safeT);
-            setCurMoveIdx(curIdx);
-        }
-    }, [moves, chapa, rebuildMatCanvas, incrementalMatCanvas, onMoveChange]); // showRapids via ref
-
-    setTimeRef.current = setTimeInternal;
-
-    // ── Scene rebuild on G-code / chapa change ────────────────────────────────
+    // ── Rebuild de cena ao mudar G-code ou dimensões da chapa ─────────────────
     useEffect(() => {
         const tc = three.current;
         if (!tc.renderer) return;
         const { stockGroup, pathGroup, gridGroup, camera, controls } = tc;
 
-        clearGroup(stockGroup);
-        clearGroup(pathGroup);
-        clearGroup(gridGroup);
-        tc.segments = [];
-        tc.lineMats = [];
-        lastIdxRef.current  = -1;
-        curIdxRef.current   = 0;
-        lastCutIdx.current  = -1;
+        clearGroup(stockGroup); clearGroup(pathGroup); clearGroup(gridGroup);
+        tc.segments = []; tc.lineMats = [];
+        lastReportedRef.current  = -1;
+        lastCutIdx.current       = -1;
         lastCanvasUpdate.current = 0;
         tc.depthMap = null;
 
-        pb.current.time = 0;
-        pb.current.totalTime = totalTime;
+        // Reset animação
+        curMoveRef.current = -1;
+        accRef.current     = 0;
 
-        if (!moves.length) return;
+        if (!moves.length) {
+            renderAtMoveRef.current?.(-1);
+            return;
+        }
 
         // Bounding box
-        let minX = Infinity, maxX = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
-        let minZ = Infinity, maxZ = -Infinity;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         for (const m of moves) {
-            for (const [vx, vy, vz] of [[m.x1, m.y1, m.z1], [m.x2, m.y2, m.z2]]) {
-                if (vx < minX) minX = vx; if (vx > maxX) maxX = vx;
-                if (vy < minY) minY = vy; if (vy > maxY) maxY = vy;
-                if (vz < minZ) minZ = vz; if (vz > maxZ) maxZ = vz;
-            }
+            if (m.x1 < minX) minX = m.x1; if (m.x2 < minX) minX = m.x2;
+            if (m.x1 > maxX) maxX = m.x1; if (m.x2 > maxX) maxX = m.x2;
+            if (m.y1 < minY) minY = m.y1; if (m.y2 < minY) minY = m.y2;
+            if (m.y1 > maxY) maxY = m.y1; if (m.y2 > maxY) maxY = m.y2;
         }
 
         const chapaW = chapaStable?.comprimento ?? Math.max(300, maxX + 20);
@@ -518,75 +455,56 @@ export const Sim3D = forwardRef(function Sim3D(
         const thick  = chapaStable?.espessura  ?? 18;
         tc.chapaW = chapaW; tc.chapaH = chapaH;
 
-        const cx = chapaW / 2, cy = chapaH / 2, cz = -thick / 2;
+        const cx = chapaW / 2, cy = chapaH / 2;
         const span = Math.max(chapaW, chapaH, maxX - minX, maxY - minY) * 1.4;
-        tc.bbox = { cx, cy, cz, span };
+        tc.bbox = { cx, cy, cz: -thick / 2, span };
 
-        // ── Material removal canvas ──────────────────────────────────────
+        // Canvas texture para remoção de material
         const aspect = chapaH / chapaW;
         const texW   = MAT_TEX_SIZE;
         const texH   = Math.max(64, Math.round(MAT_TEX_SIZE * aspect));
         tc.matDims   = { texW, texH };
-
         const matCanvas = document.createElement('canvas');
-        matCanvas.width  = texW;
-        matCanvas.height = texH;
+        matCanvas.width = texW; matCanvas.height = texH;
         const matCtx = matCanvas.getContext('2d');
         paintMdfBase(matCtx, texW, texH);
-
         const matTexture = new THREE.CanvasTexture(matCanvas);
         matTexture.generateMipmaps = true;
         matTexture.minFilter = THREE.LinearMipmapLinearFilter;
         matTexture.magFilter = THREE.LinearFilter;
         matTexture.anisotropy = tc.renderer.capabilities.getMaxAnisotropy();
+        tc.matCanvas = matCanvas; tc.matCtx = matCtx; tc.matTexture = matTexture;
 
-        tc.matCanvas  = matCanvas;
-        tc.matCtx     = matCtx;
-        tc.matTexture = matTexture;
-
-        // ── MDF stock — top face (with canvas texture) ───────────────────
-        // PlaneGeometry lies in XY, normal +Z — perfect for Z-up convention
+        // Chapa MDF — topo com textura
         const topGeom = new THREE.PlaneGeometry(chapaW, chapaH, 1, 1);
-        const topMat  = new THREE.MeshStandardMaterial({
-            map: matTexture, roughness: 0.82, metalness: 0.0, side: THREE.FrontSide,
-        });
+        const topMat  = new THREE.MeshStandardMaterial({ map: matTexture, roughness: 0.82, metalness: 0 });
         const topMesh = new THREE.Mesh(topGeom, topMat);
-        topMesh.position.set(cx, cy, 0.2); // 0.2mm above body to avoid Z-fighting
+        topMesh.position.set(cx, cy, 0.2);
         stockGroup.add(topMesh);
 
-        // ── MDF body — BoxGeometry for 5 side faces ──────────────────────
-        const sideMat = new THREE.MeshStandardMaterial({ color: MDF_SIDE_COLOR, roughness: 0.92, metalness: 0 });
-        const btmMat  = new THREE.MeshStandardMaterial({ color: MDF_BOTTOM,     roughness: 0.95, metalness: 0 });
-        // BoxGeometry material array: [+x, -x, +y, -y, +z, -z]
-        // In Z-up, +z = top. We cover it with the PlaneGeometry above.
-        const boxMats = [sideMat, sideMat, sideMat, btmMat, sideMat, sideMat];
+        // Chapa MDF — corpo (5 faces laterais)
+        const sideMat  = new THREE.MeshStandardMaterial({ color: MDF_SIDE_COLOR, roughness: 0.92, metalness: 0 });
+        const btmMat   = new THREE.MeshStandardMaterial({ color: MDF_BOTTOM,     roughness: 0.95, metalness: 0 });
         const bodyGeom = new THREE.BoxGeometry(chapaW, chapaH, thick);
-        const bodyMesh = new THREE.Mesh(bodyGeom, boxMats);
+        const bodyMesh = new THREE.Mesh(bodyGeom, [sideMat, sideMat, sideMat, btmMat, sideMat, sideMat]);
         bodyMesh.position.set(cx, cy, -thick / 2);
         stockGroup.add(bodyMesh);
 
-        // Sheet outline — thin bright edge
         const edgeGeom = new THREE.EdgesGeometry(bodyGeom);
-        const edgeMesh = new THREE.LineSegments(
-            edgeGeom,
-            new THREE.LineBasicMaterial({ color: 0xc8a470, transparent: true, opacity: 0.45 })
-        );
+        const edgeMesh = new THREE.LineSegments(edgeGeom, new THREE.LineBasicMaterial({ color: 0xc8a470, transparent: true, opacity: 0.45 }));
         edgeMesh.position.copy(bodyMesh.position);
         stockGroup.add(edgeMesh);
 
-        // ── Refilo rectangle ─────────────────────────────────────────────
-        const ref = chapaStable?.refilo ?? 10;
-        if (ref > 0) {
-            const rpts = [
-                [ref, ref, 0.5], [chapaW - ref, ref, 0.5],
-                [chapaW - ref, chapaH - ref, 0.5], [ref, chapaH - ref, 0.5], [ref, ref, 0.5],
-            ].map(([rx, ry, rz]) => new THREE.Vector3(rx, ry, rz));
+        // Refilo
+        const refilo = chapaStable?.refilo ?? 10;
+        if (refilo > 0) {
+            const rpts = [[refilo, refilo], [chapaW - refilo, refilo], [chapaW - refilo, chapaH - refilo], [refilo, chapaH - refilo], [refilo, refilo]]
+                .map(([rx, ry]) => new THREE.Vector3(rx, ry, 0.5));
             const rGeom = new THREE.BufferGeometry().setFromPoints(rpts);
-            const rLine = new THREE.Line(rGeom, new THREE.LineBasicMaterial({ color: 0x507090, transparent: true, opacity: 0.5 }));
-            stockGroup.add(rLine);
+            stockGroup.add(new THREE.Line(rGeom, new THREE.LineBasicMaterial({ color: 0x507090, transparent: true, opacity: 0.5 })));
         }
 
-        // ── Origin axes ───────────────────────────────────────────────────
+        // Eixos de origem
         const axLen = Math.min(80, chapaW * 0.06);
         const mkAx = (a, b, col) => {
             const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
@@ -596,16 +514,14 @@ export const Sim3D = forwardRef(function Sim3D(
         stockGroup.add(mkAx([0,0,0],[0,axLen,0.5], 0x22c55e));
         stockGroup.add(mkAx([0,0,0],[0,0,axLen  ], 0x3b82f6));
 
-        // ── Grid ──────────────────────────────────────────────────────────
+        // Grid
         const gridSize = Math.max(chapaW, chapaH) * 1.6;
         const grid = new THREE.GridHelper(gridSize, 10, 0x1a2540, 0x1a2540);
-        grid.rotation.x = Math.PI / 2;
-        grid.position.set(cx, cy, -thick - 2);
-        gridGroup.add(grid);
-        gridGroup.visible = false;
+        grid.rotation.x = Math.PI / 2; grid.position.set(cx, cy, -thick - 2);
+        gridGroup.add(grid); gridGroup.visible = false;
 
-        // ── Toolpath segments ─────────────────────────────────────────────
-        const el = containerRef.current;
+        // Segmentos de toolpath
+        const el    = containerRef.current;
         const vpRes = new THREE.Vector2(el?.clientWidth || 800, el?.clientHeight || 600);
         const initOpa = viewModeRef.current === 'full' ? 0.55 : 0.12;
 
@@ -613,28 +529,22 @@ export const Sim3D = forwardRef(function Sim3D(
             const isRapid  = m.type === 'G0';
             const isCut    = !isRapid && m.z2 <= 0.1;
             const opColor  = getOpCat(m.op).color;
-
             const pendColor = isRapid ? RAPID_COLOR : (isCut ? parseInt(opColor.replace('#', ''), 16) : 0x0e7490);
             const execColor = isRapid ? RAPID_EXEC  : (isCut ? parseInt(opColor.replace('#', ''), 16) : 0x22d3ee);
 
             let line;
             if (isRapid) {
-                const g0geom = new THREE.BufferGeometry().setFromPoints([
+                const g = new THREE.BufferGeometry().setFromPoints([
                     new THREE.Vector3(m.x1, m.y1, m.z1),
                     new THREE.Vector3(m.x2, m.y2, m.z2),
                 ]);
-                g0geom.computeBoundingSphere();
-                line = new THREE.Line(g0geom, new THREE.LineDashedMaterial({
-                    color: pendColor, transparent: true, opacity: 0, dashSize: 10, gapSize: 7,
-                }));
+                g.computeBoundingSphere();
+                line = new THREE.Line(g, new THREE.LineDashedMaterial({ color: pendColor, transparent: true, opacity: 0, dashSize: 10, gapSize: 7 }));
                 line.computeLineDistances();
             } else {
                 const geom = new LineGeometry();
                 geom.setPositions([m.x1, m.y1, m.z1, m.x2, m.y2, m.z2]);
-                const mat = new LineMaterial({
-                    color: pendColor, linewidth: isCut ? 1.8 : 1.2,
-                    transparent: true, opacity: initOpa, resolution: vpRes.clone(),
-                });
+                const mat = new LineMaterial({ color: pendColor, linewidth: isCut ? 1.8 : 1.2, transparent: true, opacity: initOpa, resolution: vpRes.clone() });
                 line = new Line2(geom, mat);
                 tc.lineMats.push(mat);
             }
@@ -642,32 +552,27 @@ export const Sim3D = forwardRef(function Sim3D(
             tc.segments.push({ line, isRapid, isCut, pendColor, execColor, done: false });
         }
 
-        // ── Camera fit ────────────────────────────────────────────────────
+        // Câmera inicial
         controls.minDistance = span * 0.12;
         controls.maxDistance = span * 8;
         controls.target.set(cx, cy, 0);
         camera.position.set(cx + span * 0.7, cy - span * 0.9, span * 0.75);
-        camera.up.set(0, 0, 1);
-        camera.lookAt(cx, cy, 0);
-        controls.update();
+        camera.up.set(0, 0, 1); camera.lookAt(cx, cy, 0); controls.update();
 
-        setTimeRef.current?.(0);
+        // Renderiza estado inicial (move -1 = nada executado)
+        renderAtMoveRef.current?.(-1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parsed, chapaStable]); // chapaStable: memoized by dimension values, not reference
+    }, [parsed, chapaStable]);
 
-    // ── Sync external props ───────────────────────────────────────────────────
-    useEffect(() => { pb.current.playing  = playingProp || false; }, [playingProp]);
-    useEffect(() => { pb.current.speed    = speedProp   || 1;    }, [speedProp]);
+    // ── Sync props → refs ─────────────────────────────────────────────────────
+    useEffect(() => { playingRef.current = playingProp || false; }, [playingProp]);
 
-    // ── View mode → refresh opacity ───────────────────────────────────────────
+    // ── View mode → atualiza opacidade dos segmentos pendentes ───────────────
     useEffect(() => {
         viewModeRef.current = viewMode;
-        const newOpa = viewMode === 'full' ? 0.55 : 0.12;
+        const opa = viewMode === 'full' ? 0.55 : 0.12;
         for (const seg of three.current.segments) {
-            if (!seg.done && !seg.isRapid) {
-                seg.line.material.opacity = newOpa;
-                seg.line.material.needsUpdate = true;
-            }
+            if (!seg.done && !seg.isRapid) { seg.line.material.opacity = opa; seg.line.material.needsUpdate = true; }
         }
     }, [viewMode]);
 
@@ -675,26 +580,39 @@ export const Sim3D = forwardRef(function Sim3D(
     useEffect(() => {
         showRapidsRef.current = showRapids;
         for (const seg of three.current.segments) {
-            if (seg.isRapid) {
-                seg.line.material.opacity = seg.done ? 0.4 : (showRapids ? 0.25 : 0);
-                seg.line.material.needsUpdate = true;
-            }
+            if (seg.isRapid) { seg.line.material.opacity = seg.done ? 0.4 : (showRapids ? 0.25 : 0); seg.line.material.needsUpdate = true; }
         }
     }, [showRapids]);
 
-    // ── Imperative API ────────────────────────────────────────────────────────
+    // ── API imperativa ────────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
-        reset: () => { pb.current.playing = false; setTimeInternal(0); lastCutIdx.current = -1; },
-        seekTo: (idx) => {
-            const i = Math.max(0, Math.min(moves.length - 1, idx));
-            setTimeInternal(moves[i]?.tStart ?? 0);
+        reset: () => {
+            playingRef.current = false;
+            curMoveRef.current = -1;
+            accRef.current     = 0;
+            lastCutIdx.current = -1;
+            renderAtMoveRef.current?.(-1);
         },
-        seekToTime: (t) => setTimeInternal(t),
+        seekTo: (idx) => {
+            const i = Math.max(-1, Math.min(moves.length - 1, idx));
+            curMoveRef.current = i;
+            accRef.current     = 0;
+            renderAtMoveRef.current?.(i);
+        },
+        seekToTime: (t) => {
+            // Converte tempo → índice de move (busca linear forward)
+            if (!moves.length) return;
+            let i = 0;
+            while (i < moves.length - 1 && t > moves[i].tEnd) i++;
+            curMoveRef.current = i;
+            accRef.current     = 0;
+            renderAtMoveRef.current?.(i);
+        },
         getTotalMoves:  () => moves.length,
-        getCurMove:     () => curMoveIdx,
-        getCurrentTime: () => pb.current.time,
-        getTotalTime:   () => pb.current.totalTime,
-    }), [moves, curMoveIdx, setTimeInternal]);
+        getCurMove:     () => curMoveRef.current,
+        getCurrentTime: () => curMoveRef.current >= 0 ? (moves[curMoveRef.current]?.tEnd ?? 0) : 0,
+        getTotalTime:   () => totalTime,
+    }), [moves, totalTime]);
 
     // ── Camera presets ────────────────────────────────────────────────────────
     const setView = useCallback((name) => {
@@ -710,9 +628,7 @@ export const Sim3D = forwardRef(function Sim3D(
         }
         ctrl.target.set(cx, cy, name === 'iso' ? 0 : cz);
         cam.position.set(...pos);
-        cam.up.set(0, 0, 1);
-        cam.lookAt(ctrl.target.x, ctrl.target.y, ctrl.target.z);
-        ctrl.update();
+        cam.up.set(0, 0, 1); cam.lookAt(ctrl.target.x, ctrl.target.y, ctrl.target.z); ctrl.update();
         setActiveView(name);
     }, []);
 
@@ -720,10 +636,9 @@ export const Sim3D = forwardRef(function Sim3D(
     const mono = '"JetBrains Mono","Fira Code",Consolas,monospace';
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', background: '#0c1018' }}>
-            {/* Three.js mount */}
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-            {/* ── HUD — top left ───────────────────────────────────────── */}
+            {/* HUD — posição da ferramenta */}
             <div style={{
                 position: 'absolute', top: 10, left: 10, pointerEvents: 'none',
                 background: 'rgba(10,15,25,0.90)', backdropFilter: 'blur(10px)',
@@ -738,14 +653,12 @@ export const Sim3D = forwardRef(function Sim3D(
                     </div>
                 ))}
                 {toolPos.f > 0 && (
-                    <>
-                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 6, paddingTop: 6 }}>
-                            <div style={{ fontSize: 9, color: '#546270', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Feed</div>
-                            <div style={{ fontSize: 11, color: '#79c0ff', fontVariantNumeric: 'tabular-nums' }}>
-                                {Math.round(toolPos.f)} <span style={{ fontSize: 9, color: '#546270' }}>mm/min</span>
-                            </div>
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 6, paddingTop: 6 }}>
+                        <div style={{ fontSize: 9, color: '#546270', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Feed</div>
+                        <div style={{ fontSize: 11, color: '#79c0ff', fontVariantNumeric: 'tabular-nums' }}>
+                            {Math.round(toolPos.f)} <span style={{ fontSize: 9, color: '#546270' }}>mm/min</span>
                         </div>
-                    </>
+                    </div>
                 )}
                 {totalTime > 0 && (
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 6, paddingTop: 6 }}>
@@ -757,9 +670,8 @@ export const Sim3D = forwardRef(function Sim3D(
                 )}
             </div>
 
-            {/* ── Controls — top right ─────────────────────────────────── */}
+            {/* Controles — câmera e opções */}
             <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {/* Camera presets */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
                     {[['iso', 'ISO'], ['top', 'TOPO'], ['front', 'FRENTE'], ['side', 'LADO']].map(([id, lb]) => (
                         <button key={id} onClick={() => setView(id)} style={{
@@ -770,16 +682,12 @@ export const Sim3D = forwardRef(function Sim3D(
                         }}>{lb}</button>
                     ))}
                 </div>
-
-                {/* Rapid toggle */}
                 <button onClick={() => setShowRapids(p => !p)} style={{
                     padding: '5px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer',
                     borderRadius: 5, border: showRapids ? '1px solid #e44444' : '1px solid rgba(255,255,255,0.12)',
                     background: showRapids ? 'rgba(228,68,68,0.18)' : 'rgba(10,15,25,0.85)',
                     color: showRapids ? '#e44444' : '#7890a8', fontFamily: mono, whiteSpace: 'nowrap',
                 }}>G0 Rápido</button>
-
-                {/* Path visibility */}
                 <button onClick={() => setViewMode(p => p === 'full' ? 'cutting' : 'full')} style={{
                     padding: '5px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer',
                     borderRadius: 5, border: viewMode === 'full' ? '1px solid #4d8cf6' : '1px solid rgba(255,255,255,0.12)',
@@ -788,7 +696,7 @@ export const Sim3D = forwardRef(function Sim3D(
                 }}>Trajetória</button>
             </div>
 
-            {/* ── Empty state ────────────────────────────────────────────── */}
+            {/* Empty state */}
             {Boolean(parsed) && moves.length === 0 && (
                 <div style={{
                     position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',

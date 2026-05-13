@@ -209,6 +209,9 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         });
     }, []);
 
+    // ── G-code analysis ───────────────────────────────────────────────────────
+    const parsedPreview = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
+
     // ── 2D time change callback (Sim2D RAF loop → parent) ────────────────────
     const handle2DTimeChange = useCallback((t) => {
         setCurSimTime(t);
@@ -228,9 +231,6 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
             }
         }
     }, [parsedPreview.moves]);
-
-    // ── G-code analysis ───────────────────────────────────────────────────────
-    const parsedPreview = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
     const gcodeCutMoves = parsedPreview.moves.filter(m => m.type !== 'G0').length;
     const hasParsedMoves = parsedPreview.moves.length > 0;
     const operational   = useMemo(() => analyzeGcodeOperational({
