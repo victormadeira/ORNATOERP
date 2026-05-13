@@ -13285,6 +13285,148 @@ router.post('/gcode-batch/:loteId/zip', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// GRUPO 15B: Spoilboard Resurfacing G-code
+// ═══════════════════════════════════════════════════════
+router.post('/gcode/spoilboard', requireAuth, (req, res) => {
+    try {
+        const {
+            area_x = 2800, area_y = 1900,
+            profundidade = 0.5,
+            stepover = 80,       // % do diâmetro da fresa
+            diametro_fresa = 25, // mm
+            vel_corte = 8000,    // mm/min
+            vel_rapida = 20000,  // mm/min
+            rpm = 18000,
+            z_seguro = 30,
+            gcode_header = '',
+            gcode_footer = '',
+            comentario_prefixo = ';',
+            direcao = 'horizontal', // 'horizontal' | 'vertical' | 'diagonal'
+            margem = 0,          // margem de segurança da borda (mm)
+        } = req.body || {};
+
+        const stepMm = Math.round(diametro_fresa * (stepover / 100) * 10) / 10;
+        const x0 = margem, y0 = margem;
+        const x1 = area_x - margem, y1 = area_y - margem;
+        const pfmt = v => v.toFixed(3);
+        const lines = [];
+        const emit = l => lines.push(l);
+        const C = s => comentario_prefixo + ' ' + s;
+
+        emit(C(`Spoilboard Resurfacing — Ornato CAM`));
+        emit(C(`Área: ${area_x}×${area_y}mm | Profundidade: ${profundidade}mm | Stepover: ${stepMm}mm (${stepover}%)`));
+        emit(C(`Fresa: Ø${diametro_fresa}mm | F${vel_corte}mm/min | S${rpm}rpm`));
+        emit('');
+
+        // Header customizado ou padrão
+        if (gcode_header) {
+            emit(gcode_header);
+        } else {
+            emit('G90 G21');
+            emit(`G0 Z${pfmt(z_seguro)}`);
+            emit(`M3 S${rpm}`);
+            emit('G4 P3');
+        }
+        emit('');
+
+        emit(C('=== INÍCIO DO RESURFACING ==='));
+
+        if (direcao === 'horizontal') {
+            // Passadas horizontais (Y fixo, X varia)
+            let y = y0 + diametro_fresa / 2;
+            let dir = 1;
+            let passNum = 0;
+            while (y <= y1 - diametro_fresa / 2 + 0.01) {
+                passNum++;
+                const xStart = dir > 0 ? x0 : x1;
+                const xEnd   = dir > 0 ? x1 : x0;
+                emit(C(`Passada ${passNum} — Y=${pfmt(y)}mm`));
+                emit(`G0 X${pfmt(xStart)} Y${pfmt(y)}`);
+                emit(`G0 Z${pfmt(2)}`);
+                emit(`G1 Z-${pfmt(profundidade)} F${Math.round(vel_corte * 0.4)}`);
+                emit(`G1 X${pfmt(xEnd)} Y${pfmt(y)} F${vel_corte}`);
+                emit(`G0 Z${pfmt(z_seguro)}`);
+                y += stepMm;
+                dir = -dir;
+            }
+        } else if (direcao === 'vertical') {
+            // Passadas verticais (X fixo, Y varia)
+            let x = x0 + diametro_fresa / 2;
+            let dir = 1;
+            let passNum = 0;
+            while (x <= x1 - diametro_fresa / 2 + 0.01) {
+                passNum++;
+                const yStart = dir > 0 ? y0 : y1;
+                const yEnd   = dir > 0 ? y1 : y0;
+                emit(C(`Passada ${passNum} — X=${pfmt(x)}mm`));
+                emit(`G0 X${pfmt(x)} Y${pfmt(yStart)}`);
+                emit(`G0 Z${pfmt(2)}`);
+                emit(`G1 Z-${pfmt(profundidade)} F${Math.round(vel_corte * 0.4)}`);
+                emit(`G1 X${pfmt(x)} Y${pfmt(yEnd)} F${vel_corte}`);
+                emit(`G0 Z${pfmt(z_seguro)}`);
+                x += stepMm;
+                dir = -dir;
+            }
+        } else {
+            // Diagonal (45°) — percorre em linhas diagonais
+            let d = diametro_fresa / 2;
+            let passNum = 0;
+            const diag = area_x + area_y;
+            while (d < diag) {
+                passNum++;
+                // Início da diagonal
+                const sx = Math.min(d, area_x - margem);
+                const sy = Math.max(0, d - area_x) + margem;
+                const ex = Math.max(0, d - area_y) + margem;
+                const ey = Math.min(d, area_y - margem);
+                if (Math.abs(sx - ex) < 1 && Math.abs(sy - ey) < 1) { d += stepMm; continue; }
+                emit(C(`Passada diagonal ${passNum}`));
+                emit(`G0 X${pfmt(sx)} Y${pfmt(sy)}`);
+                emit(`G0 Z${pfmt(2)}`);
+                emit(`G1 Z-${pfmt(profundidade)} F${Math.round(vel_corte * 0.4)}`);
+                emit(`G1 X${pfmt(ex)} Y${pfmt(ey)} F${vel_corte}`);
+                emit(`G0 Z${pfmt(z_seguro)}`);
+                d += stepMm;
+            }
+        }
+
+        emit('');
+        emit(C('=== FIM DO RESURFACING ==='));
+
+        // Footer customizado ou padrão
+        if (gcode_footer) {
+            emit(gcode_footer);
+        } else {
+            emit('M5');
+            emit(`G0 Z${pfmt(z_seguro)}`);
+            emit('G0 X0 Y0');
+            emit('M30');
+        }
+
+        const gcode = lines.join('\n');
+        const passadas = lines.filter(l => l.startsWith('G0 X') || l.startsWith(comentario_prefixo + ' Passada')).length / 2;
+        const tempo_estimado = Math.round(
+            ((area_x > area_y ? area_x : area_y) * passadas) / vel_corte * 60 // segundos
+        );
+
+        res.json({
+            ok: true,
+            gcode,
+            stats: {
+                area_x, area_y, profundidade, stepover, stepMm,
+                diametro_fresa, vel_corte, rpm, z_seguro,
+                total_linhas: lines.length,
+                passadas_estimadas: Math.ceil((direcao === 'horizontal' ? area_y : area_x) / stepMm),
+                tempo_estimado_seg: tempo_estimado,
+            },
+        });
+    } catch (err) {
+        console.error('[CNC spoilboard]', err);
+        res.status(500).json({ error: err.message || 'Erro ao gerar G-code de spoilboard' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // GRUPO 16: Exportação SVG do plano de corte
 // ═══════════════════════════════════════════════════════
 

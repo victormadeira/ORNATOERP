@@ -72,6 +72,21 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     const [outputTab, setOutputTab]         = useState('codigo');
     const [baixandoZip, setBaixandoZip]     = useState(false);
 
+    // Spoilboard
+    const [sbAreaX, setSbAreaX]       = useState(2800);
+    const [sbAreaY, setSbAreaY]       = useState(1900);
+    const [sbProf, setSbProf]         = useState(0.5);
+    const [sbStepover, setSbStepover] = useState(80);
+    const [sbFresa, setSbFresa]       = useState(25);
+    const [sbVel, setSbVel]           = useState(8000);
+    const [sbRpm, setSbRpm]           = useState(18000);
+    const [sbZ, setSbZ]               = useState(30);
+    const [sbDir, setSbDir]           = useState('horizontal');
+    const [sbMargem, setSbMargem]     = useState(10);
+    const [sbResult, setSbResult]     = useState(null);
+    const [sbGerando, setSbGerando]   = useState(false);
+    const [sbCopied, setSbCopied]     = useState(false);
+
     useEffect(() => {
         if (!loteAtual?.id) return;
         api.get(`/cnc/gcode-historico/${loteAtual.id}`).then(h => {
@@ -244,6 +259,40 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
         }
     };
 
+    const gerarSpoilboard = async () => {
+        setSbGerando(true);
+        setSbResult(null);
+        try {
+            const maq = maquinas.find(m => String(m.id) === maquinaId);
+            const r = await api.post('/cnc/gcode/spoilboard', {
+                area_x: sbAreaX, area_y: sbAreaY,
+                profundidade: sbProf, stepover: sbStepover,
+                diametro_fresa: sbFresa, vel_corte: sbVel,
+                rpm: sbRpm, z_seguro: sbZ,
+                direcao: sbDir, margem: sbMargem,
+                gcode_header: maq?.gcode_header || '',
+                gcode_footer: maq?.gcode_footer || '',
+                comentario_prefixo: maq?.comentario_prefixo || ';',
+            });
+            setSbResult(r);
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message), 'error');
+        } finally {
+            setSbGerando(false);
+        }
+    };
+
+    const downloadSpoilboard = () => {
+        if (!sbResult?.gcode) return;
+        const blob = new Blob([sbResult.gcode], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `spoilboard_${sbAreaX}x${sbAreaY}_${sbProf}mm.nc`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     // Dados para o simulador da chapa selecionada
     const simChapa    = result?.chapas?.[selectedChapaIdx] || result;
     const simGcode    = simChapa?.gcode || result?.gcode || '';
@@ -279,8 +328,9 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
             <div style={{ marginBottom: -4 }}>
                 <TabBar
                     tabs={[
-                        { id: 'gcode',     label: 'G-code / CNC', icon: Cpu },
-                        { id: 'etiquetas', label: 'Etiquetas',    icon: TagIcon },
+                        { id: 'gcode',       label: 'G-code / CNC', icon: Cpu },
+                        { id: 'etiquetas',   label: 'Etiquetas',    icon: TagIcon },
+                        { id: 'utilitarios', label: 'Utilitários',  icon: Wrench },
                     ]}
                     active={gcodeSubTab}
                     onChange={setGcodeSubTab}
@@ -291,6 +341,135 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                 <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Carregando…</div>}>
                     <TabEtiquetas lotes={lotes} loteAtual={loteAtual} setLoteAtual={setLoteAtual} notify={notify} />
                 </Suspense>
+            )}
+
+            {gcodeSubTab === 'utilitarios' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 8 }}>
+
+                    {/* Spoilboard Resurfacing */}
+                    <div className="glass-card" style={{ padding: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Wrench size={18} style={{ color: '#6366f1' }} />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Spoilboard Resurfacing</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gera G-code para refazer a superfície da placa de sacrifício</div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Área X (mm)</div>
+                                <input type="number" value={sbAreaX} onChange={e => setSbAreaX(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="100" max="9000" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Área Y (mm)</div>
+                                <input type="number" value={sbAreaY} onChange={e => setSbAreaY(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="100" max="9000" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Profundidade (mm)</div>
+                                <input type="number" value={sbProf} onChange={e => setSbProf(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="0.1" max="5" step="0.1" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Ø Fresa (mm)</div>
+                                <input type="number" value={sbFresa} onChange={e => setSbFresa(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="6" max="100" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Stepover (%)</div>
+                                <input type="number" value={sbStepover} onChange={e => setSbStepover(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="10" max="100" />
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                    = {Math.round(sbFresa * sbStepover / 100 * 10) / 10}mm entre passadas
+                                </div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Margem borda (mm)</div>
+                                <input type="number" value={sbMargem} onChange={e => setSbMargem(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="0" max="100" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Velocidade F (mm/min)</div>
+                                <input type="number" value={sbVel} onChange={e => setSbVel(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="500" max="40000" step="500" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>RPM Spindle</div>
+                                <input type="number" value={sbRpm} onChange={e => setSbRpm(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="1000" max="30000" step="500" />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Z seguro (mm)</div>
+                                <input type="number" value={sbZ} onChange={e => setSbZ(Number(e.target.value))} className={Z.inp} style={{ width: '100%' }} min="5" max="200" />
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>Direção das passadas</div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                {[
+                                    { id: 'horizontal', label: '↔ Horizontal', desc: 'Passadas esquerda-direita' },
+                                    { id: 'vertical',   label: '↕ Vertical',   desc: 'Passadas frente-trás' },
+                                    { id: 'diagonal',   label: '↗ Diagonal',   desc: 'Passadas em 45°' },
+                                ].map(d => (
+                                    <div key={d.id} onClick={() => setSbDir(d.id)}
+                                        style={{
+                                            flex: 1, padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+                                            border: `1.5px solid ${sbDir === d.id ? 'var(--primary)' : 'var(--border)'}`,
+                                            background: sbDir === d.id ? 'color-mix(in srgb, var(--primary) 8%, var(--bg-muted))' : 'var(--bg-muted)',
+                                            transition: 'all 0.15s',
+                                        }}>
+                                        <div style={{ fontSize: 12, fontWeight: 700, color: sbDir === d.id ? 'var(--primary)' : 'var(--text-primary)' }}>{d.label}</div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{d.desc}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Estimativa */}
+                        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-muted)', border: '1px dashed var(--border)', fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>
+                            <b>Estimativa:</b> ~{Math.ceil((sbDir === 'horizontal' ? sbAreaY : sbAreaX) / Math.max(1, Math.round(sbFresa * sbStepover / 100)))} passadas ·{' '}
+                            Comprimento total: ~{(((sbDir === 'horizontal' ? sbAreaX : sbAreaY) * Math.ceil((sbDir === 'horizontal' ? sbAreaY : sbAreaX) / Math.max(1, Math.round(sbFresa * sbStepover / 100)))) / 1000).toFixed(1)}m
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={gerarSpoilboard} disabled={sbGerando}
+                                style={{
+                                    padding: '10px 24px', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 13,
+                                    background: sbGerando ? 'var(--bg-muted)' : 'var(--primary)',
+                                    color: sbGerando ? 'var(--text-muted)' : '#fff', cursor: sbGerando ? 'not-allowed' : 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                }}>
+                                {sbGerando
+                                    ? <><Wrench size={14} style={{ opacity: 0.5 }} /> Gerando...</>
+                                    : <><Play size={14} /> Gerar G-code</>
+                                }
+                            </button>
+                            {sbResult?.gcode && (
+                                <button onClick={downloadSpoilboard}
+                                    style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-muted)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Download size={14} /> Baixar .nc
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Resultado */}
+                        {sbResult && (
+                            <div style={{ marginTop: 16 }}>
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 8 }}>
+                                    <span>✓ Gerado</span>
+                                    <span>Passadas: <b style={{ color: 'var(--text-primary)' }}>{sbResult.stats?.passadas_estimadas}</b></span>
+                                    <span>Linhas: <b style={{ color: 'var(--text-primary)' }}>{sbResult.stats?.total_linhas}</b></span>
+                                    <span>Stepover: <b style={{ color: 'var(--text-primary)' }}>{sbResult.stats?.stepMm}mm</b></span>
+                                </div>
+                                <pre style={{
+                                    maxHeight: 300, overflow: 'auto', fontSize: 11, lineHeight: 1.5,
+                                    fontFamily: 'monospace', padding: 12, borderRadius: 8,
+                                    background: '#0d1117', color: '#e6edf3', border: '1px solid var(--border)',
+                                }}>
+                                    {sbResult.gcode.split('\n').slice(0, 80).join('\n')}
+                                    {sbResult.gcode.split('\n').length > 80 && '\n; ... (truncado — baixe o arquivo completo)'}
+                                </pre>
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
 
             {gcodeSubTab === 'gcode' && (

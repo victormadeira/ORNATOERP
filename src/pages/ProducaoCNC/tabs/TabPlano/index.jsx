@@ -142,6 +142,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         };
     }, [paramPopoverOpen]);
     const [ultimoCusto, setUltimoCusto] = useState(null); // { custo_total, custo_desperdicio } após otimização
+    const [ultimoBenchmark, setUltimoBenchmark] = useState(null); // { por_material: [{nome, estrategia, chapas, ocupacao, pecas}], total_combinacoes }
 
     // Progresso de otimização simulado (mostra fases)
     const [otimProgress, setOtimProgress] = useState(null); // { fase, pct }
@@ -1048,6 +1049,7 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
         setOtimProgress({ fase: 'Classificando peças...', pct: 5 });
         setUltimaEstrategia(null);
         setUltimoCusto(null);
+        setUltimoBenchmark(null);
 
         // Progresso simulado por fases (tempo real via WebSocket não está disponível ainda)
         const fases = qualidade === 'rapido'
@@ -1112,6 +1114,23 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                 setPendingChanges(0);
                 setUndoStack([]); setRedoStack([]);
                 setUltimaEstrategia(r.estrategia_resumo || r.modo || null);
+                // Benchmark por material
+                const matsEntries = Object.entries(r.plano?.materiais || {});
+                if (matsEntries.length > 0) {
+                    setUltimoBenchmark({
+                        por_material: matsEntries.map(([key, m]) => ({
+                            nome: m.material_code || key,
+                            estrategia: m.estrategia || '?',
+                            chapas: m.total_chapas || 0,
+                            ocupacao: m.ocupacao_media || 0,
+                            pecas: m.total_pecas || 0,
+                        })),
+                        total_combinacoes: r.total_combinacoes_testadas || 0,
+                        qualidade: r.qualidade || 'balanceado',
+                    });
+                } else {
+                    setUltimoBenchmark(null);
+                }
                 const mats = Object.values(r.plano?.materiais || {});
                 const minTeorico = mats.reduce((s, m) => s + (m.min_teorico_chapas || 0), 0);
                 const eficiencia = minTeorico > 0 ? Math.round(minTeorico / r.total_chapas * 100) : 100;
@@ -2228,44 +2247,83 @@ export function TabPlano({ lotes, loteAtual, setLoteAtual, notify, loadLotes, se
                         </div>
                     )}
 
-                    {/* Banner de resultado: estratégia usada + custo de desperdício */}
-                    {!otimizando && (ultimaEstrategia || ultimoCusto) && (
+                    {/* Banner de resultado: estratégia usada + custo de desperdício + breakdown por material */}
+                    {!otimizando && (ultimaEstrategia || ultimoCusto || ultimoBenchmark) && (
                         <div style={{
-                            marginBottom: 12, padding: '8px 14px', borderRadius: 8,
+                            marginBottom: 12, borderRadius: 10,
                             background: 'linear-gradient(135deg, var(--success-bg), var(--bg-muted))',
                             border: '1px solid var(--success-border)',
-                            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 11,
+                            overflow: 'hidden',
                         }}>
-                            <CheckCircle2 size={14} style={{ color: 'var(--success)', flexShrink: 0 }} />
-                            {ultimaEstrategia && (
-                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                                    Estratégia: <span style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>{ultimaEstrategia}</span>
-                                </span>
+                            {/* Linha principal */}
+                            <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 11 }}>
+                                <CheckCircle2 size={14} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                                {ultimaEstrategia && (
+                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                        Algoritmo: <span style={{ color: 'var(--primary)', fontFamily: 'monospace', fontSize: 10 }}>{ultimaEstrategia}</span>
+                                    </span>
+                                )}
+                                {ultimoBenchmark?.total_combinacoes > 0 && (
+                                    <span style={{ color: 'var(--text-muted)' }}>
+                                        {ultimoBenchmark.total_combinacoes.toLocaleString('pt-BR')} combinações testadas
+                                    </span>
+                                )}
+                                {ultimoCusto?.custo_total != null && (
+                                    <span style={{ color: 'var(--text-muted)' }}>
+                                        Custo: <b style={{ color: 'var(--text-primary)' }}>R$ {ultimoCusto.custo_total.toFixed(2)}</b>
+                                    </span>
+                                )}
+                                {ultimoCusto?.custo_desperdicio != null && (
+                                    <span style={{ color: 'var(--text-muted)' }}>
+                                        Desperdício: <b style={{ color: ultimoCusto.custo_desperdicio > 50 ? 'var(--danger)' : 'var(--warning)' }}>
+                                            R$ {ultimoCusto.custo_desperdicio.toFixed(2)}
+                                        </b>
+                                    </span>
+                                )}
+                                {ultimoCusto?.aproveitamento_medio != null && (
+                                    <span style={{
+                                        marginLeft: 'auto', fontWeight: 700, fontSize: 12,
+                                        color: ultimoCusto.aproveitamento_medio >= 80 ? 'var(--success)' : 'var(--warning)',
+                                    }}>
+                                        {ultimoCusto.aproveitamento_medio.toFixed(1)}% aproveitamento
+                                    </span>
+                                )}
+                                <button onClick={() => { setUltimaEstrategia(null); setUltimoCusto(null); setUltimoBenchmark(null); }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, marginLeft: ultimoCusto?.aproveitamento_medio != null ? 4 : 'auto' }}>
+                                    <X size={12} />
+                                </button>
+                            </div>
+
+                            {/* Tabela por material */}
+                            {ultimoBenchmark?.por_material?.length > 0 && (
+                                <div style={{ borderTop: '1px solid var(--success-border)', padding: '8px 14px' }}>
+                                    <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 6 }}>
+                                        Resultado por material
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {ultimoBenchmark.por_material.map((m, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                                                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--primary)', flexShrink: 0, opacity: 0.7 }} />
+                                                <span style={{ color: 'var(--text-muted)', minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {m.nome}
+                                                </span>
+                                                <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--primary)', background: 'var(--bg-muted)', padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>
+                                                    {m.estrategia}
+                                                </span>
+                                                <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+                                                    {m.chapas} chapa{m.chapas !== 1 ? 's' : ''} · {m.pecas} peças
+                                                </span>
+                                                <span style={{
+                                                    marginLeft: 'auto', fontWeight: 700, flexShrink: 0,
+                                                    color: m.ocupacao >= 85 ? 'var(--success)' : m.ocupacao >= 70 ? 'var(--warning)' : 'var(--danger)',
+                                                }}>
+                                                    {m.ocupacao.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
-                            {ultimoCusto?.custo_total != null && (
-                                <span style={{ color: 'var(--text-muted)' }}>
-                                    Custo total: <b style={{ color: 'var(--text-primary)' }}>R$ {ultimoCusto.custo_total.toFixed(2)}</b>
-                                </span>
-                            )}
-                            {ultimoCusto?.custo_desperdicio != null && (
-                                <span style={{ color: 'var(--text-muted)' }}>
-                                    Desperdício: <b style={{ color: ultimoCusto.custo_desperdicio > 50 ? 'var(--danger)' : 'var(--warning)' }}>
-                                        R$ {ultimoCusto.custo_desperdicio.toFixed(2)}
-                                    </b>
-                                </span>
-                            )}
-                            {ultimoCusto?.aproveitamento_medio != null && (
-                                <span style={{
-                                    marginLeft: 'auto', fontWeight: 700, fontSize: 12,
-                                    color: ultimoCusto.aproveitamento_medio >= 80 ? 'var(--success)' : 'var(--warning)',
-                                }}>
-                                    {ultimoCusto.aproveitamento_medio.toFixed(1)}% aproveitamento
-                                </span>
-                            )}
-                            <button onClick={() => { setUltimaEstrategia(null); setUltimoCusto(null); }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, marginLeft: 4 }}>
-                                <X size={12} />
-                            </button>
                         </div>
                     )}
 

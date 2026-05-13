@@ -2182,6 +2182,39 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                             </g>
                                         );
                                     })()}
+
+                                    {/* Tab markers — microjuntas visuais para peças pequenas/super_pequenas */}
+                                    {(p.classificacao === 'pequena' || p.classificacao === 'super_pequena') && (() => {
+                                        const TAB_W = Math.min(scale * 4, pw * 0.25);  // 4mm ou 25% da largura
+                                        const TAB_H = Math.max(scale * 1.5, 2);          // 1.5mm mínimo 2px
+                                        const N_TABS = 2;
+                                        const tabElems = [];
+
+                                        if (pw >= ph) {
+                                            // Eixo longo horizontal — tabs no topo e base
+                                            for (let i = 0; i < N_TABS; i++) {
+                                                const tx = px + pw * (i + 1) / (N_TABS + 1) - TAB_W / 2;
+                                                tabElems.push(
+                                                    <rect key={`tt${i}`} x={tx} y={py} width={TAB_W} height={TAB_H}
+                                                        fill="#ef4444" opacity={0.85} rx={1} style={{ pointerEvents: 'none' }} />,
+                                                    <rect key={`tb${i}`} x={tx} y={py + ph - TAB_H} width={TAB_W} height={TAB_H}
+                                                        fill="#ef4444" opacity={0.85} rx={1} style={{ pointerEvents: 'none' }} />
+                                                );
+                                            }
+                                        } else {
+                                            // Eixo longo vertical — tabs à esquerda e direita
+                                            for (let i = 0; i < N_TABS; i++) {
+                                                const ty = py + ph * (i + 1) / (N_TABS + 1) - TAB_W / 2;
+                                                tabElems.push(
+                                                    <rect key={`tl${i}`} x={px} y={ty} width={TAB_H} height={TAB_W}
+                                                        fill="#ef4444" opacity={0.85} rx={1} style={{ pointerEvents: 'none' }} />,
+                                                    <rect key={`tr${i}`} x={px + pw - TAB_H} y={ty} width={TAB_H} height={TAB_W}
+                                                        fill="#ef4444" opacity={0.85} rx={1} style={{ pointerEvents: 'none' }} />
+                                                );
+                                            }
+                                        }
+                                        return <g key={`tabs-${p.pecaId}-${p.instancia ?? 0}`}>{tabElems}</g>;
+                                    })()}
                                 </g>
                             );
                         })}
