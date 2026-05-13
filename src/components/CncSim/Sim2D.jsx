@@ -49,7 +49,7 @@ const Sim2D = forwardRef(function Sim2D(
         zoom: 1, panX: 0, panY: 0,
         // Animação
         playing: false, speed: 1,
-        curMove: -1, acc: 0, lastTick: 0,
+        curMove: -1, simTime: 0, lastTick: 0,
         // Dados (sync durante render)
         moves: [], events: [],
         // Callbacks (sync durante render)
@@ -247,19 +247,22 @@ const Sim2D = forwardRef(function Sim2D(
             s.zoom = 1; s.panX = 0; s.panY = 0; draw();
         });
 
-        // ── RAF loop ──────────────────────────────────────────────────────────
+        // ── RAF loop — animação baseada em tempo G-code ───────────────────────
+        // speed=1 → tempo real, speed=10 → 10× mais rápido, etc.
+        // Cada move tem tStart/tEnd em segundos (computados no parseGcode).
         function tick(now) {
             s.rafId = requestAnimationFrame(tick);
 
             if (s.playing && s.moves.length > 0) {
-                const interval = Math.max(1, 60 / s.speed);
-                const dt       = Math.min(now - s.lastTick, 200);
-                s.acc += dt;
+                const dt        = Math.min(now - s.lastTick, 200); // ms, cap anti-salto
+                s.simTime      += dt * s.speed / 1000;             // avança tempo G-code (s)
+                const totalTime = s.moves[s.moves.length - 1]?.tEnd ?? 0;
 
+                // Avança curMove até simTime atual
                 let moved = false;
-                while (s.acc >= interval && s.curMove < s.moves.length - 1) {
+                while (s.curMove < s.moves.length - 1 &&
+                       (s.moves[s.curMove + 1]?.tStart ?? Infinity) <= s.simTime) {
                     s.curMove++;
-                    s.acc -= interval;
                     moved = true;
                 }
 
@@ -269,7 +272,8 @@ const Sim2D = forwardRef(function Sim2D(
                     s.onMoveChange?.(s.curMove, m?.lineIdx ?? -1, m?.tEnd ?? 0);
                 }
 
-                if (s.curMove >= s.moves.length - 1) {
+                if (s.simTime >= totalTime && totalTime > 0) {
+                    s.simTime = totalTime;
                     s.playing = false;
                     s.onPlayEnd?.();
                 }
@@ -301,7 +305,7 @@ const Sim2D = forwardRef(function Sim2D(
 
     // ── Rebuild quando G-code/chapa mudam ────────────────────────────────────
     useEffect(() => {
-        s.curMove = -1; s.acc = 0;
+        s.curMove = -1; s.simTime = 0;
         s.draw?.();
     }, [parsed, chapaStable]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -312,12 +316,13 @@ const Sim2D = forwardRef(function Sim2D(
     // ── API imperativa ────────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
         reset: () => {
-            s.curMove = -1; s.acc = 0;
+            s.curMove = -1; s.simTime = 0;
             s.draw?.();
         },
         seekTo: (idx) => {
             const i = Math.max(-1, Math.min(s.moves.length - 1, idx));
-            s.curMove = i; s.acc = 0;
+            s.curMove = i;
+            s.simTime = i >= 0 ? (s.moves[i]?.tStart ?? 0) : 0;
             s.draw?.();
         },
         getTotalMoves:  () => s.moves.length,

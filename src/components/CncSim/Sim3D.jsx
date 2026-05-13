@@ -86,7 +86,7 @@ export const Sim3D = forwardRef(function Sim3D(
         bbox: null, rafId: null,
         // Animação
         playing: false, speed: 1,
-        curMove: -1, acc: 0, lastTick: 0,
+        curMove: -1, simTime: 0, lastTick: 0,
         lastPainted: -1, lastReported: -1, lastHudTs: 0, lastMdfTs: 0,
         // Dados (sync durante render)
         moves: [], totalTime: 0,
@@ -261,27 +261,30 @@ export const Sim3D = forwardRef(function Sim3D(
         }
         s.renderAt = renderAt;
 
-        // ── RAF loop — lê TUDO de s ($ .current), sem closures stale ─────────
+        // ── RAF loop — animação baseada em tempo G-code ─────────────────────
+        // speed=1 → tempo real, speed=10 → 10× mais rápido, etc.
         function tick(now) {
             s.rafId = requestAnimationFrame(tick);
 
             if (s.playing && s.moves.length > 0) {
-                const interval = Math.max(1, 60 / s.speed);
-                const dt       = Math.min(now - s.lastTick, 200);
-                s.acc += dt;
+                const dt        = Math.min(now - s.lastTick, 200); // ms, cap anti-salto
+                s.simTime      += dt * s.speed / 1000;             // avança tempo G-code (s)
+                const totalTime = s.moves[s.moves.length - 1]?.tEnd ?? 0;
 
+                // Avança curMove até simTime atual
                 let moved = false;
-                while (s.acc >= interval && s.curMove < s.moves.length - 1) {
+                while (s.curMove < s.moves.length - 1 &&
+                       (s.moves[s.curMove + 1]?.tStart ?? Infinity) <= s.simTime) {
                     s.curMove++;
-                    s.acc -= interval;
                     moved = true;
                 }
 
                 if (moved) renderAt(s.curMove);
 
-                if (s.curMove >= s.moves.length - 1) {
-                    s.playing = false;   // para internamente
-                    s.onPlayEnd?.();     // notifica parent
+                if (s.simTime >= totalTime && totalTime > 0) {
+                    s.simTime = totalTime;
+                    s.playing = false;
+                    s.onPlayEnd?.();
                 }
             }
 
@@ -308,7 +311,7 @@ export const Sim3D = forwardRef(function Sim3D(
         clearGroup(s.stockGroup);
         clearGroup(s.pathGroup);
         s.segments     = []; s.lineMats = [];
-        s.curMove      = -1; s.acc      = 0;
+        s.curMove      = -1; s.simTime  = 0;
         s.lastPainted  = -1; s.lastReported = -1;
         s.toolDiamByMove = [];
 
@@ -447,19 +450,20 @@ export const Sim3D = forwardRef(function Sim3D(
     // ── API imperativa ────────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
         reset: () => {
-            s.curMove = -1; s.acc = 0; s.lastPainted = -1;
+            s.curMove = -1; s.simTime = 0; s.lastPainted = -1;
             s.renderAt?.(-1);
         },
         seekTo: (idx) => {
             const i = Math.max(-1, Math.min(s.moves.length - 1, idx));
-            s.curMove = i; s.acc = 0;
+            s.curMove = i;
+            s.simTime = i >= 0 ? (s.moves[i]?.tStart ?? 0) : 0;
             s.renderAt?.(i);
         },
         seekToTime: (t) => {
             if (!s.moves.length) return;
             let i = 0;
             while (i < s.moves.length - 1 && t > s.moves[i].tEnd) i++;
-            s.curMove = i; s.acc = 0; s.renderAt?.(i);
+            s.curMove = i; s.simTime = t; s.renderAt?.(i);
         },
         getTotalMoves:  () => s.moves.length,
         getCurMove:     () => s.curMove,
