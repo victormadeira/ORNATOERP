@@ -121,7 +121,7 @@ export const Z = {
     sub: "text-sm text-[var(--text-muted)] mb-5",
     lbl: "label-text",
     th: "th-glass text-left",
-    pg: "p-2 sm:p-3 md:p-6 lg:p-8 max-w-7xl mx-auto w-full page-enter",
+    pg: "p-2 sm:p-3 md:p-5 lg:p-6 w-full page-enter",
 };
 
 // ─── PageHeader — cabecalho padronizado de pagina ─────────
