@@ -4939,9 +4939,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     // SEGURANÇA: rpmDef = 0 causa S0 que significa spindle OFF → mínimo 1000 RPM como fallback
     const rpmDef = Math.max(1000, maquina.rpm_padrao || 12000);
     const useOnion = maquina.usar_onion_skin !== 0;
-    const onionEsp = maquina.onion_skin_espessura || 0.5;
+    const onionEsp = maquina.onion_skin_espessura ?? 1.0;
     const onionAreaMax = maquina.onion_skin_area_max || 500;
-    const onionModo = maquina.onion_skin_modo || 'diferido'; // 'diferido' | 'por_peca'
+    const onionModoRaw = String(maquina.onion_skin_modo || '').trim().toLowerCase();
+    // Legacy "diferido" used to be the default and left the breakthrough for the very end.
+    // In nested MDF production the safer/operator-friendly default is immediate per part.
+    // Keep final-pass mode only for the explicit new value below.
+    const onionModo = onionModoRaw === 'diferido_final' ? 'diferido' : 'por_peca';
     // ── Qualidade de trajetória ──
     const entradaPeloInterior = maquina.entrada_pelo_interior !== 0; // default: ativo
     const usarLeadOut = maquina.usar_lead_out === 1;
@@ -5920,6 +5924,50 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     const _sCx = (chapa.comprimento || 2750) / 2;
     const _sCy = (chapa.largura || 1850) / 2;
 
+    /**
+     * Seleciona o canto inicial de um contorno retangular (path 4 pontos).
+     * Regras (em ordem de prioridade):
+     *  1. Se entradaPeloInterior estiver desligado → sempre BL (índice 0).
+     *  2. Para RÉGUAS (aspect ratio > 2.5:1): restringe candidatos aos cantos cujo
+     *     primeiro lado percorrido é o LADO LONGO da peça. Assim toda a extensão longa
+     *     fica em contato com o vácuo antes de a peça ser liberada.
+     *  3. Entre os candidatos permitidos, escolhe o canto mais próximo do centro da chapa
+     *     ("interior da chapa") para maximizar vácuo até o último momento.
+     * Retorna: { k: número_do_canto, isRegua, pLong, pShort, reason }
+     */
+    const _entradaContornoK = (path) => {
+        if (!entradaPeloInterior) return { k: 0, isRegua: false, pLong: 0, pShort: 0, reason: 'BL (padrão)' };
+        if (!path || path.length < 4) return { k: 0, isRegua: false, pLong: 0, pShort: 0, reason: 'BL (fallback)' };
+
+        // Comprimento das duas arestas distintas do retângulo
+        const e01 = Math.hypot(path[1].x - path[0].x, path[1].y - path[0].y); // BL→BR
+        const e12 = Math.hypot(path[2].x - path[1].x, path[2].y - path[1].y); // BR→TR
+        const pLong = Math.max(e01, e12), pShort = Math.min(e01, e12);
+        const isRegua = pShort > 1 && pLong / pShort > 2.5;
+
+        // Para réguas: candidatos onde o primeiro lado percorrido é o LADO LONGO
+        //   k=0 (BL) e k=2 (TR) → primeiro lado = e01
+        //   k=1 (BR) e k=3 (TL) → primeiro lado = e12
+        let candidates;
+        if (isRegua) {
+            candidates = e01 > e12 ? [0, 2] : [1, 3];
+        } else {
+            candidates = [0, 1, 2, 3];
+        }
+
+        let best = candidates[0], bestDist = Infinity;
+        for (const k of candidates) {
+            const d = Math.hypot(path[k].x - _sCx, path[k].y - _sCy);
+            if (d < bestDist) { bestDist = d; best = k; }
+        }
+
+        const _cornerNames = ['BL', 'BR', 'TR', 'TL'];
+        const reason = isRegua
+            ? `régua ${pLong.toFixed(0)}×${pShort.toFixed(0)}mm — canto ${_cornerNames[best]}, lado longo primeiro`
+            : `canto ${_cornerNames[best]}, mais próximo do centro`;
+        return { k: best, isRegua, pLong, pShort, reason };
+    };
+
     // ─── Cabeçalho ───
     L.push(header, '');
     L.push(`${cmt} ═══════════════════════════════════════════════════════`);
@@ -6087,8 +6135,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const dFull = op.onionDepthFull || op.depthTotal;
                         const velFinal = Math.max(velMergulho + 200, Math.round(op.velCorte * 0.6));
                         L.push(`${cmt} Breakthrough (por peça): ${op.pecaDesc} — skin=${onionEsp}mm`);
-                        // Mesma rotação "entrada pelo interior" do desbaste
-                        const _bk = (() => { if(!entradaPeloInterior) return 0; let b=0, bd=Infinity; for (let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
+                        // Mesma rotação "entrada pelo interior" do desbaste (com lógica de régua)
+                        const { k: _bk } = _entradaContornoK(path);
                         const _bp = _bk===0?path:[...path.slice(_bk),...path.slice(0,_bk)];
                         const p0=_bp[0],p1=_bp[1],p2=_bp[2],p3=_bp[3];
                         // SAFE PLUNGE: G0 até logo acima do skin, G1 só nos últimos onionEsp + profExtra
@@ -6130,9 +6178,12 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const cx = oX + h.cx, cy = oY + h.cy, r = h.r;
             const cR = op.cutterRadius || 0;
             const toolR = (op.toolDiam || 6) / 2;
+            const holeDiam = r * 2;
+            const isHingeCup = holeDiam >= 34 && holeDiam <= 36;
+            const circularLabel = isHingeCup ? 'Dobradiça/caneco' : 'Furo circular';
 
-	            L.push(`${cmt} Furo circular D${fmt(r * 2)}mm (passa-fio): ${op.pecaDesc}`);
-	            L.push(`${cmt} [OP type=furo_circular diam=${fmt(r * 2)} prof=${fmt(op.depthTotal)} cx=${fmt(cx)} cy=${fmt(cy)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
+	            L.push(`${cmt} ${circularLabel} D${fmt(holeDiam)}mm${isHingeCup ? '' : ' (passa-fio)'}: ${op.pecaDesc}`);
+	            L.push(`${cmt} [OP type=furo_circular diam=${fmt(holeDiam)} prof=${fmt(op.depthTotal)} cx=${fmt(cx)} cy=${fmt(cy)} peca=${encodeURIComponent(op.pecaDesc || '')}]`);
 
             if (r > toolR * 1.5) {
                 const cutR = r - toolR;  // raio de interpolação
@@ -6301,18 +6352,12 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (op.isPequena) L.push(`${cmt}   PECA PEQUENA -- Feed ${feedPct}%`);
 
             // ─── Ponto de entrada do contorno ───
-            // "Entrada pelo interior": iniciar pelo canto mais próximo do centro da chapa
-            // → a peça permanece presa no vácuo forte até o último momento.
-            // Desativável por máquina (ex.: máquinas com ponto de troca fixo).
-            const _bestK = (() => {
-                if (!entradaPeloInterior) return 0; // usa sempre BL quando desativado
-                let best = 0, bestDist = Infinity;
-                for (let k = 0; k < path.length; k++) {
-                    const d = Math.hypot(path[k].x - _sCx, path[k].y - _sCy);
-                    if (d < bestDist) { bestDist = d; best = k; }
-                }
-                return best;
-            })();
+            // Usa _entradaContornoK(): considera "entrada pelo interior" E régua.
+            // Para réguas (aspect > 2.5:1) prioriza cantos que iniciam pelo LADO LONGO,
+            // maximizando vácuo durante o corte. Entre os candidatos: mais próximo do
+            // centro da chapa (interior). Desativável por maquina.entrada_pelo_interior=0.
+            const _entrada = _entradaContornoK(path);
+            const _bestK = _entrada.k;
             const rPath = _bestK === 0 ? path : [...path.slice(_bestK), ...path.slice(0, _bestK)];
             const p0 = rPath[0], p1 = rPath[1], p2 = rPath[2], p3 = rPath[3];
 
@@ -6326,9 +6371,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const entryX = contX + _outNx * leadR, entryY = contY + _outNy * leadR;
 
             // Indicar o canto de entrada no G-code para rastreabilidade
-            if (_bestK !== 0) {
-                const _cornerNames = ['BL', 'BR', 'TR', 'TL'];
-                L.push(`${cmt}   Entrada pelo interior: canto ${_cornerNames[_bestK]} (mais proximo do centro da chapa)`);
+            if (entradaPeloInterior) {
+                L.push(`${cmt}   Entrada: ${_entrada.reason}`);
             }
 
             // ── Helper: aresta retangular com arc-blending e/ou feed adaptativo ──
@@ -6498,8 +6542,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                         const dFull = op.onionDepthFull || op.depthTotal;
                         const velFinal = Math.max(velMergulho + 200, Math.round(op.velCorte * 0.6));
                         L.push(`${cmt} Breakthrough (por peça): ${op.pecaDesc} — skin=${onionEsp}mm`);
-                        // Mesma rotação "entrada pelo interior"
-                        const _bk2 = (() => { if(!entradaPeloInterior) return 0; let b=0,bd=Infinity; for(let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
+                        // Mesma rotação "entrada pelo interior" (com lógica de régua)
+                        const { k: _bk2 } = _entradaContornoK(path);
                         const _bp2 = _bk2===0?path:[...path.slice(_bk2),...path.slice(0,_bk2)];
                         const p0=_bp2[0],p1=_bp2[1],p2=_bp2[2],p3=_bp2[3];
                         // SAFE PLUNGE (idem demais locais de breakthrough)
@@ -6538,6 +6582,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const metodo = op.resolvedMetodo || 'drill';
             const holeDiam = op.holeDiameter || 0;
             const toolR = (op.toolDiam || 6) / 2;
+            const isHingeCup = holeDiam >= 34 && holeDiam <= 36;
+            const holeLabel = isHingeCup ? 'Dobradiça/caneco' : 'Furo';
 
             // Se metodo = helical ou circular e furo é maior que a fresa
             if ((metodo === 'helical' || metodo === 'circular') && holeDiam > op.toolDiam * 1.1) {
@@ -6545,7 +6591,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
 
                 if (metodo === 'helical' && rampaTipo === 'helicoidal') {
                     // ═══ FURO HELICOIDAL: fresa desce em espiral ═══
-                    L.push(`${cmt} Furo HELICOIDAL D${holeDiam}mm (fresa D${op.toolDiam}mm): ${op.pecaDesc}`);
+                    L.push(`${cmt} ${holeLabel} HELICOIDAL D${holeDiam}mm (fresa D${op.toolDiam}mm): ${op.pecaDesc}`);
                     L.push(`${cmt} [OP type=furo diam=${holeDiam} prof=${fmt(op.depthTotal)} cx=${fmt(op.absX)} cy=${fmt(op.absY)} metodo=helicoidal peca=${encodeURIComponent(op.pecaDesc || '')}]`);
                     const helixR = cutR * (rampaDiamPct / 100);
                     const depthPerRev = Math.min(op.toolDiam * 0.3, 3); // max 3mm por revolução
@@ -6585,7 +6631,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                     emit(`G0 Z${fmt(zSafe())}`);
                 } else {
                     // ═══ FURO CIRCULAR (interpolação G2/G3): fresa contorna o furo ═══
-                    L.push(`${cmt} Furo CIRCULAR D${holeDiam}mm (fresa D${op.toolDiam}mm): ${op.pecaDesc}`);
+                    L.push(`${cmt} ${holeLabel} CIRCULAR D${holeDiam}mm (fresa D${op.toolDiam}mm): ${op.pecaDesc}`);
                     L.push(`${cmt} [OP type=furo diam=${holeDiam} prof=${fmt(op.depthTotal)} cx=${fmt(op.absX)} cy=${fmt(op.absY)} metodo=circular peca=${encodeURIComponent(op.pecaDesc || '')}]`);
 
                     for (let pi = 0; pi < op.passes.length; pi++) {
@@ -6612,7 +6658,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 }
             } else {
                 // ═══ FURO DIRETO (plunge) — broca do diâmetro exato ═══
-                L.push(`${cmt} Furo: ${op.pecaDesc} ${XY(op.absX, op.absY)} Prof=${fmt(op.depthTotal)}`);
+                L.push(`${cmt} ${holeLabel}: ${op.pecaDesc} ${XY(op.absX, op.absY)} Prof=${fmt(op.depthTotal)}`);
                 L.push(`${cmt} [OP type=furo diam=${fmt(holeDiam)} prof=${fmt(op.depthTotal)} cx=${fmt(op.absX)} cy=${fmt(op.absY)} metodo=drill peca=${encodeURIComponent(op.pecaDesc || '')}]`);
                 emit(`G0 ${XY(op.absX, op.absY)}`);
                 emit(`G0 Z${fmt(zApproach())}`);
@@ -7062,8 +7108,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 if (!path || path.length < 4) continue;
                 const dFull = os.onionDepthFull || os.depthTotal;
 
-                // Entrada pelo interior também no breakthrough diferido
-                const _bkBt = (() => { if(!entradaPeloInterior) return 0; let b=0,bd=Infinity; for(let k=0;k<path.length;k++){const d=Math.hypot(path[k].x-_sCx,path[k].y-_sCy);if(d<bd){bd=d;b=k;}} return b; })();
+                // Entrada pelo interior no breakthrough diferido (com lógica de régua)
+                const { k: _bkBt } = _entradaContornoK(path);
                 const _bpBt = _bkBt===0?path:[...path.slice(_bkBt),...path.slice(0,_bkBt)];
                 const p0=_bpBt[0],p1=_bpBt[1],p2=_bpBt[2],p3=_bpBt[3];
 
@@ -7932,7 +7978,7 @@ router.post('/maquinas', requireAuth, (req, res) => {
             m.exportar_lado_a ?? 1, m.exportar_lado_b ?? 1, m.exportar_furos ?? 1, m.exportar_rebaixos ?? 1, m.exportar_usinagens ?? 1,
             m.usar_ponto_decimal ?? 1, m.casas_decimais || 3, m.comentario_prefixo || ';',
             m.troca_ferramenta_cmd || 'M6', m.spindle_on_cmd || 'M3', m.spindle_off_cmd || 'M5',
-            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 0.5, m.onion_skin_area_max ?? 500, m.onion_skin_modo || 'diferido',
+            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 1.0, m.onion_skin_area_max ?? 500, m.onion_skin_modo || 'por_peca',
             m.usar_tabs ?? 0, m.tab_largura ?? 4, m.tab_altura ?? 1.5, m.tab_qtd ?? 2, m.tab_area_max ?? 800,
             m.usar_lead_in ?? 0, m.lead_in_tipo || 'arco', m.lead_in_raio ?? 5,
             m.usar_lead_out ?? 0, m.lead_out_raio ?? 3,
@@ -7987,7 +8033,7 @@ router.put('/maquinas/:id', requireAuth, (req, res) => {
             m.coordenada_zero, m.trocar_eixos_xy || 0, m.eixo_x_invertido, m.eixo_y_invertido,
             m.exportar_lado_a, m.exportar_lado_b, m.exportar_furos, m.exportar_rebaixos, m.exportar_usinagens,
             m.usar_ponto_decimal, m.casas_decimais, m.comentario_prefixo, m.troca_ferramenta_cmd, m.spindle_on_cmd, m.spindle_off_cmd,
-            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 0.5, m.onion_skin_area_max ?? 500, m.onion_skin_modo || 'diferido',
+            m.usar_onion_skin ?? 1, m.onion_skin_espessura ?? 1.0, m.onion_skin_area_max ?? 500, m.onion_skin_modo || 'por_peca',
             m.usar_tabs ?? 0, m.tab_largura ?? 4, m.tab_altura ?? 1.5, m.tab_qtd ?? 2, m.tab_area_max ?? 800,
             m.usar_lead_in ?? 0, m.lead_in_tipo || 'arco', m.lead_in_raio ?? 5,
             m.usar_lead_out ?? 0, m.lead_out_raio ?? 3,

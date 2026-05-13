@@ -15,7 +15,7 @@ import {
 import { Spinner } from '../../../../ui';
 import Sim2D from '../../../../components/CncSim/Sim2D.jsx';
 import { Sim3D } from '../../../../components/CncSim/Sim3D.jsx';
-import { parseGcode as parseGcodeForSim, getOpCat, OP_CATS } from '../../../../components/CncSim/parseGcode.js';
+import { parseGcode as parseGcodeForSim, getOpCat, OP_CATS, buildOperations } from '../../../../components/CncSim/parseGcode.js';
 import { analyzeGcodeOperational, formatMeters, formatMinutes } from '../../shared/operationalMetrics.js';
 import { useCockpitFullscreen } from '../../shared/useCockpitFullscreen.js';
 import api from '../../../../api';
@@ -182,7 +182,7 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     // ── UI state ──────────────────────────────────────────────────────────────
     const [faceAtiva,      setFaceAtiva]      = useState('A');
     const [sending,        setSending]        = useState(false);
-    const [sidebarTab,     setSidebarTab]     = useState('gcode'); // default: G-code highlight visível
+    const [sidebarTab,     setSidebarTab]     = useState('gcode'); // 'gcode' | 'dados' | 'usinagens'
     const [currentLineIdx, setCurrentLineIdx] = useState(-1);
     const [leftCollapsed,  setLeftCollapsed]  = useState(false); // checklist sidebar
     const [rightCollapsed, setRightCollapsed] = useState(false); // HUD sidebar
@@ -208,6 +208,26 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
             return t;
         });
     }, []);
+
+    // ── 2D time change callback (Sim2D RAF loop → parent) ────────────────────
+    const handle2DTimeChange = useCallback((t) => {
+        setCurSimTime(t);
+        // Derive move index from time
+        const moves_ = parsedPreview.moves;
+        if (!moves_.length) return;
+        let lo = 0, hi = moves_.length - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >>> 1;
+            const m = moves_[mid];
+            if (t < m.tStart) hi = mid - 1;
+            else if (t > m.tEnd) lo = mid + 1;
+            else {
+                setCurMove(mid);
+                setCurrentLineIdx(m.lineIdx ?? -1);
+                return;
+            }
+        }
+    }, [parsedPreview.moves]);
 
     // ── G-code analysis ───────────────────────────────────────────────────────
     const parsedPreview = useMemo(() => parseGcodeForSim(gcode || ''), [gcode]);
@@ -243,6 +263,9 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
         }
         return OP_CATS.map(cat => counts.get(cat.key)).filter(Boolean);
     }, [parsedPreview.moves]);
+
+    // Sprint 0: structured operations list for Usinagens tab
+    const operationBlocks = useMemo(() => buildOperations(parsedPreview), [parsedPreview]);
 
     // ── Filter: which lines match the active filter chip ─────────────────────
     const { matchingLineSet, firstMatchLine } = useMemo(() => {
@@ -445,42 +468,78 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     }, [loteAtual, chapaIdx, hasBlocking, notify, onVoltar]);
 
     // ── Transport controls ────────────────────────────────────────────────────
+    // Sprint 0: helpers for 2D seek (by time) vs 3D seek (by move index)
+    const seekByTime = useCallback((t) => {
+        setCurSimTime(t);
+        const mv = parsedPreview.moves;
+        if (!mv.length) return;
+        let lo = 0, hi = mv.length - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >>> 1;
+            if (t < mv[mid].tStart) hi = mid - 1;
+            else if (t > mv[mid].tEnd) lo = mid + 1;
+            else { setCurMove(mid); setCurrentLineIdx(mv[mid].lineIdx ?? -1); return; }
+        }
+        if (t >= totalSimTime) { setCurMove(mv.length - 1); }
+    }, [parsedPreview.moves, totalSimTime]);
+
     const handlePlay = useCallback(() => {
-        if (curMove >= (parsedPreview.moves.length - 1)) {
-            simRef.current?.reset?.();
+        if (simView === '2d') {
+            if (curSimTime >= totalSimTime && totalSimTime > 0) {
+                seekByTime(0);
+            }
+        } else {
+            if (curMove >= (parsedPreview.moves.length - 1)) {
+                simRef.current?.reset?.();
+            }
         }
         setSimPlaying(true);
-    }, [curMove, parsedPreview.moves.length]);
+    }, [simView, curSimTime, totalSimTime, curMove, parsedPreview.moves.length, seekByTime]);
 
     const handlePause = useCallback(() => setSimPlaying(false), []);
 
     const handleReset = useCallback(() => {
         setSimPlaying(false);
-        simRef.current?.reset?.();
-    }, []);
+        if (simView === '3d') simRef.current?.reset?.();
+        setCurSimTime(0);
+        setCurMove(-1);
+        setCurrentLineIdx(-1);
+    }, [simView]);
 
     const handleStep = useCallback((dir) => {
         setSimPlaying(false);
-        const next = Math.max(-1, Math.min((parsedPreview.moves.length - 1), (curMove < 0 ? 0 : curMove) + dir));
-        simRef.current?.seekTo?.(next);
-    }, [curMove, parsedPreview.moves.length]);
+        if (simView === '3d') {
+            const next = Math.max(-1, Math.min((parsedPreview.moves.length - 1), (curMove < 0 ? 0 : curMove) + dir));
+            simRef.current?.seekTo?.(next);
+        } else {
+            const base = curMove < 0 ? 0 : curMove;
+            const next = Math.max(0, Math.min(parsedPreview.moves.length - 1, base + dir));
+            const t = parsedPreview.moves[next]?.tStart ?? 0;
+            seekByTime(t);
+            setCurMove(next);
+        }
+    }, [simView, curMove, parsedPreview.moves, seekByTime]);
 
     const handleSeekFirst = useCallback(() => {
-        setSimPlaying(false); simRef.current?.seekTo?.(0);
-    }, []);
+        setSimPlaying(false);
+        if (simView === '3d') simRef.current?.seekTo?.(0);
+        else seekByTime(0);
+    }, [simView, seekByTime]);
 
     const handleSeekLast = useCallback(() => {
-        setSimPlaying(false); simRef.current?.seekTo?.(parsedPreview.moves.length - 1);
-    }, [parsedPreview.moves.length]);
+        setSimPlaying(false);
+        if (simView === '3d') simRef.current?.seekTo?.(parsedPreview.moves.length - 1);
+        else seekByTime(totalSimTime);
+    }, [simView, parsedPreview.moves.length, seekByTime, totalSimTime]);
 
     const handleSlider = useCallback((e) => {
         setSimPlaying(false);
-        simRef.current?.seekTo?.(parseInt(e.target.value));
-    }, []);
+        if (simView === '3d') simRef.current?.seekTo?.(parseInt(e.target.value));
+        else seekByTime((parseInt(e.target.value) / Math.max(1, parsedPreview.moves.length - 1)) * totalSimTime);
+    }, [simView, parsedPreview.moves.length, seekByTime, totalSimTime]);
 
-    // ── Keyboard shortcuts ────────────────────────────────────────────────────
+    // ── Keyboard shortcuts — Sprint 0: work for both 2D and 3D ──────────────
     useEffect(() => {
-        if (simView !== '3d') return;
         const onKey = (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             switch (e.key) {
@@ -765,99 +824,159 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                     flex: 1, display: 'flex', flexDirection: 'column',
                     minWidth: 0, background: C.bg, overflow: 'hidden',
                 }}>
-                    {/* Slim info bar above canvas */}
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '5px 12px', borderBottom: `1px solid ${C.border}`,
-                        background: C.panel, flexShrink: 0, height: 32,
-                    }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                            Simulador CNC
-                        </span>
-                        {!hasSimulatablePath && (
-                            <span style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: C.danger,
-                                border: '1px solid rgba(248,81,73,0.35)',
-                                background: 'rgba(248,81,73,0.10)',
-                                borderRadius: 5,
-                                padding: '3px 7px',
-                                whiteSpace: 'nowrap',
-                            }}>
-                                Simulação bloqueada
-                            </span>
-                        )}
-                        {gcode && !hasParsedMoves && (
-                            <span style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: C.warning,
-                                border: '1px solid rgba(210,153,34,0.35)',
-                                background: 'rgba(210,153,34,0.10)',
-                                borderRadius: 5,
-                                padding: '3px 7px',
-                                whiteSpace: 'nowrap',
-                            }}>
-                                Sem movimentos XY no parser 3D
-                            </span>
-                        )}
-                        <div style={{ flex: 1 }} />
-                        {hasSimulatablePath && (
+                    {/* ── Header rico: contexto + operação atual + controles ── */}
+                    {(() => {
+                        // Operação atualmente sendo simulada
+                        const curOpBlock = curMove >= 0
+                            ? operationBlocks.find(op => curMove >= op.startMove && curMove <= op.endMove)
+                            : null;
+                        return (
                             <div style={{
-                                display: 'inline-flex',
-                                padding: 2,
-                                borderRadius: 6,
-                                border: `1px solid ${C.border}`,
-                                background: C.bg,
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                padding: '0 10px', height: 38,
+                                background: C.panel, borderBottom: `1px solid ${C.border}`,
+                                flexShrink: 0,
                             }}>
-                                {[
-                                    { id: '2d', label: '2D' },
-                                    { id: '3d', label: '3D' },
-                                ].map(opt => {
-                                    const active = simView === opt.id;
-                                    return (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => setSimView(opt.id)}
-                                            style={{
-                                                height: 22,
-                                                minWidth: 34,
-                                                padding: '0 9px',
-                                                border: 'none',
-                                                borderRadius: 4,
-                                                background: active ? C.blue : 'transparent',
-                                                color: active ? '#fff' : C.muted,
-                                                fontSize: 10,
-                                                fontWeight: 800,
-                                                cursor: 'pointer',
-                                                fontFamily: '"JetBrains Mono", monospace',
-                                            }}
-                                        >
-                                            {opt.label}
-                                        </button>
-                                    );
-                                })}
+                                {/* Contexto chapa */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 700, color: C.text,
+                                        fontFamily: '"JetBrains Mono", monospace',
+                                    }}>
+                                        Chapa {chapaIdx + 1}
+                                    </span>
+                                    {chapaData && (
+                                        <span style={{ fontSize: 10, color: C.muted, fontFamily: '"JetBrains Mono", monospace' }}>
+                                            {chapaData.comprimento}×{chapaData.largura}
+                                        </span>
+                                    )}
+                                    {chapaData?.pecas?.length > 0 && (
+                                        <span style={{ fontSize: 10, color: C.muted }}>
+                                            · {chapaData.pecas.length} peça{chapaData.pecas.length !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                    {operationBlocks.length > 0 && (
+                                        <span style={{ fontSize: 10, color: C.muted }}>
+                                            · {operationBlocks.length} ops
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Divisor */}
+                                <div style={{ width: 1, height: 18, background: C.border, flexShrink: 0 }} />
+
+                                {/* Operação atual — aparece durante simulação */}
+                                {curOpBlock ? (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 5,
+                                        padding: '3px 8px', borderRadius: 5,
+                                        background: `${curOpBlock.cat.color}18`,
+                                        border: `1px solid ${curOpBlock.cat.color}45`,
+                                        flexShrink: 1, minWidth: 0, overflow: 'hidden',
+                                    }}>
+                                        <span style={{
+                                            width: 7, height: 7, borderRadius: '50%',
+                                            background: curOpBlock.cat.color,
+                                            boxShadow: `0 0 6px ${curOpBlock.cat.glow}`,
+                                            flexShrink: 0,
+                                        }} />
+                                        <span style={{
+                                            fontSize: 10.5, fontWeight: 700, color: curOpBlock.cat.color,
+                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                            maxWidth: 200,
+                                        }}>
+                                            {curOpBlock.label}
+                                        </span>
+                                        {curOpBlock.depth > 0.1 && (
+                                            <span style={{ fontSize: 9, color: curOpBlock.cat.color, opacity: 0.75, fontFamily: 'monospace', flexShrink: 0 }}>
+                                                ↓{curOpBlock.depth.toFixed(1)}mm
+                                            </span>
+                                        )}
+                                    </div>
+                                ) : hasSimulatablePath ? (
+                                    <span style={{ fontSize: 10, color: C.muted }}>
+                                        {simPlaying ? '▶ simulando...' : 'pronto'}
+                                    </span>
+                                ) : (
+                                    <span style={{ fontSize: 10, color: C.danger, fontWeight: 600 }}>
+                                        {gcode && gcodeCutMoves === 0 ? 'sem movimentos de corte' : '⚠ G-code não gerado'}
+                                    </span>
+                                )}
+
+                                <div style={{ flex: 1 }} />
+
+                                {/* Alertas inline */}
+                                {gcode && !hasParsedMoves && (
+                                    <span style={{ fontSize: 10, color: C.warning, padding: '2px 6px', borderRadius: 4, background: 'rgba(210,153,34,0.12)', border: '1px solid rgba(210,153,34,0.30)', whiteSpace: 'nowrap' }}>
+                                        sem movimentos XY
+                                    </span>
+                                )}
+
+                                {/* Preview Final */}
+                                {hasSimulatablePath && totalSimTime > 0 && (
+                                    <button
+                                        onClick={() => { setSimPlaying(false); seekByTime(totalSimTime); }}
+                                        title="Avançar para o resultado final instantaneamente"
+                                        style={{
+                                            padding: '3px 9px', height: 24, borderRadius: 5,
+                                            background: 'rgba(255,255,255,0.06)',
+                                            border: `1px solid ${C.border}`,
+                                            color: C.muted, cursor: 'pointer',
+                                            fontSize: 10, fontWeight: 700,
+                                            fontFamily: '"JetBrains Mono", monospace',
+                                            whiteSpace: 'nowrap',
+                                            transition: 'all 0.1s',
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.blueHi; }}
+                                        onMouseLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
+                                    >
+                                        ⟫ Preview Final
+                                    </button>
+                                )}
+
+                                {/* 2D / 3D toggle */}
+                                {hasSimulatablePath && (
+                                    <div style={{ display: 'flex', padding: 2, borderRadius: 5, border: `1px solid ${C.border}`, background: C.bg, flexShrink: 0 }}>
+                                        {['2d', '3d'].map(id => {
+                                            const active = simView === id;
+                                            return (
+                                                <button key={id} onClick={() => setSimView(id)} style={{
+                                                    height: 20, minWidth: 30, padding: '0 8px',
+                                                    border: 'none', borderRadius: 3,
+                                                    background: active ? C.blue : 'transparent',
+                                                    color: active ? '#fff' : C.muted,
+                                                    fontSize: 10, fontWeight: 800, cursor: 'pointer',
+                                                    fontFamily: '"JetBrains Mono", monospace',
+                                                }}>
+                                                    {id.toUpperCase()}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* File info */}
+                                <span style={{ fontSize: 9.5, color: '#3d4852', fontFamily: '"JetBrains Mono", monospace', whiteSpace: 'nowrap' }}>
+                                    {gcode ? `${lines.length}ln · ${sizeKB.toFixed(1)}KB` : '—'}
+                                </span>
                             </div>
-                        )}
-                        <span style={{ fontSize: 10, color: C.muted, fontFamily: '"JetBrains Mono", monospace' }}>
-                            {gcode ? (filename || `chapa_${chapaIdx + 1}.nc`) : 'Sem arquivo CNC'}
-                        </span>
-                        <span style={{ fontSize: 10, color: C.muted, fontFamily: '"JetBrains Mono", monospace' }}>
-                            {lines.length} ln · {sizeKB.toFixed(1)} KB
-                        </span>
-                    </div>
+                        );
+                    })()}
 
                     {/* Canvas */}
                     <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
                         {hasSimulatablePath ? (
                             simView === '2d' ? (
                                 <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                                    {/* Sprint 0: 2D now has real playback — pass curSimTime + onTimeChange */}
                                     <Sim2D
                                         parsed={parsedPreview}
                                         chapa={chapaData}
-                                        curTime={0}
-                                        totalTime={0}
+                                        playing={simPlaying}
+                                        speed={simSpeed}
+                                        curTime={curSimTime}
+                                        totalTime={totalSimTime}
+                                        onTimeChange={handle2DTimeChange}
                                     />
                                 </div>
                             ) : (
@@ -952,8 +1071,9 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         background: C.bg, flexShrink: 0,
                     }}>
                         {[
-                            { id: 'dados',  label: 'Dados' },
-                            { id: 'gcode',  label: 'G-code' },
+                            { id: 'usinagens', label: 'Usinagens' },
+                            { id: 'gcode',     label: 'G-code' },
+                            { id: 'dados',     label: 'Dados' },
                         ].map(t => (
                             <button key={t.id} onClick={() => setSidebarTab(t.id)} style={{
                                 flex: 1, padding: '8px 0',
@@ -977,6 +1097,140 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                             </button>
                         ))}
                     </div>
+
+                    {/* ══ Tab: Usinagens — Sprint 0 ════════════════════════ */}
+                    {sidebarTab === 'usinagens' && (
+                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                            {operationBlocks.length === 0 ? (
+                                <div style={{ padding: 20, color: C.muted, fontSize: 12, textAlign: 'center' }}>
+                                    {hasParsedMoves
+                                        ? 'G-code sem comentários [OP] estruturados. Gere novamente para obter lista detalhada.'
+                                        : 'Nenhuma usinagem detectada.'}
+                                </div>
+                            ) : (
+                                <>
+                                    <div style={{ padding: '6px 12px 4px', fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                        {operationBlocks.length} operaç{operationBlocks.length === 1 ? 'ão' : 'ões'}
+                                    </div>
+                                    {operationBlocks.map((op, i) => {
+                                        const isCurrent = curMove >= op.startMove && curMove <= op.endMove;
+                                        const isDob  = op.type === 'dobradica';
+                                        const isOnion = op.type === 'onion_skin';
+                                        const dur = op.duration;
+                                        const fmtDur = (s) => {
+                                            if (!s || s <= 0) return '';
+                                            if (s < 60) return `${s.toFixed(0)}s`;
+                                            return `${Math.floor(s/60)}m${(s%60).toFixed(0).padStart(2,'0')}s`;
+                                        };
+                                        return (
+                                            <div
+                                                key={i}
+                                                onClick={() => {
+                                                    setSimPlaying(false);
+                                                    if (simView === '3d') {
+                                                        simRef.current?.seekTo?.(op.startMove);
+                                                    } else {
+                                                        const t = parsedPreview.moves[op.startMove]?.tStart ?? 0;
+                                                        setCurSimTime(t);
+                                                        setCurMove(op.startMove);
+                                                        setCurrentLineIdx(op.startLine);
+                                                    }
+                                                    setSidebarTab('usinagens');
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                                                    padding: '7px 12px',
+                                                    borderLeft: isCurrent ? `3px solid ${op.cat.color}` : '3px solid transparent',
+                                                    background: isCurrent ? `${op.cat.color}12` : 'transparent',
+                                                    borderBottom: `1px solid ${C.border}`,
+                                                    cursor: 'pointer',
+                                                    transition: 'background 0.1s',
+                                                }}
+                                                onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = `${C.border}55`; }}
+                                                onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}
+                                            >
+                                                {/* Category dot/ring */}
+                                                <div style={{
+                                                    width: isDob ? 13 : 9, height: isDob ? 13 : 9,
+                                                    borderRadius: isDob ? '50%' : 2,
+                                                    flexShrink: 0, marginTop: 3,
+                                                    border: isDob ? `2px solid ${op.cat.color}` : 'none',
+                                                    background: isDob ? 'transparent' : op.cat.color,
+                                                    boxShadow: `0 0 4px ${op.cat.glow}66`,
+                                                    position: 'relative',
+                                                }}>
+                                                    {isDob && (
+                                                        <span style={{
+                                                            position: 'absolute', top: '50%', left: '50%',
+                                                            transform: 'translate(-50%,-50%)',
+                                                            width: 3, height: 3, borderRadius: '50%',
+                                                            background: op.cat.color,
+                                                        }} />
+                                                    )}
+                                                </div>
+
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    {/* Label */}
+                                                    <div style={{
+                                                        fontSize: 10.5, fontWeight: isDob || isOnion ? 700 : 600,
+                                                        color: isCurrent ? C.text : '#9ba8b8',
+                                                        lineHeight: 1.25,
+                                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    }}>
+                                                        {op.label.slice(0, 36)}
+                                                    </div>
+
+                                                    {/* Meta row: peca + depth + time */}
+                                                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 2 }}>
+                                                        {op.pecaDesc && (
+                                                            <span style={{ fontSize: 9, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
+                                                                {op.pecaDesc.slice(0, 20)}
+                                                            </span>
+                                                        )}
+                                                        {op.depth > 0.1 && (
+                                                            <span style={{
+                                                                fontSize: 9, fontWeight: 700,
+                                                                color: op.depth > 20 ? C.danger : C.muted,
+                                                                fontFamily: '"JetBrains Mono", monospace',
+                                                            }}>
+                                                                ↓{op.depth.toFixed(1)}mm
+                                                            </span>
+                                                        )}
+                                                        {op.diameter > 0 && (
+                                                            <span style={{
+                                                                fontSize: 9,
+                                                                color: isDob ? '#f59e0b' : C.muted,
+                                                                fontFamily: '"JetBrains Mono", monospace',
+                                                                fontWeight: isDob ? 700 : 400,
+                                                            }}>
+                                                                Ø{op.diameter}
+                                                            </span>
+                                                        )}
+                                                        {dur > 0.5 && (
+                                                            <span style={{ fontSize: 9, color: C.muted, fontFamily: '"JetBrains Mono", monospace', marginLeft: 'auto' }}>
+                                                                {fmtDur(dur)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Warnings */}
+                                                    {op.warnings.length > 0 && (
+                                                        <div style={{ marginTop: 3 }}>
+                                                            {op.warnings.slice(0, 2).map((w, wi) => (
+                                                                <div key={wi} style={{ fontSize: 9, color: C.warning, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                                    <AlertTriangle size={8} style={{ flexShrink: 0 }} /> {w.slice(0, 40)}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
+                        </div>
+                    )}
 
                     {/* ══ Tab: G-code viewer ══════════════════════════════ */}
                     {sidebarTab === 'gcode' && (
@@ -1235,8 +1489,121 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
 
                 </div> {/* end 3-column row */}
 
-                {/* ══ TRANSPORT BAR — full-width row ═══════════════════════ */}
-                {hasSimulatablePath && simView === '3d' && (
+                {/* ══ OPERATION TIMELINE BAR — Sprint 1 ════════════════════════ */}
+                {hasSimulatablePath && totalSimTime > 0 && operationBlocks.length > 0 && (() => {
+                    const moves_ = parsedPreview.moves;
+                    return (
+                        <div
+                            style={{
+                                height: 22, flexShrink: 0,
+                                background: '#06090e',
+                                borderTop: `1px solid ${C.border}`,
+                                position: 'relative',
+                                cursor: 'crosshair',
+                                overflow: 'hidden',
+                                userSelect: 'none',
+                            }}
+                            onClick={e => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                                setSimPlaying(false);
+                                seekByTime(pct * totalSimTime);
+                            }}
+                            title="Timeline de usinagens — clique para navegar"
+                        >
+                            {/* Track background */}
+                            <div style={{
+                                position: 'absolute', left: 0, right: 0, top: 8, height: 6,
+                                background: 'rgba(255,255,255,0.04)', borderRadius: 3,
+                            }} />
+
+                            {/* Operation segments */}
+                            {operationBlocks.map((op, i) => {
+                                const opStart = moves_[op.startMove]?.tStart ?? 0;
+                                const opEnd   = moves_[op.endMove]?.tEnd ?? moves_[op.endMove]?.tStart ?? opStart;
+                                const left  = (opStart / totalSimTime) * 100;
+                                const width = Math.max(0.25, ((opEnd - opStart) / totalSimTime) * 100);
+                                const isCurrent = curMove >= op.startMove && curMove <= op.endMove;
+                                const isRapid = op.type === 'rapid' || op.cat?.key === 'rapid';
+                                if (isRapid) return null; // skip rapid-only blocks
+                                const fmtS = (s) => s < 60 ? `${s.toFixed(0)}s` : `${Math.floor(s/60)}m${(s%60).toFixed(0).padStart(2,'0')}s`;
+                                return (
+                                    <div
+                                        key={i}
+                                        title={`${op.label}${op.pecaDesc ? ` · ${op.pecaDesc}` : ''}${op.duration > 0.5 ? ` · ${fmtS(op.duration)}` : ''}`}
+                                        style={{
+                                            position: 'absolute',
+                                            left:  `${left}%`,
+                                            width: `${width}%`,
+                                            top:    isCurrent ? 3 : 7,
+                                            height: isCurrent ? 16 : 8,
+                                            background: op.cat?.color ?? C.muted,
+                                            opacity:    isCurrent ? 1 : 0.45,
+                                            borderRadius: 2,
+                                            boxShadow: isCurrent ? `0 0 6px ${op.cat?.glow ?? op.cat?.color}88` : 'none',
+                                            transition: 'top 0.12s, height 0.12s, opacity 0.12s, box-shadow 0.12s',
+                                        }}
+                                    />
+                                );
+                            })}
+
+                            {/* Executed overlay */}
+                            {curSimTime > 0 && (
+                                <div style={{
+                                    position: 'absolute',
+                                    left: 0, top: 7,
+                                    width: `${(curSimTime / totalSimTime) * 100}%`,
+                                    height: 8,
+                                    background: 'rgba(255,255,255,0.07)',
+                                    pointerEvents: 'none',
+                                    borderRadius: '3px 0 0 3px',
+                                }} />
+                            )}
+
+                            {/* Playhead */}
+                            <div style={{
+                                position: 'absolute',
+                                left: `${(curSimTime / totalSimTime) * 100}%`,
+                                top: 0, width: 2, height: '100%',
+                                background: '#ffffff',
+                                opacity: 0.85,
+                                pointerEvents: 'none',
+                                transform: 'translateX(-50%)',
+                                boxShadow: '0 0 5px rgba(255,255,255,0.5)',
+                            }} />
+
+                            {/* Op label tooltip on the active segment */}
+                            {(() => {
+                                const curOp = curMove >= 0
+                                    ? operationBlocks.find(op => curMove >= op.startMove && curMove <= op.endMove)
+                                    : null;
+                                if (!curOp) return null;
+                                const opStart = moves_[curOp.startMove]?.tStart ?? 0;
+                                const opEnd   = moves_[curOp.endMove]?.tEnd ?? opStart;
+                                const midPct  = ((opStart + opEnd) / 2 / totalSimTime) * 100;
+                                return (
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: `${midPct}%`, top: 2,
+                                        transform: 'translateX(-50%)',
+                                        fontSize: 8, fontWeight: 700, whiteSpace: 'nowrap',
+                                        color: curOp.cat?.color ?? C.text,
+                                        pointerEvents: 'none',
+                                        textShadow: '0 1px 3px #000',
+                                        letterSpacing: '0.04em',
+                                        maxWidth: 120,
+                                        overflow: 'hidden', textOverflow: 'ellipsis',
+                                    }}>
+                                        {curOp.label.split(' ').slice(0, 3).join(' ')}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    );
+                })()}
+
+                {/* ══ TRANSPORT BAR — Sprint 0: visible for both 2D and 3D ══ */}
+                {hasSimulatablePath && (
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         padding: '0 16px', height: 48, flexShrink: 0,
@@ -1273,15 +1640,38 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                         {/* Divider */}
                         <div style={{ width: 1, height: 20, background: C.border, marginLeft: 4 }} />
 
-                        {/* Slider — takes all available space */}
-                        <input
-                            type="range"
-                            min={0}
-                            max={Math.max(0, displayTotal - 1)}
-                            value={curMove < 0 ? 0 : curMove}
-                            onChange={handleSlider}
-                            style={{ flex: 1, height: 3, accentColor: C.blue, cursor: 'pointer', minWidth: 80 }}
-                        />
+                        {/* Sprint 0: Slider is time-based for 2D, move-based for 3D */}
+                        {simView === '2d' ? (
+                            <input
+                                type="range"
+                                min={0} max={100} step={0.05}
+                                value={totalSimTime > 0 ? (curSimTime / totalSimTime) * 100 : 0}
+                                onChange={e => {
+                                    setSimPlaying(false);
+                                    const t = (parseFloat(e.target.value) / 100) * totalSimTime;
+                                    setCurSimTime(t);
+                                    // Derive move index from time
+                                    const mv = parsedPreview.moves;
+                                    let lo = 0, hi = mv.length - 1;
+                                    while (lo <= hi) {
+                                        const mid = (lo + hi) >>> 1;
+                                        if (t < mv[mid].tStart) hi = mid - 1;
+                                        else if (t > mv[mid].tEnd) lo = mid + 1;
+                                        else { setCurMove(mid); setCurrentLineIdx(mv[mid].lineIdx ?? -1); break; }
+                                    }
+                                }}
+                                style={{ flex: 1, height: 3, accentColor: C.blue, cursor: 'pointer', minWidth: 80 }}
+                            />
+                        ) : (
+                            <input
+                                type="range"
+                                min={0}
+                                max={Math.max(0, displayTotal - 1)}
+                                value={curMove < 0 ? 0 : curMove}
+                                onChange={handleSlider}
+                                style={{ flex: 1, height: 3, accentColor: C.blue, cursor: 'pointer', minWidth: 80 }}
+                            />
+                        )}
 
                         {/* Time display */}
                         <span style={{

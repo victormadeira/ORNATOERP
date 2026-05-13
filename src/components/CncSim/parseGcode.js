@@ -1,11 +1,22 @@
-// CncSim/parseGcode.js — Consolidated G-code parser
+// CncSim/parseGcode.js — Consolidated G-code parser  v2 (Sprint 0)
 // Full arc interpolation, per-move timing, helicoidal hole detection, Z-origin compensation.
-// Single source of truth for both Sim2D and Sim3D.
+// Parses structured [OP type=xxx diam=xxx peca=xxx] comments for rich operation metadata.
+// Single source of truth for Sim2D, Sim3D, PreCutWorkspace and operationalMetrics.
 
 const RAPID_FEED_MM_MIN = 20000;
 
 // ─── Operation categories — professional CAM palette ────────────────────────
+// ORDER MATTERS: first match wins. dobradica must come before furo.
 export const OP_CATS = [
+    // ── dobradiça / caneco (Ø35) ──────────────────────────────────────────────
+    { key: 'dobradica',  pat: /dobradiça|dobradica|câneco|caneco|hinge|dobr\./i,
+      color: '#f59e0b', glow: '#fbbf24', label: 'Dobradiça' },
+
+    // ── onion-skin / breakthrough ─────────────────────────────────────────────
+    { key: 'onion_skin', pat: /onion|breakthrough|skin|passagem.?final|passe.?final/i,
+      color: '#06b6d4', glow: '#22d3ee', label: 'Onion/Breakthrough' },
+
+    // ── regular operations ────────────────────────────────────────────────────
     { key: 'contorno', pat: /contorno/i,                       color: '#e09030', glow: '#f0a840', label: 'Contorno' },
     { key: 'rebaixo',  pat: /rebaixo/i,                        color: '#3090d8', glow: '#40a8f0', label: 'Rebaixo' },
     { key: 'canal',    pat: /canal/i,                          color: '#9060c0', glow: '#a878d8', label: 'Canal' },
@@ -24,6 +35,11 @@ export function getOpCat(op) {
         if (c.pat.test(lo)) return c;
     }
     return { key: 'outro', color: '#a6adc8', glow: '#b8c0d0', label: 'Outro' };
+}
+
+/** Return the dobradica category for Ø≥32 holes, furo category otherwise. */
+export function getHoleCat(diam) {
+    return diam >= 32 ? OP_CATS.find(c => c.key === 'dobradica') : OP_CATS.find(c => c.key === 'furo');
 }
 
 /** Extract tool diameter in mm from a tool name string (e.g. "Fresa 6mm" → 6). */
@@ -49,11 +65,32 @@ export function feedHeatColor(feed, minFeed, maxFeed) {
 }
 
 /**
+ * Parse structured [OP type=xxx key=val ...] comment into metadata.
+ * Returns null if the comment doesn't contain a structured OP tag.
+ */
+function parseOpTag(comment) {
+    const m = comment.match(/\[OP\s+type=(\S+)([^\]]*)\]/i);
+    if (!m) return null;
+    const type = m[1].toLowerCase();
+    const attrs = m[2];
+    const getAttr = (key) => { const a = attrs.match(new RegExp(`\\b${key}=([^\\s\\]]+)`, 'i')); return a ? a[1] : null; };
+    const diam    = parseFloat(getAttr('diam')  || '0') || 0;
+    const prof    = parseFloat(getAttr('prof')  || '0') || 0;
+    const pecaRaw = getAttr('peca') || '';
+    const peca    = pecaRaw ? decodeURIComponent(pecaRaw.replace(/\+/g, ' ')) : '';
+    // Classify dobradiça by diam ≥32 even if type is 'furo' or 'furo_circular'
+    const effectiveType = (type === 'furo' || type === 'furo_circular') && diam >= 32
+        ? 'dobradica'
+        : type;
+    return { type: effectiveType, diam, prof, peca };
+}
+
+/**
  * Parse G-code text into a structured simulation program.
  *
  * Returns:
  *   moves[]        — array of move objects (see below)
- *   events[]       — { moveIdx, type: 'tool'|'op'|'spindle', label }
+ *   events[]       — { moveIdx, type: 'tool'|'op'|'spindle', label, opMeta? }
  *   rawLines[]     — original lines for syntax highlighting
  *   lineToMoveIdx  — { lineIdx → first moveIdx on that line }
  *   totalTime      — total estimated machining time in seconds
@@ -64,7 +101,9 @@ export function feedHeatColor(feed, minFeed, maxFeed) {
  *     dist, duration, tStart, tEnd,
  *     isArc, arcCx, arcCy, arcR,
  *     isZOnly,
- *     isHole, holeCx, holeCy, holeDiam,  ← helicoidal holes only
+ *     isPlunge,     ← G1/G0 vertical descent (z2 < z1, no XY)
+ *     isRetract,    ← G0 vertical ascent (z2 > z1, no XY)
+ *     isHole, holeCx, holeCy, holeDiam,  ← helicoidal holes
  *     lineIdx }
  */
 export function parseGcode(gcodeText) {
@@ -94,12 +133,15 @@ export function parseGcode(gcodeText) {
         const run = moves.slice(arcRunStart, endIdx);
         const zDrop = Math.abs(run[run.length - 1].z2 - arcRunZ0);
         if (zDrop > 0.3) {
-            // Tag all moves in run as helicoidal hole
+            const holeDiam = arcRunR * 2;
+            // Determine category by diameter (dobradica if Ø≥32)
+            const isDobradica = holeDiam >= 32;
             for (const m of run) {
                 m.isHole = true;
                 m.holeCx = arcRunCx;
                 m.holeCy = arcRunCy;
-                m.holeDiam = arcRunR * 2;
+                m.holeDiam = holeDiam;
+                m.isDobradica = isDobradica;
             }
         }
         arcRunStart = -1;
@@ -108,38 +150,54 @@ export function parseGcode(gcodeText) {
     for (let li = 0; li < rawLines.length; li++) {
         const raw = rawLines[li];
 
-        // Extract comment before stripping
-        const cmtM = raw.match(/[;(]\s*(.+?)\s*\)?$/);
-        const comment = cmtM ? cmtM[1] : '';
+        // ── Extract full comment text ─────────────────────────────────────────
+        // Support ; line comment and (inline comment)
+        let commentFull = '';
+        const inlineM = raw.match(/\(([^)]*)\)/g);
+        if (inlineM) commentFull += inlineM.map(s => s.slice(1, -1)).join(' ');
+        const eolM = raw.match(/;(.*)$/);
+        if (eolM) commentFull += ' ' + eolM[1];
+        commentFull = commentFull.trim();
 
-        // Tool change comment
-        if (/troca|ferramenta|tool\s*:/i.test(comment)) {
-            curTool = comment.replace(/^(Troca:\s*|Ferramenta:\s*|Tool\s*:\s*)/i, '').trim();
-            events.push({ moveIdx: moves.length, type: 'tool', label: curTool });
-        }
-
-        // Operation label comment (=== Contorno ..., ; Furo ..., etc.)
-        if (/===|contorno|furo|rebaixo|canal|pocket|rasgo|gola|chanfro|recorte|fresagem|usinagem/i.test(comment)
-            && !/troca|ferramenta/i.test(comment)) {
-            const opLabel = comment.replace(/^=+\s*|\s*=+$/g, '').trim();
-            if (opLabel) {
-                curOp = opLabel;
-                events.push({ moveIdx: moves.length, type: 'op', label: curOp });
+        // ── Structured [OP type=xxx] tag — highest priority ───────────────────
+        const opTag = parseOpTag(commentFull);
+        if (opTag) {
+            // Build a readable label
+            let label = opTag.type.replace(/_/g, ' ');
+            if (opTag.peca) label += ` — ${opTag.peca.slice(0, 30)}`;
+            if (opTag.diam > 0) label += ` Ø${opTag.diam}mm`;
+            curOp = label;
+            events.push({ moveIdx: moves.length, type: 'op', label: curOp, opMeta: opTag });
+        } else {
+            // ── Loose operation label comment ──────────────────────────────────
+            if (/===|contorno|furo|rebaixo|canal|pocket|rasgo|gola|chanfro|recorte|fresagem|usinagem|onion|breakthrough|dobradiç/i.test(commentFull)
+                && !/troca|ferramenta/i.test(commentFull)) {
+                const opLabel = commentFull.replace(/^=+\s*|\s*=+$/g, '').trim();
+                if (opLabel && opLabel !== curOp) {
+                    curOp = opLabel;
+                    events.push({ moveIdx: moves.length, type: 'op', label: curOp });
+                }
             }
         }
 
-        // Spindle on/off
+        // ── Tool change ───────────────────────────────────────────────────────
+        if (/troca|ferramenta|tool\s*:/i.test(commentFull)) {
+            curTool = commentFull.replace(/^(Troca:\s*|Ferramenta:\s*|Tool\s*:\s*)/i, '').trim();
+            events.push({ moveIdx: moves.length, type: 'tool', label: curTool });
+        }
+
+        // ── Spindle ───────────────────────────────────────────────────────────
         if (/M0*3\b/i.test(raw) && !/M30/i.test(raw))
             events.push({ moveIdx: moves.length, type: 'spindle', label: 'Spindle ON' });
         if (/M0*5\b/i.test(raw))
             events.push({ moveIdx: moves.length, type: 'spindle', label: 'Spindle OFF' });
 
-        // Strip comment for parsing
+        // ── Strip comment for motion parsing ──────────────────────────────────
         const line = raw.replace(/;.*$/, '').replace(/\(.*?\)/g, '').trim();
         if (!line) continue;
         const cmd = line.replace(/^N\d+\s*/, '');
 
-        // Mode
+        // Modal state
         const gM = cmd.match(/G([0-3])\b/i);
         if (gM) mode = `G${gM[1]}`;
 
@@ -160,6 +218,11 @@ export function parseGcode(gcodeText) {
         const newY  = yM ? parseFloat(yM[1]) : y;
         const newZ  = zM ? parseFloat(zM[1]) : z;
         const isZOnly = !xM && !yM && Boolean(zM);
+
+        // Plunge = cutting descent (Z-only, going down, G1/G2/G3)
+        // Retract = rapid ascent (Z-only, going up, G0 or G1 above surface)
+        const isPlunge  = isZOnly && newZ < z && mode !== 'G0';
+        const isRetract = isZOnly && newZ > z;
 
         if (mode === 'G2' || mode === 'G3') {
             // ── Arc interpolation ────────────────────────────────────────────
@@ -212,7 +275,8 @@ export function parseGcode(gcodeText) {
                     x2: sx, y2: sy, z2: sz,
                     tool: curTool, op: curOp, feed: curFeed,
                     isArc: true, arcCx: cx2, arcCy: cy2, arcR: r,
-                    isZOnly: false, isHole: false,
+                    isZOnly: false, isPlunge: false, isRetract: false,
+                    isHole: false, isDobradica: false,
                 });
             }
 
@@ -226,7 +290,8 @@ export function parseGcode(gcodeText) {
                 x2: newX, y2: newY, z2: newZ,
                 tool: curTool, op: curOp, feed: curFeed,
                 isArc: false, isZOnly,
-                isHole: false,
+                isPlunge, isRetract,
+                isHole: false, isDobradica: false,
             });
         }
 
@@ -257,4 +322,111 @@ export function parseGcode(gcodeText) {
     const maxFeed = feeds.length ? Math.max(...feeds) : 1;
 
     return { moves, events, rawLines, lineToMoveIdx, totalTime: acc, minFeed, maxFeed };
+}
+
+/**
+ * Build a structured operations list from a parsed G-code result.
+ * Groups consecutive moves into named operations using event boundaries.
+ *
+ * Returns: Operation[] where each operation matches the schema:
+ *   { id, type, label, cat, pecaDesc, toolName, diameter, depth,
+ *     startMove, endMove, startLine, endLine,
+ *     duration, distanceCut, distanceRapid,
+ *     riskLevel, warnings, opMeta }
+ */
+export function buildOperations(parsed) {
+    const { moves, events } = parsed;
+    if (!moves.length) return [];
+
+    const ops = [];
+    let curOp = null;
+    let curToolName = '';
+    let curToolDiam = 6;
+    let evIdx = 0;
+
+    const finalizeCurOp = (endMoveIdx) => {
+        if (!curOp) return;
+        curOp.endMove = endMoveIdx;
+        if (moves[endMoveIdx]) curOp.endLine = moves[endMoveIdx].lineIdx;
+        ops.push(curOp);
+        curOp = null;
+    };
+
+    const startOp = (label, moveIdx, opMeta) => {
+        const cat = opMeta ? getOpCatFromMeta(opMeta) : getOpCat(label);
+        curOp = {
+            id: ops.length,
+            type: cat.key,
+            label: label.replace(/^=+\s*|\s*=+$/g, '').trim(),
+            cat,
+            pecaDesc: opMeta?.peca || '',
+            toolName: curToolName,
+            diameter: opMeta?.diam || curToolDiam,
+            depth: opMeta?.prof || 0,
+            startMove: moveIdx,
+            endMove: moveIdx,
+            startLine: moves[moveIdx]?.lineIdx ?? 0,
+            endLine: moves[moveIdx]?.lineIdx ?? 0,
+            duration: 0,
+            distanceCut: 0,
+            distanceRapid: 0,
+            riskLevel: 'ok',
+            warnings: [],
+            opMeta: opMeta || null,
+        };
+    };
+
+    for (let i = 0; i < moves.length; i++) {
+        // Process all events at or before this move index
+        while (evIdx < events.length && events[evIdx].moveIdx <= i) {
+            const ev = events[evIdx];
+            if (ev.type === 'tool') {
+                curToolName = ev.label;
+                curToolDiam = getToolDiameter(ev.label);
+            }
+            if (ev.type === 'op' && ev.label) {
+                finalizeCurOp(Math.max(0, i - 1));
+                startOp(ev.label, i, ev.opMeta || null);
+            }
+            evIdx++;
+        }
+
+        if (!curOp) {
+            // Implicit first operation — no [OP] comment
+            startOp('Sem operação', i, null);
+        }
+
+        const m = moves[i];
+        curOp.endMove = i;
+        if (m.lineIdx !== undefined) curOp.endLine = m.lineIdx;
+        curOp.duration += m.duration;
+        if (m.type === 'G0') curOp.distanceRapid += m.dist;
+        else curOp.distanceCut += m.dist;
+        // Track max depth
+        const depth = Math.max(0, -Math.min(m.z1, m.z2));
+        if (depth > curOp.depth) curOp.depth = depth;
+    }
+
+    if (curOp) finalizeCurOp(moves.length - 1);
+
+    // Post-process: add risk assessment
+    for (const op of ops) {
+        // Dobradiça with wrong depth or diameter
+        if (op.type === 'dobradica') {
+            if (op.depth > 16) op.warnings.push(`Profundidade ${op.depth.toFixed(1)}mm incomum para dobradiça Ø35`);
+            if (op.diameter > 0 && op.diameter < 30) op.warnings.push(`Ferramenta Ø${op.diameter}mm pode ser incompatível com caneco Ø35`);
+        }
+        // Contorno before internal ops (checked externally in operationalMetrics)
+        if (op.warnings.length > 0) op.riskLevel = 'warning';
+    }
+
+    return ops;
+}
+
+/** Get op category from structured opMeta (supports dobradica by diam). */
+function getOpCatFromMeta(meta) {
+    if (!meta) return { key: 'outro', color: '#a6adc8', glow: '#b8c0d0', label: 'Outro' };
+    if (meta.type === 'dobradica') return OP_CATS.find(c => c.key === 'dobradica') || getOpCat('dobradica');
+    if (meta.type === 'onion_skin') return OP_CATS.find(c => c.key === 'onion_skin') || getOpCat('onion');
+    return getOpCat(meta.type);
 }

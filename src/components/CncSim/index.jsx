@@ -1,7 +1,10 @@
-// CncSim/index.jsx — Unified G-code simulator component
+// CncSim/index.jsx — Unified G-code simulator component  v2 (Sprint 0)
 // Replaces GcodeSimWrapper (2D) and GcodeSimCanvas (3D) with a single clean API.
 // Usage: <CncSim gcode={str} chapa={obj} />
 // Ref API: reset(), seekTo(idx), seekToTime(t), getTotalMoves(), getTotalTime(), getCurMove()
+//
+// Sprint 0: 2D now has real playback (RAF loop inside Sim2D driven by playing/speed props).
+// 3D still drives time via onMoveChange; 2D drives its own time and reports back.
 
 import {
     useState, useMemo, useRef, useCallback, useEffect, forwardRef, useImperativeHandle,
@@ -122,15 +125,38 @@ export const CncSim = forwardRef(function CncSim(
 
     const sim3dRef = useRef(null);
 
-    const parsed = useMemo(() => parseGcode(gcode || ''), [gcode]);
+    const parsed     = useMemo(() => parseGcode(gcode || ''), [gcode]);
     const totalTime  = parsed.totalTime  ?? 0;
     const totalMoves = parsed.moves.length;
+    const moves      = parsed.moves;
 
-    // ── Sync time from Sim3D (3D drives time; 2D reads it) ───────────────────
+    // ── Derive curMove from curTime via binary search ─────────────────────────
+    const moveAtTime = useCallback((t) => {
+        if (!moves.length) return -1;
+        let lo = 0, hi = moves.length - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >>> 1;
+            const m = moves[mid];
+            if (t < m.tStart) hi = mid - 1;
+            else if (t > m.tEnd) lo = mid + 1;
+            else return mid;
+        }
+        if (t >= totalTime && totalTime > 0) return moves.length - 1;
+        return -1;
+    }, [moves, totalTime]);
+
+    // ── 2D reports time back here ─────────────────────────────────────────────
+    const handle2DTimeChange = useCallback((t) => {
+        setCurTime(t);
+        setCurMove(moveAtTime(t));
+    }, [moveAtTime]);
+
+    // ── 3D drives time via onMoveChange ───────────────────────────────────────
     const onMoveChange = useCallback((idx, _lineIdx, t) => {
         setCurMove(idx);
         setCurTime(t);
     }, []);
+
     const onPlayEnd = useCallback(() => {
         setPlaying(false);
         setCurTime(totalTime);
@@ -140,54 +166,82 @@ export const CncSim = forwardRef(function CncSim(
     const handlePlayPause = useCallback(() => {
         setPlaying(p => {
             if (!p && curTime >= totalTime && totalTime > 0) {
-                sim3dRef.current?.reset?.();
+                // Restart from zero
+                if (tab === '3d') sim3dRef.current?.reset?.();
                 setCurTime(0); setCurMove(-1);
                 return true;
             }
             return !p;
         });
-    }, [curTime, totalTime]);
+    }, [curTime, totalTime, tab]);
 
     const handleReset = useCallback(() => {
         setPlaying(false);
-        sim3dRef.current?.reset?.();
+        if (tab === '3d') sim3dRef.current?.reset?.();
         setCurTime(0); setCurMove(-1);
-    }, []);
+    }, [tab]);
 
     const handleStepBack = useCallback(() => {
         setPlaying(false);
-        const target = Math.max(0, curMove - 1);
-        sim3dRef.current?.seekTo?.(target);
-    }, [curMove]);
+        if (tab === '3d') {
+            const target = Math.max(0, curMove - 1);
+            sim3dRef.current?.seekTo?.(target);
+        } else {
+            // Step back one move: find the move before curTime
+            const idx = moveAtTime(curTime);
+            const target = Math.max(0, idx - 1);
+            const targetTime = moves[target]?.tStart ?? 0;
+            setCurTime(targetTime);
+            setCurMove(target);
+        }
+    }, [curMove, curTime, tab, moveAtTime, moves]);
 
     const handleStepFwd = useCallback(() => {
         setPlaying(false);
-        const target = Math.min(totalMoves - 1, curMove + 1);
-        sim3dRef.current?.seekTo?.(target);
-    }, [curMove, totalMoves]);
+        if (tab === '3d') {
+            const target = Math.min(totalMoves - 1, curMove + 1);
+            sim3dRef.current?.seekTo?.(target);
+        } else {
+            const idx = moveAtTime(curTime);
+            const target = Math.min(totalMoves - 1, idx + 1);
+            const targetTime = moves[target]?.tStart ?? 0;
+            setCurTime(targetTime);
+            setCurMove(target);
+        }
+    }, [curMove, curTime, tab, totalMoves, moveAtTime, moves]);
 
     const handleScrub = useCallback((pct) => {
         setPlaying(false);
         const t = pct * totalTime;
-        sim3dRef.current?.seekToTime?.(t);
-    }, [totalTime]);
-
-    // ── When switching to 2D, keep time in sync ───────────────────────────────
-    useEffect(() => {
-        if (tab === '3d') return; // 3D drives time
-        // 2D is pure display — renders from curTime
-    }, [tab]);
+        if (tab === '3d') {
+            sim3dRef.current?.seekToTime?.(t);
+        } else {
+            setCurTime(t);
+            setCurMove(moveAtTime(t));
+        }
+    }, [totalTime, tab, moveAtTime]);
 
     // ── Imperative API ────────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
         reset: handleReset,
-        seekTo: (idx) => { setPlaying(false); sim3dRef.current?.seekTo?.(idx); },
-        seekToTime: (t) => { setPlaying(false); sim3dRef.current?.seekToTime?.(t); },
-        getTotalMoves: () => totalMoves,
-        getTotalTime:  () => totalTime,
-        getCurMove:    () => curMove,
+        seekTo: (idx) => {
+            setPlaying(false);
+            if (tab === '3d') sim3dRef.current?.seekTo?.(idx);
+            else {
+                const t = moves[idx]?.tStart ?? 0;
+                setCurTime(t); setCurMove(idx);
+            }
+        },
+        seekToTime: (t) => {
+            setPlaying(false);
+            if (tab === '3d') sim3dRef.current?.seekToTime?.(t);
+            else { setCurTime(t); setCurMove(moveAtTime(t)); }
+        },
+        getTotalMoves:  () => totalMoves,
+        getTotalTime:   () => totalTime,
+        getCurMove:     () => curMove,
         getCurrentTime: () => curTime,
-    }), [handleReset, totalMoves, totalTime, curMove, curTime]);
+    }), [handleReset, totalMoves, totalTime, curMove, curTime, tab, moves, moveAtTime]);
 
     // ── Keyboard shortcuts ────────────────────────────────────────────────────
     useEffect(() => {
@@ -217,7 +271,7 @@ export const CncSim = forwardRef(function CncSim(
                         speed={speed}
                         curTime={curTime}
                         totalTime={totalTime}
-                        onTimeChange={setCurTime}
+                        onTimeChange={handle2DTimeChange}
                     />
                 </div>
 
@@ -227,7 +281,7 @@ export const CncSim = forwardRef(function CncSim(
                         ref={sim3dRef}
                         parsed={parsed}
                         chapa={chapa}
-                        playing={playing}
+                        playing={tab === '3d' ? playing : false}
                         speed={speed}
                         onPlayEnd={onPlayEnd}
                         onMoveChange={onMoveChange}
