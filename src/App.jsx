@@ -135,7 +135,7 @@ export default function App() {
     // ── Roteamento com History API ──────────────────────────────────────────
     const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','plugin_releases','plugin_telemetry','plugin_errors','library_manager','shop_profiles','ponto','funil','errors','oficina','oficina_tv'];
     // Páginas aposentadas — redirecionam para o destino atual
-    const LEGACY_REDIRECTS = { digital_twin: 'cnc' };
+    const LEGACY_REDIRECTS = { digital_twin: 'cnc', app: 'dash' };
     const [pg, setPg] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
         const parts = rawPath.split('/');
