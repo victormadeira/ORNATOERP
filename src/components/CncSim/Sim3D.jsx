@@ -166,6 +166,13 @@ export const Sim3D = forwardRef(function Sim3D(
         segments: [], lineMats: [],
         bbox: null,
     });
+
+    // Stabilize chapa reference — only trigger scene rebuild when actual
+    // dimensions change, not when the parent re-creates the object reference
+    // (e.g., from a Zustand/WebSocket update that returns a new object with same values).
+    const chapaKey = `${chapa?.comprimento}|${chapa?.largura}|${chapa?.espessura}|${chapa?.refilo}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const chapaStable = useMemo(() => chapa, [chapaKey]);
     const pb = useRef({ time: 0, playing: false, speed: 1, lastAt: 0, totalTime: 0 });
     const setTimeRef = useRef(null);
     const lastHudRef = useRef(0);
@@ -506,9 +513,9 @@ export const Sim3D = forwardRef(function Sim3D(
             }
         }
 
-        const chapaW = chapa?.comprimento ?? Math.max(300, maxX + 20);
-        const chapaH = chapa?.largura    ?? Math.max(300, maxY + 20);
-        const thick  = chapa?.espessura  ?? 18;
+        const chapaW = chapaStable?.comprimento ?? Math.max(300, maxX + 20);
+        const chapaH = chapaStable?.largura    ?? Math.max(300, maxY + 20);
+        const thick  = chapaStable?.espessura  ?? 18;
         tc.chapaW = chapaW; tc.chapaH = chapaH;
 
         const cx = chapaW / 2, cy = chapaH / 2, cz = -thick / 2;
@@ -568,7 +575,7 @@ export const Sim3D = forwardRef(function Sim3D(
         stockGroup.add(edgeMesh);
 
         // ── Refilo rectangle ─────────────────────────────────────────────
-        const ref = chapa?.refilo ?? 10;
+        const ref = chapaStable?.refilo ?? 10;
         if (ref > 0) {
             const rpts = [
                 [ref, ref, 0.5], [chapaW - ref, ref, 0.5],
@@ -646,7 +653,7 @@ export const Sim3D = forwardRef(function Sim3D(
 
         setTimeRef.current?.(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parsed, chapa]); // moves/totalTime/setTimeInternal derived from parsed; called via ref
+    }, [parsed, chapaStable]); // chapaStable: memoized by dimension values, not reference
 
     // ── Sync external props ───────────────────────────────────────────────────
     useEffect(() => { pb.current.playing  = playingProp || false; }, [playingProp]);
