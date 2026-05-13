@@ -163,15 +163,15 @@ export const Sim3D = forwardRef(function Sim3D(
         renderer: null, scene: null, camera: null, controls: null,
         stockGroup: null, pathGroup: null, toolGroup: null, gridGroup: null,
         matCanvas: null, matCtx: null, matTexture: null,
-        progressGeom: null, progressMat: null, progressLine: null,
         segments: [], lineMats: [],
         bbox: null,
     });
     const pb = useRef({ time: 0, playing: false, speed: 1, lastAt: 0, totalTime: 0 });
     const setTimeRef = useRef(null);
     const lastHudRef = useRef(0);
-    const lastIdxRef = useRef(-1);
-    const lastCutIdx = useRef(-1);
+    const lastIdxRef  = useRef(-1);   // last reported move index (for onMoveChange)
+    const curIdxRef   = useRef(0);    // forward-scan cursor — NEVER goes backward during playback
+    const lastCutIdx  = useRef(-1);
     const lastCanvasUpdate = useRef(0);
 
     // React state — HUD only (no re-render from animation loop)
@@ -313,27 +313,14 @@ export const Sim3D = forwardRef(function Sim3D(
         glow.position.z = -2;
         toolGroup.add(shank, tip, glow);
 
-        // Progress line (active cut segment)
-        const progressGeom = new LineGeometry();
-        progressGeom.setPositions([0, 0, 0, 0.001, 0.001, 0.001]);
-        const progressMat = new LineMaterial({
-            color: 0xfde047, linewidth: 3, transparent: true, opacity: 1,
-            resolution: new THREE.Vector2(el.clientWidth || 800, el.clientHeight || 600),
-        });
-        const progressLine = new Line2(progressGeom, progressMat);
-        progressLine.visible = false;
-        progressLine.renderOrder = 5;
-        scene.add(progressLine);
-
         three.current = {
             ...three.current,
             renderer, scene, camera, controls,
             stockGroup, pathGroup, toolGroup, gridGroup,
-            progressGeom, progressMat, progressLine,
-            segments: [], lineMats: [progressMat],
+            segments: [], lineMats: [],
         };
 
-        // Resize observer
+        // Resize observer — updates LineMaterial resolution for correct line widths
         const ro = new ResizeObserver(() => {
             const w = el.clientWidth, h = el.clientHeight;
             if (!w || !h) return;
@@ -388,45 +375,44 @@ export const Sim3D = forwardRef(function Sim3D(
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Core: advance time → update scene (no React re-render) ───────────────
+    // Uses a forward-scan cursor (curIdxRef) instead of binary search.
+    // During playback, curIdxRef only ever advances → no backward snaps.
+    // On backward seek, cursor resets to 0 and rescans forward (O(n) once).
     const setTimeInternal = useCallback((t) => {
         if (!moves.length) return;
         const safeT = Math.max(0, Math.min(pb.current.totalTime, t));
         pb.current.time = safeT;
 
-        // Binary search current move index
-        let curIdx = -1;
+        const atEnd = pb.current.totalTime > 0 && safeT >= pb.current.totalTime;
+
+        let curIdx = 0;
         let toolX = moves[0].x1, toolY = moves[0].y1, toolZ = moves[0].z1;
         let curFeed = 0, curOp = '';
-        let lo = 0, hi = moves.length - 1;
-        while (lo <= hi) {
-            const mid = (lo + hi) >>> 1;
-            const m = moves[mid];
-            if (safeT < m.tStart) hi = mid - 1;
-            else if (safeT > m.tEnd) lo = mid + 1;
-            else {
-                curIdx = mid;
-                const u = m.duration > 0 ? (safeT - m.tStart) / m.duration : 1;
-                toolX = m.x1 + (m.x2 - m.x1) * u;
-                toolY = m.y1 + (m.y2 - m.y1) * u;
-                toolZ = m.z1 + (m.z2 - m.z1) * u;
-                curFeed = m.feed || 0;
-                curOp   = m.op   || '';
-                break;
-            }
-        }
-        const atEnd = safeT >= pb.current.totalTime && pb.current.totalTime > 0;
-        if (curIdx < 0 && atEnd && moves.length) {
+
+        if (atEnd) {
             curIdx = moves.length - 1;
             const last = moves[curIdx];
             toolX = last.x2; toolY = last.y2; toolZ = last.z2;
             curFeed = last.feed || 0; curOp = last.op || '';
-        } else if (curIdx < 0 && lo > 0) {
-            // safeT falls in a gap between moves (e.g. between G0 and G1) —
-            // use end position of the last completed move to avoid snapping to origin.
-            curIdx = lo - 1;
-            const prev = moves[curIdx];
-            toolX = prev.x2; toolY = prev.y2; toolZ = prev.z2;
-            curFeed = prev.feed || 0; curOp = prev.op || '';
+            curIdxRef.current = curIdx;
+        } else {
+            // ── Forward-scan cursor ───────────────────────────────────────
+            let i = curIdxRef.current;
+            // Backward seek: reset cursor to beginning
+            if (i > 0 && safeT < moves[i].tStart) i = 0;
+            // Advance cursor forward until safeT falls within moves[i]
+            while (i < moves.length - 1 && safeT > moves[i].tEnd) i++;
+
+            curIdx = i;
+            curIdxRef.current = i;
+            const m  = moves[i];
+            const u  = m.duration > 0
+                ? Math.max(0, Math.min(1, (safeT - m.tStart) / m.duration))
+                : 1;
+            toolX = m.x1 + (m.x2 - m.x1) * u;
+            toolY = m.y1 + (m.y2 - m.y1) * u;
+            toolZ = m.z1 + (m.z2 - m.z1) * u;
+            curFeed = m.feed || 0; curOp = m.op || '';
         }
 
         // ── Segment colors ────────────────────────────────────────────────
@@ -444,34 +430,13 @@ export const Sim3D = forwardRef(function Sim3D(
             }
         }
 
-        // ── Progress line — direction arrow anchored at current tool position ──
-        // Anchored at toolX/Y/Z pointing forward avoids the "snap-back" visual
-        // that occurred when using m.x1 as the anchor (jumping at every move boundary).
-        const { progressLine, progressGeom, progressMat } = three.current;
-        if (progressLine && curIdx >= 0 && curIdx < moves.length && !atEnd) {
-            const m = moves[curIdx];
-            const moveDist = m.dist ?? 0;
-            if (m.type !== 'G0' && moveDist > 0.1) {
-                const isCut = m.z2 <= 0.1;
-                const opCat = getOpCat(m.op);
-                progressMat.color.set(isCut ? opCat.color : '#fde047');
-                // Forward arrow from current tool pos in direction of travel
-                const dx = m.x2 - m.x1, dy = m.y2 - m.y1, dz = m.z2 - m.z1;
-                const arrowLen = Math.min(40, moveDist * 0.25); // max 40mm, 25% of move
-                const ex = toolX + (dx / moveDist) * arrowLen;
-                const ey = toolY + (dy / moveDist) * arrowLen;
-                const ez = toolZ + (dz / moveDist) * arrowLen;
-                progressGeom.setPositions([toolX, toolY, toolZ, ex, ey, ez]);
-                progressLine.visible = true;
-            } else {
-                progressLine.visible = false;
-            }
-        } else if (progressLine) {
-            progressLine.visible = false;
-        }
-
         // ── Tool position ─────────────────────────────────────────────────
+        // Hide tool during G0 rapids — tool only visible when actively cutting.
+        // This eliminates the "going backward" visual when the machine rapids
+        // back to the start position for the next pass.
         if (three.current.toolGroup) {
+            const isRapid = curIdx >= 0 && moves[curIdx]?.type === 'G0';
+            three.current.toolGroup.visible = !isRapid;
             three.current.toolGroup.position.set(toolX, toolY, toolZ);
         }
 
@@ -517,12 +482,12 @@ export const Sim3D = forwardRef(function Sim3D(
         clearGroup(pathGroup);
         clearGroup(gridGroup);
         tc.segments = [];
-        tc.lineMats = tc.progressMat ? [tc.progressMat] : [];
-        if (tc.progressLine) tc.progressLine.visible = false;
-        lastIdxRef.current = -1;
-        lastCutIdx.current = -1;
+        tc.lineMats = [];
+        lastIdxRef.current  = -1;
+        curIdxRef.current   = 0;
+        lastCutIdx.current  = -1;
         lastCanvasUpdate.current = 0;
-        tc.depthMap = null; // reset depth heightmap
+        tc.depthMap = null;
 
         pb.current.time = 0;
         pb.current.totalTime = totalTime;
