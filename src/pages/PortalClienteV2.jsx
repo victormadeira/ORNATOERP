@@ -1114,7 +1114,7 @@ const V2_STYLES = `
 .v2-topbar { position: relative; z-index: 2; }
 .v2-topbar-inner {
     max-width: 880px; margin: 0 auto;
-    padding: 22px 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 40px 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
 .v2-logo { height: 32px; max-width: 160px; object-fit: contain; }
 .v2-logo-text { font-family: var(--v2-display-condensed); font-weight: 500; font-size: 22px; letter-spacing: 0.04em; color: var(--v2-ink); text-transform: uppercase; }
