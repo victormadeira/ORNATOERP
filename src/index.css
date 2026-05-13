@@ -1059,19 +1059,19 @@ tbody tr:nth-child(even):hover .td-glass {
    SIDEBAR — DARK WARM SCOPE (sempre dark, independente do modo)
    ═══════════════════════════════════════════════════════════ */
 aside.sidebar-dark {
-  --bg-sidebar: #111318;
-  --bg-card: #181B22;
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-muted: rgba(255, 255, 255, 0.03);
-  --border: rgba(255, 255, 255, 0.07);
-  --border-hover: rgba(255, 255, 255, 0.14);
-  --border-input: rgba(255, 255, 255, 0.09);
-  --text-primary: rgba(240, 242, 246, 0.97);
-  --text-secondary: rgba(160, 167, 179, 0.90);
-  --text-muted: rgba(100, 110, 128, 0.85);
-  --primary-light: rgba(19, 121, 240, 0.14);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.45);
-  background: #111318;
+  --bg-sidebar: var(--primary);
+  --bg-card: rgba(0, 0, 0, 0.15);
+  --bg-hover: rgba(255, 255, 255, 0.12);
+  --bg-muted: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.15);
+  --border-hover: rgba(255, 255, 255, 0.25);
+  --border-input: rgba(255, 255, 255, 0.18);
+  --text-primary: rgba(255, 255, 255, 0.97);
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-muted: rgba(255, 255, 255, 0.50);
+  --primary-light: rgba(255, 255, 255, 0.14);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.30);
+  background: var(--primary);
   color: var(--text-primary);
   position: relative;
 }
@@ -1097,15 +1097,15 @@ aside.sidebar-dark::after {
   color: var(--text-primary);
 }
 
-/* Ativo: graphite dark bg + branco + marker fino dourado */
+/* Ativo: overlay branco mais visível sobre fundo colorido */
 .sidebar-dark .sidebar-item-active {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: rgba(240, 242, 246, 1) !important;
+  background: rgba(255, 255, 255, 0.20) !important;
+  color: rgba(255, 255, 255, 1) !important;
   font-weight: 600;
 }
 
 .sidebar-dark .sidebar-item-active :is(svg, img) {
-  color: rgba(240, 242, 246, 1);
+  color: rgba(255, 255, 255, 1);
 }
 
 .sidebar-dark .sidebar-item-active::before {
