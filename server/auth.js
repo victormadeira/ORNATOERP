@@ -35,7 +35,7 @@ export function signToken(user) {
             email: user.email,
             role: user.role,
             nome: user.nome,
-            empresa_id: user.empresa_id || 1,
+            empresa_id: user.empresa_id || (console.warn(`[auth] usuário ${user.id} sem empresa_id — fallback para 1`), 1),
         },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRY }
@@ -51,6 +51,7 @@ export function signToken(user) {
  * Uso: const { empresa_id } = tenantOf(req);
  */
 export function tenantOf(req) {
+    if (!req.user?.empresa_id) console.warn(`[tenantOf] req.user sem empresa_id (user ${req.user?.id}) — fallback para 1`);
     return { empresa_id: req.user?.empresa_id || 1 };
 }
 

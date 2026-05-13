@@ -337,6 +337,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [simSending, setSimSending] = useState(false);
     const [simDossie, setSimDossie] = useState({});
     const [simScore, setSimScore] = useState(null); // { score, classificacao, tags, violations, detalhes }
+    const [simDossieWarning, setSimDossieWarning] = useState(false); // true quando IA não retornou bloco <dossie>
     const [simBloqueado, setSimBloqueado] = useState(null); // { motivo } — uma vez bloqueada, nada mais vai pra API
     const [simOpen, setSimOpen] = useState(false);
     // Escalação pós-handoff
@@ -785,6 +786,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
             } else {
                 setSimHistory([...newHistory, { role: 'assistant', content: r.text }]);
                 setSimDossie(r.dossie_acumulado || {});
+                setSimDossieWarning(!r.dossie_novo);
                 setSimScore({
                     score: r.score,
                     classificacao: r.classificacao,
@@ -811,6 +813,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         setSimScore(null);
         setSimInput('');
         setSimBloqueado(null);
+        setSimDossieWarning(false);
     };
 
     const loadProspeccao = async () => {
@@ -3419,7 +3422,12 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
 
                                             {/* Dossiê */}
                                             <div className="rounded-lg p-3 flex-1" style={{ border: '1px solid var(--border)', background: 'var(--bg-muted)', maxHeight: 240, overflowY: 'auto' }}>
-                                                <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Dossiê acumulado</div>
+                                                <div className="text-[10px] uppercase tracking-wide mb-2 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                                                    Dossiê acumulado
+                                                    {simDossieWarning && (
+                                                        <span title="IA não retornou bloco <dossie> — dados desta rodada não foram extraídos" style={{ color: 'var(--warning)', fontWeight: 600 }}>⚠ sem retorno</span>
+                                                    )}
+                                                </div>
                                                 {Object.keys(simDossie).length > 0 ? (
                                                     <pre className="text-[10px] whitespace-pre-wrap break-all" style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', lineHeight: 1.5 }}>
                                                         {JSON.stringify(simDossie, null, 2)}

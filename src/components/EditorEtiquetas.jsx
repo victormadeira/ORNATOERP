@@ -81,7 +81,7 @@ const VARIAVEIS = [
 const GRUPOS_VAR = [...new Set(VARIAVEIS.map(v => v.grupo))];
 
 // ─── Helpers ────────────────────────────────────────────
-const uid = () => 'el_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+const uid = () => 'el_' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 const snap = (v, grid) => grid > 0 ? Math.round(v / grid) * grid : v;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 

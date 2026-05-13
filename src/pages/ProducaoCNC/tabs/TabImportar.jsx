@@ -2,6 +2,7 @@
 // Fase C: SectionHeader + EmptyState + botões padronizados + tokens.
 
 import { useState, useRef } from 'react';
+
 import api from '../../../api';
 import { Z, SectionHeader } from '../../../ui';
 import {
@@ -27,8 +28,27 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
     const [matCheckError, setMatCheckError] = useState(null); // erro de validação de materiais
     const fileRef = useRef(null);
 
+    const [maxcutModal, setMaxcutModal] = useState(false);
+    const [maxcutCsv, setMaxcutCsv] = useState('');
+    const [maxcutNome, setMaxcutNome] = useState('');
+    const [maxcutEsp, setMaxcutEsp] = useState('18');
+    const [maxcutMat, setMaxcutMat] = useState('');
+    const [maxcutImporting, setMaxcutImporting] = useState(false);
+    const maxcutFileRef = useRef(null);
+
     const handleFile = (file) => {
         if (!file) return;
+        const isCsv = file.name.toLowerCase().endsWith('.csv');
+        if (isCsv) {
+            const reader2 = new FileReader();
+            reader2.onload = (e2) => {
+                setMaxcutCsv(e2.target.result);
+                setMaxcutNome(file.name.replace(/\.csv$/i, ''));
+                setMaxcutModal(true);
+            };
+            reader2.readAsText(file);
+            return;
+        }
         const isDxf = file.name.toLowerCase().endsWith('.dxf');
         const isJson = file.name.toLowerCase().endsWith('.json');
         if (!isDxf && !isJson) {
@@ -145,6 +165,29 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
             notify('Erro: ' + (err.error || err.message));
         } finally {
             setImporting(false);
+        }
+    };
+
+    const doImportMaxcut = async () => {
+        if (!maxcutCsv) return;
+        setMaxcutImporting(true);
+        try {
+            const r = await api.post('/cnc/lotes/importar-maxcut', {
+                csvContent: maxcutCsv,
+                nome: maxcutNome,
+                espessura_padrao: parseFloat(maxcutEsp) || 18,
+                material_padrao: maxcutMat,
+            });
+            notify(`MaxCut importado: ${r.total_pecas} peças`);
+            setMaxcutModal(false);
+            setMaxcutCsv('');
+            setMaxcutNome('');
+            setLastImportedLote(r);
+            loadLotes();
+        } catch (err) {
+            notify('Erro: ' + (err.error || err.message), 'error');
+        } finally {
+            setMaxcutImporting(false);
         }
     };
 
@@ -281,10 +324,16 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                     {dragging ? 'Solte o arquivo aqui' : 'Arraste o arquivo ou clique para selecionar'}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-                    JSON (Plugin SketchUp) ou DXF (Promob, AutoCAD, etc.)
+                    JSON (Plugin SketchUp), DXF (Promob, AutoCAD) ou{' '}
+                    <button
+                        onClick={e => { e.stopPropagation(); setMaxcutModal(true); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, padding: 0, textDecoration: 'underline' }}
+                    >
+                        CSV MaxCut
+                    </button>
                 </div>
                 <input
-                    ref={fileRef} type="file" accept=".json,.dxf"
+                    ref={fileRef} type="file" accept=".json,.dxf,.csv"
                     style={{ display: 'none' }}
                     onChange={e => handleFile(e.target.files?.[0])}
                 />
@@ -756,6 +805,112 @@ export function TabImportar({ lotes, loadLotes, notify, setLoteAtual, setTab }) 
                     >
                         Ver Lotes <ChevronRight size={13} />
                     </button>
+                </div>
+            )}
+
+            {/* Modal MaxCut CSV */}
+            {maxcutModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 2000,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <div style={{
+                        background: 'var(--bg-card)', borderRadius: 16, padding: 24,
+                        width: 480, maxWidth: '95vw', border: '1px solid var(--border)',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                📊 Importar MaxCut CSV
+                            </div>
+                            <button onClick={() => setMaxcutModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18 }}>×</button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Nome do Lote</div>
+                                <input
+                                    value={maxcutNome}
+                                    onChange={e => setMaxcutNome(e.target.value)}
+                                    placeholder="Nome do lote de corte"
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-muted)', color: 'var(--text-primary)', fontSize: 13 }}
+                                />
+                            </div>
+
+                            {!maxcutCsv ? (
+                                <div>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Arquivo CSV MaxCut</div>
+                                    <div
+                                        onClick={() => maxcutFileRef.current?.click()}
+                                        style={{
+                                            padding: 24, textAlign: 'center', cursor: 'pointer',
+                                            border: '2px dashed var(--border)', borderRadius: 10,
+                                            background: 'var(--bg-muted)', color: 'var(--text-muted)', fontSize: 13,
+                                        }}
+                                    >
+                                        Clique para selecionar o arquivo .csv
+                                    </div>
+                                    <input ref={maxcutFileRef} type="file" accept=".csv,.txt"
+                                        style={{ display: 'none' }}
+                                        onChange={e => {
+                                            const f = e.target.files?.[0];
+                                            if (!f) return;
+                                            const r = new FileReader();
+                                            r.onload = ev => {
+                                                setMaxcutCsv(ev.target.result);
+                                                if (!maxcutNome) setMaxcutNome(f.name.replace(/\.[^.]+$/, ''));
+                                            };
+                                            r.readAsText(f);
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)', fontSize: 12, color: '#15803d' }}>
+                                    ✓ CSV carregado — {maxcutCsv.split('\n').length - 1} linhas de dados
+                                </div>
+                            )}
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Espessura padrão (mm)</div>
+                                    <input type="number" value={maxcutEsp} onChange={e => setMaxcutEsp(e.target.value)}
+                                        placeholder="18" min="1" max="100"
+                                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-muted)', color: 'var(--text-primary)', fontSize: 13 }}
+                                    />
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>Usado quando o CSV não tem coluna de espessura</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Material padrão</div>
+                                    <input value={maxcutMat} onChange={e => setMaxcutMat(e.target.value)}
+                                        placeholder="MDF 18mm"
+                                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-muted)', color: 'var(--text-primary)', fontSize: 13 }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-muted)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                <strong>Colunas suportadas:</strong> quantidade, comprimento, largura, espessura, descricao, material, veio (S/N), modulo, borda_frontal, borda_traseira, borda_dir, borda_esq. Separador: vírgula ou ponto-e-vírgula.
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                                <button onClick={() => setMaxcutModal(false)}
+                                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={doImportMaxcut}
+                                    disabled={!maxcutCsv || maxcutImporting}
+                                    style={{
+                                        padding: '8px 20px', borderRadius: 8, border: 'none',
+                                        background: maxcutCsv && !maxcutImporting ? 'var(--primary)' : 'var(--bg-muted)',
+                                        color: maxcutCsv && !maxcutImporting ? '#fff' : 'var(--text-muted)',
+                                        cursor: maxcutCsv && !maxcutImporting ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 600,
+                                    }}>
+                                    {maxcutImporting ? 'Importando...' : 'Importar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

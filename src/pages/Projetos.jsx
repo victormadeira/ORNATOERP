@@ -462,7 +462,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
 
     // Carregar template padrão do empresa_config + templates salvos
     useEffect(() => {
-        api.get('/projetos/templates/list').then(setTemplates).catch(e => console.error('Erro ao carregar templates:', e));
+        api.get('/projetos/templates/list').then(setTemplates).catch(e => { console.error('Erro ao carregar templates:', e); setErr('Falha ao carregar templates salvos.'); });
         if (!tplLoaded) {
             api.get('/config/empresa').then(cfg => {
                 let tpl = [];
@@ -511,7 +511,7 @@ function NovoProjetoModal({ orcs, onClose, onSave }) {
         api.post('/projetos/templates', { nome: templateNome.trim(), etapas: nomes }).then(() => {
             api.get('/projetos/templates/list').then(setTemplates);
             setShowSaveTemplate(false); setTemplateNome('');
-        }).catch(e => console.error('Erro ao salvar template:', e));
+        }).catch(e => { console.error('Erro ao salvar template:', e); setErr('Falha ao salvar template: ' + (e?.error || e?.message || 'erro desconhecido')); });
     };
 
     const deleteTemplate = (id) => {
@@ -633,10 +633,12 @@ function EditEtapaModal({ etapa, etapas, users, onSave, onClose }) {
     const [progresso, setProgresso] = useState(etapa.progresso || 0);
     const [dependenciaId, setDependenciaId] = useState(etapa.dependencia_id || '');
     const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState('');
 
     const handleSave = async () => {
         if (!nome.trim()) return;
         setSaving(true);
+        setErr('');
         try {
             await api.put(`/projetos/etapas/${etapa.id}`, {
                 nome: nome.trim(), descricao,
@@ -648,12 +650,13 @@ function EditEtapaModal({ etapa, etapas, users, onSave, onClose }) {
             });
             onSave();
             onClose();
-        } catch (ex) { console.error('Erro ao salvar etapa:', ex); }
+        } catch (ex) { console.error('Erro ao salvar etapa:', ex); setErr(ex?.error || ex?.message || 'Erro ao salvar etapa'); }
         finally { setSaving(false); }
     };
 
     return (
         <Modal title="Editar Etapa" close={onClose} w={540}>
+            {err && <p style={{ color: 'var(--danger)', marginBottom: 12, fontSize: 13 }}>{err}</p>}
             <div style={{ display: 'grid', gap: 14 }}>
                 <div>
                     <label className={Z.lbl}>Nome</label>

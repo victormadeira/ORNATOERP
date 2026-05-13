@@ -356,6 +356,19 @@ function cleanClosedPath2D(pts) {
     return clean;
 }
 
+// Signed area via shoelace — positive = CCW, negative = CW
+function signedArea2D(pts) {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+        const j = (i + 1) % pts.length;
+        a += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+    }
+    return a / 2;
+}
+// Three.js Shape outer must be CCW; holes must be CW
+function ensureCCW(pts) { return signedArea2D(pts) >= 0 ? pts : [...pts].reverse(); }
+function ensureCW(pts)  { return signedArea2D(pts) <= 0 ? pts : [...pts].reverse(); }
+
 function contourPointToXY(point, sc) {
     if (Array.isArray(point)) return [Number(point[0] || 0) * sc, Number(point[1] || 0) * sc];
     return [
@@ -696,7 +709,8 @@ function buildBaseShape(comp, larg, esp, workersA, sc, machPayload = {}) {
     // Build outline incorporating open paths (waste removed from contour).
     // A closed passante path that spans the whole blank is the real external
     // contour, not an internal hole. This covers organic tops/contour pieces.
-    const outlinePts = cleanClosedPath2D(outerContour || buildOutlineWithCuts(SX, SZ, openPaths));
+    // Ensure CCW for outer (Three.js Shape requires CCW; CW input inverts normals → black face)
+    const outlinePts = ensureCCW(cleanClosedPath2D(outerContour || buildOutlineWithCuts(SX, SZ, openPaths)));
 
     const shape = new THREE.Shape();
     shape.moveTo(outlinePts[0][0], outlinePts[0][1]);
@@ -705,12 +719,13 @@ function buildBaseShape(comp, larg, esp, workersA, sc, machPayload = {}) {
     }
     shape.closePath();
 
-    // Add closed paths as internal holes
+    // Add closed paths as internal holes — holes must be CW (opposite of outer)
     for (const cp of closedPaths) {
         if (cp.length < 3) continue;
+        const holePts = ensureCW(cp);
         const holePath = new THREE.Path();
-        holePath.moveTo(cp[0][0], cp[0][1]);
-        for (let i = 1; i < cp.length; i++) holePath.lineTo(cp[i][0], cp[i][1]);
+        holePath.moveTo(holePts[0][0], holePts[0][1]);
+        for (let i = 1; i < holePts.length; i++) holePath.lineTo(holePts[i][0], holePts[i][1]);
         holePath.closePath();
         shape.holes.push(holePath);
     }

@@ -11,7 +11,7 @@ const MAX_RETRY = 3;
 const RETRY_DELAY_BASE = 1500;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const uid = () => crypto.randomUUID();
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const compressToBlob = (file) => new Promise((resolve, reject) => {

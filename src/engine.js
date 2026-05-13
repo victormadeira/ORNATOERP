@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════
-export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+export const uid = () => crypto.randomUUID();
 export const R$ = v => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
 export const N = (v, d = 2) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v || 0);
 export const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));

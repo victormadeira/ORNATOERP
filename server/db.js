@@ -3009,7 +3009,7 @@ try {
     ins.run('Madeira Macica', 'madeira_macica', 25, '{}', 0, '#A0785A');
     console.log('[OK] Seed materiais_modelagem: 7 materiais criados');
   }
-} catch (e) { console.warn('Modelagem tables:', e.message); }
+} catch (e) { console.error('[db] Erro ao criar/popular tabelas de modelagem:', e.message); }
 
 // Backfill: gerar números para orçamentos que ainda não têm
 {
@@ -3075,10 +3075,15 @@ if (!empExists) {
 // Verifica por ROLE (não por email) — evita criar duplicata se o email do admin foi alterado.
 const adminExists = db.prepare("SELECT id FROM users WHERE role = 'admin' AND ativo = 1 LIMIT 1").get();
 if (!adminExists) {
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd && !process.env.ADMIN_PASSWORD) {
+    console.error('[SEGURANÇA CRÍTICA] Variável ADMIN_PASSWORD não definida em produção. Defina-a antes de iniciar o servidor.');
+    process.exit(1);
+  }
   const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
   const hash = bcrypt.hashSync(adminPass, 12);
   db.prepare('INSERT INTO users (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)').run('Administrador', 'admin@admin.com', hash, 'admin');
-  if (adminPass === 'admin123') console.warn('[SEGURANÇA] Admin criado com senha padrão "admin123". Defina ADMIN_PASSWORD no ambiente de produção!');
+  if (adminPass === 'admin123') console.warn('[SEGURANÇA] Admin criado com senha padrão "admin123". Em produção, defina ADMIN_PASSWORD=<senha> no ambiente.');
   else console.log('✓ Admin criado: admin@admin.com (senha via env)');
 }
 

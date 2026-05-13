@@ -589,6 +589,54 @@ export function renderMachining(piece, px, py, pw, ph, scale, rotated, pieceW, p
     );
 }
 
+// ─── Vacuum Risk Score — risco de arraste/soltura da peça pelo vácuo da CNC ──────────────
+/**
+ * Calcula o score de risco de arraste/vácuo para uma peça na chapa.
+ * Retorna 0-100 (0=seguro, 100=risco alto).
+ *
+ * Fatores:
+ * - Área pequena: peças pequenas têm menos sucção de vácuo
+ * - Aspect ratio extremo: peças muito finas são mais difíceis de fixar
+ * - Posição na borda: peças na borda da chapa têm menos suporte lateral
+ * - Peças ao redor já cortadas: se os vizinhos serão cortados antes, o vácuo cai
+ */
+function calcVacuumRiskScore(peca, todasPecas, chapaW, chapaH) {
+    const area = peca.w * peca.h;
+    const aspectRatio = Math.max(peca.w, peca.h) / Math.max(1, Math.min(peca.w, peca.h));
+
+    // Fator 1: Área (0-40 pontos) — área menor = risco maior
+    // Abaixo de 100cm² (100.000mm²) = alto risco; acima de 400cm² = seguro
+    const areaFactor = Math.max(0, Math.min(40, 40 * (1 - Math.min(area, 400000) / 400000)));
+
+    // Fator 2: Aspect ratio (0-30 pontos) — peça muito fina
+    // Ratio > 8 = alto risco; ratio < 3 = seguro
+    const aspectFactor = Math.max(0, Math.min(30, 30 * (Math.min(aspectRatio, 10) - 3) / 7));
+
+    // Fator 3: Posição na borda (0-20 pontos)
+    // Se a peça está na borda da chapa (dentro de 50mm da borda) = mais risco
+    const distBordaX = Math.min(peca.x, chapaW - peca.x - peca.w);
+    const distBordaY = Math.min(peca.y, chapaH - peca.y - peca.h);
+    const distBorda = Math.max(0, Math.min(distBordaX, distBordaY));
+    const bordaFactor = Math.max(0, Math.min(20, 20 * (1 - Math.min(distBorda, 50) / 50)));
+
+    // Fator 4: Vizinhos pequenos ao redor (0-10 pontos)
+    // Se muitas peças pequenas ao redor, compartilham área de vácuo
+    const EXPAND = 30;
+    const vizinhos = todasPecas.filter(p => {
+        if (p === peca) return false;
+        const touching = (
+            p.x < peca.x + peca.w + EXPAND &&
+            p.x + p.w + EXPAND > peca.x &&
+            p.y < peca.y + peca.h + EXPAND &&
+            p.y + p.h + EXPAND > peca.y
+        );
+        return touching && (p.w * p.h) < 90000; // vizinhos pequenos (<300x300mm)
+    });
+    const vizinhosFactor = Math.min(10, vizinhos.length * 2.5);
+
+    return Math.round(areaFactor + aspectFactor + bordaFactor + vizinhosFactor);
+}
+
 // ─── SVG visualization with collision detection, magnetic snap, kerf, lock, context menu ──
 export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, setPanOffset, panOffset, onWheel, onPanStart, onPanMove, onPanEnd, resetView, getModColor, onAdjust, selectedPieces = [], onSelectPiece, kerfSize = 4, espacoPecas = 7, allChapas = [], classifyLocal, classColors = {}, classLabels = {}, onGerarGcode, onGerarGcodePeca, gcodeLoading, onView3D, onPrintLabel, onPrintSingleLabel, onPrintFolha, onSaveRetalhos, setTab, sobraMinW = 300, sobraMinH = 600, validationConflicts = [], machineArea, timerInfo, loteAtual, bandejaPieces = [], notify, onInspect, printStatusMap = {} }) {
     const [hovered, setHovered] = useState(null);
@@ -2099,9 +2147,54 @@ export function ChapaViz({ chapa, idx, pecasMap, modo, zoomLevel, setZoomLevel, 
                                             <text x={px + pw / 2} y={py + 2 + 10} textAnchor="middle" fontSize={8} fill="#fff" fontWeight={900}>!</text>
                                         </g>
                                     )}
+
+                                    {/* ══ Vacuum Risk Score badge ══ */}
+                                    {(() => {
+                                        const risco = calcVacuumRiskScore(p, chapa.pecas, chapa.comprimento, chapa.largura);
+                                        if (risco < 35) return null;
+                                        const isAlto = risco >= 65;
+                                        const badgeColor = isAlto ? '#ef4444' : '#f59e0b';
+                                        const badgeText = isAlto ? '!' : '⚠';
+                                        const badgeSize = Math.min(pw, ph) > 60 ? 14 : 10;
+                                        const bx = px + pw - badgeSize - 2;
+                                        const by = py + ph - badgeSize - 2;
+                                        return (
+                                            <g key={`risk-${pi}`} style={{ pointerEvents: 'none' }}>
+                                                <circle
+                                                    cx={bx + badgeSize / 2}
+                                                    cy={by + badgeSize / 2}
+                                                    r={badgeSize / 2}
+                                                    fill={badgeColor}
+                                                    opacity={0.9}
+                                                />
+                                                <text
+                                                    x={bx + badgeSize / 2}
+                                                    y={by + badgeSize / 2 + 1}
+                                                    textAnchor="middle"
+                                                    dominantBaseline="central"
+                                                    fontSize={badgeSize * 0.65}
+                                                    fill="white"
+                                                    fontWeight="bold"
+                                                >
+                                                    {badgeText}
+                                                </text>
+                                                <title>{`Risco de vácuo: ${risco}/100 ${isAlto ? '(ALTO)' : '(MÉDIO)'}\nÁrea: ${Math.round(p.w * p.h / 100)}cm²`}</title>
+                                            </g>
+                                        );
+                                    })()}
                                 </g>
                             );
                         })}
+
+                        {/* ══ Vacuum Risk Score legend ══ */}
+                        {chapa.pecas?.some(p => calcVacuumRiskScore(p, chapa.pecas, chapa.comprimento, chapa.largura) >= 35) && (
+                            <g transform={`translate(${refiloVal * scale + 4}, ${svgH + 10})`} style={{ pointerEvents: 'none' }}>
+                                <circle cx={7} cy={7} r={7} fill="#ef4444" opacity={0.9} />
+                                <text x={17} y={11} fontSize={9} fill="var(--text-muted)">Risco alto (≥65)</text>
+                                <circle cx={95} cy={7} r={7} fill="#f59e0b" opacity={0.9} />
+                                <text x={105} y={11} fontSize={9} fill="var(--text-muted)">Risco médio (≥35)</text>
+                            </g>
+                        )}
 
                         {/* ══ Retalhos Mode Overlay ══ */}
                         {retMode && retDefs.map((rd, ri) => {

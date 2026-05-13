@@ -14,6 +14,88 @@ import ToolbarDropdown from '../../../../components/ToolbarDropdown';
 import { STATUS_COLORS } from '../../shared/constants.js';
 import { CfgFerramentas } from './CfgFerramentas.jsx';
 
+// ═══ Presets de máquinas CNC populares ═══════════════════════════════
+const CNC_PRESETS = [
+    {
+        id: 'ncstudio_v5',
+        nome: 'NcStudio V5 — Router chinesa padrão',
+        desc: 'Controle DSP A11/A15. Muito comum em routers importados.',
+        vel_vazio: 12000, vel_corte: 5000, vel_aproximacao: 8000, rpm_padrao: 18000,
+        z_seguro: 30, z_aproximacao: 2, profundidade_extra: 0.2,
+        usar_rampa: 1, rampa_angulo: 3, vel_mergulho: 1500, z_aproximacao_rapida: 5,
+        usar_lead_in: 1, lead_in_tipo: 'arco', lead_in_raio: 5,
+        usar_n_codes: 0, usar_ponto_decimal: 1, casas_decimais: 3,
+        gcode_header: 'G90 G21\nG0 Z30\nM3 S18000\nG4 P3',
+        gcode_footer: 'M5\nG0 Z50\nG0 X0 Y0\nM30',
+        comentario_prefixo: ';', extensao_arquivo: '.nc',
+    },
+    {
+        id: 'mach3',
+        nome: 'Mach3 / Mach4 — PC com porta paralela',
+        desc: 'Software de controle via PC com porta paralela ou USB. Muito popular em CNCs artesanais.',
+        vel_vazio: 10000, vel_corte: 4000, vel_aproximacao: 6000, rpm_padrao: 18000,
+        z_seguro: 25, z_aproximacao: 3, profundidade_extra: 0.2,
+        usar_rampa: 1, rampa_angulo: 3, vel_mergulho: 1200, z_aproximacao_rapida: 5,
+        usar_lead_in: 1, lead_in_tipo: 'arco', lead_in_raio: 5,
+        usar_n_codes: 0, usar_ponto_decimal: 1, casas_decimais: 3,
+        gcode_header: 'G90 G21 G17\nM3 S18000\nG4 P2',
+        gcode_footer: 'M5\nG0 Z25\nG0 X0 Y0\nM30',
+        comentario_prefixo: ';', extensao_arquivo: '.tap',
+    },
+    {
+        id: 'linuxcnc',
+        nome: 'LinuxCNC — Software open-source',
+        desc: 'Controle de alta precisão baseado em Linux. Usado em CNCs de precisão e fresadoras.',
+        vel_vazio: 8000, vel_corte: 3000, vel_aproximacao: 5000, rpm_padrao: 12000,
+        z_seguro: 20, z_aproximacao: 2, profundidade_extra: 0.1,
+        usar_rampa: 1, rampa_angulo: 2, vel_mergulho: 1000, z_aproximacao_rapida: 3,
+        usar_lead_in: 1, lead_in_tipo: 'arco', lead_in_raio: 4,
+        usar_n_codes: 1, usar_ponto_decimal: 1, casas_decimais: 4,
+        gcode_header: 'G90 G21 G17 G94\nM3 S12000\nG4 P1',
+        gcode_footer: 'M5\nG0 Z20\nG0 X0 Y0\nM2',
+        comentario_prefixo: ';', extensao_arquivo: '.ngc',
+    },
+    {
+        id: 'grbl',
+        nome: 'GRBL — Arduino / hobby',
+        desc: 'Firmware open-source para Arduino. Máquinas menores e hobby.',
+        vel_vazio: 3000, vel_corte: 1200, vel_aproximacao: 2000, rpm_padrao: 12000,
+        z_seguro: 10, z_aproximacao: 2, profundidade_extra: 0.1,
+        usar_rampa: 1, rampa_angulo: 3, vel_mergulho: 600, z_aproximacao_rapida: 3,
+        usar_lead_in: 0, lead_in_tipo: 'arco', lead_in_raio: 3,
+        usar_n_codes: 0, usar_ponto_decimal: 1, casas_decimais: 3,
+        gcode_header: 'G90 G21\nM3 S12000\nG4 P2',
+        gcode_footer: 'M5\nG0 Z10\nG0 X0 Y0\nM2',
+        comentario_prefixo: ';', extensao_arquivo: '.nc',
+    },
+    {
+        id: 'syntec_6mb',
+        nome: 'Syntec 6MB — Controle Syntec',
+        desc: 'Controle Syntec popular em CNCs industriais asiáticas e algumas nacionais.',
+        vel_vazio: 15000, vel_corte: 6000, vel_aproximacao: 10000, rpm_padrao: 18000,
+        z_seguro: 30, z_aproximacao: 2, profundidade_extra: 0.2,
+        usar_rampa: 1, rampa_angulo: 3, vel_mergulho: 1500, z_aproximacao_rapida: 5,
+        usar_lead_in: 1, lead_in_tipo: 'arco', lead_in_raio: 5,
+        usar_n_codes: 1, usar_ponto_decimal: 1, casas_decimais: 3,
+        gcode_header: 'G90 G21\nM03 S18000\nG04 P3',
+        gcode_footer: 'M05\nG00 Z30\nG00 X0 Y0\nM30',
+        comentario_prefixo: ';', extensao_arquivo: '.nc',
+    },
+    {
+        id: 'osai_10',
+        nome: 'OSAI 10 — Controle OSAI',
+        desc: 'Controle italiano de alta performance. Encontrado em máquinas SCM e similares.',
+        vel_vazio: 20000, vel_corte: 8000, vel_aproximacao: 12000, rpm_padrao: 18000,
+        z_seguro: 30, z_aproximacao: 2, profundidade_extra: 0.15,
+        usar_rampa: 1, rampa_angulo: 2, vel_mergulho: 2000, z_aproximacao_rapida: 5,
+        usar_lead_in: 1, lead_in_tipo: 'arco', lead_in_raio: 6,
+        usar_n_codes: 1, usar_ponto_decimal: 1, casas_decimais: 3,
+        gcode_header: 'G90 G71\nM03 S18000\nG04 F3',
+        gcode_footer: 'M05\nG00 Z30\nG00 X0 Y0\nM30',
+        comentario_prefixo: '(', extensao_arquivo: '.cnc',
+    },
+];
+
 export function CfgMaquinas({ notify }) {
     const [maquinas, setMaquinas] = useState([]);
     const [modal, setModal] = useState(null);
@@ -192,6 +274,12 @@ function newMaquinaDefaults() {
 function MaquinaModal({ data, onSave, onClose }) {
     const [f, setF] = useState({ ...newMaquinaDefaults(), ...data });
     const [secao, setSecao] = useState('geral');
+    const [showPresets, setShowPresets] = useState(false);
+    const applyPreset = (preset) => {
+        const { id: _id, nome: _nome, desc: _desc, ...campos } = preset;
+        setF(p => ({ ...p, ...campos }));
+        setShowPresets(false);
+    };
     const upd = (k, v) => setF(p => ({ ...p, [k]: v }));
 
     // ── Shared UI micro-components (used across múltiplas seções) ─────────────
@@ -285,6 +373,49 @@ function MaquinaModal({ data, onSave, onClose }) {
 
             {secao === 'geral' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                    {/* ── Preset loader ── */}
+                    <div style={{ marginBottom: 4 }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowPresets(v => !v)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                padding: '7px 14px', borderRadius: 8, border: '1px dashed var(--border)',
+                                background: 'var(--bg-muted)', color: 'var(--primary)', cursor: 'pointer',
+                                fontSize: 12, fontWeight: 600, width: '100%', justifyContent: 'center',
+                            }}
+                        >
+                            ⚡ Carregar Preset de Máquina CNC
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>
+                                (NcStudio, Mach3, GRBL, Syntec, OSAI, LinuxCNC)
+                            </span>
+                        </button>
+
+                        {showPresets && (
+                            <div style={{
+                                marginTop: 8, borderRadius: 10, border: '1px solid var(--border)',
+                                background: 'var(--bg-card)', overflow: 'hidden',
+                            }}>
+                                {CNC_PRESETS.map(p => (
+                                    <div
+                                        key={p.id}
+                                        onClick={() => applyPreset(p)}
+                                        style={{
+                                            padding: '10px 14px', cursor: 'pointer',
+                                            borderBottom: '1px solid var(--border)',
+                                            transition: 'background 0.1s',
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = ''}
+                                    >
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{p.nome}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.desc}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
                     {/* ── Identificação ── */}
                     <GH icon="🏷" label="Identificação" />

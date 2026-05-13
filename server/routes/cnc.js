@@ -3,6 +3,7 @@ import multer from 'multer';
 import AdmZip from 'adm-zip';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import db from '../db.js';
 import { requireAuth } from '../auth.js';
@@ -29,7 +30,9 @@ const router = Router();
 function notifyCNC(db, userId, tipo, titulo, mensagem, refId, refTipo) {
     try {
         db.prepare(`INSERT INTO notificacoes (tipo, titulo, mensagem, referencia_id, referencia_tipo, criado_por) VALUES (?,?,?,?,?,?)`).run(tipo, titulo, mensagem, refId, refTipo, userId);
-    } catch (_) {}
+    } catch (e) {
+        console.error('[notifyCNC] Falha ao inserir notificação:', e.message);
+    }
 }
 
 // ─── Disparar CNC webhooks configurados pelo usuário ───────────────
@@ -48,7 +51,9 @@ async function dispatchCncWebhooks(userId, evento, payload) {
                 signal: AbortSignal.timeout(8000),
             }).catch(e => console.error(`[CNC webhook] ${hook.url} falhou: ${e.message}`));
         }
-    } catch (_) {}
+    } catch (e) {
+        console.error('[dispatchCncWebhooks] Erro ao disparar webhooks:', e.message);
+    }
 }
 
 // ─── Atualizar cnc_production_stats após lote finalizado ────────────
@@ -57,7 +62,7 @@ function updateProductionStats(loteId) {
         const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ?').get(loteId);
         if (!lote || !lote.plano_json) return;
         let plano;
-        try { plano = JSON.parse(lote.plano_json); } catch { return; }
+        try { plano = JSON.parse(lote.plano_json); } catch (e) { console.error('[updateProductionStats] JSON inválido lote', loteId, e.message); return; }
 
         const chapas = plano.chapas || [];
         const pecasCount = chapas.reduce((sum, ch) => sum + (ch.pecas?.length || 0), 0);
@@ -119,7 +124,9 @@ function checkToolMaintenanceAlert(toolId, userId) {
                     toolId, 'cnc_ferramenta');
             }
         }
-    } catch (_) {}
+    } catch (e) {
+        console.error('[checkToolMaintenanceAlert] Erro ao verificar alerta de ferramenta:', e.message);
+    }
 }
 
 // ─── Gerar cortes de separação para retalhos (pós-processamento) ───
@@ -258,7 +265,7 @@ function _inferToolFromCode(tc) {
 function parseMachiningData(raw) {
     if (!raw) return {};
     if (typeof raw === 'object') return raw;
-    try { return JSON.parse(raw); } catch (_) { return {}; }
+    try { return JSON.parse(raw); } catch (e) { console.warn('[parseMachiningData] JSON inválido:', e.message); return {}; }
 }
 
 function hasMachiningPayload(mach) {
@@ -822,7 +829,7 @@ router.post('/lotes/importar', requireAuth, (req, res) => {
                         const tc = w.tool_code || w.tool || '';
                         if (tc) toolCodesInLote.add(tc);
                     }
-                } catch (_) {}
+                } catch (e) { console.warn('[toolCodes] machining_json inválido peça', p.id, e.message); }
             }
 
             if (toolCodesInLote.size > 0) {
@@ -1247,7 +1254,7 @@ router.post('/pecas/:pecaId/confirmar-usinagem-dxf', requireAuth, (req, res) => 
 
         // Merge with existing or replace
         let existingMach = {};
-        try { existingMach = peca.machining_json ? JSON.parse(peca.machining_json) : {}; } catch (_) {}
+        try { existingMach = peca.machining_json ? JSON.parse(peca.machining_json) : {}; } catch (e) { console.warn('[setWorkers] machining_json inválido peça', peca.id, e.message); }
         const existingWorkers = existingMach.workers ? (Array.isArray(existingMach.workers) ? existingMach.workers : Object.values(existingMach.workers)) : [];
 
         const finalWorkers = merge ? [...existingWorkers, ...workers] : workers;
@@ -1654,7 +1661,7 @@ router.post('/pecas/:loteId', requireAuth, (req, res) => {
         if (!comp || !larg || comp <= 0 || larg <= 0) return res.status(400).json({ error: 'Comprimento e largura devem ser maiores que zero' });
         if (comp > 5000 || larg > 3000) return res.status(400).json({ error: 'Dimensões excedem o limite máximo (5000 × 3000mm)' });
 
-        const persistent_id = `M_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const persistent_id = `M_${randomUUID()}`;
 
         const result = db.prepare(`
             INSERT INTO cnc_pecas (lote_id, persistent_id, descricao, modulo_desc, material, material_code,
@@ -1726,7 +1733,7 @@ router.delete('/pecas/:id', requireAuth, (req, res) => {
 router.post('/pecas/:id/duplicar', requireAuth, (req, res) => {
     const peca = db.prepare('SELECT p.* FROM cnc_pecas p JOIN cnc_lotes l ON p.lote_id = l.id WHERE p.id = ? AND l.user_id = ?').get(req.params.id, req.user.id);
     if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
-    const persistent_id = `D_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const persistent_id = `D_${randomUUID()}`;
     const result = db.prepare(`
         INSERT INTO cnc_pecas (lote_id, persistent_id, upmcode, descricao, modulo_desc, modulo_id,
           produto_final, material, material_code, espessura, comprimento, largura, quantidade,
@@ -1762,7 +1769,7 @@ router.get('/retalhos-preview/:loteId', requireAuth, (req, res) => {
         try {
             const aliases = db.prepare('SELECT material_code_importado, chapa_id FROM cnc_chapa_aliases WHERE user_id = ?').all(req.user.id);
             for (const a of aliases) aliasMap[a.material_code_importado] = a.chapa_id;
-        } catch (_) {}
+        } catch (e) { console.warn('[aliasMap] falha ao carregar aliases:', e.message); }
 
         // Group pieces by material (same logic as optimizer)
         const groups = {};
@@ -1921,7 +1928,7 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
             try {
                 const aliases = db.prepare('SELECT material_code_importado, chapa_id FROM cnc_chapa_aliases WHERE user_id = ?').all(req.user.id);
                 for (const a of aliases) aliasMap[a.material_code_importado] = a.chapa_id;
-            } catch (_) {}
+            } catch (e) { console.warn('[aliasMap2] falha ao carregar aliases:', e.message); }
 
             const groups = {};
             for (const p of pecas) {
@@ -4048,11 +4055,11 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
     // Dados industriais — orçamento ligado, vendedor, aproveitamento por chapa
     let orc = null;
     if (lote.orc_id) {
-        try { orc = db.prepare('SELECT id, numero, user_id FROM orcamentos WHERE id = ?').get(lote.orc_id); } catch (_) {}
+        try { orc = db.prepare('SELECT id, numero, user_id FROM orcamentos WHERE id = ?').get(lote.orc_id); } catch (e) { console.warn('[etiquetas] erro ao buscar orçamento', lote.orc_id, e.message); }
     }
     let vendedorNome = '';
     if (orc?.user_id) {
-        try { vendedorNome = db.prepare('SELECT nome FROM users WHERE id = ?').get(orc.user_id)?.nome || ''; } catch (_) {}
+        try { vendedorNome = db.prepare('SELECT nome FROM users WHERE id = ?').get(orc.user_id)?.nome || ''; } catch (e) { console.warn('[etiquetas] erro ao buscar vendedor', orc.user_id, e.message); }
     }
     // Mapa de aproveitamento por chapa_idx (do plano_json)
     const chapaAprov = {};
@@ -4064,7 +4071,7 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
                 chapaAprov[idx] = a <= 1 ? a * 100 : a;
             });
         }
-    } catch (_) {}
+    } catch (e) { console.warn('[etiquetas] plano_json inválido lote', lote.id, e.message); }
 
     for (const p of pecas) {
         for (let q = 0; q < p.quantidade; q++) {
@@ -4779,7 +4786,7 @@ function smallPieceCutPolicy(cls) {
 // baseada nas ferramentas disponíveis
 function resolveStrategy(worker, usiTipo, toolMap) {
     let estrategias = [];
-    try { estrategias = JSON.parse(usiTipo.estrategias || '[]'); } catch (_) {}
+    try { estrategias = JSON.parse(usiTipo.estrategias || '[]'); } catch (e) { console.warn('[resolveStrategy] estrategias JSON inválido tipo', usiTipo?.id, e.message); }
     if (!Array.isArray(estrategias) || estrategias.length === 0) return null;
 
     const diam = Number(worker.diameter || 0);
@@ -6184,12 +6191,13 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 }
                 emit(`G0 Z${fmt(zSafe())}`);
             } else {
-                // Plunge simples (furo pequeno)
+                // Plunge simples (furo pequeno) — peck entre passadas
                 emit(`G0 ${XY(cx, cy)}`);
                 emit(`G0 Z${fmt(zApproach())}`);
                 for (let pi = 0; pi < op.passes.length; pi++) {
                     const zTarget = zCut(op.passes[pi]);
                     emit(`G1 Z${fmt(zTarget)} F${velMergulho}`);
+                    if (pi < op.passes.length - 1) emit(`G0 Z${fmt(zApproach())}`);
                 }
                 emit(`G0 Z${fmt(zSafe())}`);
             }
@@ -6616,9 +6624,18 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 emit(`G0 Z${fmt(zSafe())}`);
             }
             // Retração: usar zRapid entre furos consecutivos da mesma ferramenta
+            // (substitui o zSafe acima — emite só uma retração, não duas)
             const nextOpH = sortedOps[sortedOps.indexOf(op) + 1];
             const fastRetractH = nextOpH && nextOpH.opType === 'hole' && nextOpH.toolCode === op.toolCode;
-            if (fastRetractH) emit(`G0 Z${fmt(zRapid())}`);
+            if (fastRetractH) {
+                // Sobrescreve a última linha (era zSafe) com zRapid
+                const last = L[L.length - 1];
+                if (typeof last === 'string' && last.includes(`Z${fmt(zSafe())}`)) {
+                    L[L.length - 1] = last.replace(`Z${fmt(zSafe())}`, `Z${fmt(zRapid())}`);
+                } else {
+                    emit(`G0 Z${fmt(zRapid())}`);
+                }
+            }
             L.push('');
 
         } else if (op.opType === 'groove') {
@@ -7631,12 +7648,12 @@ router.post('/gcode/:loteId', requireAuth, async (req, res) => {
                 // Adicionar filenames com nome do lote
                 pyResult.alertas = [
                     ...(pyResult.alertas || []),
-                    'Motor Python experimental: não usar em produção até ter paridade com o gerador JS.'
+                    { tipo: 'aviso', msg: 'Motor Python (beta): valide o G-code antes de executar na máquina.' }
                 ];
                 for (const ch of pyResult.chapas) {
                     ch.alertas = [
                         ...(ch.alertas || []),
-                        'Motor Python experimental: pode não incluir todas as usinagens/overrides.'
+                        { tipo: 'aviso', msg: 'Motor Python (beta): usinagens complexas e overrides podem não ser incluídos.' }
                     ];
                     const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(ch.idx + 1).padStart(2, '0')}`;
                     ch.filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + ctx.extensao;
@@ -9748,7 +9765,7 @@ router.get('/custos/:loteId', requireAuth, (req, res) => {
                             else if (/pocket|rebaixo|cavidade/.test(tipo)) tempoSeg += 8;
                             else tempoSeg += 3; // default operation
                         }
-                    } catch (_) {}
+                    } catch (e) { console.warn('[custoMachining] machining_json inválido peça', piece?.id, e.message); }
                 }
                 const custoUsinagem = (tempoSeg / 3600) * custoHora;
 
@@ -9887,7 +9904,7 @@ router.get('/tempo-corte/:loteId', requireAuth, (req, res) => {
                                 metrosUsinChapa += (pw * passadas) / 1000;
                             }
                         }
-                    } catch (_) {}
+                    } catch (e) { console.warn('[metrosUsin] machining_json inválido peça', pDb?.id, e.message); }
                 }
             }
 
@@ -10736,7 +10753,7 @@ router.post('/validar-usinagens/:pecaId', requireAuth, (req, res) => {
         if (!peca) return res.status(404).json({ error: 'Peça não encontrada' });
 
         let mach = {};
-        try { mach = peca.machining_json ? JSON.parse(peca.machining_json) : {}; } catch (_) {}
+        try { mach = peca.machining_json ? JSON.parse(peca.machining_json) : {}; } catch (e) { console.warn('[getMachiningWorkers] machining_json inválido peça', peca.id, e.message); }
 
         // Collect all workers
         const workers = [];
@@ -10899,7 +10916,7 @@ router.post('/espelhar-usinagens', requireAuth, (req, res) => {
         if (!pecaDestino) return res.status(404).json({ error: 'Peça de destino não encontrada' });
 
         let machOrigem = {};
-        try { machOrigem = pecaOrigem.machining_json ? JSON.parse(pecaOrigem.machining_json) : {}; } catch (_) {}
+        try { machOrigem = pecaOrigem.machining_json ? JSON.parse(pecaOrigem.machining_json) : {}; } catch (e) { console.warn('[copyMachining] machining_json inválido origem', pecaOrigem.id, e.message); }
 
         const comp = pecaDestino.comprimento || pecaOrigem.comprimento || 0;
         const larg = pecaDestino.largura || pecaOrigem.largura || 0;
@@ -10961,7 +10978,7 @@ router.post('/espelhar-usinagens', requireAuth, (req, res) => {
         let finalMach;
         if (merge) {
             let existingMach = {};
-            try { existingMach = pecaDestino.machining_json ? JSON.parse(pecaDestino.machining_json) : {}; } catch (_) {}
+            try { existingMach = pecaDestino.machining_json ? JSON.parse(pecaDestino.machining_json) : {}; } catch (e) { console.warn('[copyMachining] machining_json inválido destino', pecaDestino.id, e.message); }
             const existingWorkers = existingMach.workers ? (Array.isArray(existingMach.workers) ? existingMach.workers : Object.values(existingMach.workers)) : [];
             const newWorkers = newMach.workers || [];
             finalMach = { ...existingMach, ...newMach, workers: [...existingWorkers, ...newWorkers] };
@@ -12032,7 +12049,7 @@ router.post('/chapa-status/:loteId', requireAuth, (req, res) => {
                         // Salvar plano atualizado com retalho_ids
                         db.prepare('UPDATE cnc_lotes SET plano_json = ? WHERE id = ?').run(JSON.stringify(plano), req.params.loteId);
                     }
-                } catch (_) {}
+                } catch (e) { console.error('[chapaStatus] erro ao salvar retalhos lote', req.params.loteId, e.message); }
             }
         }
 
@@ -12137,7 +12154,7 @@ router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
 
         const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_id, id').all(lote.id);
         let plano = null;
-        try { plano = JSON.parse(lote.plano_json || 'null'); } catch (_) {}
+        try { plano = JSON.parse(lote.plano_json || 'null'); } catch (e) { console.warn('[etiquetas] plano_json inválido lote', lote.id, e.message); }
 
         const labels = pecas.map((p, idx) => {
             // Find which chapa this piece is on
@@ -12205,7 +12222,7 @@ router.get('/review/:loteId', requireAuth, (req, res) => {
 
         const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ?').all(lote.id);
         let plano = null;
-        try { plano = JSON.parse(lote.plano_json || 'null'); } catch (_) {}
+        try { plano = JSON.parse(lote.plano_json || 'null'); } catch (e) { console.warn('[loteChecklist] plano_json inválido lote', lote.id, e.message); }
 
         const checks = [];
 
@@ -13066,7 +13083,7 @@ router.post('/custeio/:loteId', requireAuth, (req, res) => {
                     try {
                         const mach = JSON.parse(dbp.machining_json || '{}');
                         for (const face of Object.values(mach)) { if (Array.isArray(face)) nOps += face.length; }
-                    } catch (_) {}
+                    } catch (e) { console.warn('[scheduling] machining_json inválido peça', dbp?.id, e.message); }
                 }
                 const tempoMin = (3 + nOps) / 60;
                 const custoMaq = custoMaqMin * tempoMin;
@@ -13205,6 +13222,64 @@ router.post('/gcode-batch/:loteId', requireAuth, async (req, res) => {
             errors,
         });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /gcode-batch/:loteId/zip — G-code de todas as chapas em ZIP
+router.post('/gcode-batch/:loteId/zip', requireAuth, async (req, res) => {
+    try {
+        const ctx = loadGcodeContext(req, req.params.loteId);
+        if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+        if (!ctx.plano?.chapas?.length) return res.status(400).json({ error: 'Sem chapas no plano' });
+
+        const zip = new AdmZip();
+        const erros = [];
+        const relatorio = [];
+
+        for (let chapaIdx = 0; chapaIdx < ctx.plano.chapas.length; chapaIdx++) {
+            try {
+                const chapa = ctx.plano.chapas[chapaIdx];
+                const { maquina, toolMap, extensao } = resolveGcodeMachineForChapa(ctx, chapaIdx);
+                const result = generateGcodeForChapa(chapa, chapaIdx, ctx.pecasDb, maquina, toolMap, ctx.usinagemTipos, ctx.cfg, ctx.opOverrides || {}, ctx.opOverridesPeca || {}, ctx.usinagemCatalogMap || {});
+
+                if (result.ferramentas_faltando?.length > 0) {
+                    erros.push(`Chapa ${chapaIdx + 1}: ferramentas faltando: ${result.ferramentas_faltando.join(', ')}`);
+                    continue;
+                }
+
+                if (result.tool_wear) updateToolWear(toolMap, result.tool_wear, ctx.lote.id, req.user?.id);
+
+                const nomeBase = `${ctx.lote.nome || 'Lote'}_${ctx.lote.cliente || ''}_Chapa${String(chapaIdx + 1).padStart(2, '0')}`;
+                const filename = nomeBase.replace(/[^a-zA-Z0-9_-]/g, '_') + extensao;
+                zip.addFile(filename, Buffer.from(result.gcode, 'utf8'));
+
+                relatorio.push(`${filename} — ${chapa.pecas?.length || 0} peças, aproveit. ${chapa.aproveitamento?.toFixed(1) || '?'}%, linhas: ${result.gcode.split('\n').length}`);
+                if (result.alertas?.length) result.alertas.forEach(a => relatorio.push(`  ⚠ ${a}`));
+            } catch (err) {
+                erros.push(`Chapa ${chapaIdx + 1}: ${err.message}`);
+            }
+        }
+
+        // Adicionar relatório de texto ao ZIP
+        const relatorioTxt = [
+            `Relatório de G-code — ${ctx.lote.nome}`,
+            `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+            `Total de chapas: ${ctx.plano.chapas.length}`,
+            `Geradas com sucesso: ${ctx.plano.chapas.length - erros.length}`,
+            '',
+            '=== ARQUIVOS GERADOS ===',
+            ...relatorio,
+            ...(erros.length > 0 ? ['', '=== ERROS ===', ...erros] : []),
+        ].join('\n');
+        zip.addFile('relatorio.txt', Buffer.from(relatorioTxt, 'utf8'));
+
+        const zipName = `${(ctx.lote.nome || 'lote').replace(/[^a-zA-Z0-9_-]/g, '_')}_gcode.zip`;
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+        res.send(zip.toBuffer());
+    } catch (err) {
+        console.error('[CNC gcode-batch-zip]', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -14145,6 +14220,101 @@ router.get('/retalhos-aproveitaveis', requireAuth, (req, res) => {
     }
 
     res.json({ total_retalhos: remnants.length, matches: matches.sort((a, b) => b.pecas_que_cabem - a.pecas_que_cabem), remnants: remnants.slice(0, 20) });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// GRUPO X: Import MaxCut CSV
+// ═══════════════════════════════════════════════════════════════════
+router.post('/lotes/importar-maxcut', requireAuth, (req, res) => {
+    try {
+        const { csvContent, nome, espessura_padrao, material_padrao } = req.body;
+        if (!csvContent) return res.status(400).json({ error: 'csvContent obrigatório' });
+
+        const lines = csvContent.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+        if (lines.length < 2) return res.status(400).json({ error: 'CSV muito curto — necessário cabeçalho + pelo menos 1 linha' });
+
+        // Detectar separador (vírgula ou ponto-e-vírgula)
+        const sep = lines[0].includes(';') ? ';' : ',';
+        const header = lines[0].toLowerCase().split(sep).map(h => h.trim().replace(/"/g, ''));
+
+        // Mapear colunas pelos nomes mais comuns (MaxCut BR + MaxCut EN)
+        const findCol = (names) => {
+            for (const n of names) {
+                const idx = header.indexOf(n);
+                if (idx >= 0) return idx;
+            }
+            return -1;
+        };
+        const colQtd  = findCol(['quantidade', 'qtd', 'qty', 'quantity', 'qt']);
+        const colComp = findCol(['comprimento', 'comp', 'length', 'c', 'largura_final', 'width']);
+        const colLarg = findCol(['largura', 'larg', 'width', 'l', 'altura_final', 'height']);
+        const colDesc = findCol(['descricao', 'description', 'peca', 'nome', 'name', 'desc', 'item']);
+        const colEsp  = findCol(['espessura', 'esp', 'thickness', 'e', 'thick']);
+        const colMat  = findCol(['material', 'mat', 'chapa', 'sheet']);
+        const colVeio = findCol(['veio', 'grain', 'fio', 'fibra', 'v', 'g']);
+        const colMod  = findCol(['modulo', 'module', 'ambiente', 'room', 'group', 'grupo']);
+        const colBordF= findCol(['borda_frontal', 'borda1', 'edge1', 'front_edge', 'fita_comp1']);
+        const colBordT= findCol(['borda_traseira', 'borda2', 'edge2', 'back_edge', 'fita_comp2']);
+        const colBordD= findCol(['borda_dir', 'borda3', 'edge3', 'right_edge', 'fita_larg1']);
+        const colBordE= findCol(['borda_esq', 'borda4', 'edge4', 'left_edge', 'fita_larg2']);
+
+        if (colComp < 0 || colLarg < 0) {
+            return res.status(400).json({ error: 'Colunas de comprimento/largura não encontradas. Verifique o cabeçalho do CSV.' });
+        }
+
+        const pieces = [];
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(sep).map(c => c.trim().replace(/"/g, ''));
+            const comp = parseFloat(cols[colComp]);
+            const larg = parseFloat(cols[colLarg]);
+            if (!comp || !larg || isNaN(comp) || isNaN(larg)) continue;
+
+            const qtd = colQtd >= 0 ? (parseInt(cols[colQtd]) || 1) : 1;
+            const esp  = colEsp >= 0 ? (parseFloat(cols[colEsp]) || parseFloat(espessura_padrao) || 18) : (parseFloat(espessura_padrao) || 18);
+            const mat  = colMat >= 0 ? (cols[colMat] || material_padrao || '') : (material_padrao || '');
+            const desc = colDesc >= 0 ? (cols[colDesc] || `Peça ${i}`) : `Peça ${i}`;
+            const mod  = colMod >= 0 ? (cols[colMod] || 'Módulo 1') : 'Módulo 1';
+            const veioRaw = colVeio >= 0 ? cols[colVeio] : '';
+            const respeitar_veio = ['s', 'sim', 'yes', '1', 'true', 'x'].includes(veioRaw.toLowerCase());
+
+            for (let q = 0; q < qtd; q++) {
+                pieces.push({
+                    descricao: desc,
+                    modulo: mod,
+                    comprimento: comp,
+                    largura: larg,
+                    espessura: esp,
+                    material: mat,
+                    respeitar_veio: respeitar_veio ? 1 : 0,
+                    borda_frontal: colBordF >= 0 ? (cols[colBordF] || '') : '',
+                    borda_traseira: colBordT >= 0 ? (cols[colBordT] || '') : '',
+                    borda_dir: colBordD >= 0 ? (cols[colBordD] || '') : '',
+                    borda_esq: colBordE >= 0 ? (cols[colBordE] || '') : '',
+                });
+            }
+        }
+
+        if (pieces.length === 0) return res.status(400).json({ error: 'Nenhuma peça válida encontrada no CSV.' });
+
+        const loteNome = nome || `Import MaxCut ${new Date().toISOString().split('T')[0]}`;
+        const r = db.prepare('INSERT INTO cnc_lotes (nome, user_id, status, origem, criado_em) VALUES (?,?,?,?,CURRENT_TIMESTAMP)')
+            .run(loteNome, req.user.id, 'importado', 'maxcut');
+        const loteId = r.lastInsertRowid;
+
+        const stmt = db.prepare(`INSERT INTO cnc_pecas (lote_id, descricao, modulo_desc, comprimento, largura, espessura, material, material_code, quantidade, respeitar_veio, borda_frontal, borda_traseira, borda_dir, borda_esq, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`);
+        const tx = db.transaction(() => {
+            for (const p of pieces) {
+                stmt.run(loteId, p.descricao, p.modulo, p.comprimento, p.largura, p.espessura, p.material, p.material, 1, p.respeitar_veio, p.borda_frontal, p.borda_traseira, p.borda_dir, p.borda_esq);
+            }
+        });
+        tx();
+
+        const totalPecas = db.prepare('SELECT COUNT(*) as c FROM cnc_pecas WHERE lote_id = ?').get(loteId).c;
+        res.json({ ok: true, id: loteId, total_pecas: totalPecas, nome: loteNome, materiais_encontrados: [...new Set(pieces.map(p => p.material).filter(Boolean))] });
+    } catch (err) {
+        console.error('[CNC import-maxcut]', err);
+        res.status(500).json({ error: err.message || 'Erro ao importar MaxCut CSV' });
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════════

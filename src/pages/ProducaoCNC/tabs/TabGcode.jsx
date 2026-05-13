@@ -70,6 +70,7 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
     const [gcodePreviewLimit, setGcodePreviewLimit] = useState(300);
     // Painel de output: 'codigo' | 'simulador'
     const [outputTab, setOutputTab]         = useState('codigo');
+    const [baixandoZip, setBaixandoZip]     = useState(false);
 
     useEffect(() => {
         if (!loteAtual?.id) return;
@@ -207,6 +208,40 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
         a.href    = URL.createObjectURL(new Blob([result.gcode], { type: 'text/plain' }));
         a.download = chapas[0]?.filename || `${loteAtual?.nome || 'lote'}${ext}`;
         a.click();
+    };
+
+    const downloadZip = async () => {
+        if (!loteAtual?.id) return;
+        setBaixandoZip(true);
+        try {
+            const resp = await fetch(`/api/cnc/gcode-batch/${loteAtual.id}/zip`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({ maquinaId }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                notify('Erro ao gerar ZIP: ' + (err.error || resp.statusText), 'error');
+                return;
+            }
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const cd = resp.headers.get('content-disposition') || '';
+            const fname = cd.match(/filename="([^"]+)"/)?.[1] || `lote_${loteAtual.id}_gcode.zip`;
+            a.download = fname;
+            a.click();
+            URL.revokeObjectURL(url);
+            notify('ZIP baixado com sucesso!');
+        } catch (err) {
+            notify('Erro: ' + err.message, 'error');
+        } finally {
+            setBaixandoZip(false);
+        }
     };
 
     // Dados para o simulador da chapa selecionada
@@ -493,6 +528,22 @@ export function TabGcode({ lotes, loteAtual, setLoteAtual, notify }) {
                                 <Download size={13} />
                                 {(result.chapas?.length || 0) > 1 ? `${result.chapas.length} arquivos` : `Baixar ${result.extensao || '.nc'}`}
                             </button>
+                            {loteAtual?.id && (
+                                <button
+                                    onClick={downloadZip}
+                                    disabled={baixandoZip}
+                                    title="Baixar G-code de todas as chapas em um arquivo ZIP"
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 6,
+                                        padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)',
+                                        background: 'var(--bg-muted)', color: baixandoZip ? 'var(--text-muted)' : 'var(--text-primary)',
+                                        cursor: baixandoZip ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600,
+                                    }}
+                                >
+                                    <Download size={14} />
+                                    {baixandoZip ? 'Gerando ZIP...' : 'Baixar Todas (ZIP)'}
+                                </button>
+                            )}
                             <button onClick={copyGcode} className="btn-secondary"
                                 style={{ padding: '7px 14px', fontSize: 12, gap: 6 }}>
                                 {copied

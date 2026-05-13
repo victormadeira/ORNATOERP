@@ -18,47 +18,59 @@ import { parseGcodeForSim } from './parseGcode.js';
 const RAPID_FEED_MM_MIN = 20000;
 const STOCK_THICKNESS   = 15.5;
 
-// Sprint 3 CAM palette — premium dark industrial look.
+// Sprint 4 — paleta verde/vermelho alto contraste (estilo CAM profissional).
 const COL = {
-    // Pending — barely visible ghost. Functional, not decoration.
-    cutPending:    0x334155,  // visible slate preview
-    rapidPending:  0x1e293b,
-    abovePending:  0x243447,
+    // Pending — totalmente visíveis desde o início (inspection mode padrão).
+    cutPending:    0x15803d,  // green-700  — corte abaixo z0
+    rapidPending:  0x991b1b,  // red-800    — G0 rápido
+    abovePending:  0x0e7490,  // cyan-700   — G1 acima z0
 
-    // Executed — calm, readable, not saturated.
-    cutExec:       0xE5E7EB,  // gray-200 — white-gray executed cuts
-    rapidExec:     0x64748B,  // slate-500 — neutral G0
-    aboveExec:     0x94A3B8,  // slate-400 — above-zero
+    // Executed — mais brilhantes que pending ao passar pela animação.
+    cutExec:       0x4ade80,  // green-400
+    rapidExec:     0xf87171,  // red-400
+    aboveExec:     0x22d3ee,  // cyan-400
 
-    // Active progress — bright highlight on current segment.
-    cutActive:     0xBFE7FF,  // sky-200 — active cut line
-    aboveActive:   0x93C5FD,  // blue-300
+    // Active progress — âmbar: contrasta com verde e vermelho.
+    cutActive:     0xfbbf24,  // amber-400 — segmento em execução
+    aboveActive:   0x67e8f9,  // cyan-300
 
     // Tool
-    toolBody:      0xD1D5DB,  // gray-300 — stainless look
-    toolTip:       0x60A5FA,  // blue-400 — active glow tip
+    toolBody:      0xD1D5DB,  // gray-300 — aço inox
+    toolTip:       0xfbbf24,  // amber-400 — brilho ativo coincide com active
 
     // Stock mesh
-    stockFace:     0x243447,  // dark graphite sheet surface
-    stockEdge:     0xCBD5E1,  // gray-300 edge highlight
-    stockSide:     0x111820,  // near-invisible sides
+    stockFace:     0x243447,
+    stockEdge:     0xCBD5E1,
+    stockSide:     0x111820,
 
     // Grid / axes
     axisX: 0xef4444, axisY: 0x22c55e, axisZ: 0x3b82f6,
 };
 
-// Pending opacity per view mode
+// Pending opacity por modo de visualização
 const PENDING_OPACITY = {
-    operator:   { rapid: 0.03, cut: 0.16 },
-    technical:  { rapid: 0.12, cut: 0.24 },
-    inspection: { rapid: 0.22, cut: 0.42 },
+    operator:   { rapid: 0.00, cut: 0.08 },   // operador: só animação ativa
+    technical:  { rapid: 0.35, cut: 0.65 },   // técnico: balanceado
+    inspection: { rapid: 0.65, cut: 1.00 },   // inspeção: tudo visível (como R-Hex)
 };
 
 // ─── Parse G-code with per-segment timing ────────────────────────────────────
 function parse3D(gcode) {
     const result = parseGcodeForSim(gcode || '');
+
+    // When Z-origin = mesa (Z0=table), G-code Z values are measured from the
+    // table bottom. The 3D scene has z=0 at the material top. Without this
+    // offset, drills that go to e.g. Z=2.8mm (12.2mm deep, still above table)
+    // appear ABOVE the stock mesh and isCutting stays false the entire drilling
+    // phase — the simulator looks like it "does nothing" initially.
+    const isMesaOrigin = /Z0=mesa/i.test(gcode || '');
+    const espMatch = (gcode || '').match(/\besp=(\d+(?:\.\d+)?)mm/);
+    const espChapa = espMatch ? parseFloat(espMatch[1]) : 0;
+    const zOff = isMesaOrigin && espChapa > 0 ? -espChapa : 0;
+
     let acc = 0;
     for (const m of result.moves) {
+        if (zOff !== 0) { m.z1 += zOff; m.z2 += zOff; }
         const dist = Math.hypot(m.x2 - m.x1, m.y2 - m.y1, m.z2 - m.z1);
         const effFeed = m.type === 'G0' ? RAPID_FEED_MM_MIN : (m.feed || 1000);
         m.dist     = dist;
@@ -118,9 +130,37 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
     const [activeView, setActiveView] = useState('iso');
     const [viewMode,   setViewMode]   = useState('inspection'); // operator|technical|inspection
     const [showGrid,   setShowGrid]   = useState(false);
+    const [hiddenOps,  setHiddenOps]  = useState(() => new Set()); // ops ocultas no painel lateral
+    const [showOpsPanel, setShowOpsPanel] = useState(true);        // toggle do painel de operações
 
     const program = useMemo(() => parse3D(gcode), [gcode]);
     const { moves, totalTime } = program;
+
+    // Lista de operações únicas detectadas no G-code (para painel lateral)
+    const opList = useMemo(() => {
+        const ops = [];
+        const seen = new Set();
+        for (const ev of (program.events || [])) {
+            if (ev.type === 'op' && ev.label && !seen.has(ev.label)) {
+                seen.add(ev.label);
+                ops.push({ label: ev.label, moveIdx: ev.moveIdx });
+            }
+        }
+        return ops;
+    }, [program]);
+
+    // Ferramentas únicas detectadas
+    const toolList = useMemo(() => {
+        const tools = [];
+        const seen = new Set();
+        for (const ev of (program.events || [])) {
+            if (ev.type === 'tool' && ev.label && !seen.has(ev.label)) {
+                seen.add(ev.label);
+                tools.push({ label: ev.label, moveIdx: ev.moveIdx });
+            }
+        }
+        return tools;
+    }, [program]);
 
     // ── One-time Three.js setup ───────────────────────────────────────────────
     useEffect(() => {
@@ -182,14 +222,14 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
             new THREE.SphereGeometry(5, 32, 16),
             new THREE.MeshStandardMaterial({
                 color: COL.toolTip,
-                emissive: 0x1a5aba, emissiveIntensity: 2.0,  // Sprint 3: bright glow
+                emissive: 0xd97706, emissiveIntensity: 2.5,  // âmbar brilhante
                 metalness: 0.9, roughness: 0.05,
             })
         );
         toolGroup.add(toolTipMesh);
 
-        // PointLight contact glow — follows tool tip (Sprint 3)
-        const toolGlow = new THREE.PointLight(0x60A5FA, 80, 200);
+        // PointLight contact glow — âmbar quente (corte em andamento)
+        const toolGlow = new THREE.PointLight(0xfbbf24, 90, 220);
         toolGlow.position.set(0, 0, 0);
         toolGroup.add(toolGlow);
 
@@ -531,6 +571,9 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
     useEffect(() => { pb.current.playing = playingProp || false; }, [playingProp]);
     useEffect(() => { pb.current.speed   = speedProp   || 1;    }, [speedProp]);
 
+    // ── Reset hidden ops quando G-code muda ──────────────────────────────────
+    useEffect(() => { setHiddenOps(new Set()); }, [gcode]);
+
     // ── View mode → keep viewModeRef in sync + apply visibility side-effects ──
     useEffect(() => {
         viewModeRef.current = viewMode;
@@ -561,6 +604,29 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
         const t = three.current;
         if (t.gridGroup) t.gridGroup.visible = showGrid && viewModeRef.current !== 'operator';
     }, [showGrid]);
+
+    // ── Visibilidade de segmentos por operação (painel lateral) ───────────────
+    useEffect(() => {
+        for (const seg of three.current.segments || []) {
+            const opName = seg.move?.op || '';
+            seg.line.visible = !hiddenOps.has(opName);
+        }
+    }, [hiddenOps]);
+
+    const toggleOp = useCallback((label) => {
+        setHiddenOps(prev => {
+            const next = new Set(prev);
+            if (next.has(label)) next.delete(label); else next.add(label);
+            return next;
+        });
+    }, []);
+
+    // Jump para o início de uma operação ao clicar no "▶" do painel
+    const seekToOp = useCallback((moveIdx) => {
+        const i = Math.max(0, Math.min(moves.length - 1, moveIdx));
+        const t = moves[i]?.tStart ?? 0;
+        setTimeInternalRef.current?.(t);
+    }, [moves]);
 
     // ── Fit camera ────────────────────────────────────────────────────────────
     const fitCamera = useCallback(() => {
@@ -811,10 +877,10 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
                 fontFamily: mono, fontSize: 10,
             }}>
                 {[
-                    { color: '#64748B', label: 'G0 — Rápido',   thick: false, dashed: true },
-                    { color: '#94A3B8', label: 'G1 — Acima Z0', thick: true  },
-                    { color: '#E5E7EB', label: 'G1 — Corte',    thick: true  },
-                    { color: '#BFE7FF', label: 'Ativo agora',   thick: true  },
+                    { color: '#f87171', label: 'G0 — Rápido',   thick: false, dashed: true },
+                    { color: '#22d3ee', label: 'G1 — Acima Z0', thick: true  },
+                    { color: '#4ade80', label: 'G1 — Corte',    thick: true  },
+                    { color: '#fbbf24', label: 'Ativo agora',   thick: true  },
                 ].map(l => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, color: l.color }}>
                         <svg width={18} height={5} style={{ flexShrink: 0 }}>
@@ -836,6 +902,119 @@ export const GcodeSimCanvas = forwardRef(function GcodeSimCanvas(
             }}>
                 Orbit · Scroll zoom<br />Duplo clique encaixa
             </div>
+
+            {/* ── Painel lateral de operações (estilo R-Hex) ────────────────── */}
+            {opList.length > 0 && (
+                <div style={{
+                    position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+                    display: 'flex', flexDirection: 'column',
+                    background: 'rgba(13,17,23,0.93)', backdropFilter: 'blur(8px)',
+                    border: '1px solid #1e2733', borderRadius: 7,
+                    minWidth: 220, maxWidth: 280, maxHeight: 'calc(100% - 90px)',
+                    overflow: 'hidden',
+                    fontFamily: mono, fontSize: 10,
+                    zIndex: 10,
+                }}>
+                    {/* Header do painel */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '7px 10px',
+                        borderBottom: '1px solid #1e2733',
+                    }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#7D8794', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                            Operações ({opList.length})
+                        </span>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            {hiddenOps.size > 0 && (
+                                <button onClick={() => setHiddenOps(new Set())}
+                                    title="Mostrar todas"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#38bdf8', fontSize: 9, padding: 0 }}>
+                                    mostrar todas
+                                </button>
+                            )}
+                            <button onClick={() => setShowOpsPanel(v => !v)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4B5563', fontSize: 11, padding: 0 }}>
+                                {showOpsPanel ? '▲' : '▼'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Ferramentas */}
+                    {showOpsPanel && toolList.length > 0 && (
+                        <div style={{ padding: '5px 8px', borderBottom: '1px solid #1e2733' }}>
+                            <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+                                Ferramentas
+                            </div>
+                            {toolList.map((tl, i) => (
+                                <div key={i} style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    padding: '2px 0', color: '#94A3B8', fontSize: 9,
+                                }}>
+                                    <span style={{ color: '#fbbf24', fontSize: 10 }}>⚙</span>
+                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {tl.label}
+                                    </span>
+                                    <button onClick={() => seekToOp(tl.moveIdx)}
+                                        title="Ir para esta troca"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#38bdf8', fontSize: 10, padding: 0, flexShrink: 0 }}>
+                                        ▶
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Lista de operações */}
+                    {showOpsPanel && (
+                        <div style={{ overflowY: 'auto', padding: '4px 0' }}>
+                            {opList.map((op, i) => {
+                                const isHidden = hiddenOps.has(op.label);
+                                // Cor por tipo de operação
+                                const opColor = /contorno/i.test(op.label) ? '#d48820'
+                                    : /furo|hole|helicoidal|circular/i.test(op.label) ? '#f87171'
+                                    : /rebaixo|pocket/i.test(op.label) ? '#60a5fa'
+                                    : /canal|rasgo/i.test(op.label) ? '#a78bfa'
+                                    : /chanfro/i.test(op.label) ? '#fb923c'
+                                    : '#4ade80';
+                                return (
+                                    <div key={i} style={{
+                                        display: 'flex', alignItems: 'center', gap: 6,
+                                        padding: '4px 10px',
+                                        opacity: isHidden ? 0.35 : 1,
+                                        cursor: 'default',
+                                    }}>
+                                        {/* Indicador de cor */}
+                                        <div style={{
+                                            width: 8, height: 8, borderRadius: 2,
+                                            background: opColor, flexShrink: 0,
+                                        }} />
+                                        {/* Label */}
+                                        <span style={{
+                                            flex: 1, color: '#CBD5E1', fontSize: 9,
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }} title={op.label}>
+                                            {op.label.replace(/^=+\s*|\s*=+$/g, '').slice(0, 36)}
+                                        </span>
+                                        {/* Botão jump */}
+                                        <button onClick={() => seekToOp(op.moveIdx)}
+                                            title="Ir para esta operação"
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#38bdf8', fontSize: 10, padding: 0, flexShrink: 0 }}>
+                                            ▶
+                                        </button>
+                                        {/* Toggle visibilidade */}
+                                        <button onClick={() => toggleOp(op.label)}
+                                            title={isHidden ? 'Mostrar' : 'Ocultar'}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: 0, flexShrink: 0,
+                                                color: isHidden ? '#374151' : '#6B7280' }}>
+                                            {isHidden ? '🙈' : '👁'}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 });

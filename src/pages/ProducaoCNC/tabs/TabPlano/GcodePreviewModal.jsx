@@ -15,9 +15,91 @@ import ToolbarDropdown from '../../../../components/ToolbarDropdown';
 import { STATUS_COLORS } from '../../shared/constants.js';
 import { analyzeGcodeOperational, formatMeters, formatMinutes } from '../../shared/operationalMetrics.js';
 
+/* ─── Syntax highlight por token (estilo IDE) ─────────────────────────────── */
+function syntaxTokenize(line) {
+    const toks = [];
+    if (!line) return toks;
+
+    // Separar comentário
+    let code = line, comment = '';
+    const pi = line.indexOf('('), si = line.indexOf(';');
+    const ci = pi >= 0 && si >= 0 ? Math.min(pi, si) : pi >= 0 ? pi : si;
+    if (ci >= 0) { code = line.slice(0, ci); comment = line.slice(ci); }
+
+    const push = (text, color, bold, italic) => toks.push({ text, color, bold, italic });
+
+    // Tokenizar parte de código
+    const re = /([GMSTNO])(\d+(?:\.\d+)?)|([XYZFIJKABP])(-?[\d.]+)|(%)|(\S)/g;
+    let m, last = 0;
+    while ((m = re.exec(code)) !== null) {
+        if (m.index > last) push(code.slice(last, m.index), '#6e7681');
+        if (m[1]) {                              // G M S T N O + número
+            const L = m[1].toUpperCase(), n = parseFloat(m[2]);
+            if      (L === 'G') {
+                const c = n === 0 ? '#f97316' : n === 1 ? '#4ade80' : n <= 3 ? '#60a5fa' : '#93c5fd';
+                push(m[1] + m[2], c, true);
+            } else if (L === 'M') push(m[1] + m[2], '#c084fc', true);
+            else if  (L === 'T') push(m[1] + m[2], '#fde68a', true);
+            else if  (L === 'S') { push(m[1], '#94a3b8'); push(m[2], '#79c0ff'); }
+            else if  (L === 'N') push(m[1] + m[2], '#3d4451'); // número de linha — dim
+            else                 push(m[0], '#e6edf3');
+        } else if (m[3]) {                        // eixos + número
+            const L = m[3].toUpperCase();
+            const axC = L === 'X' ? '#ef4444' : L === 'Y' ? '#22c55e' : L === 'Z' ? '#3b82f6' : '#94a3b8';
+            push(m[3], axC, true); push(m[4], '#79c0ff');
+        } else if (m[5]) push('%', '#64748b');
+        else             push(m[0], '#e6edf3');
+        last = m.index + m[0].length;
+    }
+    if (last < code.length) push(code.slice(last), '#6e7681');
+    if (comment) push(comment, '#64748b', false, true);
+    return toks;
+}
+
+function fmtSecs(s) {
+    if (!s || s < 0) return '0:00.0';
+    const m = Math.floor(s / 60);
+    return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`;
+}
+
 export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, loteId, onSimulate }) {
     const { gcode, filename, stats = {}, alertas = [], chapaIdx, contorno_tool } = data;
     const maquinaInfo = data.maquina || null;
+
+    // ── Playback controls para sim3d ────────────────────────────────────────
+    const [abaPreview, setAbaPreview] = useState('sim2d'); // declarado antes do useEffect que depende dele
+    const sim3dRef   = useRef(null);
+    const [sim3dPlaying, setSim3dPlaying] = useState(false);
+    const [sim3dSpeed,   setSim3dSpeed]   = useState(10);
+    const [sim3dTime,    setSim3dTime]    = useState(0);
+    const [sim3dTotal,   setSim3dTotal]   = useState(0);
+    const [sim3dIdx,     setSim3dIdx]     = useState(-1);
+
+    const sim3dToggle = useCallback(() => {
+        setSim3dPlaying(p => {
+            if (!p && sim3dTime >= sim3dTotal && sim3dTotal > 0) {
+                sim3dRef.current?.reset?.();
+                setSim3dTime(0);
+            }
+            return !p;
+        });
+    }, [sim3dTime, sim3dTotal]);
+
+    const sim3dOnMove = useCallback((idx, _lineIdx, t) => {
+        setSim3dIdx(idx);
+        setSim3dTime(t);
+        if (sim3dTotal === 0) {
+            const tt = sim3dRef.current?.getTotalTime?.() || 0;
+            if (tt > 0) setSim3dTotal(tt);
+        }
+    }, [sim3dTotal]);
+
+    const sim3dOnEnd = useCallback(() => setSim3dPlaying(false), []);
+
+    // Reset playback quando troca de aba
+    useEffect(() => {
+        if (abaPreview !== 'sim3d') setSim3dPlaying(false);
+    }, [abaPreview]);
 
     const handleExportDxf = () => {
         const url = `/api/cnc/export-dxf/${loteId}/chapa/${chapaIdx}`;
@@ -29,7 +111,6 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
     const lineCount = lines.length;
     const sizeKB = new Blob([gcode]).size / 1024;
     const [showFull, setShowFull] = useState(false);
-    const [abaPreview, setAbaPreview] = useState('sim2d');
     const previewLines = showFull ? lines : lines.slice(0, 80);
     const textareaRef = useRef(null);
     const criticalAlerts = alertas.filter(a => {
@@ -413,34 +494,54 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
                                     </button>
                                 </div>
                             </div>
-                            <pre ref={textareaRef} style={{
-                                fontFamily: 'JetBrains Mono, Consolas, monospace',
+                            {/* Syntax highlight por token — estilo IDE */}
+                            <div ref={textareaRef} style={{
+                                fontFamily: '"JetBrains Mono", "Fira Code", Consolas, monospace',
                                 fontSize: 11,
-                                lineHeight: 1.55,
-                                background: '#111827',
-                                color: '#dbeafe',
-                                padding: 14,
+                                lineHeight: 1.6,
+                                background: '#0d1117',
+                                padding: '10px 0',
                                 borderRadius: 8,
                                 maxHeight: '58vh',
                                 overflow: 'auto',
-                                whiteSpace: 'pre',
-                                margin: 0,
-                                border: '1px solid #263241',
+                                border: '1px solid #21262d',
                             }}>
-                                {previewLines.map((line, i) => {
-                                    let color = '#dbeafe';
-                                    const stripped = line.replace(/^N\d+\s*/, '');
-                                    if (stripped.startsWith('(') || stripped.startsWith(';')) color = '#64748b';
-                                    else if (/^(N\d+\s+)?G0[0 ]/.test(line)) color = '#f97316';
-                                    else if (/^(N\d+\s+)?G0?1[ ]/.test(line)) color = '#22c55e';
-                                    else if (/^(N\d+\s+)?G[23]/.test(line)) color = '#60a5fa';
-                                    else if (/^(N\d+\s+)?[MS]/.test(line)) color = '#fbbf24';
-                                    else if (/^(N\d+\s+)?T/.test(line)) color = '#fde68a';
-                                    else if (/^(N\d+\s+)?G4/.test(line)) color = '#c084fc';
-                                    return <span key={i} style={{ color }}>{`${String(i + 1).padStart(4)} | ${line}\n`}</span>;
-                                })}
-                                {!showFull && lineCount > 80 && <span style={{ color: '#64748b' }}>     | ... ({lineCount - 80} linhas restantes) ...\n</span>}
-                            </pre>
+                                {previewLines.map((line, i) => (
+                                    <div key={i} style={{
+                                        display: 'flex', alignItems: 'baseline',
+                                        padding: '0 14px 0 0',
+                                        minHeight: '1.6em',
+                                    }}>
+                                        {/* Número de linha */}
+                                        <span style={{
+                                            color: '#3d4451', minWidth: 44, textAlign: 'right',
+                                            marginRight: 14, userSelect: 'none', flexShrink: 0,
+                                            fontSize: 10, paddingTop: 1,
+                                        }}>
+                                            {i + 1}
+                                        </span>
+                                        {/* Tokens coloridos */}
+                                        <span style={{ flex: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                            {syntaxTokenize(line).map((tok, ti) => (
+                                                <span key={ti} style={{
+                                                    color: tok.color,
+                                                    fontStyle: tok.italic ? 'italic' : 'normal',
+                                                    fontWeight: tok.bold ? 700 : 400,
+                                                }}>
+                                                    {tok.text}
+                                                </span>
+                                            ))}
+                                            {/* Linha em branco = zero height se sem tokens */}
+                                            {!line && ' '}
+                                        </span>
+                                    </div>
+                                ))}
+                                {!showFull && lineCount > 80 && (
+                                    <div style={{ padding: '4px 14px 4px 58px', color: '#64748b', fontSize: 10 }}>
+                                        … {lineCount - 80} linhas restantes …
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -448,38 +549,95 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
                         <GcodeSimWrapper gcode={gcode} chapa={chapaData} />
                     )}
 
-                    {abaPreview === 'sim3d' && (
-                        <div style={{ position: 'relative', height: 420, display: 'flex' }}>
-                            <GcodeSimCanvas
-                                gcode={gcode}
-                                chapa={chapaData}
-                                playing={false}
-                                speed={1}
-                                onPlayEnd={() => {}}
-                                onMoveChange={() => {}}
-                            />
-                            {/* CTA não-bloqueante — canto inferior direito */}
-                            {onSimulate && (
-                                <button
-                                    onClick={() => onSimulate(gcode, chapaData)}
-                                    title="Abrir cockpit completo com animação e G-code sincronizado"
-                                    style={{
-                                        position: 'absolute', bottom: 14, right: 14,
-                                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                                        background: 'rgba(31,111,235,0.92)',
-                                        backdropFilter: 'blur(6px)',
-                                        color: '#fff',
-                                        border: '1px solid rgba(56,139,253,0.6)',
-                                        borderRadius: 6, padding: '7px 14px',
-                                        fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
-                                        boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-                                    }}
-                                >
-                                    <Play size={12} /> Abrir revisão pré-corte
-                                </button>
-                            )}
-                        </div>
-                    )}
+                    {abaPreview === 'sim3d' && (() => {
+                        const btnSim = {
+                            background: '#21262d', color: '#e6edf3',
+                            border: '1px solid #30363d', borderRadius: 5,
+                            cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+                            padding: '4px 10px', lineHeight: 1,
+                        };
+                        const scrubPct = sim3dTotal > 0 ? (sim3dTime / sim3dTotal) * 100 : 0;
+                        return (
+                            <div style={{ display: 'flex', flexDirection: 'column', height: 460 }}>
+                                {/* Canvas */}
+                                <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                                    <GcodeSimCanvas
+                                        ref={sim3dRef}
+                                        gcode={gcode}
+                                        chapa={chapaData}
+                                        playing={sim3dPlaying}
+                                        speed={sim3dSpeed}
+                                        onPlayEnd={sim3dOnEnd}
+                                        onMoveChange={sim3dOnMove}
+                                    />
+                                    {onSimulate && (
+                                        <button
+                                            onClick={() => onSimulate(gcode, chapaData)}
+                                            title="Abrir cockpit completo com animação e G-code sincronizado"
+                                            style={{
+                                                position: 'absolute', bottom: 14, right: 14,
+                                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                background: 'rgba(31,111,235,0.92)', backdropFilter: 'blur(6px)',
+                                                color: '#fff', border: '1px solid rgba(56,139,253,0.6)',
+                                                borderRadius: 6, padding: '7px 14px',
+                                                fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                                                boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+                                            }}>
+                                            <Play size={12} /> Abrir cockpit completo
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* ── Barra de playback ── */}
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    padding: '7px 14px', background: '#161b22',
+                                    borderTop: '1px solid #30363d', flexShrink: 0,
+                                }}>
+                                    {/* Play/Pause */}
+                                    <button onClick={sim3dToggle} style={{
+                                        ...btnSim,
+                                        width: 34, height: 34, borderRadius: '50%', padding: 0,
+                                        background: sim3dPlaying ? '#d73a49' : '#238636',
+                                        border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: 14,
+                                    }}>{sim3dPlaying ? '⏸' : '▶'}</button>
+
+                                    {/* Step back/forward */}
+                                    <button onClick={() => sim3dRef.current?.seekTo?.(sim3dIdx - 1)} style={btnSim} title="Segmento anterior">‹</button>
+                                    <button onClick={() => sim3dRef.current?.seekTo?.(sim3dIdx + 1)} style={btnSim} title="Próximo segmento">›</button>
+                                    <button onClick={() => { sim3dRef.current?.reset?.(); setSim3dTime(0); setSim3dIdx(-1); setSim3dPlaying(false); }} style={btnSim} title="Reiniciar">⏮</button>
+
+                                    {/* Scrub bar */}
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <input type="range" min={0} max={100} step={0.1}
+                                            value={scrubPct}
+                                            onChange={e => {
+                                                const pct = parseFloat(e.target.value) / 100;
+                                                const totalMoves = sim3dRef.current?.getTotalMoves?.() || 1;
+                                                sim3dRef.current?.seekTo?.(Math.round(pct * totalMoves));
+                                            }}
+                                            style={{ flex: 1, accentColor: '#f78166', height: 4 }}
+                                        />
+                                    </div>
+
+                                    {/* Speed */}
+                                    <select value={sim3dSpeed} onChange={e => setSim3dSpeed(parseFloat(e.target.value))}
+                                        style={{ ...btnSim, padding: '4px 6px', fontSize: 11 }}>
+                                        {[0.25, 0.5, 1, 2, 5, 10, 50, 200].map(v => (
+                                            <option key={v} value={v}>{v}×</option>
+                                        ))}
+                                    </select>
+
+                                    {/* Time */}
+                                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#8b949e', minWidth: 100, textAlign: 'right' }}>
+                                        <span style={{ color: '#e6edf3' }}>{fmtSecs(sim3dTime)}</span>
+                                        {' / '}{fmtSecs(sim3dTotal)}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                 </div>
 

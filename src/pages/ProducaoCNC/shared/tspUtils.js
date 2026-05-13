@@ -7,7 +7,7 @@
  */
 
 /**
- * Nearest-Neighbour + 2-opt para reordenar cortes.
+ * Nearest-Neighbour + 2-opt + Or-opt para reordenar cortes.
  * Começa na origem física da chapa vista de frente: canto inferior esquerdo.
  * Quando seguro, também permite inverter o sentido do segmento para reduzir G0.
  *
@@ -72,6 +72,58 @@ function twoOptCuts(cuts, startX = 0, startY = 0) {
                     seq.splice(i, j - i + 1, ...candidate.slice(i, j + 1));
                     best = dist;
                     improved = true;
+                }
+            }
+        }
+    }
+    return orOptCuts(seq, startX, startY);
+}
+
+/**
+ * Or-opt: move blocos de 2-3 cortes consecutivos para a melhor posição alternativa.
+ * Tipicamente 2-4% de melhoria adicional sobre o 2-opt.
+ * Limitado a segLen=2 e segLen=3 por default.
+ */
+function orOptCuts(cuts, startX = 0, startY = 0, maxSeg = 3) {
+    if (!cuts || cuts.length < 4) return cuts;
+    let seq = [...cuts];
+    let best = calcRapidDistance(seq, startX, startY);
+    let improved = true;
+    let iter = 0;
+    while (improved && iter < 5) {
+        improved = false;
+        iter++;
+        outer: for (let segLen = 2; segLen <= Math.min(maxSeg, seq.length - 2); segLen++) {
+            for (let i = 1; i <= seq.length - segLen - 1; i++) {
+                // Extrair segmento
+                const seg = seq.slice(i, i + segLen);
+                const rest = [...seq.slice(0, i), ...seq.slice(i + segLen)];
+                // Tentar inserir em cada posição de rest (exceto onde estava)
+                for (let j = 1; j < rest.length; j++) {
+                    const candidate = [...rest.slice(0, j), ...seg, ...rest.slice(j)];
+                    const d = calcRapidDistance(candidate, startX, startY);
+                    if (d < best - 0.01) {
+                        seq = candidate;
+                        best = d;
+                        improved = true;
+                        break outer;
+                    }
+                }
+                // Tentar também inserir o segmento INVERTIDO
+                const segRev = [...seg].reverse().map(c =>
+                    (Number.isFinite(c.x2) && Number.isFinite(c.y2))
+                        ? { ...c, x: c.x2, y: c.y2, x2: c.x, y2: c.y, invertido_tsp: !c.invertido_tsp }
+                        : c
+                );
+                for (let j = 1; j < rest.length; j++) {
+                    const candidate = [...rest.slice(0, j), ...segRev, ...rest.slice(j)];
+                    const d = calcRapidDistance(candidate, startX, startY);
+                    if (d < best - 0.01) {
+                        seq = candidate;
+                        best = d;
+                        improved = true;
+                        break outer;
+                    }
                 }
             }
         }
