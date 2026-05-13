@@ -13,9 +13,9 @@ import {
     Activity, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
 } from 'lucide-react';
 import { Spinner } from '../../../../ui';
-import GcodeSimWrapper from '../../../../components/GcodeSimWrapper.jsx';
-import { GcodeSimCanvas } from './GcodeSimCanvas.jsx';
-import { parseGcodeForSim, getOpCat, OP_CATS } from './parseGcode.js';
+import Sim2D from '../../../../components/CncSim/Sim2D.jsx';
+import { Sim3D } from '../../../../components/CncSim/Sim3D.jsx';
+import { parseGcode as parseGcodeForSim, getOpCat, OP_CATS } from '../../../../components/CncSim/parseGcode.js';
 import { analyzeGcodeOperational, formatMeters, formatMinutes } from '../../shared/operationalMetrics.js';
 import { useCockpitFullscreen } from '../../shared/useCockpitFullscreen.js';
 import api from '../../../../api';
@@ -852,20 +852,18 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                     <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
                         {hasSimulatablePath ? (
                             simView === '2d' ? (
-                                <div style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    minHeight: 0,
-                                    overflow: 'auto',
-                                    padding: 12,
-                                    background: '#f4f1ea',
-                                }}>
-                                    <GcodeSimWrapper gcode={gcode} chapa={chapaData} />
+                                <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                                    <Sim2D
+                                        parsed={parsedPreview}
+                                        chapa={chapaData}
+                                        curTime={0}
+                                        totalTime={0}
+                                    />
                                 </div>
                             ) : (
-                                <GcodeSimCanvas
+                                <Sim3D
                                     ref={simRef}
-                                    gcode={gcode}
+                                    parsed={parsedPreview}
                                     chapa={chapaData}
                                     playing={simPlaying}
                                     speed={simSpeed}
