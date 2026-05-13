@@ -7,9 +7,8 @@ import { Upload, Download, Printer, FileText, RefreshCw, ChevronDown, ChevronUp,
 import EditorEtiquetas, { EtiquetaSVG } from '../../../../components/EditorEtiquetas';
 import PecaViewer3D from '../../../../components/PecaViewer3D';
 import PecaEditor from '../../../../components/PecaEditor';
-import ToolpathSimulator, { parseGcodeToMoves } from '../../../../components/ToolpathSimulator';
-import GcodeSimWrapper, { parseGcodeForSim, getOpCat, OP_CATS } from '../../../../components/GcodeSimWrapper';
-import { GcodeSimCanvas } from './GcodeSimCanvas.jsx';
+import { CncSim } from '../../../../components/CncSim/index.jsx';
+import { parseGcode as parseGcodeForSim, getOpCat, OP_CATS } from '../../../../components/CncSim/parseGcode.js';
 import SlidePanel from '../../../../components/SlidePanel';
 import ToolbarDropdown from '../../../../components/ToolbarDropdown';
 import { STATUS_COLORS } from '../../shared/constants.js';
@@ -66,40 +65,9 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
     const { gcode, filename, stats = {}, alertas = [], chapaIdx, contorno_tool } = data;
     const maquinaInfo = data.maquina || null;
 
-    // ── Playback controls para sim3d ────────────────────────────────────────
-    const [abaPreview, setAbaPreview] = useState('sim2d'); // declarado antes do useEffect que depende dele
-    const sim3dRef   = useRef(null);
-    const [sim3dPlaying, setSim3dPlaying] = useState(false);
-    const [sim3dSpeed,   setSim3dSpeed]   = useState(10);
-    const [sim3dTime,    setSim3dTime]    = useState(0);
-    const [sim3dTotal,   setSim3dTotal]   = useState(0);
-    const [sim3dIdx,     setSim3dIdx]     = useState(-1);
-
-    const sim3dToggle = useCallback(() => {
-        setSim3dPlaying(p => {
-            if (!p && sim3dTime >= sim3dTotal && sim3dTotal > 0) {
-                sim3dRef.current?.reset?.();
-                setSim3dTime(0);
-            }
-            return !p;
-        });
-    }, [sim3dTime, sim3dTotal]);
-
-    const sim3dOnMove = useCallback((idx, _lineIdx, t) => {
-        setSim3dIdx(idx);
-        setSim3dTime(t);
-        if (sim3dTotal === 0) {
-            const tt = sim3dRef.current?.getTotalTime?.() || 0;
-            if (tt > 0) setSim3dTotal(tt);
-        }
-    }, [sim3dTotal]);
-
-    const sim3dOnEnd = useCallback(() => setSim3dPlaying(false), []);
-
-    // Reset playback quando troca de aba
-    useEffect(() => {
-        if (abaPreview !== 'sim3d') setSim3dPlaying(false);
-    }, [abaPreview]);
+    // ── Simulator state ──────────────────────────────────────────────────────
+    const [abaPreview, setAbaPreview] = useState('simulador'); // 'simulador' | 'codigo'
+    const simRef = useRef(null);
 
     const handleExportDxf = () => {
         const url = `/api/cnc/export-dxf/${loteId}/chapa/${chapaIdx}`;
@@ -161,7 +129,7 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
 
     const workflowSteps = [
         { label: 'Validar', ok: checklist.every(item => item.ok), active: true },
-        { label: 'Simular', ok: (abaPreview === 'sim2d' || abaPreview === 'sim3d') && gcodeCutMoves > 0, active: abaPreview === 'sim2d' || abaPreview === 'sim3d' },
+        { label: 'Simular', ok: abaPreview === 'simulador' && gcodeCutMoves > 0, active: abaPreview === 'simulador' },
         { label: 'Baixar', ok: !hasBlockingIssues, active: false },
         { label: 'Máquina', ok: !hasBlockingIssues && Boolean(onSendToMachine), active: false },
     ];
@@ -449,7 +417,7 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
                         <div style={{ display: 'flex', flex: 1 }}>
-                            {[{ id: 'sim2d', lb: 'Simulador 2D', icon: Play }, { id: 'sim3d', lb: '3D Técnico', icon: Box }, { id: 'codigo', lb: 'Código', icon: FileText }].map(t => {
+                            {[{ id: 'simulador', lb: 'Simulador CNC', icon: Play }, { id: 'codigo', lb: 'Código', icon: FileText }].map(t => {
                                 const Icon = t.icon;
                                 const active = abaPreview === t.id;
                                 return (
@@ -545,99 +513,16 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
                         </div>
                     )}
 
-                    {abaPreview === 'sim2d' && (
-                        <GcodeSimWrapper gcode={gcode} chapa={chapaData} />
+                    {abaPreview === 'simulador' && (
+                        <CncSim
+                            ref={simRef}
+                            gcode={gcode}
+                            chapa={chapaData}
+                            initialTab="2d"
+                            height={480}
+                            onSimulate={onSimulate}
+                        />
                     )}
-
-                    {abaPreview === 'sim3d' && (() => {
-                        const btnSim = {
-                            background: '#21262d', color: '#e6edf3',
-                            border: '1px solid #30363d', borderRadius: 5,
-                            cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
-                            padding: '4px 10px', lineHeight: 1,
-                        };
-                        const scrubPct = sim3dTotal > 0 ? (sim3dTime / sim3dTotal) * 100 : 0;
-                        return (
-                            <div style={{ display: 'flex', flexDirection: 'column', height: 460 }}>
-                                {/* Canvas */}
-                                <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-                                    <GcodeSimCanvas
-                                        ref={sim3dRef}
-                                        gcode={gcode}
-                                        chapa={chapaData}
-                                        playing={sim3dPlaying}
-                                        speed={sim3dSpeed}
-                                        onPlayEnd={sim3dOnEnd}
-                                        onMoveChange={sim3dOnMove}
-                                    />
-                                    {onSimulate && (
-                                        <button
-                                            onClick={() => onSimulate(gcode, chapaData)}
-                                            title="Abrir cockpit completo com animação e G-code sincronizado"
-                                            style={{
-                                                position: 'absolute', bottom: 14, right: 14,
-                                                display: 'inline-flex', alignItems: 'center', gap: 6,
-                                                background: 'rgba(31,111,235,0.92)', backdropFilter: 'blur(6px)',
-                                                color: '#fff', border: '1px solid rgba(56,139,253,0.6)',
-                                                borderRadius: 6, padding: '7px 14px',
-                                                fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
-                                                boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-                                            }}>
-                                            <Play size={12} /> Abrir cockpit completo
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* ── Barra de playback ── */}
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 8,
-                                    padding: '7px 14px', background: '#161b22',
-                                    borderTop: '1px solid #30363d', flexShrink: 0,
-                                }}>
-                                    {/* Play/Pause */}
-                                    <button onClick={sim3dToggle} style={{
-                                        ...btnSim,
-                                        width: 34, height: 34, borderRadius: '50%', padding: 0,
-                                        background: sim3dPlaying ? '#d73a49' : '#238636',
-                                        border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: 14,
-                                    }}>{sim3dPlaying ? '⏸' : '▶'}</button>
-
-                                    {/* Step back/forward */}
-                                    <button onClick={() => sim3dRef.current?.seekTo?.(sim3dIdx - 1)} style={btnSim} title="Segmento anterior">‹</button>
-                                    <button onClick={() => sim3dRef.current?.seekTo?.(sim3dIdx + 1)} style={btnSim} title="Próximo segmento">›</button>
-                                    <button onClick={() => { sim3dRef.current?.reset?.(); setSim3dTime(0); setSim3dIdx(-1); setSim3dPlaying(false); }} style={btnSim} title="Reiniciar">⏮</button>
-
-                                    {/* Scrub bar */}
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <input type="range" min={0} max={100} step={0.1}
-                                            value={scrubPct}
-                                            onChange={e => {
-                                                const pct = parseFloat(e.target.value) / 100;
-                                                const totalMoves = sim3dRef.current?.getTotalMoves?.() || 1;
-                                                sim3dRef.current?.seekTo?.(Math.round(pct * totalMoves));
-                                            }}
-                                            style={{ flex: 1, accentColor: '#f78166', height: 4 }}
-                                        />
-                                    </div>
-
-                                    {/* Speed */}
-                                    <select value={sim3dSpeed} onChange={e => setSim3dSpeed(parseFloat(e.target.value))}
-                                        style={{ ...btnSim, padding: '4px 6px', fontSize: 11 }}>
-                                        {[0.25, 0.5, 1, 2, 5, 10, 50, 200].map(v => (
-                                            <option key={v} value={v}>{v}×</option>
-                                        ))}
-                                    </select>
-
-                                    {/* Time */}
-                                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#8b949e', minWidth: 100, textAlign: 'right' }}>
-                                        <span style={{ color: '#e6edf3' }}>{fmtSecs(sim3dTime)}</span>
-                                        {' / '}{fmtSecs(sim3dTotal)}
-                                    </span>
-                                </div>
-                            </div>
-                        );
-                    })()}
 
                 </div>
 
@@ -647,7 +532,7 @@ export function GcodePreviewModal({ data, onDownload, onSendToMachine, onClose, 
                     </div>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button onClick={onClose} className={Z.btn2} style={{ padding: '9px 18px' }}>Fechar</button>
-                    <button onClick={() => setAbaPreview('sim2d')} className={Z.btn2} style={{ padding: '9px 18px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
+                    <button onClick={() => setAbaPreview('simulador')} className={Z.btn2} style={{ padding: '9px 18px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
                         <Play size={14} /> Simular
                     </button>
                     {gcode && loteId && (
