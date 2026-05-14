@@ -135,7 +135,7 @@ function renderRoute() {
     if (apresentacaoToken)      return <PropostaApresentacao token={apresentacaoToken} />;
     if (lpToken)                return <ProposalLanding token={lpToken} />;
     if (previewPropostaToken)   return <ProposalPublic token={previewPropostaToken} isPreview />;
-    if (previewPortalToken)     return <PortalCliente token={previewPortalToken} isPreview />;
+    if (previewPortalToken)     return <PortalClienteV2 token={previewPortalToken} />;
     if (proposalToken)          return <ProposalPublic token={proposalToken} />;
     // Portal v2 (oficial). /portal-v2/TOKEN mantido como alias durante transição.
     if (portalV2Token)          return <PortalClienteV2 token={portalV2Token} />;
