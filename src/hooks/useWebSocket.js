@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 const WS_RECONNECT_BASE_MS = 1000; // 1s base → dobra a cada retry
 const WS_RECONNECT_MAX_MS  = 30000; // teto 30s
-const WS_MAX_RETRIES = 10;
+const WS_MAX_RETRIES = Infinity;   // nunca desiste — reconecta indefinidamente
 
 export default function useWebSocket(onMessage) {
     const [connected, setConnected] = useState(false);

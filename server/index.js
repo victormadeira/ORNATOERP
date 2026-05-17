@@ -474,3 +474,15 @@ app.locals.wsBroadcast = (type, data) => {
         if (ws.readyState === 1) ws.send(msg);
     }
 };
+
+// ── Heartbeat: ping a cada 25s para manter conexão viva através do Nginx ──
+// Sem isso, proxies fecham conexões WS ociosas após 60s silenciosamente.
+setInterval(() => {
+    for (const ws of wsClients) {
+        if (ws.readyState === 1) {
+            ws.ping();
+        } else {
+            wsClients.delete(ws);
+        }
+    }
+}, 25000);
