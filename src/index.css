@@ -1837,6 +1837,18 @@ tr.group .td-glass { transition: background var(--transition-fast), box-shadow v
 }
 .chart-card-pro-body { padding: 18px 22px; }
 
+/* Responsive SVG chart container — altura fixa, largura fluida */
+.chart-area-responsive {
+  width: 100%;
+  height: 160px;
+  position: relative;
+  overflow: hidden;
+}
+.chart-area-responsive svg {
+  width: 100%;
+  height: 100%;
+}
+
 /* Funnel Row — linha de pipeline com barra + percent */
 .funnel-row {
   position: relative;

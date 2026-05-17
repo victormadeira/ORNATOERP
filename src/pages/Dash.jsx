@@ -82,6 +82,9 @@ function ExecSummaryBar({ user, data, today, refreshing, onRefresh, nav, isVende
                                 {up && '+'}{h.pct_variacao}%
                             </span>
                             <span>{h.qtd_fechados} fechados</span>
+                            {h.qtd_perdidos > 0 && (
+                                <span style={{ color: 'var(--danger)', fontSize: 10 }}>· {h.qtd_perdidos} perdidos</span>
+                            )}
                         </div>
                     </div>
 
@@ -201,8 +204,8 @@ function KpiStrip({ data, isVendedor, nav }) {
     const aRec = (fc.entradas_30d || 0);
     const recebidoMes = fc.recebido_mes || 0;
 
-    // Sparkline — últimos 6 meses de faturamento (mock para preview se ausente)
-    const spark = (data?.historico_faturamento || []).slice(-8);
+    // Sparkline — últimos 8 meses de faturamento (handle both old number[] and new {mes,label,total}[])
+    const spark = (data?.historico_faturamento || []).slice(-8).map(h => typeof h === 'object' ? h.total : h);
 
     // Taxa de conversão (pipeline): ok/total
     const aprovados = (data?.pipeline || []).find(d => d.id === 'ok')?.qtd || 0;
@@ -251,6 +254,14 @@ function KpiStrip({ data, isVendedor, nav }) {
                 : 'todos no prazo',
             onClick: () => nav('proj'),
         },
+        ...(h?.taxa_fechamento !== null && h?.taxa_fechamento !== undefined ? [{
+            label: 'Taxa de fechamento',
+            value: `${h.taxa_fechamento}%`,
+            rawNum: h.taxa_fechamento, numFmt: 'percent',
+            icon: CheckCircle2,
+            sub: `${h.qtd_fechados || 0} ganhos · ${h.qtd_perdidos || 0} perdidos`,
+            sparkColor: h.taxa_fechamento >= 50 ? 'var(--success)' : 'var(--warning)',
+        }] : []),
     ];
 
     return (
@@ -1682,6 +1693,251 @@ function EquipeTab({ equipe }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// PERIOD FILTER — barra de presets de período
+// ══════════════════════════════════════════════════════════════════
+const PERIOD_PRESETS = [
+    { id: 'mes',     label: 'Este mês' },
+    { id: 'mes_ant', label: 'Mês anterior' },
+    { id: '7d',      label: '7 dias' },
+    { id: '30d',     label: '30 dias' },
+    { id: '90d',     label: '90 dias' },
+    { id: 'ano',     label: 'Este ano' },
+];
+
+function PeriodFilter({ value, onChange }) {
+    return (
+        <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 18,
+            overflowX: 'auto', paddingBottom: 2,
+        }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginRight: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                <Calendar size={11} style={{ verticalAlign: 'middle', marginRight: 4, marginBottom: 1 }} />
+                Período
+            </span>
+            {PERIOD_PRESETS.map(p => (
+                <button
+                    key={p.id}
+                    onClick={() => onChange(p.id)}
+                    style={{
+                        padding: '5px 12px', borderRadius: 99, fontSize: 11.5, fontWeight: 600,
+                        whiteSpace: 'nowrap', border: '1px solid',
+                        cursor: 'pointer', transition: 'all 150ms var(--ease-out)',
+                        background: value === p.id ? 'var(--primary)' : 'var(--bg-muted)',
+                        borderColor: value === p.id ? 'var(--primary)' : 'var(--border)',
+                        color: value === p.id ? '#fff' : 'var(--text-secondary)',
+                    }}
+                >{p.label}</button>
+            ))}
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GRAFICO BARRAS MENSAL — 12 meses de faturamento
+// ══════════════════════════════════════════════════════════════════
+function GraficoBarrasMensal({ data }) {
+    if (!data || data.length === 0) return null;
+    // Aceita array de numbers ou array de {mes, label, total}
+    const items = data.map((h, i) => typeof h === 'object' ? h : { total: h, label: `M${i + 1}` });
+    const maxVal = Math.max(...items.map(h => h.total), 1);
+    const totalAnual = items.reduce((s, h) => s + h.total, 0);
+    // Mês corrente = último item
+    const mesAtualIdx = items.length - 1;
+
+    return (
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><BarChart3 size={15} strokeWidth={2.2} /></span>
+                    <h3>Faturamento — 12 meses</h3>
+                </div>
+                <span className="font-tabular" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '-0.01em' }}>
+                    {R$(totalAnual)} <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>total</span>
+                </span>
+            </div>
+            <div className="chart-card-pro-body" style={{ paddingTop: 12 }}>
+                <svg
+                    viewBox="0 0 360 100"
+                    style={{ width: '100%', overflow: 'visible' }}
+                    aria-label="Gráfico de faturamento dos últimos 12 meses"
+                >
+                    {/* Grid lines */}
+                    {[25, 50, 75].map(p => (
+                        <line key={p}
+                            x1={0} y1={p} x2={360} y2={p}
+                            stroke="var(--border)" strokeWidth={0.5} strokeDasharray="2 3"
+                        />
+                    ))}
+                    {/* Bars */}
+                    {items.map((h, i) => {
+                        const barW = 22;
+                        const gapTotal = 360 / items.length;
+                        const x = i * gapTotal + (gapTotal - barW) / 2;
+                        const barH = maxVal > 0 ? (h.total / maxVal) * 80 : 0;
+                        const isCurrent = i === mesAtualIdx;
+                        const isRecent = i >= mesAtualIdx - 2;
+                        const barColor = isCurrent
+                            ? 'var(--primary)'
+                            : isRecent
+                            ? 'rgba(19,121,240,0.45)'
+                            : 'rgba(19,121,240,0.18)';
+
+                        return (
+                            <g key={i}>
+                                {/* Bar background track */}
+                                <rect x={x} y={0} width={barW} height={80} rx={3}
+                                    fill="var(--bg-subtle)" opacity={0.5} />
+                                {/* Bar fill */}
+                                {barH > 0 && (
+                                    <rect
+                                        x={x} y={80 - barH} width={barW} height={barH} rx={3}
+                                        fill={barColor}
+                                    />
+                                )}
+                                {/* Value label — only if bar is tall enough */}
+                                {barH > 12 && (
+                                    <text
+                                        x={x + barW / 2} y={80 - barH - 3}
+                                        textAnchor="middle" fontSize={6.5}
+                                        fill={isCurrent ? 'var(--primary)' : 'var(--text-muted)'}
+                                        fontWeight={700} fontFamily="var(--font-sans)"
+                                    >
+                                        {h.total >= 1000000
+                                            ? `${(h.total / 1000000).toFixed(1)}M`
+                                            : h.total >= 1000
+                                            ? `${(h.total / 1000).toFixed(0)}k`
+                                            : h.total}
+                                    </text>
+                                )}
+                                {/* Month label */}
+                                <text
+                                    x={x + barW / 2} y={94}
+                                    textAnchor="middle" fontSize={7}
+                                    fill={isCurrent ? 'rgba(255,255,255,0.75)' : 'var(--text-muted)'}
+                                    fontWeight={isCurrent ? 700 : 500}
+                                    fontFamily="var(--font-sans)"
+                                    textTransform="capitalize"
+                                >
+                                    {h.label}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </svg>
+            </div>
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GRAFICO EVOLUCAO ORCAMENTOS — criados vs fechados (12 meses)
+// ══════════════════════════════════════════════════════════════════
+function GraficoEvolucaoOrcamentos({ data }) {
+    if (!data || data.length === 0) return null;
+    const W = 100, H = 80;
+    const maxVal = Math.max(...data.map(d => Math.max(d.criados, d.fechados)), 1);
+    const xStep = W / Math.max(data.length - 1, 1);
+    const toY = v => H - (v / maxVal) * (H - 4);
+    const toX = i => i * xStep;
+
+    const fechadosPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(2)} ${toY(d.fechados).toFixed(2)}`).join(' ');
+    const criadosPath  = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(2)} ${toY(d.criados).toFixed(2)}`).join(' ');
+    const fechadosArea = `${fechadosPath} L${toX(data.length - 1).toFixed(2)} ${H} L0 ${H} Z`;
+
+    const totalCriados  = data.reduce((s, d) => s + d.criados, 0);
+    const totalFechados = data.reduce((s, d) => s + d.fechados, 0);
+    const txConv = totalCriados > 0 ? Math.round((totalFechados / totalCriados) * 100) : 0;
+
+    return (
+        <div className="chart-card-pro animate-fade-up">
+            <div className="chart-card-pro-head">
+                <div className="chart-card-pro-title">
+                    <span className="kpi-pro-icon"><Activity size={15} strokeWidth={2.2} /></span>
+                    <h3>Orçamentos — evolução 12 meses</h3>
+                </div>
+                <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text-muted)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600 }}>
+                        <span style={{ width: 10, height: 2.5, background: 'rgba(255,255,255,0.3)', borderRadius: 2, display: 'inline-block' }} />
+                        Criados
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600, color: 'var(--primary)' }}>
+                        <span style={{ width: 10, height: 2.5, background: 'var(--primary)', borderRadius: 2, display: 'inline-block' }} />
+                        Fechados
+                    </span>
+                </div>
+            </div>
+            <div className="chart-card-pro-body" style={{ paddingTop: 8 }}>
+                {/* Stats row */}
+                <div style={{ display: 'flex', gap: 24, marginBottom: 16, padding: '8px 0' }}>
+                    <div>
+                        <div className="font-tabular" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>{totalCriados}</div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500 }}>orçamentos criados</div>
+                    </div>
+                    <div>
+                        <div className="font-tabular" style={{ fontSize: 20, fontWeight: 700, color: 'var(--primary)', letterSpacing: '-0.025em' }}>{totalFechados}</div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500 }}>fechados/aprovados</div>
+                    </div>
+                    <div>
+                        <div className="font-tabular" style={{ fontSize: 20, fontWeight: 700, color: txConv >= 40 ? 'var(--success)' : txConv >= 20 ? 'var(--warning)' : 'var(--text-secondary)', letterSpacing: '-0.025em' }}>{txConv}%</div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500 }}>taxa de conversão</div>
+                    </div>
+                </div>
+
+                <div className="chart-area-responsive" style={{ position: 'relative' }}>
+                    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                        <defs>
+                            <linearGradient id="gradOrcFechados" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.30" />
+                                <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
+                            </linearGradient>
+                        </defs>
+                        {/* Grid */}
+                        {[0, 25, 50, 75, 100].map(p => (
+                            <line key={p} x1={0} y1={p} x2={W} y2={p}
+                                stroke="var(--border)" strokeWidth="0.2" strokeDasharray="0.8 0.8" />
+                        ))}
+                        {/* Fechados area fill */}
+                        <path d={fechadosArea} fill="url(#gradOrcFechados)" vectorEffect="non-scaling-stroke" />
+                        {/* Fechados line */}
+                        <path d={fechadosPath} stroke="var(--primary)" strokeWidth="2.2" fill="none"
+                            vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+                        {/* Criados line (dashed, subtle) */}
+                        <path d={criadosPath} stroke="rgba(255,255,255,0.35)" strokeWidth="1.6"
+                            strokeDasharray="3 2" fill="none"
+                            vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+                        {/* Dots */}
+                        {data.map((d, i) => (
+                            <g key={i}>
+                                <circle cx={toX(i)} cy={toY(d.fechados)} r="1.5"
+                                    fill="var(--primary)" vectorEffect="non-scaling-stroke" />
+                                {d.criados > 0 && (
+                                    <circle cx={toX(i)} cy={toY(d.criados)} r="1.1"
+                                        fill="rgba(255,255,255,0.45)" vectorEffect="non-scaling-stroke" />
+                                )}
+                            </g>
+                        ))}
+                    </svg>
+                </div>
+
+                <div style={{
+                    display: 'grid', gridTemplateColumns: `repeat(${data.length}, 1fr)`,
+                    marginTop: 10, gap: 4
+                }}>
+                    {data.map((m, i) => (
+                        <div key={i} style={{
+                            textAlign: 'center', fontSize: 9.5,
+                            color: i === data.length - 1 ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)',
+                            fontWeight: i === data.length - 1 ? 700 : 500,
+                            textTransform: 'capitalize',
+                        }}>{m.label}</div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // DASH — Componente principal
 // ══════════════════════════════════════════════════════════════════
 export default function Dash({ nav, notify, user }) {
@@ -1691,6 +1947,7 @@ export default function Dash({ nav, notify, user }) {
     const [err, setErr] = useState(false);
     const isVendedor = user?.role === 'vendedor';
     const [tab, setTab] = useState('geral');
+    const [periodo, setPeriodo] = useState('mes');
     const [finLoading, setFinLoading] = useState(false);
     const [atividades, setAtividades] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -1791,6 +2048,8 @@ export default function Dash({ nav, notify, user }) {
 
             <KpiStrip data={data} isVendedor={isVendedor} nav={nav} />
 
+            {!isVendedor && <PeriodFilter value={periodo} onChange={setPeriodo} />}
+
             <QuickActions nav={nav} isVendedor={isVendedor} />
 
             {/* Faixa de atenção — visível acima de qualquer tab */}
@@ -1820,6 +2079,14 @@ export default function Dash({ nav, notify, user }) {
                     <FollowUpsWidget nav={nav} notify={notify} />
 
                     {!isVendedor && <OrigemTrafegoWidget />}
+
+                    {/* ── Analytics: gráficos 12 meses ── */}
+                    {!isVendedor && (data.historico_faturamento?.length > 0 || data.historico_orcamentos?.length > 0) && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16, marginBottom: 20 }}>
+                            <GraficoBarrasMensal data={data.historico_faturamento} />
+                            <GraficoEvolucaoOrcamentos data={data.historico_orcamentos} />
+                        </div>
+                    )}
 
                     {!isVendedor && data.producao_resumo && (
                         <ProducaoResume data={data.producao_resumo} nav={nav} />

@@ -42,11 +42,26 @@ router.get('/', requireAuth, (req, res) => {
         const fAnt = headMesAnt.total;
         const pctVar = fAnt > 0 ? Math.round(((fMes - fAnt) / fAnt) * 100) : (fMes > 0 ? 100 : 0);
 
+        // Win/Loss do mês — perdidos
+        const perdidosMes = db.prepare(`
+            SELECT COUNT(*) as qtd FROM orcamentos o
+            WHERE o.kb_col = 'perdido'
+            AND strftime('%Y-%m', o.atualizado_em) = ?
+            ${userFilter}
+        `).get(mesAtual, ...params);
+
+        // Taxa de fechamento: aprovados / (aprovados + perdidos)
+        const totalDecididos = headMes.qtd + perdidosMes.qtd;
+        const taxaFechamento = totalDecididos > 0
+            ? Math.round((headMes.qtd / totalDecididos) * 100) : null;
+
         const headline = {
             faturamento_mes: fMes,
             faturamento_anterior: fAnt,
             pct_variacao: pctVar,
             qtd_fechados: headMes.qtd,
+            qtd_perdidos: perdidosMes.qtd,
+            taxa_fechamento: taxaFechamento,
             mes_atual: MESES[now.getMonth()],
             mes_anterior: MESES[mesAnteriorDate.getMonth()],
         };
@@ -271,11 +286,12 @@ router.get('/', requireAuth, (req, res) => {
             vendedorMetrics.novos_clientes_mes = meusClientes.total;
         }
 
-        // ── Histórico Faturamento (últimos 8 meses) ──────────────────
+        // ── Histórico Faturamento (últimos 12 meses) ──────────────────
         const historico_faturamento = [];
-        for (let i = 7; i >= 0; i--) {
+        for (let i = 11; i >= 0; i--) {
             const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
             const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const label = MESES[d.getMonth()].slice(0, 3);
             const row = db.prepare(`
                 SELECT COALESCE(SUM(o.valor_venda), 0) as total
                 FROM orcamentos o
@@ -283,7 +299,31 @@ router.get('/', requireAuth, (req, res) => {
                 AND strftime('%Y-%m', o.atualizado_em) = ?
                 ${userFilter}
             `).get(mes, ...params);
-            historico_faturamento.push(row.total);
+            historico_faturamento.push({ mes, label, total: row.total });
+        }
+
+        // ── Histórico Orçamentos Criados vs Fechados (últimos 12 meses) ──
+        const historico_orcamentos = [];
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const label = MESES[d.getMonth()].slice(0, 3);
+            const criados = db.prepare(`
+                SELECT COUNT(*) as total FROM orcamentos o
+                WHERE strftime('%Y-%m', o.criado_em) = ? ${userFilter}
+            `).get(mes, ...params);
+            const fechados = db.prepare(`
+                SELECT COUNT(*) as total, COALESCE(SUM(o.valor_venda), 0) as valor
+                FROM orcamentos o
+                WHERE o.kb_col IN ('ok','prod','done')
+                AND strftime('%Y-%m', o.atualizado_em) = ? ${userFilter}
+            `).get(mes, ...params);
+            historico_orcamentos.push({
+                mes, label,
+                criados: criados.total,
+                fechados: fechados.total,
+                valor_fechados: fechados.valor,
+            });
         }
 
         // ── Equipe — ranking de vendedores (só gerentes/admin) ──────
@@ -373,6 +413,7 @@ router.get('/', requireAuth, (req, res) => {
             vendedor: Object.keys(vendedorMetrics).length > 0 ? vendedorMetrics : undefined,
             producao_resumo,
             historico_faturamento,
+            historico_orcamentos,
             equipe,
         });
 
