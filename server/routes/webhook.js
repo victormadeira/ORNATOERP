@@ -71,6 +71,9 @@ router.post('/whatsapp', async (req, res) => {
         } else if (event === 'messages.set') {
             // Lote de histórico disparado no pareamento do WhatsApp
             await handleMessagesSet(body.data || body);
+        } else if (event === 'connection.update') {
+            const state = body.data?.state || body.state || 'unknown';
+            req.app.locals.wsBroadcast?.('whatsapp.connection', { connected: state === 'open', state });
         }
     } catch (err) {
         console.error('[WH] Erro:', err.message);
