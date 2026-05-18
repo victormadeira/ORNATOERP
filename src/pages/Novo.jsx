@@ -63,6 +63,67 @@ function resolveItemMats(item, amb) {
     };
 }
 
+// ── Componente: input com suporte a fórmulas matemáticas (Estilo A) ─────────
+// Aceita expressões iniciadas com "=" (ex: =1850/2) — avalia no blur, armazena só o resultado.
+const SAFE_FORMULA_RE = /^[\d\s+\-*/().]+$/;
+function FormulaInput({ value, onChange, className, style, min, ...props }) {
+    const [raw, setRaw] = useState(null); // null = modo display; string = modo edição
+    const isEditing = raw !== null;
+    const isFormula = isEditing && raw.startsWith('=');
+
+    const evalAndCommit = (str) => {
+        const trimmed = str.trim();
+        if (!trimmed) { onChange(0); setRaw(null); return; }
+        if (trimmed.startsWith('=')) {
+            const expr = trimmed.slice(1).trim();
+            if (SAFE_FORMULA_RE.test(expr)) {
+                try {
+                    // eslint-disable-next-line no-new-func
+                    const result = Function('"use strict";return(' + expr + ')')();
+                    if (Number.isFinite(result)) {
+                        const clamped = min !== undefined
+                            ? Math.max(+min, Math.round(result * 100) / 100)
+                            : Math.round(result * 100) / 100;
+                        onChange(clamped);
+                    }
+                } catch { /* ignora fórmula inválida */ }
+            }
+        } else {
+            const n = parseFloat(trimmed.replace(',', '.'));
+            if (Number.isFinite(n)) {
+                onChange(min !== undefined ? Math.max(+min, n) : n);
+            }
+        }
+        setRaw(null);
+    };
+
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            value={isEditing ? raw : (value !== undefined && value !== 0 ? String(value) : '')}
+            onFocus={() => setRaw(value !== undefined && value !== 0 ? String(value) : '')}
+            onChange={e => setRaw(e.target.value)}
+            onBlur={e => evalAndCommit(e.target.value)}
+            onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+                if (e.key === 'Escape') { setRaw(null); e.target.blur(); }
+            }}
+            className={className}
+            style={{
+                ...style,
+                ...(isFormula ? {
+                    borderColor: 'var(--primary)',
+                    color: 'var(--primary)',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                } : {}),
+            }}
+            {...props}
+        />
+    );
+}
+
 // ── Componente: dropdown estilizado para puxadores ──────────────────────────
 function PuxadorSelect({ puxadores, value, onChange }) {
     const [open, setOpen] = useState(false);
@@ -2960,9 +3021,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {dimFields.map(([lbl, k]) => (
                                                         <div key={k} className="min-w-0">
                                                             <label className={Z.lbl}>{lbl}</label>
-                                                            <input type="number" value={item.dims[k]}
-                                                                onChange={e => upItem(amb.id, item.id, it => it.dims[k] = +e.target.value || 0)}
-                                                                className={Z.inp} />
+                                                            <FormulaInput
+                                                                value={item.dims[k]}
+                                                                onChange={v => upItem(amb.id, item.id, it => it.dims[k] = v)}
+                                                                className={Z.inp}
+                                                                min={1}
+                                                            />
                                                         </div>
                                                     ))}
                                                     <div className="min-w-0">
