@@ -163,3 +163,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         )}
     </React.StrictMode>
 );
+
+// Remove o overlay FOUC assim que o React tiver pintado seu primeiro frame.
+// Double-rAF garante que o browser commitou o DOM do React antes de desaparecer.
+requestAnimationFrame(() => requestAnimationFrame(() => {
+    const loader = document.getElementById('page-loader');
+    if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 220);
+    }
+}));

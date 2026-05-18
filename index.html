@@ -81,6 +81,14 @@
       document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
+  <!-- FOUC guard: overlay opaco que cobre o #static-fallback até o React montar.
+       Cor sincronizada com data-theme para evitar flash na área logada também.
+       Removido via JS em main.jsx após o primeiro paint do React. -->
+  <style>
+    #page-loader{position:fixed;inset:0;z-index:9999;pointer-events:none;transition:opacity .2s ease;background:#1A1614}
+    html[data-theme="light"] #page-loader{background:#f5f4f2}
+  </style>
+  <div id="page-loader"></div>
   <div id="root"></div>
   <!-- Conteúdo estático visível para crawlers (Meta, Google, etc.) antes do React montar.
        O CSS abaixo esconde este bloco assim que o React popula o #root. -->
