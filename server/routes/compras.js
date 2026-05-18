@@ -237,8 +237,8 @@ router.post('/xml-processar', requireAuth, requireRole('admin', 'gerente'), (req
                     db.prepare('INSERT INTO estoque (material_id, quantidade) VALUES (?, ?)').run(bibId, item.quantidade);
                 }
                 // Registrar movimentação
-                db.prepare(`INSERT INTO movimentacoes_estoque (material_id, tipo, quantidade, observacao, projeto_id) VALUES (?,?,?,?,?)`)
-                    .run(bibId, 'entrada', item.quantidade, `NF ${nf.numero_nf} - ${item.descricao}`, nf.projeto_id);
+                db.prepare(`INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, descricao, criado_por) VALUES (?,?,?,?,?,?)`)
+                    .run(bibId, nf.projeto_id || null, 'entrada', item.quantidade, `NF ${nf.numero_nf} - ${item.descricao}`, req.user.id);
                 estoqueEntradas++;
             }
 
@@ -319,6 +319,57 @@ router.get('/ordens/:id', requireAuth, (req, res) => {
     if (!ordem) return res.status(404).json({ error: 'Ordem não encontrada' });
     ordem.itens = db.prepare('SELECT * FROM ordens_compra_itens WHERE ordem_id = ?').all(ordem.id);
     res.json(ordem);
+});
+
+// ═══════════════════════════════════════════════════════
+// PUT /api/compras/ordens/:id/status — atualiza status da OC
+// Se recebida: atualiza preco no catálogo + cria entradas de estoque
+// ═══════════════════════════════════════════════════════
+router.put('/ordens/:id/status', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+    const { status } = req.body;
+    const VALID = ['rascunho', 'pendente', 'aprovada', 'recebida', 'cancelada'];
+    if (!VALID.includes(status)) return res.status(400).json({ error: 'Status inválido' });
+
+    const ordem = db.prepare('SELECT * FROM ordens_compra WHERE id = ?').get(id);
+    if (!ordem) return res.status(404).json({ error: 'Ordem não encontrada' });
+
+    db.prepare('UPDATE ordens_compra SET status = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
+
+    let precosAtualizados = 0;
+    let estoqueEntradas = 0;
+
+    if (status === 'recebida') {
+        const itens = db.prepare('SELECT * FROM ordens_compra_itens WHERE ordem_id = ?').all(id);
+        const now = new Date().toISOString();
+
+        for (const item of itens) {
+            if (!item.biblioteca_id || !item.valor_unitario || item.valor_unitario <= 0) continue;
+
+            // Atualizar preço na biblioteca
+            const updated = db.prepare(
+                'UPDATE biblioteca SET preco = ?, preco_atualizado_em = ? WHERE id = ?'
+            ).run(item.valor_unitario, now, item.biblioteca_id);
+            if (updated.changes > 0) precosAtualizados++;
+
+            // Criar entrada de estoque se o item estiver cadastrado no estoque
+            if (item.quantidade > 0) {
+                const estoqueItem = db.prepare('SELECT id, quantidade FROM estoque WHERE material_id = ?').get(item.biblioteca_id);
+                if (estoqueItem) {
+                    db.prepare(
+                        'UPDATE estoque SET quantidade = quantidade + ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?'
+                    ).run(item.quantidade, estoqueItem.id);
+                    db.prepare(`INSERT INTO movimentacoes_estoque
+                        (material_id, tipo, quantidade, valor_unitario, descricao, criado_por)
+                        VALUES (?, 'entrada', ?, ?, ?, ?)
+                    `).run(item.biblioteca_id, item.quantidade, item.valor_unitario || 0, `Recebimento OC ${ordem.numero}`, req.user.id);
+                    estoqueEntradas++;
+                }
+            }
+        }
+    }
+
+    res.json({ ok: true, status, precosAtualizados, estoqueEntradas });
 });
 
 // ═══════════════════════════════════════════════════════

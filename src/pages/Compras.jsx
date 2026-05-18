@@ -638,6 +638,8 @@ function TabOrdens({ notify }) {
     const [saving, setSaving] = useState(false);
     const [fornecedores, setFornecedores] = useState([]);
 
+    const [updatingStatus, setUpdatingStatus] = useState(null); // ordem id
+
     const load = useCallback(async () => {
         setLoading(true);
         try {
@@ -646,6 +648,28 @@ function TabOrdens({ notify }) {
         } catch { setOrdens([]); }
         finally { setLoading(false); }
     }, []);
+
+    const avancarStatus = async (ordem) => {
+        const FLUXO = { rascunho: 'pendente', pendente: 'aprovada', aprovada: 'recebida' };
+        const next = FLUXO[ordem.status];
+        if (!next) return;
+        setUpdatingStatus(ordem.id);
+        try {
+            const r = await api.put(`/compras/ordens/${ordem.id}/status`, { status: next });
+            if (next === 'recebida') {
+                const msgs = [];
+                if (r.precosAtualizados > 0) msgs.push(`${r.precosAtualizados} preço(s) no catálogo atualizados`);
+                if (r.estoqueEntradas > 0) msgs.push(`${r.estoqueEntradas} entrada(s) no estoque registradas`);
+                notify?.(msgs.length ? `Recebida! ${msgs.join(' · ')}` : 'OC marcada como recebida', 'success');
+            } else {
+                const LABELS = { pendente: 'Pendente', aprovada: 'Aprovada' };
+                notify?.(`OC marcada como ${LABELS[next]}`, 'success');
+            }
+            setOrdens(prev => prev.map(o => o.id === ordem.id ? { ...o, status: next } : o));
+        } catch (e) {
+            notify?.(e?.error || 'Erro ao atualizar status', 'error');
+        } finally { setUpdatingStatus(null); }
+    };
 
     useEffect(() => { load(); }, [load]);
     useEffect(() => {
@@ -710,6 +734,7 @@ function TabOrdens({ notify }) {
                                 <th className={Z.th} style={{ textAlign: 'right' }}>Valor</th>
                                 <th className={Z.th}>Status</th>
                                 <th className={Z.th}>Data</th>
+                                <th className={Z.th}>Ação</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -727,7 +752,20 @@ function TabOrdens({ notify }) {
                                                 background: `${st.color}18`, color: st.color, display: 'inline-block',
                                             }}>{st.label}</span>
                                         </td>
-                                        <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{fmtDate(o.criado_em)}</td>
+                                                        <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{fmtDate(o.criado_em)}</td>
+                                        <td style={{ padding: '8px 10px' }}>
+                                            {['rascunho','pendente','aprovada'].includes(o.status) && (
+                                                <button
+                                                    className={Z.btn2Sm}
+                                                    disabled={updatingStatus === o.id}
+                                                    onClick={() => avancarStatus(o)}
+                                                    style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                                                >
+                                                    {updatingStatus === o.id ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}
+                                                    {{ rascunho: 'Enviar', pendente: 'Aprovar', aprovada: 'Recebida ✓' }[o.status]}
+                                                </button>
+                                            )}
+                                        </td>
                                     </tr>
                                 );
                             })}

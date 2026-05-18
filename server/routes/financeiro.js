@@ -49,7 +49,7 @@ router.get('/lembretes', requireAuth, (req, res) => {
     const vencidas = db.prepare(`
         SELECT cr.*, p.nome as projeto_nome
         FROM contas_receber cr
-        JOIN projetos p ON p.id = cr.projeto_id
+        LEFT JOIN projetos p ON p.id = cr.projeto_id
         WHERE cr.status = 'pendente' AND cr.data_vencimento < today_sp()
         AND ${ND.replace(/deletado/g, 'cr.deletado')}
         ORDER BY cr.data_vencimento ASC
@@ -58,7 +58,7 @@ router.get('/lembretes', requireAuth, (req, res) => {
     const proximas = db.prepare(`
         SELECT cr.*, p.nome as projeto_nome
         FROM contas_receber cr
-        JOIN projetos p ON p.id = cr.projeto_id
+        LEFT JOIN projetos p ON p.id = cr.projeto_id
         WHERE cr.status = 'pendente'
         AND cr.data_vencimento >= today_sp()
         AND cr.data_vencimento <= date(today_sp(), '+7 days')
@@ -278,7 +278,7 @@ router.put('/pagar/:id', requireAuth, (req, res) => {
     const cat = CATEGORIAS_PAGAR.includes(categoria) ? categoria : undefined;
     const dataPgto = status === 'pago' && !data_pagamento
         ? todayBR()
-        : (data_pagamento || null);
+        : (data_pagamento !== undefined ? (data_pagamento || null) : antes.data_pagamento);
 
     db.prepare(`
         UPDATE contas_pagar
@@ -288,10 +288,20 @@ router.put('/pagar/:id', requireAuth, (req, res) => {
             atualizado_em=CURRENT_TIMESTAMP
         WHERE id=?
     `).run(
-        descricao, valor, data_vencimento || null, status || 'pendente', dataPgto,
-        cat || 'outros', fornecedor || '', meio_pagamento || '', codigo_barras || '',
-        projeto_id ? parseInt(projeto_id) : null, observacao || '',
-        nf_numero || '', nf_chave || '', id
+        descricao ?? antes.descricao,
+        valor ?? antes.valor,
+        data_vencimento !== undefined ? (data_vencimento || null) : antes.data_vencimento,
+        status ?? antes.status,
+        dataPgto,
+        cat !== undefined ? (cat || 'outros') : antes.categoria,
+        fornecedor !== undefined ? fornecedor : antes.fornecedor,
+        meio_pagamento !== undefined ? meio_pagamento : antes.meio_pagamento,
+        codigo_barras !== undefined ? codigo_barras : antes.codigo_barras,
+        projeto_id !== undefined ? (projeto_id ? parseInt(projeto_id) : null) : antes.projeto_id,
+        observacao !== undefined ? observacao : antes.observacao,
+        nf_numero !== undefined ? nf_numero : antes.nf_numero,
+        nf_chave !== undefined ? nf_chave : antes.nf_chave,
+        id
     );
 
     // Audit logging — sempre (não só quando status='pago')
@@ -517,6 +527,10 @@ router.post('/receber', requireAuth, (req, res) => {
             projeto_id, codigo_barras, nf_numero } = req.body;
     if (!descricao || !valor || !projeto_id) {
         return res.status(400).json({ error: 'Descrição, valor e projeto obrigatórios' });
+    }
+    const valorNum = parseFloat(valor);
+    if (isNaN(valorNum) || valorNum <= 0) {
+        return res.status(400).json({ error: 'Valor deve ser positivo' });
     }
     const proj = db.prepare('SELECT id, orc_id FROM projetos WHERE id = ?').get(parseInt(projeto_id));
     if (!proj) return res.status(404).json({ error: 'Projeto não encontrado' });
@@ -1020,15 +1034,21 @@ router.put('/receber/:id', requireAuth, (req, res) => {
 
     const dataPgto = status === 'pago' && !data_pagamento
         ? todayBR()
-        : (data_pagamento || null);
+        : (data_pagamento !== undefined ? (data_pagamento || null) : antes.data_pagamento);
 
     db.prepare(`
         UPDATE contas_receber
         SET descricao=?, valor=?, data_vencimento=?, status=?, data_pagamento=?, meio_pagamento=?, observacao=?
         WHERE id=?
     `).run(
-        descricao, valor, data_vencimento || null, status || 'pendente',
-        dataPgto, meio_pagamento || '', observacao || '', id
+        descricao ?? antes.descricao,
+        valor ?? antes.valor,
+        data_vencimento !== undefined ? (data_vencimento || null) : antes.data_vencimento,
+        status ?? antes.status,
+        dataPgto,
+        meio_pagamento !== undefined ? meio_pagamento : antes.meio_pagamento,
+        observacao !== undefined ? observacao : antes.observacao,
+        id
     );
 
     try {
@@ -1125,32 +1145,40 @@ router.post('/:projeto_id/importar-parcelas', requireAuth, (req, res) => {
     const [baseY, baseM, baseD] = todayBR().split('-').map(Number);
     let parcNum = 0;
 
-    for (const bloco of pagamento.blocos) {
-        const valorBloco = valorFinal * ((bloco.percentual || 0) / 100);
-        const nParcelas = Math.max(1, bloco.parcelas || 1);
-        const valorParcela = Math.round((valorBloco / nParcelas) * 100) / 100;
+    const inserir = db.transaction(() => {
+        for (const bloco of pagamento.blocos) {
+            const valorBloco = Math.round(valorFinal * ((bloco.percentual || 0) / 100) * 100) / 100;
+            const nParcelas = Math.max(1, bloco.parcelas || 1);
+            const valorBase = Math.round((valorBloco / nParcelas) * 100) / 100;
 
-        for (let i = 0; i < nParcelas; i++) {
-            parcNum++;
-            // Aritmética de meses sem depender de timezone do servidor
-            const totalM = baseM - 1 + i; // 0-indexed
-            const vY = baseY + Math.floor(totalM / 12);
-            const vM = (totalM % 12) + 1;
-            const maxD = new Date(vY, vM, 0).getDate(); // último dia do mês
-            const vD = Math.min(baseD, maxD);
-            const vencStr = `${vY}-${String(vM).padStart(2, '0')}-${String(vD).padStart(2, '0')}`;
-            const descr = nParcelas > 1
-                ? `${bloco.descricao || 'Parcela'} ${i + 1}/${nParcelas}`
-                : bloco.descricao || `Pagamento ${parcNum}`;
+            for (let i = 0; i < nParcelas; i++) {
+                parcNum++;
+                // Última parcela absorve diferença de arredondamento
+                const isLast = i === nParcelas - 1;
+                const valorParcela = isLast
+                    ? Math.round((valorBloco - valorBase * (nParcelas - 1)) * 100) / 100
+                    : valorBase;
+                // Aritmética de meses sem depender de timezone do servidor
+                const totalM = baseM - 1 + i; // 0-indexed
+                const vY = baseY + Math.floor(totalM / 12);
+                const vM = (totalM % 12) + 1;
+                const maxD = new Date(vY, vM, 0).getDate(); // último dia do mês
+                const vD = Math.min(baseD, maxD);
+                const vencStr = `${vY}-${String(vM).padStart(2, '0')}-${String(vD).padStart(2, '0')}`;
+                const descr = nParcelas > 1
+                    ? `${bloco.descricao || 'Parcela'} ${i + 1}/${nParcelas}`
+                    : bloco.descricao || `Pagamento ${parcNum}`;
 
-            stmt.run(
-                projeto_id, orc.id, descr, valorParcela,
-                vencStr,
-                MEIO_LABEL[bloco.meio] || bloco.meio || ''
-            );
+                stmt.run(
+                    projeto_id, orc.id, descr, valorParcela,
+                    vencStr,
+                    MEIO_LABEL[bloco.meio] || bloco.meio || ''
+                );
+            }
         }
-    }
+    });
 
+    inserir();
     res.json({ ok: true, parcelas_criadas: parcNum });
 });
 

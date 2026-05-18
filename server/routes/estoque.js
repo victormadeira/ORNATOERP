@@ -185,16 +185,18 @@ router.post('/saida', requireAuth, (req, res) => {
         });
     }
 
-    db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(quantidade, existing.id);
-
     const mat = db.prepare('SELECT preco, nome FROM biblioteca WHERE id = ?').get(material_id);
     const valorUnit = mat?.preco || 0;
 
-    db.prepare(`
-        INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, valor_unitario, descricao, criado_por)
-        VALUES (?, ?, 'saida', ?, ?, ?, ?)
-    `).run(material_id, projeto_id || null, quantidade, valorUnit, descricao || 'Saída de material', req.user.id);
+    // Transação garante atomicidade: UPDATE + INSERT nunca ficam fora de sincronia
+    db.transaction(() => {
+        db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?')
+            .run(quantidade, existing.id);
+        db.prepare(`
+            INSERT INTO movimentacoes_estoque (material_id, projeto_id, tipo, quantidade, valor_unitario, descricao, criado_por)
+            VALUES (?, ?, 'saida', ?, ?, ?, ?)
+        `).run(material_id, projeto_id || null, quantidade, valorUnit, descricao || 'Saída de material', req.user.id);
+    })();
 
     // Sincronizar despesa se vinculado a projeto
     if (projeto_id) syncMaterialExpense(projeto_id);
@@ -298,6 +300,9 @@ router.post('/ajuste', requireAuth, (req, res) => {
     const { material_id, quantidade_real, descricao } = req.body;
     if (!material_id || quantidade_real === undefined) {
         return res.status(400).json({ error: 'Material e quantidade real obrigatórios' });
+    }
+    if (parseFloat(quantidade_real) < 0) {
+        return res.status(400).json({ error: 'Quantidade real não pode ser negativa' });
     }
 
     const existing = db.prepare('SELECT id, quantidade FROM estoque WHERE material_id = ?').get(material_id);
@@ -500,27 +505,29 @@ router.delete('/movimentacao/:id', requireAuth, requireRole('admin', 'gerente'),
     const mov = db.prepare('SELECT * FROM movimentacoes_estoque WHERE id = ?').get(id);
     if (!mov) return res.status(404).json({ error: 'Movimentação não encontrada' });
 
-    // Reverter saldo do estoque
-    const existing = db.prepare('SELECT id FROM estoque WHERE material_id = ?').get(mov.material_id);
-    if (mov.tipo === 'saida') {
-        // Saída: devolver ao estoque
-        if (existing) {
-            db.prepare('UPDATE estoque SET quantidade = quantidade + ?, atualizado_em = CURRENT_TIMESTAMP WHERE material_id = ?')
-                .run(mov.quantidade, mov.material_id);
-        } else {
-            db.prepare('INSERT INTO estoque (material_id, quantidade) VALUES (?, ?)').run(mov.material_id, mov.quantidade);
+    // Reverter saldo + excluir movimentação em transação (evita estado inconsistente)
+    db.transaction(() => {
+        const existing = db.prepare('SELECT id FROM estoque WHERE material_id = ?').get(mov.material_id);
+        if (mov.tipo === 'saida') {
+            // Saída: devolver ao estoque
+            if (existing) {
+                db.prepare('UPDATE estoque SET quantidade = quantidade + ?, atualizado_em = CURRENT_TIMESTAMP WHERE material_id = ?')
+                    .run(mov.quantidade, mov.material_id);
+            } else {
+                db.prepare('INSERT INTO estoque (material_id, quantidade) VALUES (?, ?)').run(mov.material_id, mov.quantidade);
+            }
+        } else if (mov.tipo === 'entrada') {
+            // Entrada: remover do estoque
+            if (existing) {
+                db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE material_id = ?')
+                    .run(mov.quantidade, mov.material_id);
+            }
         }
-    } else if (mov.tipo === 'entrada') {
-        // Entrada: remover do estoque
-        if (existing) {
-            db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE material_id = ?')
-                .run(mov.quantidade, mov.material_id);
-        }
-    }
-    // Ajustes: não reverter (complexo demais, snapshot já perdido)
+        // Ajustes: não reverter (complexo demais, snapshot já perdido)
 
-    // Excluir movimentação
-    db.prepare('DELETE FROM movimentacoes_estoque WHERE id = ?').run(id);
+        // Excluir movimentação (dentro da mesma transação)
+        db.prepare('DELETE FROM movimentacoes_estoque WHERE id = ?').run(id);
+    })();
 
     // Recalcular despesa consolidada se era vinculado a projeto
     if (mov.projeto_id) {

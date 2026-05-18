@@ -2,8 +2,8 @@
 // HELPERS
 // ═══════════════════════════════════════════════════════
 export const uid = () => crypto.randomUUID();
-export const R$ = v => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
-export const N = (v, d = 2) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v || 0);
+export const R$ = v => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v ?? 0);
+export const N = (v, d = 2) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v ?? 0);
 export const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
 
 // ═══════════════════════════════════════════════════════
@@ -73,7 +73,7 @@ function rCalc(expr, d) {
         // Substituir variáveis longas primeiro para evitar conflitos
         // Ex: "Li" deve ser substituído inteiramente, não como "L" + "i"
         for (const k of VAR_ORDER) {
-            e = e.replace(new RegExp(`\\b${k}\\b`, "g"), String(d[k] || 0));
+            e = e.replace(new RegExp(`\\b${k}\\b`, "g"), String(d[k] ?? 0));
         }
         if (!SAFE_EXPR.test(e)) return 0;
         const r = Function('"use strict";return(' + e + ')')();
@@ -85,7 +85,7 @@ function rFerrForm(expr, d) {
     try {
         let e = expr;
         for (const k of VAR_ORDER) {
-            e = e.replace(new RegExp(`\\b${k}\\b`, "g"), String(d[k] || 0));
+            e = e.replace(new RegExp(`\\b${k}\\b`, "g"), String(d[k] ?? 0));
         }
         if (!SAFE_EXPR.test(e)) return 1;
         return Math.ceil(Function('"use strict";return(' + e + ')')());
@@ -97,26 +97,36 @@ function cFita(cfg, w, h) {
     if (!cfg || !cfg.length) return 0;
     let t = 0;
     cfg.forEach(s => {
-        if (s === "f") t += w;       // frente
-        else if (s === "b") t += w;  // base/bottom
-        else if (s === "t") t += w;  // topo
+        if      (s === "f")   t += w;             // frente
+        else if (s === "b")   t += w;             // base/bottom
+        else if (s === "t")   t += w;             // topo
+        else if (s === "l")   t += h;             // esquerda
+        else if (s === "r")   t += h;             // direita
         else if (s === "all") t += (w + h) * 2;  // 4 lados
     });
     return t / 1000; // mm → m
 }
 
-// Extrai dimensões reais de uma expressão tipo "A*P" usando o dicionário
+// Extrai dimensões reais (w, h em mm) de uma expressão de área tipo "A*P"
+// Suporta expressões com parênteses e subtração: "(L-100)*(A-200)"
 function parseDimsFromExpr(expr, D) {
-    const parts = expr.split("*").map(p => p.trim());
-    if (parts.length === 2) {
-        const w = D[parts[0]] || 0;
-        const h = D[parts[1]] || 0;
-        return { w, h };
+    // Tenta split simples por "*" em expressões sem parênteses
+    const simple = expr.split("*").map(p => p.trim());
+    if (simple.length === 2 && !simple[0].includes('(') && !simple[1].includes('(')) {
+        const w = D[simple[0]] ?? rCalcV2(simple[0], D);
+        const h = D[simple[1]] ?? rCalcV2(simple[1], D);
+        return { w: w || 0, h: h || 0 };
     }
-    // Expressão complexa: avaliar e usar raiz como proxy
-    const amm = rCalc(expr, D);
-    const side = Math.sqrt(Math.abs(amm));
-    return { w: side, h: side };
+    // Expressão com parênteses: tentar avaliar cada fator individualmente
+    // Ex: "(L-100)*(A-200)" → fatores ["(L-100)", "(A-200)"]
+    const complexMatch = expr.match(/^(.+)\*(.+)$/);
+    if (complexMatch) {
+        const w = rCalcV2(complexMatch[1].trim(), D);
+        const h = rCalcV2(complexMatch[2].trim(), D);
+        if (w > 0 && h > 0) return { w, h };
+    }
+    // Fallback seguro: sem dimensões — não inventar valores fictícios via √área
+    return { w: 0, h: 0 };
 }
 
 export function cRipado(cfg, L, A) {
@@ -305,7 +315,7 @@ function rCalcV2(expr, d) {
         // Substituir primeiro as vars da ordem predefinida (prioridade e ordem correta)
         for (const k of VAR_ORDER_V2) {
             if (d[k] !== undefined) {
-                e = e.replace(new RegExp(`\\b${k}\\b`, 'g'), String(d[k]));
+                e = e.replace(new RegExp(`\\b${k}\\b`, 'g'), String(d[k] ?? 0));
             }
         }
         // Depois substituir vars extras do contexto (ex: vars customizadas de componentes)
@@ -313,10 +323,10 @@ function rCalcV2(expr, d) {
         const extraKeys = Object.keys(d).filter(k => !VAR_ORDER_V2.includes(k) && d[k] !== undefined && typeof d[k] === 'number');
         extraKeys.sort((a, b) => b.length - a.length);
         for (const k of extraKeys) {
-            e = e.replace(new RegExp(`\\b${k}\\b`, 'g'), String(d[k]));
+            e = e.replace(new RegExp(`\\b${k}\\b`, 'g'), String(d[k] ?? 0));
         }
         if (!SAFE_EXPR.test(e)) return 0;
-        const r = Function('"use strict";return(' + e + ')')() || 0;
+        const r = Function('"use strict";return(' + e + ')')();
         return Number.isFinite(r) ? r : 0;
     } catch (_) { return 0; }
 }
@@ -361,8 +371,9 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     const addAcabamento = (matId, am) => {
         if (!matId) return;
         const ac = acabDB.find(x => x.id === matId);
-        if (ac && (ac.preco || ac.preco_m2) > 0) {
-            custo += am * (ac.preco || ac.preco_m2 || 0);
+        const precoAcab = ac?.preco_m2 || ac?.preco || 0;
+        if (ac && precoAcab > 0) {
+            custo += am * precoAcab;
         }
     };
 
@@ -378,7 +389,9 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         pecas.push({ nome, tipo, matId: resolvedMat, area: am, fita: f, w, h, perimetro, nBordas, qtd: qtd || 1 });
         area += am;
         fita += f;
-        if (f > 0 && !isAcab) {
+        // Registrar fita em fitaByMat para todos os materiais (chapas e acabamentos)
+        // Acabamentos usam o preço-padrão de fita pois não têm fita_preco próprio
+        if (f > 0) {
             if (!fitaByMat[resolvedMat]) fitaByMat[resolvedMat] = { metros: 0, preco: getFitaPreco(resolvedMat) };
             fitaByMat[resolvedMat].metros += f;
         }
@@ -538,9 +551,10 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         custo += cc;
     });
 
-    // Custo de fita: per-material se fita_preco cadastrado, senão fallback global
-    const custoFita = Object.values(fitaByMat).reduce((s, v) => s + v.metros * v.preco, 0)
-        || fita * fitaPrecoDefault;
+    // Custo de fita: per-material se fitaByMat populado, senão fallback global com preço padrão
+    const custoFita = Object.keys(fitaByMat).length > 0
+        ? Object.values(fitaByMat).reduce((s, v) => s + v.metros * v.preco, 0)
+        : fita * fitaPrecoDefault;
     custo += custoFita;
 
     // Custo de ferragens
@@ -830,7 +844,7 @@ export function precoVendaV2(custos, coef, taxas, custoHoraResult = null) {
     }
     const pv = cp / (1 - s);
     // Preço mínimo: custo real ÷ (1 - impostos fixos), cobre custos + impostos obrigatórios
-    const sFixo = ((taxas.imp || 0) + (taxas.inst ?? 5) + (taxas.frete || 0) + (taxas.mont || 0)) / 100;
+    const sFixo = ((taxas.imp || 0) + inst + (taxas.frete || 0) + (taxas.mont || 0)) / 100;
     const pisoMinimo = sFixo < 1 ? custoReal / (1 - sFixo) : custoReal;
 
     return {
@@ -878,7 +892,7 @@ export function calcPainelRipado(cfg, bib = []) {
         wH = 40, eH = 18, sH = 15, mesmasRipas = true,
         matRipaV = '', matRipaH = '', temSubstrato = true, matSubstrato = '' } = cfg;
 
-    if (!L || !A || !wV || eV <= 0) return null;
+    if (!L || !A || !wV || eV <= 0 || (wV + sV) <= 0) return null;
 
     const _wH = mesmasRipas ? wV : wH;
     const _eH = mesmasRipas ? eV : eH;
