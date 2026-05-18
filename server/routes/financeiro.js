@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as gdrive from '../services/gdrive.js';
-import { todayBR } from '../utils/dateBR.js';
+import { todayBR, todayPlusDaysBR } from '../utils/dateBR.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -46,25 +46,27 @@ const CATEGORIAS = [
 // DEVE vir antes de /:projeto_id para evitar conflito
 // ═══════════════════════════════════════════════════════════
 router.get('/lembretes', requireAuth, (req, res) => {
+    const hoje = todayBR();
+    const in7days = todayPlusDaysBR(7);
     const vencidas = db.prepare(`
         SELECT cr.*, p.nome as projeto_nome
         FROM contas_receber cr
         LEFT JOIN projetos p ON p.id = cr.projeto_id
-        WHERE cr.status = 'pendente' AND cr.data_vencimento < today_sp()
+        WHERE cr.status = 'pendente' AND cr.data_vencimento < ?
         AND ${ND.replace(/deletado/g, 'cr.deletado')}
         ORDER BY cr.data_vencimento ASC
-    `).all();
+    `).all(hoje);
 
     const proximas = db.prepare(`
         SELECT cr.*, p.nome as projeto_nome
         FROM contas_receber cr
         LEFT JOIN projetos p ON p.id = cr.projeto_id
         WHERE cr.status = 'pendente'
-        AND cr.data_vencimento >= today_sp()
-        AND cr.data_vencimento <= date(today_sp(), '+7 days')
+        AND cr.data_vencimento >= ?
+        AND cr.data_vencimento <= ?
         AND ${ND.replace(/deletado/g, 'cr.deletado')}
         ORDER BY cr.data_vencimento ASC
-    `).all();
+    `).all(hoje, in7days);
 
     res.json({
         vencidas: vencidas.length,
@@ -616,17 +618,20 @@ router.post('/receber/parcelado', requireAuth, (req, res) => {
 
 // GET /api/financeiro/receber/resumo — resumo global de contas a receber
 router.get('/receber/resumo', requireAuth, (req, res) => {
+    const hoje = todayBR();
+    const inicioMes = hoje.slice(0, 7) + '-01';
+    const in7days = todayPlusDaysBR(7);
     const r = db.prepare(`
         SELECT
             COALESCE(SUM(valor), 0) as total,
             COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as recebido,
             COALESCE(SUM(CASE WHEN status != 'pago' THEN valor ELSE 0 END), 0) as pendente,
-            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < today_sp() THEN valor ELSE 0 END), 0) as vencido,
-            COUNT(CASE WHEN status != 'pago' AND data_vencimento < today_sp() THEN 1 END) as qtd_vencidas,
-            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date(today_sp(), 'start of month') THEN valor ELSE 0 END), 0) as recebido_mes,
-            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d
+            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < ? THEN valor ELSE 0 END), 0) as vencido,
+            COUNT(CASE WHEN status != 'pago' AND data_vencimento < ? THEN 1 END) as qtd_vencidas,
+            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= ? THEN valor ELSE 0 END), 0) as recebido_mes,
+            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento >= ? AND data_vencimento <= ? THEN valor ELSE 0 END), 0) as vencer_7d
         FROM contas_receber WHERE ${ND}
-    `).get();
+    `).get(hoje, hoje, inicioMes, hoje, in7days);
     res.json(r);
 });
 
@@ -1251,14 +1256,15 @@ router.get('/:projeto_id/resumo', requireAuth, (req, res) => {
     ).all(projeto_id);
 
     // Contas a receber
+    const hoje = todayBR();
     const crTotais = db.prepare(`
         SELECT
             COALESCE(SUM(valor), 0) as total,
             COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as recebido,
             COALESCE(SUM(CASE WHEN status != 'pago' THEN valor ELSE 0 END), 0) as pendente,
-            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < today_sp() THEN valor ELSE 0 END), 0) as vencido
+            COALESCE(SUM(CASE WHEN status != 'pago' AND data_vencimento < ? THEN valor ELSE 0 END), 0) as vencido
         FROM contas_receber WHERE projeto_id = ? AND ${ND}
-    `).get(projeto_id);
+    `).get(hoje, projeto_id);
 
     res.json({
         orcado: Math.round(orcado * 100) / 100,
