@@ -119,16 +119,33 @@ export async function getQRCode() {
     if (!cfg.wa_instance_url || !cfg.wa_instance_name) {
         throw new Error('WhatsApp não configurado');
     }
-    const url = `${cfg.wa_instance_url}/instance/connect/${cfg.wa_instance_name}`;
-    const res = await fetch(url, {
-        headers: { 'apikey': cfg.wa_api_key },
-        signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) throw new Error(`Erro ao obter QR Code: ${res.status}`);
-    const data = await res.json();
-    // Evolution v2.3.7 returns base64 with "data:image/png;base64," prefix already included
-    const raw = data.base64 || data.qrcode?.base64 || '';
-    const b64 = raw.startsWith('data:') ? raw.split(',')[1] || raw : raw;
+    const headers = { 'apikey': cfg.wa_api_key };
+    const connectUrl = `${cfg.wa_instance_url}/instance/connect/${cfg.wa_instance_name}`;
+
+    const fetchQR = async () => {
+        const res = await fetch(connectUrl, { headers, signal: AbortSignal.timeout(15000) });
+        if (!res.ok) throw new Error(`Erro ao obter QR Code: ${res.status}`);
+        return res.json();
+    };
+
+    let data = await fetchQR();
+    // Evolution v2.3.7 retorna base64 já com prefixo "data:image/png;base64,"
+    let raw = data.base64 || data.qrcode?.base64 || '';
+
+    // Sem QR = instância presa em estado "open" fantasma ou "connecting" travado.
+    // Reinicia a instância para forçar a geração de um QR novo.
+    if (!raw) {
+        try {
+            await fetch(`${cfg.wa_instance_url}/instance/restart/${cfg.wa_instance_name}`, {
+                method: 'POST', headers, signal: AbortSignal.timeout(15000),
+            });
+        } catch (_) { /* segue mesmo se o restart falhar */ }
+        await new Promise(r => setTimeout(r, 4000));
+        data = await fetchQR();
+        raw = data.base64 || data.qrcode?.base64 || '';
+    }
+
+    const b64 = raw.startsWith('data:') ? (raw.split(',')[1] || raw) : raw;
     return { base64: b64, pairingCode: data.pairingCode || null };
 }
 

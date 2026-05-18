@@ -41,8 +41,10 @@ router.post('/whatsapp', async (req, res) => {
     // Sem token configurado o endpoint fica inacessível por design:
     // payloads de 50MB sem autenticação podem esgotar memória e consumir cota de IA.
     const expectedToken = evolution.getWebhookToken();
-    const receivedToken = (req.headers['apikey'] || req.headers['authorization'] || '').trim();
-    console.log(`[WH-DEBUG] headers recebidos: apikey=${JSON.stringify(req.headers['apikey'])} auth=${JSON.stringify(req.headers['authorization'])} expected=${JSON.stringify(expectedToken)}`);
+    // A Evolution API não envia header de autenticação de forma confiável no webhook.
+    // O token vai na query string da URL (?token=...), que a Evolution preserva intacta.
+    // Header apikey fica como fallback para compatibilidade.
+    const receivedToken = (req.query.token || req.headers['apikey'] || '').toString().trim();
     if (!expectedToken) {
         console.error('[WH] BLOQUEADO: wa_webhook_token não configurado. Configure nas configurações do sistema.');
         return res.status(503).json({ error: 'Webhook não configurado. Defina wa_webhook_token nas configurações.' });
@@ -50,7 +52,7 @@ router.post('/whatsapp', async (req, res) => {
     const a = Buffer.from(receivedToken);
     const b = Buffer.from(expectedToken);
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        console.warn(`[SEC] /api/webhook/whatsapp — token inválido de ${req.ip} | recebido: ${JSON.stringify(receivedToken)} | esperado: ${JSON.stringify(expectedToken)}`);
+        console.warn(`[SEC] /api/webhook/whatsapp — token inválido de ${req.ip}`);
         return res.status(401).json({ error: 'Invalid webhook token' });
     }
 

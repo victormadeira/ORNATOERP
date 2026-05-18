@@ -314,6 +314,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [waStatus, setWaStatus] = useState(null);
     const [waQR, setWaQR] = useState(null);
     const [waChecking, setWaChecking] = useState(false);
+    const [waQRLoading, setWaQRLoading] = useState(false);
     const [iaTestResult, setIaTestResult] = useState(null);
     const [iaTesting, setIaTesting] = useState(false);
     const [iaUso, setIaUso] = useState(null);
@@ -708,11 +709,16 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     };
 
     const getWaQR = async () => {
-        setWaQR(null);
+        setWaQR(null); setWaQRLoading(true);
         try {
             const d = await api.get('/whatsapp/qrcode');
-            setWaQR(d);
+            if (d && d.base64) {
+                setWaQR(d);
+            } else {
+                notify('Não foi possível gerar o QR Code. Tente novamente em alguns segundos.');
+            }
         } catch (e) { notify(e.error || 'Erro ao obter QR Code'); }
+        setWaQRLoading(false);
     };
 
     const testIA = async () => {
@@ -2330,8 +2336,10 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <button onClick={checkWaStatus} disabled={waChecking} className={Z.btn2}>
                                         {waChecking ? <><RefreshCw size={12} className="animate-spin" style={{ display: 'inline', marginRight: 4 }} /> Verificando...</> : <><Search size={12} style={{ display: 'inline', marginRight: 4 }} /> Verificar Conexão</>}
                                     </button>
-                                    <button onClick={getWaQR} className={Z.btn2}>
-                                        <Smartphone size={12} style={{ display: 'inline', marginRight: 4 }} /> Obter QR Code
+                                    <button onClick={getWaQR} disabled={waQRLoading} className={Z.btn2}>
+                                        {waQRLoading
+                                            ? <><RefreshCw size={12} className="animate-spin" style={{ display: 'inline', marginRight: 4 }} /> Gerando QR...</>
+                                            : <><Smartphone size={12} style={{ display: 'inline', marginRight: 4 }} /> Obter QR Code</>}
                                     </button>
                                 </div>
 
