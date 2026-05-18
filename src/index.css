@@ -157,7 +157,7 @@
   /* Borders */
   --border: rgba(0, 0, 0, 0.09);
   --border-hover: rgba(0, 0, 0, 0.16);
-  --border-input: rgba(0, 0, 0, 0.12);
+  --border-input: rgba(0, 0, 0, 0.22);
   --border-glow: rgba(201, 169, 110, 0.20);
   --border-strong: rgba(0, 0, 0, 0.22);
 
@@ -523,7 +523,7 @@ h2, h3, h4 {
 
 /* ─── Labels ─── */
 .label-text {
-  font-size: 0.7188rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 0.375rem;

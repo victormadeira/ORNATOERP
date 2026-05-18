@@ -1280,7 +1280,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         });
     }, [bibItems]);
 
-    const [padroes, setPadroes] = useState(editOrc?.padroes || { corredica: '', dobradica: '', articulador: '' });
+    const [padroes, setPadroes] = useState(editOrc?.padroes || { corredica: '', dobradica: '', articulador: '', puxador: '' });
 
     const [pagamento, setPagamento] = useState(() => {
         const pg = editOrc?.pagamento || { desconto: { tipo: '%', valor: 0 }, blocos: [] };
@@ -3961,6 +3961,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     ['Corrediças',    'corredica',   FERR_GROUPS.corredica],
                                     ['Dobradiças',    'dobradica',   FERR_GROUPS.dobradica],
                                     ['Articuladores', 'articulador', FERR_GROUPS.articulador],
+                                    ['Puxadores',     'puxador',     FERR_GROUPS.puxador],
                                 ].map(([label, grp, cat]) => {
                                     const opts = ferragensDB.filter(f => f.categoria?.toLowerCase() === cat.toLowerCase());
                                     return (

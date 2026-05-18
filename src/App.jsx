@@ -165,7 +165,7 @@ export default function App() {
     const notifTimer = useRef(null);
     const [clis, setClis] = useState([]);
     const [orcs, setOrcs] = useState([]);
-    const [taxas, setTaxas] = useState({ imp: 8, com: 10, mont: 12, lucro: 20, frete: 2, mdo: 350, inst: 180 });
+    const [taxas, setTaxas] = useState({ imp: 8, com: 10, mont: 0, lucro: 12, frete: 2, inst: 5, mk_chapas: 1.45, mk_ferragens: 1.15, mk_fita: 1.45, mk_acabamentos: 1.30, mk_acessorios: 1.20, mk_mdo: 0.80 });
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [editOrc, setEditOrc] = useState(() => {
         const rawPath = window.location.pathname.replace(/^\/+/, '');
