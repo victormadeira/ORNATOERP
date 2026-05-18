@@ -405,11 +405,12 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
 
     // ── 2. Tamponamentos (só se matExt definido) ────────────
     if (mats.matExt) {
-        const isAcabExt = !chapasDB.find(c => c.id === mats.matExt);
         (caixaDef.tamponamentos || []).forEach(p => {
             const matId = resolveMat(p.mat, mats);
             if (!matId) return;
-            addPeca(p.nome || `Tamp. ${p.face}`, 'tamponamento', matId, p.calc, p.qtd || 1, p.fita || [], D, isAcabExt);
+            // isAcabExt calculado por peça — cada tamponamento pode usar material diferente
+            const isAcabPeca = !chapasDB.find(c => c.id === matId);
+            addPeca(p.nome || `Tamp. ${p.face}`, 'tamponamento', matId, p.calc, p.qtd || 1, p.fita || [], D, isAcabPeca);
         });
     }
 
