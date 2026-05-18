@@ -416,7 +416,7 @@ export default function Sidebar({
                                             display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                                             padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
                                         }}>
-                                            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
+                                            <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
                                                 {g.label}
                                             </span>
                                             <ChevronDown size={12} style={{
@@ -442,10 +442,10 @@ export default function Sidebar({
                                                 return (
                                                     <div key={m.id} className="relative group">
                                                         <button onClick={() => nav(m.id)}
-                                                            className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer
+                                                            className={`sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2.5 cursor-pointer
                                                                 ${active ? 'sidebar-item-active font-semibold' : ''}`}
                                                             style={!active ? { color: 'var(--text-secondary)' } : undefined}>
-                                                            <span className="shrink-0 relative" style={{ width: 18, display: 'flex', justifyContent: 'center', color: active ? 'var(--accent-bright)' : 'var(--text-muted)' }}>
+                                                            <span className="shrink-0 relative" style={{ width: 20, display: 'flex', justifyContent: 'center', color: active ? 'var(--accent-bright)' : 'var(--text-muted)' }}>
                                                                 <I />
                                                                 {badge && !sidebarExpanded && (
                                                                     <span style={{
@@ -456,7 +456,7 @@ export default function Sidebar({
                                                                 )}
                                                             </span>
                                                             {sidebarExpanded && (
-                                                                <span className="text-[14px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
+                                                                <span className="text-[15px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
                                                             )}
                                                             {sidebarExpanded && badge && (
                                                                 <span className="badge-pulse" style={{
@@ -564,7 +564,7 @@ export default function Sidebar({
                                             display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                                             padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
                                         }}>
-                                            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{g.label}</span>
+                                            <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{g.label}</span>
                                             <ChevronDown size={12} style={{ color: 'var(--text-muted)', transition: 'transform .2s', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                                         </button>
                                     )}

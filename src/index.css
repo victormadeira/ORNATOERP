@@ -93,7 +93,7 @@
   --color-warn: var(--warning);
 
   /* Layout */
-  --sidebar-width: 248px;
+  --sidebar-width: 264px;
   --sidebar-compact: 64px;
 
   /* Transitions — spring-physics (Linear feel) */
@@ -115,21 +115,21 @@
   --radius-2xl: 12px;
   --radius-full: 9999px;
 
-  /* Typography — base 14px (industrial premium) */
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 14px;
-  --text-md: 15px;
-  --text-lg: 16px;
-  --text-xl: 18px;
-  --text-2xl: 22px;
-  --text-3xl: 30px;
-  --text-4xl: 40px;
+  /* Typography — base 15px (industrial premium) */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --text-4xl: 42px;
 
   /* Aliases semânticos */
-  --fs-label: 12px;
-  --fs-helper: 12px;
-  --fs-note: 11px;
+  --fs-label: 13px;
+  --fs-helper: 13px;
+  --fs-note: 12px;
 
   /* ─── Surface aliases — Linear/Material semantic names ─── */
   --surface:    var(--bg-card);
@@ -1083,6 +1083,12 @@ aside.sidebar-dark::after {
   top: 0; left: 0; right: 0;
   height: 1px;
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* Ícones dos nav items do sidebar — 20px */
+aside.sidebar-dark .sidebar-item svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* ─── Sidebar Items ─── */
