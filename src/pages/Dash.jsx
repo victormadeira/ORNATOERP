@@ -321,12 +321,12 @@ function AtencaoStrip({ data, nav }) {
     const border = critical ? 'var(--danger-border)' : 'var(--warning-border)';
     return (
         <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '9px 16px', marginBottom: 14, borderRadius: 10,
             background: bg, border: `1px solid ${border}`,
             flexWrap: 'wrap', gap: 8,
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                 <AlertTriangle size={13} style={{ color, flexShrink: 0 }} strokeWidth={2.4} />
                 {data.total_parados > 0 && (
                     <button onClick={() => nav('orcs')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color, padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 }}>
