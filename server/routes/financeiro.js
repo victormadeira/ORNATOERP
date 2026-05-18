@@ -463,18 +463,27 @@ router.delete('/pagar/anexos/:anexoId', requireAuth, async (req, res) => {
 
 // GET /api/financeiro/pagar/resumo — resumo de contas a pagar
 router.get('/pagar/resumo', requireAuth, (req, res) => {
+    // Passar datas como parâmetros para que o SQLite possa usar índices (today_sp() custom fn impede isso)
+    const hoje = todayBR();
+    const [y, mo] = hoje.split('-').map(Number);
+    const inicioMes = `${y}-${String(mo).padStart(2, '0')}-01`;
+    const em7dias = (() => {
+        const d = new Date(y, mo - 1, parseInt(hoje.split('-')[2]) + 7);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+
     const total = db.prepare(`
         SELECT
             COALESCE(SUM(valor), 0) as total,
             COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as pago,
             COALESCE(SUM(CASE WHEN status = 'pendente' THEN valor ELSE 0 END), 0) as pendente,
-            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento < today_sp() THEN valor ELSE 0 END), 0) as vencido,
-            COUNT(CASE WHEN status = 'pendente' AND data_vencimento < today_sp() THEN 1 END) as qtd_vencidas,
-            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= date(today_sp(), 'start of month') THEN valor ELSE 0 END), 0) as pago_mes,
-            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+7 days') THEN valor ELSE 0 END), 0) as vencer_7d,
-            COUNT(CASE WHEN status = 'pendente' AND data_vencimento >= today_sp() AND data_vencimento <= date(today_sp(), '+7 days') THEN 1 END) as qtd_vencer_7d
+            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento < ? THEN valor ELSE 0 END), 0) as vencido,
+            COUNT(CASE WHEN status = 'pendente' AND data_vencimento < ? THEN 1 END) as qtd_vencidas,
+            COALESCE(SUM(CASE WHEN status = 'pago' AND data_pagamento >= ? THEN valor ELSE 0 END), 0) as pago_mes,
+            COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento >= ? AND data_vencimento <= ? THEN valor ELSE 0 END), 0) as vencer_7d,
+            COUNT(CASE WHEN status = 'pendente' AND data_vencimento >= ? AND data_vencimento <= ? THEN 1 END) as qtd_vencer_7d
         FROM contas_pagar WHERE ${ND}
-    `).get();
+    `).get(hoje, hoje, inicioMes, hoje, em7dias, hoje, em7dias);
 
     const porCategoria = db.prepare(`
         SELECT categoria, COALESCE(SUM(valor), 0) as total, COUNT(*) as qtd
@@ -662,15 +671,31 @@ router.get('/nfs', requireAuth, (req, res) => {
 
 // GET /api/financeiro/fluxo — fluxo de caixa mensal (12 meses)
 router.get('/fluxo', requireAuth, (req, res) => {
-    // Saídas realizadas por mês (contas_pagar pagas)
+    // Usar todayBR() como âncora consistente (fuso SP) para todas as queries
+    const hoje = todayBR(); // YYYY-MM-DD
+    // Início dos 12 meses passados: primeiro dia do mês de 11 meses atrás
+    const [y, m] = hoje.split('-').map(Number);
+    const inicioM = (m - 1 + 12) % 12 + 1; // mês de 11 meses atrás
+    const inicioY = m === 1 ? y - 1 : m <= 12 ? (m - 12 <= 0 ? y - 1 : y) : y;
+    const inicioAno = m >= 12 ? y : m === 1 ? y - 1 : y - (inicioM > m ? 1 : 0);
+    // Calcular data início como string YYYY-MM-01
+    const dt = new Date(y, m - 1 - 11, 1); // 11 meses atrás, dia 1
+    const inicio12m = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-01`;
+    // Início do mês atual
+    const inicioMesAtual = `${y}-${String(m).padStart(2, '0')}-01`;
+    // Limite futuro: início do mês daqui a 3 meses
+    const dtFut = new Date(y, m - 1 + 3, 1);
+    const limite3m = `${dtFut.getFullYear()}-${String(dtFut.getMonth() + 1).padStart(2, '0')}-01`;
+
+    // Saídas realizadas por mês (contas_pagar pagas) — parâmetro em vez de date('now')
     const saidas = db.prepare(`
         SELECT strftime('%Y-%m', data_pagamento) as mes,
                COALESCE(SUM(valor), 0) as total
         FROM contas_pagar
         WHERE status = 'pago' AND data_pagamento IS NOT NULL AND ${ND}
-        AND data_pagamento >= date('now', '-11 months', 'start of month')
+        AND data_pagamento >= ?
         GROUP BY mes ORDER BY mes ASC
-    `).all();
+    `).all(inicio12m);
 
     // Entradas realizadas por mês (contas_receber pagas)
     const entradas = db.prepare(`
@@ -678,9 +703,9 @@ router.get('/fluxo', requireAuth, (req, res) => {
                COALESCE(SUM(valor), 0) as total
         FROM contas_receber
         WHERE status = 'pago' AND data_pagamento IS NOT NULL AND ${ND}
-        AND data_pagamento >= date('now', '-11 months', 'start of month')
+        AND data_pagamento >= ?
         GROUP BY mes ORDER BY mes ASC
-    `).all();
+    `).all(inicio12m);
 
     // Saídas previstas (pendentes futuros)
     const saidasPrev = db.prepare(`
@@ -688,10 +713,9 @@ router.get('/fluxo', requireAuth, (req, res) => {
                COALESCE(SUM(valor), 0) as total
         FROM contas_pagar
         WHERE status = 'pendente' AND ${ND}
-        AND data_vencimento >= date(today_sp(), 'start of month')
-        AND data_vencimento < date('now', '+3 months')
+        AND data_vencimento >= ? AND data_vencimento < ?
         GROUP BY mes ORDER BY mes ASC
-    `).all();
+    `).all(inicioMesAtual, limite3m);
 
     // Entradas previstas (pendentes futuras)
     const entradasPrev = db.prepare(`
@@ -699,10 +723,9 @@ router.get('/fluxo', requireAuth, (req, res) => {
                COALESCE(SUM(valor), 0) as total
         FROM contas_receber
         WHERE status != 'pago' AND ${ND}
-        AND data_vencimento >= date(today_sp(), 'start of month')
-        AND data_vencimento < date('now', '+3 months')
+        AND data_vencimento >= ? AND data_vencimento < ?
         GROUP BY mes ORDER BY mes ASC
-    `).all();
+    `).all(inicioMesAtual, limite3m);
 
     res.json({ saidas, entradas, saidas_previstas: saidasPrev, entradas_previstas: entradasPrev });
 });

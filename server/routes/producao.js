@@ -314,8 +314,19 @@ function calcularListaCorte(mods, bib) {
         }
     }
 
-    // Calcular custo de fita
-    const fitaPreco = 0.85; // fallback
+    // Calcular custo de fita — usa média ponderada por área dos materiais com fita_preco configurado
+    const fitaPreco = (() => {
+        const usados = Object.values(chapasTotal);
+        let totalArea = 0, somaPreco = 0;
+        for (const c of usados) {
+            const mat = bib.chapas.find(m => m.id === c.id);
+            if (mat && mat.fita_preco > 0) {
+                totalArea += c.areaPecas;
+                somaPreco += mat.fita_preco * c.areaPecas;
+            }
+        }
+        return totalArea > 0 ? somaPreco / totalArea : 0.85; // fallback se nenhum material tem fita_preco
+    })();
     fitaTotal.custo = fitaTotal.metros * fitaPreco;
 
     return { pecas, chapas: chapasTotal, ferragens: Object.values(ferrTotal), fita: fitaTotal };
@@ -508,7 +519,7 @@ router.get('/', requireAuth, (req, res) => {
         SELECT p.id, p.nome, p.status, p.data_inicio, p.data_vencimento,
                o.numero, o.cliente_nome, o.ambiente, o.valor_venda, o.custo_material
         FROM projetos p
-        JOIN orcamentos o ON o.id = p.orc_id
+        LEFT JOIN orcamentos o ON o.id = p.orc_id
         ORDER BY p.criado_em DESC
     `).all();
     res.json(projetos);

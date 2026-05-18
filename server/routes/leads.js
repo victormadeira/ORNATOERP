@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, canSeeAll } from '../auth.js';
 import { criarFollowUpAutomatico } from './follow_ups.js';
 
 const router = Router();
@@ -64,7 +64,10 @@ router.put('/colunas/:id', requireAuth, (req, res) => {
     try {
         const col = db.prepare('SELECT protegida FROM lead_colunas WHERE id = ?').get(id);
         // Protegida: permite mudar cor, mas não o nome
-        if (nome !== undefined && !col?.protegida) db.prepare('UPDATE lead_colunas SET nome = ? WHERE id = ?').run(nome, id);
+        if (nome !== undefined && col?.protegida) {
+            return res.status(400).json({ error: 'O nome desta coluna é protegido e não pode ser alterado' });
+        }
+        if (nome !== undefined) db.prepare('UPDATE lead_colunas SET nome = ? WHERE id = ?').run(nome, id);
         if (cor !== undefined) db.prepare('UPDATE lead_colunas SET cor = ? WHERE id = ?').run(cor, id);
         if (ordem !== undefined) db.prepare('UPDATE lead_colunas SET ordem = ? WHERE id = ?').run(ordem, id);
         const coluna = db.prepare('SELECT * FROM lead_colunas WHERE id = ?').get(id);
@@ -218,11 +221,15 @@ router.post('/', requireAuth, (req, res) => {
 // ═══════════════════════════════════════════════════════
 router.get('/orcamentos-disponiveis', requireAuth, (req, res) => {
     try {
-        const orcs = db.prepare(`
-            SELECT id, numero, cliente_nome, ambiente, valor_venda, status_proposta, criado_em
-            FROM orcamentos WHERE lead_id IS NULL
-            ORDER BY criado_em DESC LIMIT 50
-        `).all();
+        // Admin/gerente: vê todos; vendedor: apenas os próprios
+        const sql = canSeeAll(req.user)
+            ? `SELECT id, numero, cliente_nome, ambiente, valor_venda, status_proposta, criado_em
+               FROM orcamentos WHERE lead_id IS NULL ORDER BY criado_em DESC LIMIT 50`
+            : `SELECT id, numero, cliente_nome, ambiente, valor_venda, status_proposta, criado_em
+               FROM orcamentos WHERE lead_id IS NULL AND user_id = ? ORDER BY criado_em DESC LIMIT 50`;
+        const orcs = canSeeAll(req.user)
+            ? db.prepare(sql).all()
+            : db.prepare(sql).all(req.user.id);
         res.json(orcs);
     } catch (err) {
         console.error('[Leads] Erro ao listar orçamentos disponíveis:', err.message);
