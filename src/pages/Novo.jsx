@@ -541,9 +541,10 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
 
 // ── Relatório de cálculo de um item ─────────────────────────────────────────
 function RelatorioItem({ res, chapasDB, fitasDB, coef, qtd }) {
-    const custoFita = res.fita * (fitasDB[0]?.preco || 0.85);
-    const custoFerragens = res.ferrList.reduce((s, f) => s + f.preco * f.qtd, 0);
-    const custoChapas = Object.values(res.chapas).reduce((s, c) => s + (c.frac || c.n) * c.mat.preco, 0);
+    // Usar valores já calculados pelo engine (consistência garantida)
+    const custoFita = res.custoFita || 0;
+    const custoFerragens = res.custoFerragens || 0;
+    const custoChapas = res.custoChapas || 0;
 
     const TYPE_COLOR = { caixa: 'var(--primary)', tamponamento: 'var(--primary)', componente: 'var(--muted)', frente_externa: 'var(--muted)' };
     const TYPE_LABEL = { caixa: 'Caixa', tamponamento: 'Tamp.', componente: 'Componente', frente_externa: 'Frente Ext.' };
@@ -2122,7 +2123,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         const chapasEconomia = Object.values(ca).reduce((s, c) => s + (c.n - (c.frac || 0)) * c.mat.preco, 0);
 
         // cmCalculado = custo material apenas dos itens calculados (exclui avulso/manual)
-        const cmCalculado = cm - manualTotal;
+        // Nota: cm nunca inclui manualTotal (acumulados separadamente), então = cm
+        const cmCalculado = cm;
 
         return {
             cm, cmCalculado, at, ft, ca, fa, pv, cp,
@@ -3093,7 +3095,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     key={ci.id}
                                                                     ci={ci}
                                                                     caixaDims={item.dims}
-                                                                    mats={item.mats}
+                                                                    mats={resolveItemMats(item, amb)}
                                                                     compDef={ci.compDef}
                                                                     onUpdate={newCi => upComp(amb.id, item.id, ci.id, newCi)}
                                                                     onRemove={() => removeComp(amb.id, item.id, ci.id)}

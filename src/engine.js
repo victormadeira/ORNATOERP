@@ -59,12 +59,6 @@ export const DB_ACABAMENTOS = [
 ];
 
 // ═══════════════════════════════════════════════════════
-// CATÁLOGO LEGADO — mantido apenas para compatibilidade
-// (novo sistema usa calcItemV2 com dados do banco)
-// ═══════════════════════════════════════════════════════
-export const CATALOGO = [];
-
-// ═══════════════════════════════════════════════════════
 // MOTOR PARAMÉTRICO (bugs corrigidos)
 // ═══════════════════════════════════════════════════════
 const SAFE_EXPR = /^[\d\s+\-*/().?:<>=]+$/;
@@ -134,9 +128,10 @@ export function cRipado(cfg, L, A) {
 }
 
 // ═══════════════════════════════════════════════════════
-// calcMod — Motor principal (aceita biblioteca dinâmica)
+// calcMod — LEGADO (não usado, mantido por compatibilidade com versão antiga)
+// TODO: remover na próxima limpeza major
 // ═══════════════════════════════════════════════════════
-export function calcMod(mod, bib = null) {
+function calcMod(mod, bib = null) {
     const chapasDB = bib?.chapas || DB_CHAPAS;
     const ferragensDB = bib?.ferragens || DB_FERRAGENS;
     const acabDB = bib?.acabamentos || DB_ACABAMENTOS;
@@ -809,12 +804,14 @@ export function precoVendaV2(custos, coef, taxas, custoHoraResult = null) {
     const pvFerr = ferrVal * mk.ferragens;
     const pvAcess = acessVal * mk.acessorios;
 
-    // Etapa 3: MDO — custo-hora real OU proporcional ao MDF (fallback)
+    // Etapa 3: MDO — custo-hora real OU proporcional ao custo fabricado (fallback)
+    // Fallback: MDO ∝ (chapas + fita + acabamentos) — itens fabricados que requerem trabalho
+    // Ferragens/acessórios são comprados prontos — não geram MDO diretamente
     let mdo;
     if (custoHoraResult && custoHoraResult.custoMdo > 0) {
         mdo = custoHoraResult.custoMdo;
     } else {
-        mdo = chapasAdj * mk.mdo;
+        mdo = (chapasAdj + fitaAdj + acabAdj) * mk.mdo;
     }
 
     // Etapa 4: custo de produção (consumíveis recebem markup de chapas — são itens de produção)
@@ -845,12 +842,6 @@ export function precoVendaV2(custos, coef, taxas, custoHoraResult = null) {
         breakdown: { chapasAdj, fitaAdj, acabAdj, ferrVal, acessVal, consumiveisVal, pvConsumiveis, pvChapas, pvFita, pvAcab, pvFerr, pvAcess, mdo },
         custoHora: custoHoraResult,
     };
-}
-
-// Helper retrocompatível que sempre retorna número
-export function precoVendaNum(custoBase, taxas) {
-    const r = precoVenda(custoBase, taxas);
-    return r.valor;
 }
 
 // ── Calculadora de Painéis Ripados / Muxarabi ─────────────────────────────────
