@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Z, Ic, PageHeader, TabBar, EmptyState } from '../ui';
 import { R$, KCOLS, KCOLS_ARCHIVE } from '../engine';
-import { Archive, XCircle, RotateCcw, Search, Filter, Calendar, GripVertical, Kanban } from 'lucide-react';
+import { Archive, XCircle, RotateCcw, Search, Filter, Calendar, Kanban } from 'lucide-react';
 import api from '../api';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
@@ -29,17 +29,16 @@ function DraggableCard({ o, col, move, nav, KCOLS: kcols }) {
     return (
         <div
             ref={setNodeRef}
+            {...listeners}
+            {...attributes}
             style={{
                 ...style,
                 borderLeft: `3px solid ${col.c}`,
             }}
             className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-2.5 hover:border-[var(--border-hover)] hover:shadow-md transition-all cursor-grab group"
         >
-            {/* Drag handle + título */}
+            {/* Título */}
             <div className="flex items-start gap-1.5">
-                <div {...listeners} {...attributes} className="mt-0.5 cursor-grab active:cursor-grabbing text-[var(--text-muted)] opacity-0 group-hover:opacity-50 transition-opacity flex-shrink-0">
-                    <GripVertical size={13} />
-                </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
                         {o.tipo === 'aditivo' && (

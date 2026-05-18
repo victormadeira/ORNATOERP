@@ -4,7 +4,7 @@ import { colorBg, colorBorder } from '../theme';
 import api from '../api';
 import { useAuth } from '../auth';
 import {
-    GripVertical, Search, Plus, Phone, MessageCircle, MapPin, Calendar,
+    Search, Plus, Phone, MessageCircle, MapPin, Calendar,
     Clock, AlertTriangle, TrendingUp, Users, Target, ArrowRight,
     MoreVertical, Trash2, Edit3, Eye, X, Filter, Settings,
     ChevronDown, ExternalLink, BarChart3, PieChart,
@@ -113,13 +113,12 @@ function DraggableCard({ lead, onEdit, onOpen, nav, onNewOrc, onLinkOrc, onFollo
     return (
         <div
             ref={setNodeRef}
+            {...listeners}
+            {...attributes}
             style={style}
             className="bg-[var(--bg-muted)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--border-hover)] transition-all cursor-grab group"
         >
             <div className="flex items-start gap-1.5">
-                <div {...listeners} {...attributes} className="mt-0.5 cursor-grab active:cursor-grabbing text-[var(--text-muted)] opacity-60 md:opacity-0 md:group-hover:opacity-60 transition-opacity flex-shrink-0">
-                    <GripVertical size={14} />
-                </div>
                 <div className="flex-1 min-w-0">
                     {(() => {
                         const temp = getTemperatura(lead);
