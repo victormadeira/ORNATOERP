@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createGzip } from 'zlib';
@@ -22,7 +22,12 @@ export async function backupLocal() {
     try {
         // mode 0o700 — só o owner lê/escreve/executa (backup contém DB com hashes de senha)
         if (!existsSync(LOCAL_BACKUP_DIR)) mkdirSync(LOCAL_BACKUP_DIR, { recursive: true, mode: 0o700 });
-        const dbBuffer = readFileSync(DB_PATH);
+        // db.backup() captura snapshot consistente mesmo com WAL ativo;
+        // readFileSync copiaria bytes crus e poderia pegar WAL parcialmente aplicado.
+        const tmpPath = join(LOCAL_BACKUP_DIR, `.tmp-backup-${Date.now()}.db`);
+        await db.backup(tmpPath);
+        const dbBuffer = readFileSync(tmpPath);
+        try { rmSync(tmpPath); } catch (_) {}
         const compressed = await gzipBuffer(dbBuffer);
         const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
         const filePath = join(LOCAL_BACKUP_DIR, `backup-${ts}.db.gz`);
@@ -53,8 +58,12 @@ export async function backupToDrive() {
         throw new Error('Google Drive não configurado');
     }
 
-    // 1. Ler o banco de dados
-    const dbBuffer = readFileSync(DB_PATH);
+    // 1. Captura snapshot consistente via db.backup() (seguro com WAL ativo)
+    const tmpPath = join(LOCAL_BACKUP_DIR, `.tmp-drive-backup-${Date.now()}.db`);
+    if (!existsSync(LOCAL_BACKUP_DIR)) mkdirSync(LOCAL_BACKUP_DIR, { recursive: true, mode: 0o700 });
+    await db.backup(tmpPath);
+    const dbBuffer = readFileSync(tmpPath);
+    try { rmSync(tmpPath); } catch (_) {}
 
     // 2. Comprimir com gzip
     const compressed = await gzipBuffer(dbBuffer);

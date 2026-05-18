@@ -2681,7 +2681,12 @@ db.exec(`
   )
 `);
 for (const sql of migrations) {
-  try { db.exec(sql); } catch (_) { /* coluna já existe */ }
+  try { db.exec(sql); } catch (e) {
+    // "duplicate column" e "already exists" são esperados em re-execuções
+    if (!/duplicate column|already exists/i.test(e.message || '')) {
+      console.warn('[db] migration inesperada:', e.message, '| SQL:', sql.slice(0, 80));
+    }
+  }
 }
 
 // Catálogo industrial: versões antigas tinham UNIQUE(user_id, component_name),

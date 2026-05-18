@@ -25,6 +25,10 @@ export default defineConfig({
     build: {
         // 800 KB — acima disso ainda avisa, mas sem poluir sobre o PlanoCorte legacy.
         chunkSizeWarningLimit: 800,
+        // Desativar o polyfill de modulepreload: Chrome 66+, Firefox 115+, Safari 17+
+        // suportam nativamente. Sem isso, Vite 6 bundla o helper dentro de vendor-three,
+        // criando uma dependência estática do entry → three.js (carrega 979KB em toda página).
+        modulePreload: { polyfill: false },
         rollupOptions: {
             output: {
                 // Função de chunking fina — separa libs pesadas em bundles próprios
