@@ -28,9 +28,11 @@ export const DB_FERRAGENS = [
     { id: "corrFH",  nome: "Corrediça Full Ext. Soft",preco: 68.90, un: "par", categoria: "corrediça" },
     { id: "dob110",  nome: "Dobradiça 110° Amort.",   preco:  8.90, un: "un",  categoria: "dobradiça" },
     { id: "dob165",  nome: "Dobradiça 165° Amort.",   preco: 14.90, un: "un",  categoria: "dobradiça" },
-    { id: "pux128",  nome: "Puxador 128mm",           preco: 12.90, un: "un",  categoria: "puxador"   },
-    { id: "pux160",  nome: "Puxador 160mm",           preco: 16.90, un: "un",  categoria: "puxador"   },
-    { id: "pux256",  nome: "Puxador 256mm",           preco: 22.90, un: "un",  categoria: "puxador"   },
+    { id: "pux128",   nome: "Puxador 128mm",           preco: 12.90, un: "un",  categoria: "puxador"   },
+    { id: "pux160",   nome: "Puxador 160mm",           preco: 16.90, un: "un",  categoria: "puxador"   },
+    { id: "pux256",   nome: "Puxador 256mm",           preco: 22.90, un: "un",  categoria: "puxador"   },
+    { id: "puxPonto", nome: "Puxador Ponto",           preco: 19.90, un: "un",  categoria: "puxador"   },
+    { id: "puxSlim",  nome: "Puxador Slim Embutir",    preco: 26.90, un: "un",  categoria: "puxador"   },
     { id: "pistGas", nome: "Pistão a Gás 100N",       preco: 34.90, un: "par", categoria: "articulador"},
     { id: "cabOval", nome: "Cabideiro Tubo Oval",     preco: 18.90, un: "m",   categoria: "cabideiro" },
     { id: "sapReg",  nome: "Sapateira Regulável",     preco: 45.90, un: "un",  categoria: ""          },
@@ -439,20 +441,13 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         if (dimA > 0) { cD.A = dimA; cD.Ai = dimA - esp * 2; }
         if (dimP > 0) { cD.P = dimP; cD.Pi = dimP; }
 
-        // Lp/Ap padrão para componentes de porta: largura por unidade e altura total.
-        // Quando cQtd > 1 (ex: 2 portas no campo qtd), Lp = L / cQtd evita dobrar a área.
-        // varsDeriv pode sobrescrever se o template precisar de outro cálculo.
+        // Lp/Ap fallback (varsDeriv ou vars podem sobrescrever)
         cD.Lp = cD.L / (cQtd > 0 ? cQtd : 1);
         cD.Ap = cD.A;
-        cD.nUnits = cQtd; // disponível para varsDeriv que queiram usar
+        cD.nUnits = cQtd;
 
-        // Aplicar varsDeriv (ex: Lg=Li, Pg=P-50) — já usa as dims overridden
-        Object.entries(compDef.varsDeriv || {}).forEach(([k, formula]) => {
-            cD[k] = rCalcV2(formula, cD);
-        });
-
-        // Aplicar vars próprias (ex: ag=150)
-        // Se userVal === undefined E default === 0/falsy → NÃO aplica, preserva varsDeriv
+        // 1. Aplicar defaults e valores do usuário ANTES de varsDeriv.
+        //    Garante que vars como nPortas estejam disponíveis para fórmulas derivadas (Lp=Li/nPortas).
         (compDef.vars || []).forEach(v => {
             const userVal = cVars[v.id];
             if (userVal !== undefined) {
@@ -460,7 +455,16 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
             } else if (v.default) {
                 cD[v.id] = v.default;
             }
-            // else: mantém valor de varsDeriv (ex: Ap derivado da caixa)
+        });
+
+        // 2. Aplicar varsDeriv (ex: Lp=Li/nPortas, Ap=A).
+        //    Pula chaves onde o usuário definiu um valor explícito não-zero
+        //    (ex: Ap=800 manual — não deve ser sobrescrito por Ap=A da fórmula).
+        Object.entries(compDef.varsDeriv || {}).forEach(([k, formula]) => {
+            const userVal = cVars[k];
+            if (userVal === undefined || userVal === 0) {
+                cD[k] = rCalcV2(formula, cD);
+            }
         });
 
         // ── Materiais da instância: sobrescreve int/ext se definido ──
