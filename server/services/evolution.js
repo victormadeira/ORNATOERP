@@ -47,7 +47,7 @@ export async function sendText(phoneOrJid, text) {
         },
         body: JSON.stringify({
             number: dest,
-            textMessage: { text },
+            text,
         }),
         signal: AbortSignal.timeout(15000),
     });
@@ -126,7 +126,10 @@ export async function getQRCode() {
     });
     if (!res.ok) throw new Error(`Erro ao obter QR Code: ${res.status}`);
     const data = await res.json();
-    return { base64: data.base64 || data.qrcode?.base64 || '', pairingCode: data.pairingCode || null };
+    // Evolution v2.3.7 returns base64 with "data:image/png;base64," prefix already included
+    const raw = data.base64 || data.qrcode?.base64 || '';
+    const b64 = raw.startsWith('data:') ? raw.split(',')[1] || raw : raw;
+    return { base64: b64, pairingCode: data.pairingCode || null };
 }
 
 // ═══ Enviar typing indicator (composing) ═══
