@@ -567,141 +567,147 @@ export default function Mensagens({ notify }) {
 
     // ═══ RENDER ═══
     return (
-        <div className={Z.pg} style={{ padding: 0, maxWidth: '100%', height: 'calc(100vh - 64px)' }}>
+        <div className={Z.pg} style={{
+            padding: 0, maxWidth: '100%', height: 'calc(100vh - 64px)',
+            // ── Tema claro WhatsApp ── sobrescreve vars do tema escuro do ERP
+            '--bg-body':    '#efeae2',
+            '--bg-card':    '#ffffff',
+            '--bg-muted':   '#f0f2f5',
+            '--bg-hover':   '#f5f6f6',
+            '--border':     '#e9edef',
+            '--text-primary':   '#111b21',
+            '--text-secondary': '#3b4a54',
+            '--text-muted':     '#667781',
+            '--primary':        '#00a884',
+            '--primary-ring':   'rgba(0,168,132,0.15)',
+            '--success':        '#00a884',
+            '--success-bg':     'rgba(0,168,132,0.12)',
+            '--success-border': 'rgba(0,168,132,0.3)',
+            '--info':           '#1379F0',
+            '--info-bg':        'rgba(19,121,240,0.1)',
+            '--info-border':    'rgba(19,121,240,0.25)',
+        }}>
             <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
                 {/* ═══ Painel Esquerdo: Lista de Conversas ═══ */}
                 <div style={{
-                    width: 'clamp(260px, 28vw, 380px)', minWidth: 0, borderRight: '1px solid var(--border)',
-                    display: mobileShowChat ? 'none' : 'flex', flexDirection: 'column', background: 'var(--bg-card)',
+                    width: 'clamp(300px, 30vw, 400px)', minWidth: 0, borderRight: '1px solid #e9edef',
+                    display: mobileShowChat ? 'none' : 'flex', flexDirection: 'column', background: '#f0f2f5',
                     flexShrink: 0,
                 }}
                     className="conv-list-panel"
                 >
-                    {/* Header */}
-                    <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                            <MessageCircle size={20} style={{ color: 'var(--success)' }} />
-                            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0, flex: 1 }}>Inbox</h2>
+                    {/* Sidebar Header — WhatsApp style */}
+                    <div style={{ background: '#f0f2f5', borderBottom: '1px solid #e9edef' }}>
+                        {/* Row 1: avatar + title + action icons */}
+                        <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, height: 60 }}>
+                            <div style={{
+                                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                                background: avatarColor(user?.nome || user?.email || ''),
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#fff', fontSize: 14, fontWeight: 700,
+                            }}>
+                                {initials(user?.nome || user?.email || '')}
+                            </div>
+                            <span style={{ flex: 1, fontSize: 16, fontWeight: 600, color: '#111b21' }}>Ornato</span>
 
-                            {/* ═══ Ações do header — padronizadas ═══
-                                Todas compartilham: height 28, padding 5x10, font 11/600,
-                                ícone 12px, radius 6, gap 6. Cor = semântica (status/ação). */}
-                            {(() => {
-                                const btnBase = {
-                                    height: 28,
-                                    padding: '0 10px',
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    borderRadius: 6,
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    lineHeight: 1,
-                                    whiteSpace: 'nowrap',
-                                    transition: 'opacity 120ms ease',
-                                };
-                                return (
-                                    <>
-                                        {/* Status da IA (Sofia) — clicável pra abrir diagnóstico */}
-                                        {diag && (() => {
-                                            const s = diag.status_geral;
-                                            const cor = s === 'online' ? 'var(--success)' : s === 'parcial' ? 'var(--warning)' : 'var(--danger)';
-                                            const corBg = s === 'online' ? 'var(--success-bg)' : s === 'parcial' ? 'var(--warning-bg)' : 'var(--danger-bg)';
-                                            const corBr = s === 'online' ? 'var(--success-border)' : s === 'parcial' ? 'var(--warning-border)' : 'var(--danger-border)';
-                                            const label = s === 'online' ? 'IA Online' : s === 'parcial' ? 'IA Parcial' : 'IA Offline';
-                                            return (
-                                                <button
-                                                    onClick={() => setDiagOpen(true)}
-                                                    title="Ver diagnóstico da IA (Sofia)"
-                                                    style={{ ...btnBase, border: `1px solid ${corBr}`, background: corBg, color: cor }}
-                                                >
-                                                    <span style={{ width: 7, height: 7, borderRadius: 999, background: cor, flexShrink: 0 }} />
-                                                    {label}
-                                                </button>
-                                            );
-                                        })()}
+                            {/* IA status */}
+                            {diag && (
+                                <button onClick={() => setDiagOpen(true)} title={`IA ${diag.status_geral}`} style={{
+                                    width: 34, height: 34, borderRadius: '50%', border: 'none', flexShrink: 0,
+                                    background: 'transparent', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: diag.status_geral === 'online' ? '#25d366' : diag.status_geral === 'parcial' ? '#f59e0b' : '#ef4444',
+                                    position: 'relative',
+                                }}>
+                                    <Activity size={18} />
+                                    <span style={{
+                                        position: 'absolute', top: 7, right: 7, width: 7, height: 7,
+                                        borderRadius: '50%',
+                                        background: diag.status_geral === 'online' ? '#25d366' : diag.status_geral === 'parcial' ? '#f59e0b' : '#ef4444',
+                                    }} />
+                                </button>
+                            )}
 
-                                        {isGerente && (
-                                            <>
-                                                <button
-                                                    onClick={rodarBackfill}
-                                                    disabled={backfilling}
-                                                    title="Puxar histórico já conhecido pela Evolution (rápido)"
-                                                    style={{
-                                                        ...btnBase,
-                                                        border: `1px solid ${colorBorder('var(--info)')}`,
-                                                        background: colorBg('var(--info)'),
-                                                        color: 'var(--info)',
-                                                        opacity: backfilling ? 0.6 : 1,
-                                                    }}
-                                                >
-                                                    {backfilling ? <RefreshCw size={12} className="spin" /> : <History size={12} />}
-                                                    {backfilling ? 'Puxando…' : 'Histórico'}
-                                                </button>
-                                                <button
-                                                    onClick={rodarFullHistorySync}
-                                                    disabled={backfilling}
-                                                    title="Puxar ~6 meses do CELULAR (desconecta e precisa re-escanear QR)"
-                                                    style={{
-                                                        ...btnBase,
-                                                        border: `1px solid ${colorBorder('#0891b2')}`,
-                                                        background: colorBg('#0891b2'),
-                                                        color: '#0891b2',
-                                                        opacity: backfilling ? 0.6 : 1,
-                                                    }}
-                                                >
-                                                    <RefreshCw size={12} />
-                                                    Completo
-                                                </button>
-                                            </>
-                                        )}
-                                    </>
-                                );
-                            })()}
+                            {/* Histórico (gerente) */}
+                            {isGerente && (
+                                <button onClick={rodarBackfill} disabled={backfilling} title="Puxar histórico" style={{
+                                    width: 34, height: 34, borderRadius: '50%', border: 'none', flexShrink: 0,
+                                    background: 'transparent', cursor: backfilling ? 'wait' : 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#54656f',
+                                }}>
+                                    {backfilling ? <RefreshCw size={18} className="spin" /> : <History size={18} />}
+                                </button>
+                            )}
+
+                            <button style={{
+                                width: 34, height: 34, borderRadius: '50%', border: 'none', flexShrink: 0,
+                                background: 'transparent', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#54656f',
+                            }}>
+                                <MoreVertical size={18} />
+                            </button>
                         </div>
 
-                        {/* Tabs de filtro */}
-                        <div style={{ display: 'flex', gap: 4, marginBottom: 10, fontSize: 11 }}>
+                        {/* Row 2: Search */}
+                        <div style={{ padding: '0 12px 10px' }}>
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                background: '#ffffff', borderRadius: 8, padding: '8px 12px',
+                            }}>
+                                <Search size={16} style={{ color: '#54656f', flexShrink: 0 }} />
+                                <input
+                                    placeholder="Pesquisar ou começar uma conversa"
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    style={{
+                                        flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                                        fontSize: 14, color: '#111b21', fontFamily: 'inherit',
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Row 3: Filter chips */}
+                        <div style={{
+                            padding: '0 12px 10px', display: 'flex', gap: 6,
+                            overflowX: 'auto', scrollbarWidth: 'none',
+                        }}>
                             {[
-                                { v: 'minhas', l: 'Minhas', i: UserCheck, c: contadores.minhas },
-                                { v: 'nao_atribuidas', l: 'Fila', i: Inbox, c: contadores.nao_atribuidas },
-                                ...(isGerente ? [{ v: 'todas', l: 'Todas', i: UsersIcon, c: contadores.todas }] : []),
-                                { v: 'arquivadas', l: 'Arq.', i: Archive, c: contadores.arquivadas },
+                                { v: 'minhas', l: 'Minhas', c: contadores.minhas },
+                                { v: 'nao_atribuidas', l: 'Fila', c: contadores.nao_atribuidas },
+                                ...(isGerente ? [{ v: 'todas', l: 'Todas', c: contadores.todas }] : []),
+                                { v: 'arquivadas', l: 'Arquivadas', c: contadores.arquivadas },
                             ].map(t => {
-                                const Ic = t.i;
                                 const active = filtroAba === t.v;
                                 return (
-                                    <button
-                                        key={t.v}
-                                        onClick={() => setFiltroAba(t.v)}
-                                        style={{
-                                            flex: 1, padding: '6px 6px', borderRadius: 6,
-                                            border: '1px solid ' + (active ? 'var(--primary)' : 'var(--border)'),
-                                            background: active ? colorBg('#1379F0') : 'transparent',
-                                            color: active ? 'var(--primary)' : 'var(--text-muted)',
-                                            cursor: 'pointer', fontWeight: 600,
-                                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                                        }}
-                                    >
-                                        <Ic size={12} />
-                                        <span style={{ fontSize: 10 }}>{t.l}</span>
-                                        <span style={{ fontSize: 9, opacity: 0.7 }}>{t.c}</span>
+                                    <button key={t.v} onClick={() => setFiltroAba(t.v)} style={{
+                                        flexShrink: 0, padding: '4px 14px', borderRadius: 20,
+                                        border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                                        background: active ? '#00a884' : '#e9edef',
+                                        color: active ? '#ffffff' : '#3b4a54',
+                                        display: 'flex', alignItems: 'center', gap: 5,
+                                        transition: 'background 0.15s',
+                                    }}>
+                                        {t.l}
+                                        {t.c > 0 && <span style={{
+                                            fontSize: 11, background: active ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.1)',
+                                            borderRadius: 10, padding: '0 5px', lineHeight: '18px',
+                                        }}>{t.c}</span>}
                                     </button>
                                 );
                             })}
                         </div>
 
-                        {/* Filtro categoria */}
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                        {/* Row 4: Category filter (only when categories exist) */}
+                        <div style={{ padding: '0 12px 10px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                             <button
                                 onClick={() => setFiltroCategoria('')}
                                 style={{
-                                    fontSize: 10, padding: '3px 8px', borderRadius: 99,
-                                    border: `1px solid ${!filtroCategoria ? 'var(--primary)' : 'var(--border)'}`,
-                                    background: !filtroCategoria ? colorBg('#1379F0') : 'transparent',
-                                    color: !filtroCategoria ? 'var(--primary)' : 'var(--text-muted)',
+                                    fontSize: 10, padding: '2px 8px', borderRadius: 99,
+                                    border: `1px solid ${!filtroCategoria ? '#00a884' : '#e9edef'}`,
+                                    background: !filtroCategoria ? '#e7faf4' : 'transparent',
+                                    color: !filtroCategoria ? '#00a884' : '#667781',
                                     cursor: 'pointer', fontWeight: 600,
                                 }}
                             >
@@ -712,27 +718,16 @@ export default function Mensagens({ notify }) {
                                     key={c.v}
                                     onClick={() => setFiltroCategoria(filtroCategoria === c.v ? '' : c.v)}
                                     style={{
-                                        fontSize: 10, padding: '3px 8px', borderRadius: 99,
-                                        border: `1px solid ${filtroCategoria === c.v ? c.c : 'var(--border)'}`,
-                                        background: filtroCategoria === c.v ? colorBg(c.c) : 'transparent',
-                                        color: filtroCategoria === c.v ? c.c : 'var(--text-muted)',
+                                        fontSize: 10, padding: '2px 8px', borderRadius: 99,
+                                        border: `1px solid ${filtroCategoria === c.v ? c.c : '#e9edef'}`,
+                                        background: filtroCategoria === c.v ? c.c + '18' : 'transparent',
+                                        color: filtroCategoria === c.v ? c.c : '#667781',
                                         cursor: 'pointer', fontWeight: 600,
                                     }}
                                 >
                                     {c.l}
                                 </button>
                             ))}
-                        </div>
-
-                        <div style={{ position: 'relative' }}>
-                            <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
-                            <input
-                                className={Z.inp}
-                                placeholder="Buscar conversa..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                style={{ paddingLeft: 32, fontSize: 13 }}
-                            />
                         </div>
                     </div>
 
@@ -753,114 +748,85 @@ export default function Mensagens({ notify }) {
                                     key={c.id}
                                     onClick={() => selectConv(c)}
                                     style={{
-                                        padding: '11px 14px 11px 18px', cursor: 'pointer',
-                                        borderBottom: '1px solid var(--border)',
-                                        background: isActive ? 'var(--bg-muted)' : 'transparent',
-                                        transition: 'background 0.15s',
-                                        position: 'relative',
+                                        padding: '12px 16px', cursor: 'pointer',
+                                        borderBottom: '1px solid #e9edef',
+                                        background: isActive ? '#ffffff' : 'transparent',
+                                        transition: 'background 0.1s',
                                     }}
-                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f6f6'; }}
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                 >
-                                    {isActive && (
-                                        <span style={{
-                                            position: 'absolute', left: 0, top: 6, bottom: 6,
-                                            width: 3, borderRadius: '0 3px 3px 0',
-                                            background: 'var(--primary)',
-                                        }} />
-                                    )}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                        {/* Avatar com iniciais + indicador de status */}
+                                        {/* Avatar */}
                                         <div style={{ position: 'relative', flexShrink: 0 }}>
                                             <div style={{
-                                                width: 48, height: 48, borderRadius: '50%',
-                                                background: `linear-gradient(135deg, ${avColor}, ${avColor}cc)`,
+                                                width: 49, height: 49, borderRadius: '50%',
+                                                background: avColor,
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                color: '#fff', fontSize: 15, fontWeight: 700,
-                                                letterSpacing: 0.3,
-                                                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                                                color: '#fff', fontSize: 17, fontWeight: 700,
                                             }}>
                                                 {initials(displayName)}
                                             </div>
-                                            {/* Status dot (IA/humano/fechado) */}
+                                            {/* Status dot */}
                                             <span style={{
                                                 position: 'absolute', bottom: 0, right: 0,
                                                 width: 13, height: 13, borderRadius: '50%',
                                                 background: sc.color,
-                                                border: '2px solid var(--bg-card)',
+                                                border: '2px solid #f0f2f5',
                                             }} />
-                                            {c.prioridade === 'urgente' && (
-                                                <span style={{
-                                                    position: 'absolute', top: -3, right: -3,
-                                                    width: 12, height: 12, borderRadius: '50%',
-                                                    background: 'var(--danger)',
-                                                    border: '2px solid var(--bg-card)',
-                                                    boxShadow: '0 0 0 1px var(--danger-border)',
-                                                }} title="Urgente" />
-                                            )}
-                                            {c.prioridade === 'alta' && (
-                                                <span style={{
-                                                    position: 'absolute', top: -2, right: -2,
-                                                    width: 10, height: 10, borderRadius: '50%',
-                                                    background: 'var(--warning)', border: '2px solid var(--bg-card)',
-                                                }} title="Alta" />
-                                            )}
                                         </div>
-                                        {/* Info */}
+
+                                        {/* Content */}
                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                                                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {c.cliente_nome || c.wa_name || c.wa_phone}
+                                            {/* Row 1: name + time */}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
+                                                <span style={{
+                                                    fontSize: 15, fontWeight: 600, color: '#111b21',
+                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    maxWidth: '70%',
+                                                }}>
+                                                    {displayName}
                                                 </span>
-                                                <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
+                                                <span style={{ fontSize: 11.5, color: c.nao_lidas > 0 ? '#00a884' : '#667781', flexShrink: 0 }}>
                                                     {timeAgo(c.ultimo_msg_em || c.ultima_msg_em)}
                                                 </span>
                                             </div>
+
+                                            {/* Row 2: preview + badge */}
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span style={{
-                                                    fontSize: 12, color: 'var(--text-muted)',
-                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200,
+                                                    fontSize: 13, color: '#667781',
+                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                    flex: 1, display: 'flex', alignItems: 'center', gap: 4,
                                                 }}>
-                                                    {c.ultima_msg_remetente === 'ia' && <Bot size={10} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
-                                                    {c.ultima_msg_remetente === 'usuario' && <Check size={10} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />}
-                                                    {(c.ultima_msg || '').slice(0, 50)}
+                                                    {c.ultima_msg_remetente === 'ia' && <Bot size={11} style={{ flexShrink: 0, color: '#00a884' }} />}
+                                                    {c.ultima_msg_remetente === 'usuario' && <Check size={11} style={{ flexShrink: 0, color: '#8696a0' }} />}
+                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {(c.ultima_msg || '').slice(0, 50)}
+                                                    </span>
                                                 </span>
-                                                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                                                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0, marginLeft: 8 }}>
                                                     {c.nao_lidas > 0 && (
                                                         <span style={{
-                                                            fontSize: 10, fontWeight: 700, color: '#fff',
-                                                            background: 'var(--success)', borderRadius: 99,
-                                                            minWidth: 18, height: 18, display: 'flex',
-                                                            alignItems: 'center', justifyContent: 'center', padding: '0 5px',
+                                                            fontSize: 11, fontWeight: 700, color: '#fff',
+                                                            background: '#00a884', borderRadius: 99,
+                                                            minWidth: 18, height: 18,
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
                                                         }}>
                                                             {c.nao_lidas}
                                                         </span>
                                                     )}
-                                                    <span style={{
-                                                        fontSize: 9, padding: '1px 6px', borderRadius: 99,
-                                                        background: sc.bg, color: sc.color, fontWeight: 600,
-                                                    }}>
-                                                        {STATUS_ICONS[c.status] || <User size={10} />}
-                                                    </span>
-                                                    {c.lead_qualificacao && c.lead_qualificacao !== 'novo' && (
-                                                        <span style={{
-                                                            fontSize: 8, padding: '1px 5px', borderRadius: 99, fontWeight: 600,
-                                                            background: colorBg(LEAD_COLORS[c.lead_qualificacao] || 'var(--muted)'),
-                                                            color: LEAD_COLORS[c.lead_qualificacao] || 'var(--muted)',
-                                                        }}>
-                                                            {c.lead_score > 0 && `${c.lead_score}%`}
-                                                        </span>
-                                                    )}
                                                 </div>
                                             </div>
-                                            {/* Tag de atribuição + categoria */}
-                                            {(c.atribuido_nome || c.categoria) && (
+
+                                            {/* Row 3: attribution + category tags (only if set) */}
+                                            {(c.atribuido_nome || c.categoria || c.prioridade === 'urgente' || c.prioridade === 'alta') && (
                                                 <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                                                     {c.atribuido_nome ? (
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                                                            background: c.atribuido_user_id === user?.id ? colorBg('var(--success)') : 'var(--bg-muted)',
-                                                            color: c.atribuido_user_id === user?.id ? 'var(--success)' : 'var(--text-muted)',
+                                                            background: c.atribuido_user_id === user?.id ? '#e7faf4' : '#f0f2f5',
+                                                            color: c.atribuido_user_id === user?.id ? '#00a884' : '#667781',
                                                             display: 'flex', alignItems: 'center', gap: 3,
                                                         }}>
                                                             <UserCheck size={8} />
@@ -869,7 +835,7 @@ export default function Mensagens({ notify }) {
                                                     ) : (
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                                                            background: colorBg('var(--warning)'), color: 'var(--warning)',
+                                                            background: '#fff8e6', color: '#f59e0b',
                                                             display: 'flex', alignItems: 'center', gap: 3,
                                                         }}>
                                                             <Inbox size={8} /> Na fila
@@ -878,10 +844,15 @@ export default function Mensagens({ notify }) {
                                                     {c.categoria && CAT_MAP[c.categoria] && (
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                                                            background: colorBg(CAT_MAP[c.categoria].c),
+                                                            background: CAT_MAP[c.categoria].c + '18',
                                                             color: CAT_MAP[c.categoria].c,
                                                         }}>
                                                             {CAT_MAP[c.categoria].l}
+                                                        </span>
+                                                    )}
+                                                    {c.prioridade === 'urgente' && (
+                                                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600, background: '#fee2e2', color: '#ef4444' }}>
+                                                            Urgente
                                                         </span>
                                                     )}
                                                 </div>
@@ -897,44 +868,42 @@ export default function Mensagens({ notify }) {
                 {/* ═══ Painel Direito: Chat ═══ */}
                 <div style={{
                     flex: 1, display: 'flex', flexDirection: 'column',
-                    background: 'var(--bg-body)',
-                    borderLeft: '1px solid var(--border)',
-                    boxShadow: 'inset 2px 0 0 0 var(--primary-ring)',
+                    background: '#efeae2',
+                    borderLeft: '1px solid #e9edef',
                 }}>
                     {!activeConv ? (
                         // Nenhuma conversa selecionada — estilo WA Web splash
                         <div style={{
                             flex: 1, display: 'flex', flexDirection: 'column',
                             alignItems: 'center', justifyContent: 'center',
-                            gap: 14, color: 'var(--text-muted)', padding: 40,
-                            background: `radial-gradient(circle at 30% 20%, ${colorBg('#C9A96E')} 0, transparent 50%), radial-gradient(circle at 70% 80%, ${colorBg('#1379F0')} 0, transparent 55%)`,
+                            gap: 14, color: '#667781', padding: 40,
+                            background: '#f0f2f5',
                         }}>
                             <div style={{
-                                width: 120, height: 120, borderRadius: '50%',
-                                background: `linear-gradient(135deg, ${colorBg('#1379F0')}, ${colorBg('#C9A96E')})`,
+                                width: 128, height: 128, borderRadius: '50%',
+                                background: '#dfe5e7',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
                                 marginBottom: 8,
                             }}>
-                                <MessageCircle size={56} style={{ color: 'var(--primary)', opacity: 0.85 }} />
+                                <MessageCircle size={60} style={{ color: '#aebac1' }} />
                             </div>
-                            <h3 style={{ fontSize: 22, fontWeight: 400, color: 'var(--text-primary)', margin: 0, letterSpacing: -0.3 }}>
-                                Inbox Ornato
+                            <h3 style={{ fontSize: 22, fontWeight: 300, color: '#41525d', margin: 0, letterSpacing: -0.3 }}>
+                                Ornato — Atendimento WhatsApp
                             </h3>
-                            <p style={{ fontSize: 13.5, maxWidth: 420, textAlign: 'center', lineHeight: 1.55, margin: 0, color: 'var(--text-muted)' }}>
-                                Selecione uma conversa à esquerda para começar. Todas as mensagens do WhatsApp passam por aqui, com suporte a IA, notas internas, atribuição e categorias.
+                            <p style={{ fontSize: 14, maxWidth: 360, textAlign: 'center', lineHeight: 1.6, margin: 0, color: '#667781' }}>
+                                Selecione uma conversa para começar a atender
                             </p>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)', marginTop: 12, opacity: 0.7 }}>
-                                <Lock size={11} /> Comunicação criptografada via Evolution API
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: '#aebac1', marginTop: 16 }}>
+                                <Lock size={11} /> Mensagens criptografadas de ponta a ponta
                             </div>
                         </div>
                     ) : (
                         <>
                             {/* Header do chat — compacto */}
                             <div style={{
-                                padding: '10px 18px', borderBottom: '1px solid var(--border)',
-                                background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 12,
-                                boxShadow: '0 1px 0 rgba(0,0,0,0.02)', minHeight: 62,
+                                padding: '8px 16px', borderBottom: '1px solid #e9edef',
+                                background: '#ffffff', display: 'flex', alignItems: 'center', gap: 12,
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)', minHeight: 60,
                             }}>
                                 <button
                                     onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
@@ -1073,8 +1042,7 @@ export default function Mensagens({ notify }) {
                                 style={{
                                     flex: 1, overflowY: 'auto', padding: '14px 5% 10px',
                                     display: 'flex', flexDirection: 'column', gap: 2,
-                                    background: 'var(--bg-body)',
-                                    backgroundImage: `radial-gradient(circle at 25% 15%, ${colorBg('#C9A96E')} 0, transparent 40%), radial-gradient(circle at 75% 85%, ${colorBg('#1379F0')} 0, transparent 45%)`,
+                                    background: '#efeae2',
                                 }}>
                                 {mensagens.length === 0 && (
                                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 32, margin: 'auto' }}>
@@ -1105,32 +1073,33 @@ export default function Mensagens({ notify }) {
                                         (next.interno === 1) === isInterno &&
                                         Math.abs(new Date((next.criado_em || '').endsWith('Z') ? next.criado_em : next.criado_em + 'Z') - new Date((m.criado_em || '').endsWith('Z') ? m.criado_em : m.criado_em + 'Z')) < 5 * 60 * 1000;
 
-                                    // Estilo de bolha
+                                    // Estilo de bolha — tema WhatsApp claro
                                     let bubbleBg, bubbleColor, align, indicator, metaColor;
                                     if (isEntrada) {
-                                        bubbleBg = 'var(--bg-card)';
-                                        bubbleColor = 'var(--text-primary)';
+                                        bubbleBg = '#ffffff';
+                                        bubbleColor = '#111b21';
                                         align = 'flex-start';
                                         indicator = null;
-                                        metaColor = 'var(--text-muted)';
+                                        metaColor = '#667781';
                                     } else if (isInterno) {
-                                        bubbleBg = 'var(--warning-bg)';
-                                        bubbleColor = '#78350f';
+                                        bubbleBg = '#fff9c4';
+                                        bubbleColor = '#5a4000';
                                         align = 'flex-end';
                                         indicator = <Lock size={10} style={{ opacity: 0.7 }} />;
-                                        metaColor = 'rgba(120,53,15,0.6)';
+                                        metaColor = 'rgba(90,64,0,0.55)';
                                     } else if (isIA) {
-                                        bubbleBg = 'linear-gradient(135deg, var(--primary), #0891b2)';
-                                        bubbleColor = '#fff';
+                                        bubbleBg = '#e7f8ee';
+                                        bubbleColor = '#1a3c2e';
                                         align = 'flex-end';
-                                        indicator = <Bot size={10} />;
-                                        metaColor = 'rgba(255,255,255,0.75)';
+                                        indicator = <Bot size={10} style={{ color: '#00a884' }} />;
+                                        metaColor = '#667781';
                                     } else {
-                                        bubbleBg = 'var(--primary)';
-                                        bubbleColor = '#fff';
+                                        // Mensagem enviada pelo atendente humano
+                                        bubbleBg = '#d9fdd3';
+                                        bubbleColor = '#111b21';
                                         align = 'flex-end';
                                         indicator = null;
-                                        metaColor = 'rgba(255,255,255,0.75)';
+                                        metaColor = '#667781';
                                     }
 
                                     // Raio da bolha (com "tail" apenas na primeira/última do grupo)
@@ -1263,8 +1232,8 @@ export default function Mensagens({ notify }) {
 
                             {/* Área de input */}
                             <div style={{
-                                padding: '10px 16px 14px', borderTop: '1px solid var(--border)',
-                                background: 'var(--bg-card)',
+                                padding: '10px 16px 14px', borderTop: '1px solid #e9edef',
+                                background: '#ffffff',
                             }}>
                                 {/* Toggle interno + sugerir (chips discretos) */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -1315,8 +1284,8 @@ export default function Mensagens({ notify }) {
                                 {/* Input + Send — pill-style */}
                                 <div style={{
                                     display: 'flex', gap: 8, alignItems: 'center',
-                                    background: interno ? '#fef3c720' : 'var(--bg-muted)',
-                                    border: `1px solid ${interno ? colorBorder('#fbbf24') : 'var(--border)'}`,
+                                    background: interno ? '#fef3c720' : '#f0f2f5',
+                                    border: `1px solid ${interno ? '#fbbf24' : '#e9edef'}`,
                                     borderRadius: 24,
                                     padding: '4px 4px 4px 6px',
                                     transition: 'border-color 0.15s',
@@ -1360,7 +1329,7 @@ export default function Mensagens({ notify }) {
                                         style={{
                                             flex: 1, resize: 'none', fontSize: 14.5, lineHeight: 1.4,
                                             border: 'none', outline: 'none',
-                                            background: 'transparent', color: 'var(--text-primary)',
+                                            background: 'transparent', color: '#111b21',
                                             padding: '8px 4px', fontFamily: 'inherit',
                                             maxHeight: 120, minHeight: 20,
                                         }}
