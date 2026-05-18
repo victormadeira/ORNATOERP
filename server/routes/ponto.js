@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireRole } from '../auth.js';
 import { htmlToPdf } from '../pdf.js';
 
 const router = Router();
@@ -70,7 +70,7 @@ router.get('/funcionarios', requireAuth, (req, res) => {
 });
 
 // POST /api/ponto/funcionarios — criar
-router.post('/funcionarios', requireAuth, (req, res) => {
+router.post('/funcionarios', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
   try {
     const { nome, cpf, cargo, data_admissao, salario_base } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -85,7 +85,7 @@ router.post('/funcionarios', requireAuth, (req, res) => {
 });
 
 // PUT /api/ponto/funcionarios/:id — atualizar
-router.put('/funcionarios/:id', requireAuth, (req, res) => {
+router.put('/funcionarios/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { nome, cpf, cargo, data_admissao, salario_base, ativo } = req.body;
@@ -101,7 +101,7 @@ router.put('/funcionarios/:id', requireAuth, (req, res) => {
 });
 
 // DELETE /api/ponto/funcionarios/:id — soft delete
-router.delete('/funcionarios/:id', requireAuth, (req, res) => {
+router.delete('/funcionarios/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
   try {
     const id = parseInt(req.params.id);
     db.prepare('UPDATE funcionarios SET ativo = 0 WHERE id = ?').run(id);
@@ -126,7 +126,7 @@ router.get('/config', requireAuth, (req, res) => {
 });
 
 // PUT /api/ponto/config
-router.put('/config', requireAuth, (req, res) => {
+router.put('/config', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
   try {
     const { jornada_json, tolerancia_min } = req.body;
     const jsonStr = typeof jornada_json === 'string' ? jornada_json : JSON.stringify(jornada_json || {});

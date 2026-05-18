@@ -179,6 +179,7 @@ app.use('/api', (req, res, next) => {
 // ═══════════════════════════════════════════════════════
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/register', loginLimiter);
+app.use('/api/ext/login', loginLimiter);
 
 // Rate limit para troca de senha (bcrypt cost=12 é caro — limitar tentativas)
 app.put('/api/auth/password', sensitiveLimiter);

@@ -10,6 +10,7 @@ const __dirname = dirname(__filename);
 const db = new Database(join(__dirname, 'marcenaria.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 // today_sp() — equivalente a date('now') mas no fuso de São Paulo (UTC-3).
 // Resolve o bug das 21h–23h59 SP onde date('now') retornava o dia seguinte.
