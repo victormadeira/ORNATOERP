@@ -258,8 +258,11 @@ export default function Mensagens({ notify }) {
                     m.wa_message_id === wa_message_id ? { ...m, status_envio: status } : m
                 ));
             }
+        } else if (msg.type === 'whatsapp.connection') {
+            // Atualiza diagnóstico imediatamente sem esperar o poll de 60s
+            loadDiagnostico();
         }
-    }, [loadConversas, loadContadores, loadMensagens]);
+    }, [loadConversas, loadContadores, loadMensagens, loadDiagnostico]);
 
     const { connected: wsConnected } = useWebSocket(handleWsEvent);
 
