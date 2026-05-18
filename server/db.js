@@ -10,6 +10,7 @@ const __dirname = dirname(__filename);
 const db = new Database(join(__dirname, 'marcenaria.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 // today_sp() — equivalente a date('now') mas no fuso de São Paulo (UTC-3).
 // Resolve o bug das 21h–23h59 SP onde date('now') retornava o dia seguinte.
@@ -2680,7 +2681,12 @@ db.exec(`
   )
 `);
 for (const sql of migrations) {
-  try { db.exec(sql); } catch (_) { /* coluna já existe */ }
+  try { db.exec(sql); } catch (e) {
+    // "duplicate column" e "already exists" são esperados em re-execuções
+    if (!/duplicate column|already exists/i.test(e.message || '')) {
+      console.warn('[db] migration inesperada:', e.message, '| SQL:', sql.slice(0, 80));
+    }
+  }
 }
 
 // Catálogo industrial: versões antigas tinham UNIQUE(user_id, component_name),

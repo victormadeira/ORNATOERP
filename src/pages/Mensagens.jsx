@@ -240,7 +240,7 @@ export default function Mensagens({ notify }) {
         if (!msg || !msg.type) return;
         if (msg.type === 'chat.message') {
             const convId = msg.data?.conversa_id;
-            // Atualiza sempre a lista + contadores
+            // Atualiza lista + contadores via HTTP (precisamos do conteúdo da mensagem)
             loadConversas();
             loadContadores();
             // Se o evento é da conversa aberta, recarrega as mensagens
@@ -251,9 +251,12 @@ export default function Mensagens({ notify }) {
             loadConversas();
             loadContadores();
         } else if (msg.type === 'chat.message-status') {
-            // Atualização de status (entregue/lido) só interessa se a conversa está aberta
-            if (msg.data?.conversa_id && msg.data.conversa_id === activeConvRef.current) {
-                loadMensagens(activeConvRef.current);
+            // Atualiza status da mensagem diretamente no state — sem HTTP fetch
+            const { wa_message_id, status } = msg.data || {};
+            if (wa_message_id && status) {
+                setMensagens(prev => prev.map(m =>
+                    m.wa_message_id === wa_message_id ? { ...m, status_envio: status } : m
+                ));
             }
         }
     }, [loadConversas, loadContadores, loadMensagens]);
