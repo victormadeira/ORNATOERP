@@ -29,7 +29,8 @@ function parseOrcData(row) {
             row.endereco_obra = data.endereco_obra || '';
             row.validade_proposta = data.validade_proposta || '';
             // Clamp: entre 1 e 730 dias (2 anos max) — sem isso, "999999" era aceito
-            const rawDias = parseInt(data.validade_dias) || parseInt(data.validade_proposta) || 15;
+            // Nota: parseInt(data.validade_proposta) seria string ISO "YYYY-MM-DD" → valor incorreto
+            const rawDias = parseInt(data.validade_dias) || 15;
             row.validade_dias = Math.min(Math.max(1, rawDias), 730);
             row.mods = []; // compat
         } else if (Array.isArray(data)) {
@@ -561,7 +562,11 @@ router.get('/:id', requireAuth, (req, res) => {
             SELECT id, numero, versao, versao_ativa, kb_col, valor_venda, custo_material, motivo_aditivo, criado_em
             FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'versao' ORDER BY versao ASC
         `).all(orc.parent_orc_id);
-        orc.versoes = [{ id: raiz.id, numero: raiz.numero, versao: raiz.versao || 1, versao_ativa: raiz.versao_ativa ?? 1, kb_col: raiz.kb_col, valor_venda: raiz.valor_venda, custo_material: raiz.custo_material, criado_em: raiz.criado_em }, ...versoes];
+        if (raiz) {
+            orc.versoes = [{ id: raiz.id, numero: raiz.numero, versao: raiz.versao || 1, versao_ativa: raiz.versao_ativa ?? 1, kb_col: raiz.kb_col, valor_venda: raiz.valor_venda, custo_material: raiz.custo_material, criado_em: raiz.criado_em }, ...versoes];
+        } else {
+            orc.versoes = versoes;
+        }
         // Aditivos da versão ativa (se esta for a ativa)
         if (orc.versao_ativa) {
             orc.aditivos = db.prepare("SELECT id, numero, kb_col, valor_venda, tipo, motivo_aditivo, criado_em FROM orcamentos WHERE parent_orc_id = ? AND tipo = 'aditivo' ORDER BY criado_em ASC").all(id);
@@ -1063,12 +1068,17 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                             const hoje = new Date();
                             let parcNum = 0;
                             for (const bloco of pagamento.blocos) {
-                                const valorBloco = valorFinal * ((bloco.percentual || 0) / 100);
+                                const valorBloco = Math.round(valorFinal * ((bloco.percentual || 0) / 100) * 100) / 100;
                                 const nParcelas = Math.max(1, bloco.parcelas || 1);
-                                const valorParcela = Math.round((valorBloco / nParcelas) * 100) / 100;
+                                const valorBase = Math.round((valorBloco / nParcelas) * 100) / 100;
 
                                 for (let i = 0; i < nParcelas; i++) {
                                     parcNum++;
+                                    // Última parcela absorve diferença de arredondamento
+                                    const isLast = i === nParcelas - 1;
+                                    const valorParcela = isLast
+                                        ? Math.round((valorBloco - valorBase * (nParcelas - 1)) * 100) / 100
+                                        : valorBase;
                                     const venc = new Date(hoje);
                                     venc.setMonth(venc.getMonth() + i);
                                     const descr = nParcelas > 1
@@ -1096,11 +1106,12 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                 projeto_criado = projPai.id;
             }
         } else {
-            // ═══ ORÇAMENTO NORMAL: criar projeto novo ═══
-            const jaTemProjeto = db.prepare('SELECT id FROM projetos WHERE orc_id = ?').get(id);
-            if (!jaTemProjeto) {
-                const token = randomBytes(16).toString('hex');
+            // ═══ ORÇAMENTO NORMAL: criar projeto novo (transação para evitar race condition com cluster PM2) ═══
+            const criarProjeto = db.transaction(() => {
+                const jaTemProjeto = db.prepare('SELECT id FROM projetos WHERE orc_id = ?').get(id);
+                if (jaTemProjeto) return jaTemProjeto.id;
 
+                const token = randomBytes(16).toString('hex');
                 const r = db.prepare(`
                     INSERT INTO projetos (user_id, orc_id, cliente_id, nome, descricao, status, token)
                     VALUES (?, ?, ?, ?, ?, 'nao_iniciado', ?)
@@ -1112,9 +1123,7 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                     `Projeto criado automaticamente do orçamento ${orc.numero || '#' + id}`,
                     token
                 );
-
                 const projId = r.lastInsertRowid;
-                projeto_criado = projId;
 
                 // Etapas padrão
                 const ETAPAS_PADRAO = [
@@ -1128,23 +1137,15 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                 const stmtE = db.prepare('INSERT INTO etapas_projeto (projeto_id, nome, ordem) VALUES (?, ?, ?)');
                 ETAPAS_PADRAO.forEach((nome, i) => stmtE.run(projId, nome, i));
 
-                // Popular materiais_orcados (lista de materiais) do orçamento
-                try {
-                    const materiaisJson = buildMateriaisOrcados(id);
-                    if (materiaisJson && materiaisJson !== '[]') {
-                        db.prepare('UPDATE projetos SET materiais_orcados = ? WHERE id = ?').run(materiaisJson, projId);
-                    }
-                } catch (_) { /* erro ao calcular lista de materiais não impede criação */ }
-
                 // Auto-importar parcelas do pagamento como contas a receber
                 try {
                     const data = JSON.parse(orc.mods_json || '{}');
                     const pagamento = data.pagamento || { desconto: { tipo: '%', valor: 0 }, blocos: [] };
                     const desconto = pagamento.desconto?.valor || 0;
-                    const valorBase = orc.valor_venda || 0;
+                    const valorBaseOrc = orc.valor_venda || 0;
                     const valorFinal = pagamento.desconto?.tipo === '%'
-                        ? valorBase * (1 - desconto / 100)
-                        : Math.max(0, valorBase - desconto);
+                        ? valorBaseOrc * (1 - desconto / 100)
+                        : Math.max(0, valorBaseOrc - desconto);
 
                     if (pagamento.blocos && pagamento.blocos.length > 0 && valorFinal > 0) {
                         const stmtCR = db.prepare(`
@@ -1159,12 +1160,17 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                         const hoje = new Date();
                         let parcNum = 0;
                         for (const bloco of pagamento.blocos) {
-                            const valorBloco = valorFinal * ((bloco.percentual || 0) / 100);
+                            const valorBloco = Math.round(valorFinal * ((bloco.percentual || 0) / 100) * 100) / 100;
                             const nParcelas = Math.max(1, bloco.parcelas || 1);
-                            const valorParcela = Math.round((valorBloco / nParcelas) * 100) / 100;
+                            const valorBaseParcela = Math.round((valorBloco / nParcelas) * 100) / 100;
 
                             for (let i = 0; i < nParcelas; i++) {
                                 parcNum++;
+                                // Última parcela absorve diferença de arredondamento
+                                const isLast = i === nParcelas - 1;
+                                const valorParcela = isLast
+                                    ? Math.round((valorBloco - valorBaseParcela * (nParcelas - 1)) * 100) / 100
+                                    : valorBaseParcela;
                                 const venc = new Date(hoje);
                                 venc.setMonth(venc.getMonth() + i);
                                 const descr = nParcelas > 1
@@ -1179,6 +1185,23 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                         }
                     }
                 } catch (_) { /* erro ao importar parcelas não impede criação */ }
+
+                return projId;
+            });
+
+            try {
+                const projId = criarProjeto();
+                projeto_criado = projId;
+
+                // Popular materiais_orcados fora da transação (operação pesada, não precisa de atomicidade)
+                try {
+                    const materiaisJson = buildMateriaisOrcados(id);
+                    if (materiaisJson && materiaisJson !== '[]') {
+                        db.prepare('UPDATE projetos SET materiais_orcados = ? WHERE id = ?').run(materiaisJson, projId);
+                    }
+                } catch (_) { /* erro ao calcular lista de materiais não impede criação */ }
+            } catch (err) {
+                console.error('[kanban ok] Erro ao criar projeto:', err.message);
             }
         }
     }

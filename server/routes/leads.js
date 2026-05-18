@@ -352,6 +352,9 @@ router.put('/:id', requireAuth, (req, res) => {
 router.delete('/:id', requireAuth, (req, res) => {
     const id = parseInt(req.params.id);
     try {
+        // Desvincular orçamentos e follow-ups antes de excluir o lead
+        db.prepare('UPDATE orcamentos SET lead_id = NULL WHERE lead_id = ?').run(id);
+        db.prepare('DELETE FROM follow_ups WHERE lead_id = ?').run(id);
         db.prepare('DELETE FROM lead_historico WHERE lead_id = ?').run(id);
         db.prepare('DELETE FROM leads WHERE id = ?').run(id);
         res.json({ ok: true });
