@@ -512,11 +512,13 @@ router.put('/bulk-status', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Status (kb_col) inválido' });
 
     try {
-        // user_id obrigatório: impede que usuário mova orçamentos de outros (IDOR)
         const placeholders = ids.map(() => '?').join(',');
-        const result = db.prepare(
-            `UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders}) AND user_id = ?`
-        ).run(status, ...ids, req.user.id);
+        // Admin/gerente: pode mover qualquer orçamento; vendedor: apenas os próprios (IDOR protection)
+        const sql = canSeeAll(req.user)
+            ? `UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`
+            : `UPDATE orcamentos SET kb_col = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id IN (${placeholders}) AND user_id = ?`;
+        const params = canSeeAll(req.user) ? [status, ...ids] : [status, ...ids, req.user.id];
+        const result = db.prepare(sql).run(...params);
 
         res.json({ ok: true, updated: result.changes });
     } catch (e) {
