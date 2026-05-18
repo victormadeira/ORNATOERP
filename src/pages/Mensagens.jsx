@@ -163,11 +163,12 @@ export default function Mensagens({ notify }) {
             const qs = new URLSearchParams({ filtro: filtroAba });
             if (filtroCategoria) qs.set('categoria', filtroCategoria);
             const data = await api.get('/whatsapp/conversas?' + qs.toString());
-            setConversas(data);
+            const lista = Array.isArray(data) ? data : (data.conversas || []);
+            setConversas(lista);
             // Atualizar activeConvData se a conversa ativa mudou (lead score, status, etc.)
             setActiveConvData(prev => {
                 if (!prev) return prev;
-                const updated = data.find(c => c.id === prev.id);
+                const updated = lista.find(c => c.id === prev.id);
                 return updated || prev;
             });
         } catch { /* silencioso */ }
