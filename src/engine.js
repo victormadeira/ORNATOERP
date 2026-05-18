@@ -43,6 +43,7 @@ export const FERR_GROUPS = {
     corredica:   'corrediça',
     dobradica:   'dobradiça',
     articulador: 'articulador',
+    puxador:     'puxador',
 };
 
 export const DB_ACABAMENTOS = [
@@ -437,6 +438,13 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         if (dimL > 0) { cD.L = dimL; cD.Li = dimL - esp * 2; }
         if (dimA > 0) { cD.A = dimA; cD.Ai = dimA - esp * 2; }
         if (dimP > 0) { cD.P = dimP; cD.Pi = dimP; }
+
+        // Lp/Ap padrão para componentes de porta: largura por unidade e altura total.
+        // Quando cQtd > 1 (ex: 2 portas no campo qtd), Lp = L / cQtd evita dobrar a área.
+        // varsDeriv pode sobrescrever se o template precisar de outro cálculo.
+        cD.Lp = cD.L / (cQtd > 0 ? cQtd : 1);
+        cD.Ap = cD.A;
+        cD.nUnits = cQtd; // disponível para varsDeriv que queiram usar
 
         // Aplicar varsDeriv (ex: Lg=Li, Pg=P-50) — já usa as dims overridden
         Object.entries(compDef.varsDeriv || {}).forEach(([k, formula]) => {
