@@ -169,6 +169,12 @@ router.post('/pagar/parcelado', requireAuth, (req, res) => {
     if (parcelas.length > 120) {
         return res.status(400).json({ error: 'Número máximo de parcelas é 120' });
     }
+    for (let i = 0; i < parcelas.length; i++) {
+        const v = parseFloat(parcelas[i].valor);
+        if (isNaN(v) || v <= 0) {
+            return res.status(400).json({ error: `Parcela ${i + 1} deve ter valor positivo` });
+        }
+    }
 
     const cat = CATEGORIAS_PAGAR.includes(categoria) ? categoria : 'outros';
     const total = parcelas.length;
