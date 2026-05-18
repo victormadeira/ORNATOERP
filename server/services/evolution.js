@@ -47,7 +47,7 @@ export async function sendText(phoneOrJid, text) {
         },
         body: JSON.stringify({
             number: dest,
-            text,
+            textMessage: { text },
         }),
         signal: AbortSignal.timeout(15000),
     });
@@ -122,51 +122,25 @@ export async function getQRCode() {
     const headers = { 'apikey': cfg.wa_api_key };
     const base = cfg.wa_instance_url;
     const name = cfg.wa_instance_name;
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    // Evolution v2.3.7 retorna base64 já com prefixo "data:image/png;base64,"
-    const extractQR = (d) => {
-        const raw = d?.base64 || d?.qrcode?.base64 || '';
-        return raw.startsWith('data:') ? (raw.split(',')[1] || raw) : raw;
-    };
-    const fetchConnect = async () => {
-        try {
-            const res = await fetch(`${base}/instance/connect/${name}`, { headers, signal: AbortSignal.timeout(12000) });
-            return res.ok ? await res.json().catch(() => ({})) : {};
-        } catch { return {}; }
-    };
-    // A instância leva alguns segundos para subir o socket e gerar o QR.
-    const pollQR = async (tries) => {
-        for (let i = 0; i < tries; i++) {
-            const data = await fetchConnect();
-            const b64 = extractQR(data);
-            if (b64) return { base64: b64, pairingCode: data.pairingCode || null };
-            await sleep(2500);
-        }
-        return null;
-    };
-
-    // Se a instância está "open" (conectada/fantasma), desloga para liberar o QR.
+    // NUNCA deslogar ou reiniciar uma instância conectada — isso derrubaria o
+    // WhatsApp em produção. Se já está "open", não há QR a gerar.
     try {
         const res = await fetch(`${base}/instance/connectionState/${name}`, { headers, signal: AbortSignal.timeout(8000) });
         const d = await res.json().catch(() => ({}));
         if ((d.instance?.state || d.state) === 'open') {
-            await fetch(`${base}/instance/logout/${name}`, { method: 'DELETE', headers, signal: AbortSignal.timeout(12000) });
-            await sleep(2000);
+            return { base64: '', pairingCode: null, connected: true };
         }
-    } catch (_) { /* segue */ }
+    } catch (_) { /* segue e tenta gerar o QR */ }
 
-    // 1ª rodada de poll
-    let qr = await pollQR(4);
-    if (qr) return qr;
-
-    // Sem QR: reinicia a instância (contador de QR estourado ou socket travado) e tenta de novo.
-    try {
-        await fetch(`${base}/instance/restart/${name}`, { method: 'POST', headers, signal: AbortSignal.timeout(12000) });
-        await sleep(3000);
-    } catch (_) { /* segue */ }
-    qr = await pollQR(4);
-    return qr || { base64: '', pairingCode: null };
+    // Instância desconectada: pede o QR de pareamento.
+    const res = await fetch(`${base}/instance/connect/${name}`, { headers, signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error(`Erro ao obter QR Code: ${res.status}`);
+    const data = await res.json().catch(() => ({}));
+    // Evolution pode retornar o base64 direto, aninhado em qrcode, ou só o code.
+    const raw = data.base64 || data.qrcode?.base64 || data.code || '';
+    const b64 = raw.startsWith('data:') ? (raw.split(',')[1] || raw) : raw;
+    return { base64: b64, pairingCode: data.pairingCode || null, connected: false };
 }
 
 // ═══ Enviar typing indicator (composing) ═══

@@ -714,6 +714,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
             const d = await api.get('/whatsapp/qrcode');
             if (d && d.base64) {
                 setWaQR(d);
+            } else if (d && d.connected) {
+                notify('WhatsApp já está conectado — não é necessário escanear o QR Code.');
             } else {
                 notify('Não foi possível gerar o QR Code. Tente novamente em alguns segundos.');
             }
