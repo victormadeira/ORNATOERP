@@ -219,9 +219,9 @@ router.post('/saida-lote', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Envie ao menos 1 item' });
     }
 
-    // Validar saldos antes de iniciar
+    // Validar formato dos itens (sem consultar saldo ainda — isso é feito dentro da transação)
     const erros = [];
-    const validados = [];
+    const candidatos = [];
     for (const item of itens) {
         if (!item.material_id || !item.quantidade || item.quantidade <= 0) {
             erros.push({ material_id: item.material_id, erro: 'Quantidade inválida' });
@@ -232,25 +232,29 @@ router.post('/saida-lote', requireAuth, (req, res) => {
             erros.push({ material_id: item.material_id, erro: 'Material sem estoque cadastrado' });
             continue;
         }
-        if (est.quantidade < item.quantidade) {
-            const mat = db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(item.material_id);
-            erros.push({
-                material_id: item.material_id,
-                nome: mat?.nome,
-                erro: `Saldo insuficiente (disponível: ${est.quantidade}, solicitado: ${item.quantidade})`,
-            });
-            continue;
-        }
-        validados.push({ ...item, estoque_id: est.id });
+        candidatos.push({ ...item, estoque_id: est.id });
     }
 
-    if (erros.length > 0 && validados.length === 0) {
+    if (erros.length > 0 && candidatos.length === 0) {
         return res.status(400).json({ error: 'Nenhum item válido', erros });
     }
 
-    // Executar em transação
+    const validados = [];
+
+    // Executar em transação — saldo relido dentro da transação para evitar TOCTOU com cluster PM2
     const run = db.transaction(() => {
-        for (const item of validados) {
+        for (const item of candidatos) {
+            const saldoAtual = db.prepare('SELECT quantidade FROM estoque WHERE id = ?').get(item.estoque_id);
+            if (!saldoAtual || saldoAtual.quantidade < item.quantidade) {
+                const mat = db.prepare('SELECT nome FROM biblioteca WHERE id = ?').get(item.material_id);
+                erros.push({
+                    material_id: item.material_id,
+                    nome: mat?.nome,
+                    erro: `Saldo insuficiente (disponível: ${saldoAtual?.quantidade ?? 0}, solicitado: ${item.quantidade})`,
+                });
+                continue; // pular este item mas continuar os demais
+            }
+
             db.prepare('UPDATE estoque SET quantidade = quantidade - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?')
                 .run(item.quantidade, item.estoque_id);
 
@@ -266,6 +270,7 @@ router.post('/saida-lote', requireAuth, (req, res) => {
                 descricao || 'Saída em lote',
                 req.user.id
             );
+            validados.push(item);
         }
     });
 
@@ -273,6 +278,10 @@ router.post('/saida-lote', requireAuth, (req, res) => {
         run();
     } catch (err) {
         return res.status(500).json({ error: 'Erro ao processar saídas: ' + err.message });
+    }
+
+    if (validados.length === 0) {
+        return res.status(400).json({ error: 'Nenhum item processado', erros });
     }
 
     // Sync despesa do projeto (1 vez)
