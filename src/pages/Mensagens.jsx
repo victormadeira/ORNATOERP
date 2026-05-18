@@ -259,10 +259,10 @@ export default function Mensagens({ notify }) {
                 ));
             }
         } else if (msg.type === 'whatsapp.connection') {
-            // Atualiza diagnóstico imediatamente sem esperar o poll de 60s
-            loadDiagnostico();
+            // Re-fetch diagnóstico direto — evita dependência circular com loadDiagnostico
+            api.get('/whatsapp/diagnostico').then(setDiag).catch(() => {});
         }
-    }, [loadConversas, loadContadores, loadMensagens, loadDiagnostico]);
+    }, [loadConversas, loadContadores, loadMensagens]);
 
     const { connected: wsConnected } = useWebSocket(handleWsEvent);
 
