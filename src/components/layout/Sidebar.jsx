@@ -416,7 +416,7 @@ export default function Sidebar({
                                             display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                                             padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
                                         }}>
-                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
+                                            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
                                                 {g.label}
                                             </span>
                                             <ChevronDown size={12} style={{
@@ -456,11 +456,11 @@ export default function Sidebar({
                                                                 )}
                                                             </span>
                                                             {sidebarExpanded && (
-                                                                <span className="text-[13px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
+                                                                <span className="text-[14px] flex-1 text-left whitespace-nowrap">{m.lb}</span>
                                                             )}
                                                             {sidebarExpanded && badge && (
                                                                 <span className="badge-pulse" style={{
-                                                                    fontSize: 10, fontWeight: 700, background: badge.bg, color: '#fff',
+                                                                    fontSize: 11, fontWeight: 700, background: badge.bg, color: '#fff',
                                                                     padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center',
                                                                 }}>{badge.num}</span>
                                                             )}
@@ -489,13 +489,13 @@ export default function Sidebar({
                             title={sidebarExpanded ? 'Recolher menu' : 'Expandir menu'}
                         >
                             {sidebarExpanded ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
-                            {sidebarExpanded && <span className="text-xs whitespace-nowrap">Recolher menu</span>}
+                            {sidebarExpanded && <span className="text-[13px] whitespace-nowrap">Recolher menu</span>}
                             {!sidebarExpanded && <span className="sidebar-tooltip">Expandir menu</span>}
                         </button>
 
                         <button onClick={() => setDark(!dark)} className="sidebar-item w-full flex items-center gap-2.5 px-2.5 py-2 cursor-pointer" style={{ color: 'var(--text-muted)' }}>
                             {dark ? <Ic.Sun /> : <Ic.Moon />}
-                            {sidebarExpanded && <span className="text-xs whitespace-nowrap">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
+                            {sidebarExpanded && <span className="text-[13px] whitespace-nowrap">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
                             {!sidebarExpanded && <span className="sidebar-tooltip">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>}
                         </button>
 
@@ -509,8 +509,8 @@ export default function Sidebar({
                                         <span className="status-online" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
-                                        <div className="text-[10px] capitalize" style={{ color: 'var(--text-muted)' }}>{user.role}</div>
+                                        <div className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.nome}</div>
+                                        <div className="text-[11px] capitalize" style={{ color: 'var(--text-muted)' }}>{user.role}</div>
                                     </div>
                                 </div>
                                 <button onClick={logout} className="p-1 rounded-md cursor-pointer transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)' }} title="Sair">
@@ -564,7 +564,7 @@ export default function Sidebar({
                                             display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                                             padding: '8px 10px 4px', background: 'none', border: 'none', cursor: 'pointer',
                                         }}>
-                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{g.label}</span>
+                                            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{g.label}</span>
                                             <ChevronDown size={12} style={{ color: 'var(--text-muted)', transition: 'transform .2s', transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                                         </button>
                                     )}
