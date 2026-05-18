@@ -298,7 +298,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                     dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
                     matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
                 }],
-                null,
+                { chapas: chapasDB, ferragens: ferragensDB, acabamentos: acabDB, fitas: [] },
                 globalPadroes,
             );
             return r.custo * (1 + (compDef.coef || 0));
