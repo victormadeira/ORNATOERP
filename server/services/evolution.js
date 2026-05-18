@@ -126,7 +126,7 @@ export async function getQRCode() {
     });
     if (!res.ok) throw new Error(`Erro ao obter QR Code: ${res.status}`);
     const data = await res.json();
-    return { qrcode: data.base64 || data.qrcode?.base64 || '' };
+    return { base64: data.base64 || data.qrcode?.base64 || '', pairingCode: data.pairingCode || null };
 }
 
 // ═══ Enviar typing indicator (composing) ═══
