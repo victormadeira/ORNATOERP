@@ -82,7 +82,16 @@
     })();
   </script>
   <div id="root"></div>
-  <!-- Fallback SEO para bots que não executam JS (Bing, DuckDuckGo, WhatsApp/LinkedIn preview, etc.) -->
+  <!-- Conteúdo estático visível para crawlers (Meta, Google, etc.) antes do React montar.
+       O CSS abaixo esconde este bloco assim que o React popula o #root. -->
+  <style>#root:not(:empty) ~ #static-fallback { display: none; }</style>
+  <div id="static-fallback" style="font-family:sans-serif;max-width:800px;margin:0 auto;padding:2rem;color:#1a1a1a;">
+    <h1 style="color:#1B2A4A;">Studio Ornato — Marcenaria sob medida</h1>
+    <p>Móveis planejados e marcenaria de alto padrão em São Luís e Paço do Lumiar, MA.</p>
+    <p>Fábrica: Estrada da Pindoba, 03, Paço do Lumiar, MA. Tel: (98) 98701-5547</p>
+    <p>CNPJ registrado no Brasil. Atendimento via <a href="https://wa.me/5598987015547">WhatsApp</a>.</p>
+    <p><a href="/privacidade.html">Política de Privacidade</a></p>
+  </div>
   <noscript>
     <style>
       body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; color: #1a1a1a; }
