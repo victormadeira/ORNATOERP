@@ -307,10 +307,18 @@ const VAR_ORDER_V2 = ["nPortas", "Lg", "Pg", "Lpr", "Ppr", "Ldv", "Pdv", "Lp", "
 function rCalcV2(expr, d) {
     try {
         let e = String(expr);
+        // Substituir primeiro as vars da ordem predefinida (prioridade e ordem correta)
         for (const k of VAR_ORDER_V2) {
             if (d[k] !== undefined) {
                 e = e.replace(new RegExp(`\\b${k}\\b`, 'g'), String(d[k]));
             }
+        }
+        // Depois substituir vars extras do contexto (ex: vars customizadas de componentes)
+        // Ordenar do nome mais longo para o mais curto para evitar substituições parciais
+        const extraKeys = Object.keys(d).filter(k => !VAR_ORDER_V2.includes(k) && d[k] !== undefined && typeof d[k] === 'number');
+        extraKeys.sort((a, b) => b.length - a.length);
+        for (const k of extraKeys) {
+            e = e.replace(new RegExp(`\\b${k}\\b`, 'g'), String(d[k]));
         }
         if (!SAFE_EXPR.test(e)) return 0;
         const r = Function('"use strict";return(' + e + ')')() || 0;
@@ -319,6 +327,7 @@ function rCalcV2(expr, d) {
 }
 
 export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null, globalPadroes = {}) {
+    globalPadroes = globalPadroes ?? {};
     const chapasDB = bib?.chapas || DB_CHAPAS;
     // Mescla ferragens do banco com fallback embutido (evita perder ferragens quando banco tem dados parciais)
     const bibFerr = bib?.ferragens || [];

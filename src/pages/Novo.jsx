@@ -57,6 +57,9 @@ function resolveItemMats(item, amb) {
     return {
         matInt: amb.matInt,
         matExt: amb.matExt ?? item.mats?.matExt ?? '',
+        // matFundo e matExtComp são per-item — o ambiente nunca os sobrescreve
+        matFundo: item.mats?.matFundo ?? '',
+        matExtComp: item.mats?.matExtComp ?? '',
     };
 }
 
@@ -301,7 +304,10 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                 { chapas: chapasDB, ferragens: ferragensDB, acabamentos: acabDB, fitas: [] },
                 globalPadroes,
             );
-            return r.custo * (1 + (compDef.coef || 0));
+            // Coef de dificuldade incide só em itens fabricados (chapas, fita, acabamentos).
+            // Ferragens são compradas prontas — preço fixo, sem coef.
+            const coef = compDef.coef || 0;
+            return (r.custoChapas + r.custoFita + r.custoAcabamentos) * (1 + coef) + r.custoFerragens;
         } catch (_) { return 0; }
     }, [ci, caixaDims, mats, compDef, globalPadroes]);
 
