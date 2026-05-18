@@ -11,6 +11,7 @@ function getToken() {
 const ROUTE_TIMEOUTS = {
     '/cnc/': 600000,        // CNC: 10min (otimização SA pesada)
     '/plano-corte/': 300000, // Plano de corte: 5min
+    '/whatsapp/qrcode': 60000, // QR Code: backend faz poll/restart da instância Evolution
 };
 
 function getTimeout(path) {
