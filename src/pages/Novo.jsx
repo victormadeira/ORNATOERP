@@ -268,7 +268,7 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
 function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso, onAddGrupo, placeholder }) {
     const [q, setQ] = useState('');
     const [open, setOpen] = useState(false);
-    const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+    const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 280 });
     const wrapRef = useRef(null);
     const inputRef = useRef(null);
     const filtered = q.trim()
@@ -278,7 +278,14 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
     const calcPos = () => {
         if (!wrapRef.current) return;
         const r = wrapRef.current.getBoundingClientRect();
-        setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+        const MAX_H = 280;
+        const MARGIN = 8;
+        const spaceAbaixo = window.innerHeight - r.bottom - MARGIN;
+        const spaceAcima  = r.top - MARGIN;
+        const abrirAcima  = spaceAbaixo < MAX_H && spaceAcima > spaceAbaixo;
+        const maxH = abrirAcima ? Math.min(MAX_H, spaceAcima) : Math.min(MAX_H, spaceAbaixo);
+        const top  = abrirAcima ? r.top - maxH - 4 : r.bottom + 4;
+        setPos({ top, left: r.left, width: r.width, maxH });
     };
 
     // Fecha ao clicar fora, scroll ou resize
@@ -309,7 +316,7 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
             style={{
                 position: 'fixed', top: pos.top, left: pos.left, width: pos.width,
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
-                maxHeight: 280, zIndex: 9999,
+                maxHeight: pos.maxH, zIndex: 9999,
             }}>
             {/* ── Itens Especiais + Avulso no topo (sempre visíveis) ── */}
             {onAddPainel && !q.trim() && (

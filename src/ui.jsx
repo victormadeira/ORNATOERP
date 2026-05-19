@@ -309,21 +309,25 @@ export function Spinner({ size = 28, color = 'var(--primary)', text }) {
 export function SearchableSelect({ value, onChange, options, groups, emptyOption, inheritOption, placeholder = 'Buscar...', className, style }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
-    const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+    const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 260 });
     const ref = useRef(null);
     const inputRef = useRef(null);
 
     const calcPos = () => {
         if (!ref.current) return;
         const r = ref.current.getBoundingClientRect();
-        const POPUP_H = 260;
-        const spaceAbaixo = window.innerHeight - r.bottom;
-        const abrirAcima = spaceAbaixo < POPUP_H && r.top >= POPUP_H;
-        setPos({
-            top: abrirAcima ? r.top - POPUP_H - 4 : r.bottom + 4,
-            left: r.left,
-            width: r.width,
-        });
+        const MAX_H = 260;
+        const MARGIN = 8;
+        const spaceAbaixo = window.innerHeight - r.bottom - MARGIN;
+        const spaceAcima  = r.top - MARGIN;
+        const abrirAcima  = spaceAbaixo < MAX_H && spaceAcima > spaceAbaixo;
+        const maxH = abrirAcima
+            ? Math.min(MAX_H, spaceAcima)
+            : Math.min(MAX_H, spaceAbaixo);
+        const top = abrirAcima
+            ? r.top - maxH - 4
+            : r.bottom + 4;
+        setPos({ top, left: r.left, width: r.width, maxH });
     };
 
     useEffect(() => {
@@ -383,7 +387,7 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
             position: 'fixed', top: pos.top, left: pos.left, width: pos.width,
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: 10, boxShadow: 'var(--shadow-xl)',
-            zIndex: 9999, maxHeight: 260, display: 'flex', flexDirection: 'column', minWidth: 200,
+            zIndex: 9999, maxHeight: pos.maxH, display: 'flex', flexDirection: 'column', minWidth: 200,
         }}>
             <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
