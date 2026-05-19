@@ -309,14 +309,41 @@ export function Spinner({ size = 28, color = 'var(--primary)', text }) {
 export function SearchableSelect({ value, onChange, options, groups, emptyOption, inheritOption, placeholder = 'Buscar...', className, style }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
+    const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
     const ref = useRef(null);
     const inputRef = useRef(null);
 
+    const calcPos = () => {
+        if (!ref.current) return;
+        const r = ref.current.getBoundingClientRect();
+        const POPUP_H = 260;
+        const spaceAbaixo = window.innerHeight - r.bottom;
+        const abrirAcima = spaceAbaixo < POPUP_H && r.top >= POPUP_H;
+        setPos({
+            top: abrirAcima ? r.top - POPUP_H - 4 : r.bottom + 4,
+            left: r.left,
+            width: r.width,
+        });
+    };
+
     useEffect(() => {
         if (!open) return;
-        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
+        const portalId = 'searchable-select-portal';
+        const close = () => setOpen(false);
+        const onMouse = (e) => {
+            if (ref.current && !ref.current.contains(e.target) &&
+                !document.getElementById(portalId)?.contains(e.target)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onMouse);
+        window.addEventListener('scroll', close, { passive: true, capture: true });
+        window.addEventListener('resize', close, { passive: true });
+        return () => {
+            document.removeEventListener('mousedown', onMouse);
+            window.removeEventListener('scroll', close, { capture: true });
+            window.removeEventListener('resize', close);
+        };
     }, [open]);
 
     useEffect(() => { if (open && inputRef.current) inputRef.current.focus(); }, [open]);
@@ -351,11 +378,92 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
         transition: 'background 0.15s',
     });
 
+    const dropdown = open && createPortal(
+        <div id="searchable-select-portal" className="animate-scale-in" style={{
+            position: 'fixed', top: pos.top, left: pos.left, width: pos.width,
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 10, boxShadow: 'var(--shadow-xl)',
+            zIndex: 9999, maxHeight: 260, display: 'flex', flexDirection: 'column', minWidth: 200,
+        }}>
+            <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <input
+                    ref={inputRef}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder={placeholder}
+                    style={{
+                        flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                        fontSize: 12, color: 'var(--text-primary)', padding: '2px 0',
+                    }}
+                />
+                {search && (
+                    <button type="button" onClick={() => setSearch('')} style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none', padding: 0 }}>
+                        <X size={11} />
+                    </button>
+                )}
+            </div>
+
+            <div style={{ overflowY: 'auto', padding: 4, flex: 1 }}>
+                {emptyOption && (!q || emptyOption.toLowerCase().includes(q)) && (
+                    <div onClick={() => select('')} style={itemStyle(value === '')}
+                        onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                        onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = 'transparent'; }}>
+                        {emptyOption}
+                    </div>
+                )}
+                {inheritOption && (!q || inheritOption.toLowerCase().includes(q)) && (
+                    <div onClick={() => select('')} style={itemStyle(value === '')}
+                        onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                        onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = 'transparent'; }}>
+                        {inheritOption}
+                    </div>
+                )}
+
+                {groups ? (
+                    groups.map((g, gi) => {
+                        const filtered = filterOpts(g.options);
+                        if (filtered.length === 0) return null;
+                        return (
+                            <div key={gi}>
+                                <div style={{ padding: '6px 8px 3px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                                    {g.label}
+                                </div>
+                                {filtered.map(o => (
+                                    <div key={o.value} onClick={() => select(o.value)} style={itemStyle(String(value) === String(o.value))}
+                                        onMouseEnter={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                                        onMouseLeave={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'transparent'; }}>
+                                        {o.label}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })
+                ) : (
+                    filterOpts(allOpts).map(o => (
+                        <div key={o.value} onClick={() => select(o.value)} style={itemStyle(String(value) === String(o.value))}
+                            onMouseEnter={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                            onMouseLeave={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'transparent'; }}>
+                            {o.label}
+                        </div>
+                    ))
+                )}
+
+                {q && filterOpts(allOpts).length === 0 && !(emptyOption && emptyOption.toLowerCase().includes(q)) && (
+                    <div style={{ padding: '12px 10px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                        Nenhum resultado para "{search}"
+                    </div>
+                )}
+            </div>
+        </div>,
+        document.body
+    );
+
     return (
-        <div ref={ref} style={{ position: 'relative', ...style }}>
+        <div ref={ref} style={style}>
             <button
                 type="button"
-                onClick={() => setOpen(!open)}
+                onClick={() => { calcPos(); setOpen(!open); }}
                 className={className}
                 style={{
                     width: '100%', textAlign: 'left', display: 'flex',
@@ -367,86 +475,7 @@ export function SearchableSelect({ value, onChange, options, groups, emptyOption
                 </span>
                 <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
             </button>
-
-            {open && (
-                <div className="animate-scale-in" style={{
-                    position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    borderRadius: 10, boxShadow: 'var(--shadow-xl)',
-                    zIndex: 999, maxHeight: 260, display: 'flex', flexDirection: 'column', minWidth: 200,
-                }}>
-                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        <input
-                            ref={inputRef}
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder={placeholder}
-                            style={{
-                                flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                                fontSize: 12, color: 'var(--text-primary)', padding: '2px 0',
-                            }}
-                        />
-                        {search && (
-                            <button type="button" onClick={() => setSearch('')} style={{ cursor: 'pointer', color: 'var(--text-muted)', background: 'none', border: 'none', padding: 0 }}>
-                                <X size={11} />
-                            </button>
-                        )}
-                    </div>
-
-                    <div style={{ overflowY: 'auto', padding: 4, flex: 1 }}>
-                        {emptyOption && (!q || emptyOption.toLowerCase().includes(q)) && (
-                            <div onClick={() => select('')} style={itemStyle(value === '')}
-                                onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = 'transparent'; }}>
-                                {emptyOption}
-                            </div>
-                        )}
-                        {inheritOption && (!q || inheritOption.toLowerCase().includes(q)) && (
-                            <div onClick={() => select('')} style={itemStyle(value === '')}
-                                onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = 'transparent'; }}>
-                                {inheritOption}
-                            </div>
-                        )}
-
-                        {groups ? (
-                            groups.map((g, gi) => {
-                                const filtered = filterOpts(g.options);
-                                if (filtered.length === 0) return null;
-                                return (
-                                    <div key={gi}>
-                                        <div style={{ padding: '6px 8px 3px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-                                            {g.label}
-                                        </div>
-                                        {filtered.map(o => (
-                                            <div key={o.value} onClick={() => select(o.value)} style={itemStyle(String(value) === String(o.value))}
-                                                onMouseEnter={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                                onMouseLeave={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'transparent'; }}>
-                                                {o.label}
-                                            </div>
-                                        ))}
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            filterOpts(allOpts).map(o => (
-                                <div key={o.value} onClick={() => select(o.value)} style={itemStyle(String(value) === String(o.value))}
-                                    onMouseEnter={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                    onMouseLeave={e => { if (String(value) !== String(o.value)) e.currentTarget.style.background = 'transparent'; }}>
-                                    {o.label}
-                                </div>
-                            ))
-                        )}
-
-                        {q && filterOpts(allOpts).length === 0 && !(emptyOption && emptyOption.toLowerCase().includes(q)) && (
-                            <div style={{ padding: '12px 10px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-                                Nenhum resultado para "{search}"
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+            {dropdown}
         </div>
     );
 }
