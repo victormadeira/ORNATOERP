@@ -502,16 +502,23 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         });
 
         // Frente externa
-        // FIX: componentes de porta usam calc="Lp*Ap" (área de UMA porta) e qtdFormula="nPortas"
-        // para multiplicar pelo número correto de portas. Sem qtdFormula, usa cQtd (comportamento anterior).
+        // Se qtdFormula está definida, usa ela.
+        // Fallback robusto: se a calc usa "Lp" (= área de UMA porta) e nPortas está no contexto,
+        // multiplica automaticamente por nPortas — cobre snapshots antigos sem qtdFormula.
         const fe = compDef.frente_externa;
         if (fe?.ativa && matExtComp) {
             const feMatId = resolveMat(fe.mat, compMats);
             if (feMatId) {
                 const isAcab = !chapasDB.find(c => c.id === feMatId);
-                const feQtdUnit = fe.qtdFormula
-                    ? Math.round(Math.max(1, rCalcV2(fe.qtdFormula, cD)))
-                    : 1;
+                let feQtdUnit;
+                if (fe.qtdFormula) {
+                    feQtdUnit = Math.round(Math.max(1, rCalcV2(fe.qtdFormula, cD)));
+                } else if (cD.nPortas > 0 && (fe.calc || '').includes('Lp')) {
+                    // Fallback: Lp = Li/nPortas → calc dá área de 1 porta → precisa × nPortas
+                    feQtdUnit = Math.round(Math.max(1, cD.nPortas));
+                } else {
+                    feQtdUnit = 1;
+                }
                 addPeca(`${compLabel} — ${fe.nome}`, 'frente_externa', feMatId, fe.calc, feQtdUnit * cQtd, fe.fita || [], cD, isAcab);
             }
         }
