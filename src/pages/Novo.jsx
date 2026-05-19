@@ -2913,13 +2913,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const ambPv = amb.tipo === 'manual' ? (ambData.custo || 0) : (tot.totalItemCP > 0 ? (ambData.cp || 0) / tot.totalItemCP * tot.pv + ambAjustes + ambAvulso : (ambData.custo || 0));
 
                             // ── Função de renderização reutilizável para item (avulso ou módulo) ──
-                            const renderItemCard = (item, { inGroup = false } = {}) => {
+                            const renderItemCard = (item, { inGroup = false, elIdx = -1, unifiedLen = 0 } = {}) => {
                                 const hasGrupos = (amb.grupos || []).length > 0;
                                 const canDrag = !readOnly && hasGrupos;
                                 // ── Item Avulso ──
                                 if (item.tipo === 'avulso') {
                                     return (
-                                        <div key={item.id} className="rounded-lg overflow-hidden mb-2"
+                                        <div key={item.id} className="group/item rounded-lg overflow-hidden mb-2"
                                             draggable={canDrag}
                                             onDragStart={e => handleDragStart(e, amb.id, item.id)}
                                             onDragEnd={handleDragEnd}
@@ -2957,6 +2957,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         className="p-0.5 rounded hover:bg-[var(--bg-hover)]" title="Remover do grupo"
                                                         style={{ color: 'var(--text-muted)' }}><X size={10} /></button>
                                                 )}
+                                                {!readOnly && !inGroup && elIdx >= 0 && <>
+                                                    <button onClick={() => reorderElement(amb.id, 'item', item.id, 'up')} disabled={elIdx === 0}
+                                                        className="p-1 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-50 hover:!opacity-100 disabled:!opacity-0 disabled:pointer-events-none transition-opacity"
+                                                        style={{ color: 'var(--text-muted)' }} title="Mover para cima"><ChevronUp size={12} /></button>
+                                                    <button onClick={() => reorderElement(amb.id, 'item', item.id, 'down')} disabled={elIdx === unifiedLen - 1}
+                                                        className="p-1 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-50 hover:!opacity-100 disabled:!opacity-0 disabled:pointer-events-none transition-opacity"
+                                                        style={{ color: 'var(--text-muted)' }} title="Mover para baixo"><ChevronDown size={12} /></button>
+                                                </>}
                                                 {!readOnly && <button onClick={() => copyItem(amb.id, item.id)} className="p-1 rounded hover:bg-[var(--bg-hover)]" title="Duplicar item"><Copy size={12} /></button>}
                                                 {!readOnly && <button onClick={() => removeItem(amb.id, item.id)} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400" title="Remover item"><Trash2 size={12} /></button>}
                                             </div>
@@ -3046,6 +3054,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         className="p-0.5 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-50 hover:!opacity-100 transition-opacity" title="Remover do grupo"
                                                         style={{ color: 'var(--text-muted)' }}><X size={11} /></button>
                                                 )}
+                                                {!readOnly && !inGroup && elIdx >= 0 && <>
+                                                    <button onClick={e => { e.stopPropagation(); reorderElement(amb.id, 'item', item.id, 'up'); }} disabled={elIdx === 0}
+                                                        className="p-1 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-50 hover:!opacity-100 disabled:!opacity-0 disabled:pointer-events-none transition-opacity"
+                                                        style={{ color: 'var(--text-muted)' }} title="Mover para cima"><ChevronUp size={12} /></button>
+                                                    <button onClick={e => { e.stopPropagation(); reorderElement(amb.id, 'item', item.id, 'down'); }} disabled={elIdx === unifiedLen - 1}
+                                                        className="p-1 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-50 hover:!opacity-100 disabled:!opacity-0 disabled:pointer-events-none transition-opacity"
+                                                        style={{ color: 'var(--text-muted)' }} title="Mover para baixo"><ChevronDown size={12} /></button>
+                                                </>}
                                                 {/* F: ações reveladas no hover do card */}
                                                 <button onClick={e => { e.stopPropagation(); setReportItemId(reportItemId === item.id ? null : item.id); }}
                                                     className="p-1 rounded hover:bg-[var(--bg-hover)] transition-all"
@@ -3680,25 +3696,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                             </div>
                                                         );
                                                     } else {
-                                                        // item solto — injeta botões ↑↓ via wrapper
+                                                        // item solto — botões ↑↓ injetados dentro do card via props
                                                         const item = el.data;
-                                                        return (
-                                                            <div key={item.id} className="relative group/reorder">
-                                                                {!readOnly && (
-                                                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full flex flex-col gap-0.5 opacity-0 group-hover/reorder:opacity-100 transition-opacity pr-1 z-10">
-                                                                        <button onClick={() => reorderElement(amb.id, 'item', item.id, 'up')} disabled={elIdx === 0}
-                                                                            className="p-0.5 rounded hover:bg-[var(--bg-hover)] disabled:opacity-20" style={{ color: 'var(--text-muted)' }} title="Mover para cima">
-                                                                            <ChevronUp size={13} />
-                                                                        </button>
-                                                                        <button onClick={() => reorderElement(amb.id, 'item', item.id, 'down')} disabled={elIdx === unified.length - 1}
-                                                                            className="p-0.5 rounded hover:bg-[var(--bg-hover)] disabled:opacity-20" style={{ color: 'var(--text-muted)' }} title="Mover para baixo">
-                                                                            <ChevronDown size={13} />
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                                {renderItemCard(item)}
-                                                            </div>
-                                                        );
+                                                        return renderItemCard(item, { elIdx, unifiedLen: unified.length });
                                                     }
                                                 });
                                             })()}
