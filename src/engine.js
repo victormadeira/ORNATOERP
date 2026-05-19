@@ -502,12 +502,17 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         });
 
         // Frente externa
+        // FIX: componentes de porta usam calc="Lp*Ap" (área de UMA porta) e qtdFormula="nPortas"
+        // para multiplicar pelo número correto de portas. Sem qtdFormula, usa cQtd (comportamento anterior).
         const fe = compDef.frente_externa;
         if (fe?.ativa && matExtComp) {
             const feMatId = resolveMat(fe.mat, compMats);
             if (feMatId) {
                 const isAcab = !chapasDB.find(c => c.id === feMatId);
-                addPeca(`${compLabel} — ${fe.nome}`, 'frente_externa', feMatId, fe.calc, cQtd, fe.fita || [], cD, isAcab);
+                const feQtdUnit = fe.qtdFormula
+                    ? Math.round(Math.max(1, rCalcV2(fe.qtdFormula, cD)))
+                    : 1;
+                addPeca(`${compLabel} — ${fe.nome}`, 'frente_externa', feMatId, fe.calc, feQtdUnit * cQtd, fe.fita || [], cD, isAcab);
             }
         }
 
