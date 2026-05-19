@@ -462,104 +462,119 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
     const temDimsCustom = dimFields.some(f => ci[f.id] > 0);
     const temMatsCustom = !!(ci.matIntInst || ci.matExtInst);
 
+    // Há opções avançadas para mostrar no expand?
+    const temAvancado = dimFields.length > 0 || (compDef.sub_itens || []).length > 0 || true; // mat. corpo sempre disponível
+
     return (
         <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)', borderLeft: '3px solid var(--success)' }}>
-            <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]"
-                onClick={() => setExp(p => !p)}>
-                <div className="flex items-center gap-2 flex-wrap">
-                    {exp ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    <Package size={12} style={{ color: 'var(--success)' }} />
-                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{compDef.nome}</span>
-                    {(ci.qtd || 1) > 1 && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--success)' }}>×{ci.qtd}</span>
-                    )}
-                    {hasFrenteExt && ci.matExtComp && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>frente ext.</span>
-                    )}
-                    {temDimsCustom && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.08))', color: 'var(--primary)' }}>
-                            dims. custom
-                        </span>
-                    )}
-                    {temMatsCustom && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
-                            mat. custom
-                        </span>
-                    )}
+            {/* ── Header: tudo inline, sem precisar expandir ── */}
+            <div className="flex items-center gap-2 px-2 py-1.5">
+                <Package size={12} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                <span className="text-sm font-medium min-w-0 flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{compDef.nome}</span>
+
+                {/* Qtd — stepper compacto */}
+                <div className="flex flex-col items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                    <span className="text-[8px] font-bold uppercase leading-none" style={{ color: 'var(--text-muted)' }}>Qtd</span>
+                    <div className="flex items-center" style={{ border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                        <button onClick={() => onUpdate({ ...ci, qtd: Math.max(1, (ci.qtd || 1) - 1) })}
+                            className="px-1 text-xs hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)', lineHeight: '20px' }}>−</button>
+                        <span className="px-1 text-xs font-bold" style={{ color: 'var(--text-primary)', minWidth: 16, textAlign: 'center', lineHeight: '20px' }}>{ci.qtd || 1}</span>
+                        <button onClick={() => onUpdate({ ...ci, qtd: (ci.qtd || 1) + 1 })}
+                            className="px-1 text-xs hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-muted)', lineHeight: '20px' }}>+</button>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold" style={{ color: 'var(--success)' }}>{R$(custoComp)}</span>
-                    <button onClick={e => { e.stopPropagation(); onRemove(); }} className="p-0.5 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><X size={12} /></button>
-                </div>
+
+                {/* Variáveis do componente (nPortas, nGavetas, ag, etc.) */}
+                {(compDef.vars || []).map(v => {
+                    const curVal = ci.vars?.[v.id];
+                    return (
+                        <div key={v.id} className="flex flex-col items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                            <span className="text-[8px] font-bold uppercase leading-none" style={{ color: 'var(--text-muted)' }}>{v.label}</span>
+                            <input type="number" min={v.min ?? 1} max={v.max ?? 99}
+                                value={curVal ?? (v.default > 0 ? v.default : '')}
+                                placeholder={v.default > 0 ? String(v.default) : 'auto'}
+                                onChange={e => {
+                                    const val = +e.target.value;
+                                    const newVars = { ...(ci.vars || {}) };
+                                    if (val > 0) newVars[v.id] = val; else delete newVars[v.id];
+                                    onUpdate({ ...ci, vars: newVars });
+                                }}
+                                style={{ width: 46, textAlign: 'center', fontSize: 11, padding: '2px 4px' }}
+                                className={Z.inp}
+                            />
+                        </div>
+                    );
+                })}
+
+                {/* Frente externa — inline se ativa */}
+                {hasFrenteExt && (
+                    <div className="flex flex-col gap-0.5 shrink-0" style={{ minWidth: 150 }} onClick={e => e.stopPropagation()}>
+                        <span className="text-[8px] font-bold uppercase leading-none" style={{ color: 'var(--warning)' }}>Frente ext.</span>
+                        <SearchableSelect
+                            value={ci.matExtComp || ''}
+                            onChange={val => onUpdate({ ...ci, matExtComp: val })}
+                            groups={[
+                                { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                { label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) },
+                            ]}
+                            emptyOption="Mesmo material interno"
+                            placeholder="Material da frente..."
+                            className={Z.inp}
+                            style={{ fontSize: 11, padding: '2px 6px' }}
+                        />
+                    </div>
+                )}
+
+                {/* Custo + botão avançado + remover */}
+                <span className="text-xs font-bold shrink-0" style={{ color: 'var(--success)' }}>{R$(custoComp)}</span>
+                <button onClick={() => setExp(p => !p)}
+                    className="p-0.5 rounded hover:bg-[var(--bg-hover)] shrink-0 transition-colors"
+                    title={exp ? 'Ocultar avançado' : 'Opções avançadas (dims, material do corpo, ferragens)'}
+                    style={{ color: exp ? 'var(--primary)' : 'var(--text-muted)', opacity: exp ? 1 : 0.4 }}>
+                    <ChevronDown size={12} style={{ transform: exp ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
+                </button>
+                <button onClick={e => { e.stopPropagation(); onRemove(); }}
+                    className="p-0.5 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 shrink-0"><X size={12} /></button>
             </div>
+
+            {/* ── Avançado: dims custom, material do corpo, ferragens ── */}
             {exp && (
                 <div className="px-3 pb-2.5 pt-2 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-muted)' }}>
-                    {/* Quantidade, variáveis e dimensões — tudo inline */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <div>
-                            <label className={Z.lbl}>Qtd</label>
-                            <input type="number" min="1" max="50" value={ci.qtd || 1}
-                                onChange={e => onUpdate({ ...ci, qtd: Math.max(1, +e.target.value || 1) })}
-                                className={Z.inp} />
-                        </div>
-                        {/* Dimensões do componente (L, P, etc.) */}
-                        {dimFields.map(({ id, label, auto }) => (
-                            <div key={id}>
-                                <label className={Z.lbl}>
-                                    {label} (mm)
-                                    {!ci[id] && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)' }}>(auto)</span>}
-                                </label>
-                                <input
-                                    type="number" min="0" max="5000"
-                                    value={ci[id] > 0 ? ci[id] : ''}
-                                    placeholder={auto ? `${auto}` : 'Auto'}
-                                    onChange={e => {
-                                        const v = Math.max(0, +e.target.value || 0);
-                                        onUpdate({ ...ci, [id]: v });
-                                    }}
-                                    className={Z.inp}
-                                    style={ci[id] > 0 ? { borderColor: 'rgba(59,130,246,0.5)', background: 'rgba(59,130,246,0.04)' } : {}}
-                                />
-                            </div>
-                        ))}
-                        {/* Variáveis próprias (ex: Altura da Gaveta) */}
-                        {(compDef.vars || []).map(v => {
-                            const isAuto = v.default === 0;
-                            const curVal = ci.vars?.[v.id];
-                            return (
-                                <div key={v.id}>
-                                    <label className={Z.lbl}>
-                                        {v.label} ({v.unit})
-                                        {isAuto && !curVal && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)' }}>(auto)</span>}
-                                    </label>
-                                    <input type="number" min={v.min} max={v.max}
-                                        value={curVal || ''}
-                                        placeholder={isAuto ? `Auto` : String(v.default)}
-                                        onChange={e => {
-                                            const val = +e.target.value;
-                                            const newVars = { ...(ci.vars || {}) };
-                                            if (val > 0) newVars[v.id] = val;
-                                            else delete newVars[v.id];
-                                            onUpdate({ ...ci, vars: newVars });
-                                        }}
-                                        className={Z.inp} />
-                                </div>
-                            );
-                        })}
-                    </div>
 
-                    {/* ── Materiais da instância ── colapsável */}
+                    {/* Dimensões customizadas (sobrepõem as da caixa) */}
+                    {dimFields.length > 0 && (
+                        <div>
+                            <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>Dimensões customizadas</div>
+                            <div className="grid grid-cols-3 gap-2">
+                                {dimFields.map(({ id, label, auto }) => (
+                                    <div key={id}>
+                                        <label className={Z.lbl}>
+                                            {label} (mm)
+                                            {!ci[id] && <span className="text-[9px] ml-1" style={{ color: 'var(--text-muted)' }}>auto: {auto}</span>}
+                                        </label>
+                                        <input type="number" min="0" max="5000"
+                                            value={ci[id] > 0 ? ci[id] : ''}
+                                            placeholder={auto ? `${auto}` : 'Auto'}
+                                            onChange={e => { const v = Math.max(0, +e.target.value || 0); onUpdate({ ...ci, [id]: v }); }}
+                                            className={Z.inp}
+                                            style={ci[id] > 0 ? { borderColor: 'rgba(59,130,246,0.5)', background: 'rgba(59,130,246,0.04)' } : {}}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Material específico do corpo do componente */}
                     {temMatsCustom || matExp ? (
                         <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.04))', border: '1px solid rgba(19,121,240,0.15)' }}>
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Material deste componente</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Material do corpo deste componente</span>
                                 <div className="flex gap-2">
                                     {temMatsCustom && (
                                         <button onClick={() => { onUpdate({ ...ci, matIntInst: '', matExtInst: '' }); setMatExp(false); }}
                                             className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer hover:bg-red-500/10"
-                                            style={{ color: 'var(--text-muted)' }}>
-                                            Resetar
-                                        </button>
+                                            style={{ color: 'var(--text-muted)' }}>Resetar</button>
                                     )}
                                     <button onClick={() => setMatExp(false)} className="text-[9px] cursor-pointer" style={{ color: 'var(--text-muted)' }}>✕</button>
                                 </div>
@@ -567,37 +582,17 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <div>
                                     <label className={Z.lbl}>Material Interno</label>
-                                    <SearchableSelect
-                                        value={ci.matIntInst || ''}
-                                        onChange={val => onUpdate({ ...ci, matIntInst: val })}
-                                        groups={[
-                                            { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                            ...(acabDB.filter(a => a.preco > 0).length > 0
-                                                ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
-                                                : []),
-                                        ]}
-                                        inheritOption={`↩ Herdar: ${autoMatIntNome}`}
-                                        placeholder="Buscar material..."
-                                        className={Z.inp}
-                                        style={ci.matIntInst ? { borderColor: 'rgba(19,121,240,0.40)', background: 'rgba(19,121,240,0.04)' } : {}}
-                                    />
+                                    <SearchableSelect value={ci.matIntInst || ''} onChange={val => onUpdate({ ...ci, matIntInst: val })}
+                                        groups={[{ label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) }, ...(acabDB.filter(a => a.preco > 0).length > 0 ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }] : [])]}
+                                        inheritOption={`↩ Herdar: ${autoMatIntNome}`} placeholder="Buscar material..." className={Z.inp}
+                                        style={ci.matIntInst ? { borderColor: 'rgba(19,121,240,0.40)', background: 'rgba(19,121,240,0.04)' } : {}} />
                                 </div>
                                 <div>
                                     <label className={Z.lbl}>Material Externo</label>
-                                    <SearchableSelect
-                                        value={ci.matExtInst || ''}
-                                        onChange={val => onUpdate({ ...ci, matExtInst: val })}
-                                        groups={[
-                                            { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                            ...(acabDB.filter(a => a.preco > 0).length > 0
-                                                ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
-                                                : []),
-                                        ]}
-                                        inheritOption={`↩ Herdar: ${autoMatExtNome}`}
-                                        placeholder="Buscar material..."
-                                        className={Z.inp}
-                                        style={ci.matExtInst ? { borderColor: 'var(--accent-mid, rgba(201,169,110,0.5))', background: 'var(--accent-bg, rgba(201,169,110,0.04))' } : {}}
-                                    />
+                                    <SearchableSelect value={ci.matExtInst || ''} onChange={val => onUpdate({ ...ci, matExtInst: val })}
+                                        groups={[{ label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) }, ...(acabDB.filter(a => a.preco > 0).length > 0 ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }] : [])]}
+                                        inheritOption={`↩ Herdar: ${autoMatExtNome}`} placeholder="Buscar material..." className={Z.inp}
+                                        style={ci.matExtInst ? { borderColor: 'var(--accent-mid, rgba(201,169,110,0.5))', background: 'var(--accent-bg, rgba(201,169,110,0.04))' } : {}} />
                                 </div>
                             </div>
                         </div>
@@ -605,55 +600,26 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                         <button onClick={() => setMatExp(true)}
                             className="text-[10px] text-left cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
                             style={{ color: 'var(--text-secondary)' }}>
-                            + material específico deste componente
+                            + material específico do corpo deste componente
                         </button>
                     )}
 
-                    {/* Frente externa — material exclusivo */}
-                    {hasFrenteExt && (
-                        <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--warning)' }}>Frente Externa — Material Exclusivo</span>
-                                <Info size={11} style={{ color: 'var(--warning)' }} title="A frente externa pode ter acabamento e material diferente do interior da gaveta — impacta diretamente no preço." />
-                            </div>
-                            <div>
-                                <label className={Z.lbl}>Material da Frente Externa</label>
-                                <SearchableSelect
-                                    value={ci.matExtComp || ''}
-                                    onChange={val => onUpdate({ ...ci, matExtComp: val })}
-                                    groups={[
-                                        { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
-                                        { label: 'Acabamentos premium', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: `${a.nome} — ${R$(a.preco)}/m²` })) },
-                                    ]}
-                                    emptyOption="Sem frente externa / mesmo material interno"
-                                    placeholder="Buscar material..."
-                                    className={Z.inp}
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Ferragens disponíveis */}
+                    {/* Ferragens */}
                     {(compDef.sub_itens || []).length > 0 && (
                         <div>
                             <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>Ferragens</div>
                             <div className="flex flex-col gap-1">
                                 {(compDef.sub_itens || []).map(si => (
-                                    <SubItemRow
-                                        key={si.id}
-                                        si={si}
+                                    <SubItemRow key={si.id} si={si}
                                         ativo={ci.subItens?.[si.id] !== undefined ? ci.subItens[si.id] : si.defaultOn}
                                         onChange={v => onUpdate({ ...ci, subItens: { ...(ci.subItens || {}), [si.id]: v } })}
                                         ferrOvr={ci.subItensOvr?.[si.id]}
                                         onFerrChange={newId => onUpdate({ ...ci, subItensOvr: { ...(ci.subItensOvr || {}), [si.id]: newId } })}
-                                        ferragensDB={ferragensDB}
-                                        globalPadroes={globalPadroes}
-                                    />
+                                        ferragensDB={ferragensDB} globalPadroes={globalPadroes} />
                                 ))}
                             </div>
                         </div>
                     )}
-
                 </div>
             )}
         </div>
