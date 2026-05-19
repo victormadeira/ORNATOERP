@@ -3008,10 +3008,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 {/* F: ações reveladas no hover do card */}
                                                 <button onClick={e => { e.stopPropagation(); setReportItemId(reportItemId === item.id ? null : item.id); }}
                                                     className="p-1 rounded hover:bg-[var(--bg-hover)] transition-all"
-                                                    title="Ver detalhes do cálculo"
-                                                    style={{ color: reportItemId === item.id ? 'var(--primary)' : 'var(--text-muted)', opacity: reportItemId === item.id ? 1 : 0 }}
-                                                    onMouseEnter={e => { if (reportItemId !== item.id) e.currentTarget.style.opacity = '0.7'; }}
-                                                    onMouseLeave={e => { if (reportItemId !== item.id) e.currentTarget.style.opacity = '0'; }}>
+                                                    title="Memorial de cálculo"
+                                                    style={{ color: reportItemId === item.id ? 'var(--primary)' : 'var(--text-muted)', opacity: reportItemId === item.id ? 1 : 0.35 }}>
                                                     <BarChart3 size={12} />
                                                 </button>
                                                 {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-60 hover:!opacity-100 transition-opacity" title="Duplicar item" style={{ color: 'var(--text-muted)' }}><Copy size={12} /></button>}
