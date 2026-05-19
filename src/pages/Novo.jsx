@@ -142,10 +142,29 @@ function PuxadorSelect({ puxadores, value, onChange }) {
         return () => document.removeEventListener('mousedown', h);
     }, []);
 
+    // Fecha ao scroll de qualquer container — evita popup desconectado do trigger
+    useEffect(() => {
+        if (!open) return;
+        const close = () => { setOpen(false); setQ(''); };
+        window.addEventListener('scroll', close, { passive: true, capture: true });
+        window.addEventListener('resize', close, { passive: true });
+        return () => {
+            window.removeEventListener('scroll', close, { capture: true });
+            window.removeEventListener('resize', close);
+        };
+    }, [open]);
+
+    const POPUP_H = 244; // search ~44px + lista maxHeight 180px + padding 20px
+
     const toggle = () => {
         if (!open && btnRef.current) {
             const r = btnRef.current.getBoundingClientRect();
-            setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 220) });
+            const spaceAbaixo = window.innerHeight - r.bottom;
+            const abrirAcima = spaceAbaixo < POPUP_H && r.top >= POPUP_H;
+            setPos({
+                top: abrirAcima ? r.top - POPUP_H - 4 : r.bottom + 4,
+                left: Math.max(8, Math.min(r.right - 220, window.innerWidth - 228)),
+            });
         }
         setOpen(!open);
     };
