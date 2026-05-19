@@ -7,7 +7,7 @@ import { buildRelatorioHtml } from './RelatorioMateriais';
 import { buildPropostaHtml } from './PropostaHtml';
 import { buildContratoHtml } from './ContratoHtml';
 import {
-    FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronUp, ChevronRight, Trash2, Copy,
+    FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Copy,
     FolderOpen, Package, Settings, Layers, X, RefreshCw, Wrench, AlertTriangle, Box, Search,
     ToggleLeft, ToggleRight, Info, CreditCard, Eye, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
     Lock, Unlock, Shield, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
@@ -1281,6 +1281,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [advancedItemId, setAdvancedItemId] = useState(null); // item com painel avançado aberto
     const [addCompModal, setAddCompModal] = useState(null); // { ambId, itemId }
     const [compSearch, setCompSearch] = useState('');
+    const [pendingComp, setPendingComp] = useState(null); // { compDef, qtd, vars, matExtComp } — passo 2 do modal
     const [showTipoAmbModal, setShowTipoAmbModal] = useState(false);
     const [ambTemplates, setAmbTemplates] = useState([]);
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(null); // ambId
@@ -1319,7 +1320,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     }, [componentesCat, compSearch]);
 
     useEffect(() => {
-        if (!addCompModal) setCompSearch('');
+        if (!addCompModal) { setCompSearch(''); setPendingComp(null); }
     }, [addCompModal]);
 
     useEffect(() => {
@@ -1870,24 +1871,27 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (i) fn(i);
     });
 
-    const addComp = (ambId, itemId, compDef) => {
+    const addComp = (ambId, itemId, compDef, opts = {}) => {
         upItem(ambId, itemId, item => {
-            const vars = {};
-            // Apenas armazena defaults não-zero (default=0 = derivado da caixa, ex: Ap da Porta)
-            (compDef.vars || []).forEach(v => { if (v.default) vars[v.id] = v.default; });
+            // Se opts.vars fornecido, usa ele; senão preenche com defaults
+            const vars = opts.vars ?? {};
+            if (!opts.vars) {
+                (compDef.vars || []).forEach(v => { if (v.default) vars[v.id] = v.default; });
+            }
             const subItens = {};
             (compDef.sub_itens || []).forEach(s => { subItens[s.id] = s.defaultOn; });
             item.componentes.push({
                 id: uid(),
                 compId: compDef.db_id,
                 compDef: JSON.parse(JSON.stringify(compDef)),
-                qtd: 1,
+                qtd: opts.qtd ?? 1,
                 vars,
-                matExtComp: '',
+                matExtComp: opts.matExtComp ?? '',
                 subItens,
             });
         });
         setAddCompModal(null);
+        setPendingComp(null);
     };
 
     const removeComp = (ambId, itemId, compInstId) => upItem(ambId, itemId, item => {
@@ -5531,14 +5535,117 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             {addCompModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
                     onClick={() => setAddCompModal(null)}>
-                    <div className="rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[70vh] flex flex-col"
+                    <div className="rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col"
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
                         onClick={e => e.stopPropagation()}>
+
+                        {/* Header adaptativo: passo 1 = título; passo 2 = nome do componente + voltar */}
                         <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Adicionar Componente</h3>
-                            <button onClick={() => setAddCompModal(null)} className="p-1 rounded hover:bg-[var(--bg-hover)]"><X size={16} /></button>
+                            {pendingComp ? (
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <button onClick={() => setPendingComp(null)}
+                                        className="p-1 rounded hover:bg-[var(--bg-hover)] shrink-0"
+                                        style={{ color: 'var(--text-muted)' }} title="Voltar">
+                                        <ChevronLeft size={16} />
+                                    </button>
+                                    <div className="min-w-0">
+                                        <div className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{pendingComp.compDef.nome}</div>
+                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Configure antes de adicionar</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Adicionar Componente</h3>
+                            )}
+                            <button onClick={() => setAddCompModal(null)} className="p-1 rounded hover:bg-[var(--bg-hover)] shrink-0"><X size={16} /></button>
                         </div>
-                        <div className="p-3 overflow-y-auto flex-1">
+
+                        {/* Passo 2: configurar vars, qtd, frente ext */}
+                        {pendingComp && (() => {
+                            const cd = pendingComp.compDef;
+                            const hasFE = cd.frente_externa?.ativa;
+                            const allMats = [
+                                { label: 'Chapas', options: chapasDB.map(c => ({ value: c.id, label: c.nome })) },
+                                ...(acabDB.filter(a => a.preco > 0).length > 0
+                                    ? [{ label: 'Acabamentos', options: acabDB.filter(a => a.preco > 0).map(a => ({ value: a.id, label: a.nome })) }]
+                                    : []),
+                            ];
+                            const hasConfig = (cd.vars || []).length > 0 || hasFE;
+                            return (
+                                <div className="p-4 flex flex-col gap-4 overflow-y-auto flex-1">
+                                    {/* Qtd + Vars num grid compacto */}
+                                    <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${Math.min(3, 1 + (cd.vars || []).length)}, 1fr)` }}>
+                                        {/* Qtd */}
+                                        <div>
+                                            <label className={Z.lbl}>Qtd</label>
+                                            <input type="number" min="1" max="50"
+                                                value={pendingComp.qtd}
+                                                onChange={e => setPendingComp(p => ({ ...p, qtd: Math.max(1, +e.target.value || 1) }))}
+                                                className={Z.inp} />
+                                        </div>
+                                        {/* Variáveis (nPortas, nGavetas, ag, etc.) */}
+                                        {(cd.vars || []).map(v => (
+                                            <div key={v.id}>
+                                                <label className={Z.lbl}>{v.label} {v.unit && <span style={{ color: 'var(--text-muted)' }}>({v.unit})</span>}</label>
+                                                <input type="number" min={v.min ?? 1} max={v.max ?? 999}
+                                                    value={pendingComp.vars[v.id] ?? (v.default || '')}
+                                                    placeholder={v.default ? String(v.default) : 'auto'}
+                                                    onChange={e => {
+                                                        const val = +e.target.value;
+                                                        setPendingComp(p => {
+                                                            const newVars = { ...p.vars };
+                                                            if (val > 0) newVars[v.id] = val; else delete newVars[v.id];
+                                                            return { ...p, vars: newVars };
+                                                        });
+                                                    }}
+                                                    className={Z.inp} />
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Frente externa (destaque visual) */}
+                                    {hasFE && (
+                                        <div className="rounded-lg p-3 flex flex-col gap-2"
+                                            style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.3)' }}>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--warning)' }}>Material da Frente Externa</span>
+                                                <Info size={11} style={{ color: 'var(--warning)', opacity: 0.7 }}
+                                                    title="A frente pode ter material diferente do corpo — impacta diretamente no preço." />
+                                            </div>
+                                            <SearchableSelect
+                                                value={pendingComp.matExtComp}
+                                                onChange={val => setPendingComp(p => ({ ...p, matExtComp: val }))}
+                                                groups={allMats}
+                                                emptyOption="Mesmo material do corpo"
+                                                placeholder="Buscar material da frente..."
+                                                className={Z.inp}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Aviso se não tem nada pra configurar */}
+                                    {!hasConfig && (
+                                        <p className="text-xs text-center py-2" style={{ color: 'var(--text-muted)' }}>
+                                            Este componente não tem configurações adicionais. <br/>Será adicionado com as definições padrão.
+                                        </p>
+                                    )}
+
+                                    {/* Confirmar */}
+                                    <button
+                                        onClick={() => addComp(addCompModal.ambId, addCompModal.itemId, cd, {
+                                            qtd: pendingComp.qtd,
+                                            vars: pendingComp.vars,
+                                            matExtComp: pendingComp.matExtComp,
+                                        })}
+                                        className="w-full py-2.5 rounded-lg font-semibold text-sm transition-all"
+                                        style={{ background: 'var(--primary)', color: '#fff' }}>
+                                        Adicionar componente
+                                    </button>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Passo 1: busca + lista (só quando não há componente selecionado) */}
+                        {!pendingComp && <div className="p-3 overflow-y-auto flex-1">
                             {/* ── Seção especial: Ripado ── */}
                             {(() => {
                                 const targetItem = ambientes.flatMap(a => a.itens || []).find(i => i.id === addCompModal.itemId);
@@ -5612,7 +5719,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         </div>
                                     ) : componentesFiltrados.map(comp => (
                                         <button key={comp.db_id}
-                                            onClick={() => addComp(addCompModal.ambId, addCompModal.itemId, comp)}
+                                            onClick={() => {
+                                                // Passo 2: configurar antes de adicionar
+                                                const initVars = {};
+                                                (comp.vars || []).forEach(v => { if (v.default) initVars[v.id] = v.default; });
+                                                setPendingComp({ compDef: comp, qtd: 1, vars: initVars, matExtComp: '' });
+                                            }}
                                             className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[var(--success-hover)]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-1.5"
                                             style={{ borderColor: 'var(--border)' }}>
                                             <Package size={16} style={{ color: 'var(--success)', marginTop: 2, flexShrink: 0 }} />
@@ -5630,7 +5742,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     ))}
                                 </>
                             )}
-                        </div>
+                        </div>}
                     </div>
                 </div>
             )}
