@@ -268,97 +268,131 @@ function SubItemRow({ si, ativo, onChange, ferragensDB, globalPadroes, ferrOvr, 
 function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso, onAddGrupo, placeholder }) {
     const [q, setQ] = useState('');
     const [open, setOpen] = useState(false);
-    const ref = useRef(null);
+    const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+    const wrapRef = useRef(null);
+    const inputRef = useRef(null);
     const filtered = q.trim()
         ? caixas.filter(c => c.nome.toLowerCase().includes(q.toLowerCase()) || (c.desc || '').toLowerCase().includes(q.toLowerCase()))
         : caixas;
+
+    const calcPos = () => {
+        if (!wrapRef.current) return;
+        const r = wrapRef.current.getBoundingClientRect();
+        setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+
+    // Fecha ao clicar fora, scroll ou resize
     useEffect(() => {
-        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener('mousedown', h);
-        return () => document.removeEventListener('mousedown', h);
-    }, []);
+        if (!open) return;
+        const close = () => setOpen(false);
+        const onMouse = (e) => {
+            if (wrapRef.current && !wrapRef.current.contains(e.target) &&
+                !document.getElementById('caixa-search-portal')?.contains(e.target)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onMouse);
+        window.addEventListener('scroll', close, { passive: true, capture: true });
+        window.addEventListener('resize', close, { passive: true });
+        return () => {
+            document.removeEventListener('mousedown', onMouse);
+            window.removeEventListener('scroll', close, { capture: true });
+            window.removeEventListener('resize', close);
+        };
+    }, [open]);
+
     const pick = (v) => { onSelect(v); setQ(''); setOpen(false); };
+
+    const dropdown = open && createPortal(
+        <div id="caixa-search-portal"
+            className="rounded-lg shadow-lg overflow-auto"
+            style={{
+                position: 'fixed', top: pos.top, left: pos.left, width: pos.width,
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                maxHeight: 280, zIndex: 9999,
+            }}>
+            {/* ── Itens Especiais + Avulso no topo (sempre visíveis) ── */}
+            {onAddPainel && !q.trim() && (
+                <>
+                    <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Adicionar</span></div>
+                    <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
+                        className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                        style={{ color: 'var(--warning)' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <Layers size={14} />
+                        <span>⬡ Painel Ripado / Muxarabi</span>
+                    </button>
+                    {TIPOS_ESPECIAIS.map(t => {
+                        const TIc = getEspecialIcon(t.id);
+                        return (
+                            <button key={t.id} onClick={() => { onAddEspecial?.(t.id); setQ(''); setOpen(false); }}
+                                className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                                style={{ color: t.cor }}
+                                onMouseEnter={e => e.currentTarget.style.background = `${t.cor}12`}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <TIc size={14} />
+                                <span>{t.nome}</span>
+                                <span className="text-[10px] ml-auto" style={{ color: 'var(--text-muted)' }}>{t.unidade}</span>
+                            </button>
+                        );
+                    })}
+                    {onAddAvulso && (
+                        <button onClick={() => { onAddAvulso(); setQ(''); setOpen(false); }}
+                            className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                            style={{ color: 'var(--success)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <Tag size={14} />
+                            <span>Item Avulso (nome + valor)</span>
+                        </button>
+                    )}
+                    {onAddGrupo && (
+                        <button onClick={() => { onAddGrupo(); setQ(''); setOpen(false); }}
+                            className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                            style={{ color: 'var(--warning)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <Package size={14} />
+                            <span>Criar Grupo (agrupar módulos)</span>
+                        </button>
+                    )}
+                    {filtered.length > 0 && (
+                        <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Módulos</span></div>
+                    )}
+                </>
+            )}
+            {/* ── Lista de módulos (filtrada pela busca) ── */}
+            {filtered.map(c => (
+                <button key={c.db_id} onClick={() => pick(c.db_id)}
+                    className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
+                    style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <Package size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                    <span>{c.nome}{c.desc ? <span style={{ color: 'var(--text-muted)' }}> — {c.desc}</span> : ''}</span>
+                </button>
+            ))}
+            {filtered.length === 0 && q.trim() && (
+                <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Nenhum módulo encontrado para "{q}"</div>
+            )}
+        </div>,
+        document.body
+    );
+
     return (
-        <div ref={ref} className="relative">
+        <div ref={wrapRef}>
             <div className="flex items-center gap-2" style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: '7px 10px' }}>
                 <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                <input type="text" value={q}
+                <input ref={inputRef} type="text" value={q}
                     placeholder={placeholder || '+ Adicionar módulo... (digite para buscar)'}
-                    onChange={e => { setQ(e.target.value); setOpen(true); }}
-                    onFocus={() => setOpen(true)}
+                    onChange={e => { setQ(e.target.value); if (!open) { calcPos(); setOpen(true); } }}
+                    onFocus={() => { calcPos(); setOpen(true); }}
                     className="flex-1 bg-transparent outline-none text-sm"
                     style={{ color: 'var(--text-primary)', minWidth: 0 }} />
                 {q && <button onClick={() => setQ('')} className="p-0.5 rounded hover:bg-red-500/10 cursor-pointer" style={{ color: 'var(--text-muted)' }}><X size={12} /></button>}
             </div>
-            {open && (
-                <div className="absolute left-0 right-0 mt-1 rounded-lg shadow-lg overflow-auto" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxHeight: 280, zIndex: 50 }}>
-                    {/* ── Itens Especiais + Avulso no topo (sempre visíveis) ── */}
-                    {onAddPainel && !q.trim() && (
-                        <>
-                            <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Adicionar</span></div>
-                            <button onClick={() => { onAddPainel(); setQ(''); setOpen(false); }}
-                                className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                style={{ color: 'var(--warning)' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <Layers size={14} />
-                                <span>⬡ Painel Ripado / Muxarabi</span>
-                            </button>
-                            {TIPOS_ESPECIAIS.map(t => {
-                                const TIc = getEspecialIcon(t.id);
-                                return (
-                                    <button key={t.id} onClick={() => { onAddEspecial?.(t.id); setQ(''); setOpen(false); }}
-                                        className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                        style={{ color: t.cor }}
-                                        onMouseEnter={e => e.currentTarget.style.background = `${t.cor}12`}
-                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                        <TIc size={14} />
-                                        <span>{t.nome}</span>
-                                        <span className="text-[10px] ml-auto" style={{ color: 'var(--text-muted)' }}>{t.unidade}</span>
-                                    </button>
-                                );
-                            })}
-                            {onAddAvulso && (
-                                <button onClick={() => { onAddAvulso(); setQ(''); setOpen(false); }}
-                                    className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                    style={{ color: 'var(--success)' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.08)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                    <Tag size={14} />
-                                    <span>Item Avulso (nome + valor)</span>
-                                </button>
-                            )}
-                            {onAddGrupo && (
-                                <button onClick={() => { onAddGrupo(); setQ(''); setOpen(false); }}
-                                    className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                                    style={{ color: 'var(--warning)' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                    <Package size={14} />
-                                    <span>Criar Grupo (agrupar módulos)</span>
-                                </button>
-                            )}
-                            {filtered.length > 0 && (
-                                <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Módulos</span></div>
-                            )}
-                        </>
-                    )}
-                    {/* ── Lista de módulos (filtrada pela busca) ── */}
-                    {filtered.map(c => (
-                        <button key={c.db_id} onClick={() => pick(c.db_id)}
-                            className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                            style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <Package size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                            <span>{c.nome}{c.desc ? <span style={{ color: 'var(--text-muted)' }}> — {c.desc}</span> : ''}</span>
-                        </button>
-                    ))}
-                    {filtered.length === 0 && q.trim() && (
-                        <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Nenhum módulo encontrado para "{q}"</div>
-                    )}
-                </div>
-            )}
+            {dropdown}
         </div>
     );
 }
