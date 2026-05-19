@@ -1301,13 +1301,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     const def = caixas.find(c => c.db_id === item.caixaId);
                     if (def) { updated = { ...updated, caixaDef: JSON.parse(JSON.stringify(def)) }; changed = true; }
                 }
-                // Hidratar compDef em cada componente se ausente
+                // Hidratar compDef em cada componente — sempre re-fetcha do catálogo atual
+                // (guard antigo `if (ci.compDef) return ci` impedia atualizar snapshots obsoletos)
                 if (updated.componentes?.length > 0) {
                     const comps = updated.componentes.map(ci => {
-                        if (ci.compDef) return ci;
+                        if (!ci.compId) return ci; // sem ID não dá para buscar
                         const cd = componentesCat.find(c => c.db_id === ci.compId);
                         if (cd) { changed = true; return { ...ci, compDef: JSON.parse(JSON.stringify(cd)) }; }
-                        return ci;
+                        return ci; // componente não está mais no catálogo — mantém snapshot antigo
                     });
                     updated = { ...updated, componentes: comps };
                 }
