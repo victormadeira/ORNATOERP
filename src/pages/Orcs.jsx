@@ -463,9 +463,9 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                         { h: 'Amb.', cls: 'hide-mobile text-right' },
                                         { h: 'Preço Final', cls: 'text-right' },
                                         { h: 'Status', cls: '' },
-                                        { h: 'Ações', cls: '' },
-                                    ].map(({ h, cls }) => (
-                                        <th key={h} className={`${Z.th} ${cls}`}>
+                                        { h: '', cls: '', style: { width: 1, padding: 0 } },
+                                    ].map(({ h, cls, style }) => (
+                                        <th key={h || 'acoes'} className={`${Z.th} ${cls}`} style={style}>
                                             {h}
                                         </th>
                                     ))}
@@ -662,8 +662,8 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="td-glass" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ gap: 0 }}>
+                                            <td className="td-glass" style={{ position: 'relative', width: 1, padding: 0 }} onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150" style={{ position: 'absolute', right: 4, top: 0, bottom: 0, gap: 0, zIndex: 10 }}>
                                                     {/* Grupo: ações primárias */}
                                                     <div className="flex items-center gap-0.5">
                                                         <button

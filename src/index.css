@@ -558,7 +558,7 @@ h2, h3, h4 {
   min-height: 40px;
   height: 40px;
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-primary);
   transition: background var(--transition-fast);
   font-variant-numeric: tabular-nums;
