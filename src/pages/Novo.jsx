@@ -1465,6 +1465,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const isVersao = _orc?.tipo === 'versao';
     const temVersoes = versoes.length > 1;
     const readOnly = (isLocked && !unlocked) || isSubstituida;
+    const [isSaving, setIsSaving] = useState(false);
 
     // ── Cadastro rápido de cliente ───────────────────────────────────────────
     const [showQuickClient, setShowQuickClient] = useState(false);
@@ -2429,15 +2430,19 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     }, [moreActionsOpen]);
 
     const salvar = async () => {
+        if (isSaving) return; // guard contra duplo-clique
         if (!cid) { notify('Selecione um cliente'); return; }
         if (ambientes.every(a => {
             if (a.tipo === 'manual') return (a.linhas || []).length === 0;
             return a.itens.length === 0 && (a.paineis || []).length === 0 && (a.itensEspeciais || []).length === 0;
         })) { notify('Adicione pelo menos um item'); return; }
+        setIsSaving(true);
         try {
             const data = buildSavePayload();
-            if (editOrc?.id) await api.put(`/orcamentos/${editOrc.id}`, data);
-            else await api.post('/orcamentos', data);
+            const isNew = !editOrc?.id;
+            const result = isNew
+                ? await api.post('/orcamentos', data)
+                : await api.put(`/orcamentos/${editOrc.id}`, data);
             if (unlocked) setUnlocked(false);
             lastSavedPayloadRef.current = JSON.stringify(data);
             setSaveStatus('saved');
@@ -2445,7 +2450,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             notify('Orçamento salvo!'); reload();
             // Sync proposta HTML no portal (async, best-effort)
             syncPropostaHtml();
+            // Para orçamentos novos, navegar para o ID criado para habilitar autosave e link público
+            if (isNew && result?.id) nav('novo', result);
         } catch (ex) { notify(ex.error || 'Erro ao salvar'); }
+        finally { setIsSaving(false); }
     };
 
     const [criandoAditivo, setCriandoAditivo] = useState(false);
@@ -5294,7 +5302,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         window.open(URL.createObjectURL(blob), '_blank');
                                         // Salvar HTML no link público (atualiza se existir, cria se não)
                                         if (editOrc?.id) {
-                                            api.post('/portal/generate', { orc_id: editOrc.id, html_proposta: html, nivel: opt.id }).catch(e => notify(e.error || 'Erro ao salvar link público'));
+                                            api.post('/portal/generate', { orc_id: editOrc.id, html_proposta: html, nivel: opt.id })
+                                                .then(res => { if (res?.token) setViewsData(v => ({ ...(v || {}), token: res.token, total: v?.total || 0, new_visits: v?.new_visits || 0 })); })
+                                                .catch(e => notify(e.error || 'Erro ao salvar link público'));
                                         }
                                     } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar proposta'); }
                                 }}
