@@ -130,6 +130,26 @@ router.put('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// PUT /api/auth/users/:id/reset-password — resetar senha (admin)
+// ═══════════════════════════════════════════════════════
+router.put('/users/:id/reset-password', requireAuth, requireRole('admin'), async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { nova_senha } = req.body;
+
+    if (!nova_senha || typeof nova_senha !== 'string') return res.status(400).json({ error: 'Nova senha é obrigatória' });
+    if (nova_senha.length < 6) return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres' });
+    if (nova_senha.length > 128) return res.status(400).json({ error: 'Senha muito longa' });
+
+    const user = db.prepare('SELECT id, nome, email FROM users WHERE id = ? AND ativo = 1').get(id);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const hash = await bcrypt.hash(nova_senha, 12);
+    db.prepare('UPDATE users SET senha_hash = ? WHERE id = ?').run(hash, id);
+    audit(req, 'update', 'user', id, { acao: 'reset_senha' }, { nome: user.nome, email: user.email });
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
 // DELETE /api/auth/users/:id — remover usuário (admin)
 // ═══════════════════════════════════════════════════════
 router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {

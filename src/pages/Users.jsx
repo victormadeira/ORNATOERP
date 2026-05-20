@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Z, Ic, Modal, PageHeader } from '../ui';
 import api from '../api';
-import { Shield, ShieldOff, Trash2, Check, Key } from 'lucide-react';
+import { Shield, ShieldOff, Trash2, Check, Key, KeyRound } from 'lucide-react';
 
 // Menus disponíveis para configurar permissões (espelha MENU_GROUPS do App.jsx)
 const MENU_SECTIONS = [
@@ -160,7 +160,7 @@ function PermissoesModal({ user, close, onSave }) {
 }
 
 // ─── Linha de Usuário ─────────────────────────────────────────────────────────
-function UserRow({ u, isMe, onRoleChange, onToggleAtivo, onDelete, onOpenPerms }) {
+function UserRow({ u, isMe, onRoleChange, onToggleAtivo, onDelete, onOpenPerms, onResetSenha }) {
     const [confirmDel, setConfirmDel] = useState(false);
     const perms = parsePerms(u.permissions);
     const menuCount = perms ? perms.length : MENUS.length;
@@ -249,30 +249,40 @@ function UserRow({ u, isMe, onRoleChange, onToggleAtivo, onDelete, onOpenPerms }
 
             {/* Ações */}
             <td className="td-glass">
-                {!isMe && (
-                    confirmDel ? (
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Confirmar?</span>
-                            <button onClick={onDelete}
-                                className="text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer"
-                                style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.25)' }}>
-                                Excluir
-                            </button>
-                            <button onClick={() => setConfirmDel(false)}
-                                className="text-[10px] px-2 py-0.5 rounded cursor-pointer hover:bg-[var(--bg-hover)]"
-                                style={{ color: 'var(--text-muted)' }}>
-                                Não
-                            </button>
-                        </div>
-                    ) : (
-                        <button onClick={() => setConfirmDel(true)}
-                            className="md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-md cursor-pointer transition-all"
-                            style={{ color: 'rgba(239,68,68,0.5)' }}
-                            title="Remover usuário">
-                            <Trash2 size={13} />
-                        </button>
-                    )
-                )}
+                <div className="flex items-center gap-1">
+                    {!isMe && (
+                        confirmDel ? (
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Confirmar?</span>
+                                <button onClick={onDelete}
+                                    className="text-[10px] px-2 py-0.5 rounded font-bold cursor-pointer"
+                                    style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                                    Excluir
+                                </button>
+                                <button onClick={() => setConfirmDel(false)}
+                                    className="text-[10px] px-2 py-0.5 rounded cursor-pointer hover:bg-[var(--bg-hover)]"
+                                    style={{ color: 'var(--text-muted)' }}>
+                                    Não
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <button onClick={onResetSenha}
+                                    className="md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-md cursor-pointer transition-all hover:bg-[var(--bg-hover)]"
+                                    style={{ color: 'var(--text-muted)' }}
+                                    title="Resetar senha">
+                                    <KeyRound size={13} />
+                                </button>
+                                <button onClick={() => setConfirmDel(true)}
+                                    className="md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-md cursor-pointer transition-all"
+                                    style={{ color: 'rgba(239,68,68,0.5)' }}
+                                    title="Remover usuário">
+                                    <Trash2 size={13} />
+                                </button>
+                            </>
+                        )
+                    )}
+                </div>
             </td>
         </tr>
     );
@@ -284,6 +294,8 @@ export default function Users({ notify, meUser }) {
     const [moNovo, setMoNovo] = useState(false);
     const [permUser, setPermUser] = useState(null);
     const [f, setF] = useState({ nome: '', email: '', senha: '', role: 'vendedor' });
+    const [resetUser, setResetUser] = useState(null); // usuário que vai ter senha resetada
+    const [novaSenha, setNovaSenha] = useState('');
 
     const load = () => api.get('/auth/users').then(setUsers).catch(e => notify(e.error || 'Erro ao carregar usuários'));
     useEffect(() => { load(); }, []);
@@ -314,6 +326,16 @@ export default function Users({ notify, meUser }) {
         catch (ex) { notify(ex.error || 'Erro ao salvar'); }
     };
 
+    const doResetSenha = async () => {
+        if (!novaSenha || novaSenha.length < 6) { notify('Senha deve ter no mínimo 6 caracteres'); return; }
+        try {
+            await api.put(`/auth/users/${resetUser.id}/reset-password`, { nova_senha: novaSenha });
+            notify(`Senha de ${resetUser.nome} resetada com sucesso!`);
+            setResetUser(null);
+            setNovaSenha('');
+        } catch (ex) { notify(ex.error || 'Erro ao resetar senha'); }
+    };
+
     return (
         <div className={Z.pg}>
             <PageHeader icon={Shield} title="Usuários" subtitle={`${users.length} cadastrado${users.length !== 1 ? 's' : ''} no sistema`}>
@@ -341,6 +363,7 @@ export default function Users({ notify, meUser }) {
                                 onToggleAtivo={() => update(u.id, { ativo: u.ativo ? 0 : 1 })}
                                 onDelete={() => deletar(u.id)}
                                 onOpenPerms={() => setPermUser(u)}
+                                onResetSenha={() => { setResetUser(u); setNovaSenha(''); }}
                             />
                         ))}
                         {users.length === 0 && (
@@ -393,6 +416,42 @@ export default function Users({ notify, meUser }) {
                     close={() => setPermUser(null)}
                     onSave={perms => salvarPerms(permUser.id, perms)}
                 />
+            )}
+
+            {/* Modal: Resetar Senha */}
+            {resetUser && (
+                <Modal title="Resetar Senha" close={() => setResetUser(null)} w={380}>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                                style={{ color: roleColor(resetUser.role), background: `${roleColor(resetUser.role)}18`, border: `1px solid ${roleColor(resetUser.role)}35` }}>
+                                {resetUser.nome?.[0]?.toUpperCase()}
+                            </div>
+                            <div>
+                                <div className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{resetUser.nome}</div>
+                                <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{resetUser.email}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <label className={Z.lbl}>Nova Senha *</label>
+                            <input
+                                type="password"
+                                value={novaSenha}
+                                onChange={e => setNovaSenha(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && doResetSenha()}
+                                className={Z.inp}
+                                placeholder="Mínimo 6 caracteres"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setResetUser(null)} className={Z.btn2}>Cancelar</button>
+                            <button onClick={doResetSenha} className={Z.btn}>
+                                <KeyRound size={13} /> Resetar Senha
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </div>
     );
