@@ -3009,49 +3009,29 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         onDragEnd={handleDragEnd}
                                         style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', borderLeft: '3px solid var(--primary)', cursor: canDrag ? 'grab' : 'default' }}>
                                         {/* Header do item */}
-                                        <div className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExpandedItem(isItemExp ? null : item.id)}>
-                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setExpandedItem(isItemExp ? null : item.id)}>
+                                            <div className="flex items-center gap-2">
                                                 {canDrag && <GripVertical size={12} style={{ color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }} />}
-                                                {isItemExp ? <ChevronDown size={13} style={{ flexShrink: 0 }} /> : <ChevronRight size={13} style={{ flexShrink: 0 }} />}
-                                                {(() => { const CatIc = getCatIcon(item.caixaDef?.cat); return <CatIc size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />; })()}
-                                                <div className="flex flex-col leading-tight min-w-0">
-                                                    <span className="font-medium text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                                                {isItemExp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                                                {(() => { const CatIc = getCatIcon(item.caixaDef?.cat); return <CatIc size={13} style={{ color: 'var(--primary)' }} />; })()}
+                                                <div className="flex flex-col leading-tight">
+                                                    <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
                                                         {item.desc || item.nome}
                                                     </span>
                                                     {item.desc && (
-                                                        <span className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{item.nome}</span>
+                                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{item.nome}</span>
                                                     )}
                                                 </div>
-                                                {(item.qtd || 1) > 1 && <span className="text-[9px] px-1 rounded font-bold shrink-0" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>×{item.qtd}</span>}
-                                                {item.componentes.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.componentes.length} comp.</span>}
-                                                {item.ripado && <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold shrink-0" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>Ripado</span>}
+                                                {(item.qtd || 1) > 1 && <span className="text-[9px] px-1 rounded font-bold" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>×{item.qtd}</span>}
+                                                {item.componentes.length > 0 && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.componentes.length} comp.</span>}
+                                                {item.ripado && <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>Ripado</span>}
                                                 {ajusteR !== 0 && (
-                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: ajusteR > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)', color: ajusteR > 0 ? 'var(--success)' : 'var(--danger)' }}>
                                                         {ajusteR > 0 ? '+' : ''}{aj.tipo === '%' ? `${aj.valor}%` : R$(ajusteR)}
                                                     </span>
                                                 )}
                                             </div>
-                                            {/* ── Dims inline ── visíveis sem precisar expandir */}
-                                            {item.caixaDef && (
-                                                <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
-                                                    {(item.caixaDef.dimsAplicaveis || ['L','A','P']).map(dim => {
-                                                        const dk = dim.toLowerCase();
-                                                        return (
-                                                            <div key={dim} className="flex items-center gap-1">
-                                                                <span className="text-[9px] font-bold" style={{ color: 'var(--text-muted)' }}>{dim}</span>
-                                                                <FormulaInput
-                                                                    value={item.dims[dk] || 0}
-                                                                    onChange={v => upItem(amb.id, item.id, it => it.dims[dk] = v)}
-                                                                    min={1}
-                                                                    style={{ width: 52, textAlign: 'center', fontSize: 11, padding: '2px 4px' }}
-                                                                    className={Z.inp}
-                                                                />
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                            <div className="flex items-center gap-2 shrink-0">
+                                            <div className="flex items-center gap-2">
                                                 <div className="flex flex-col items-end">
                                                     <span className="font-bold text-xs" style={{ color: 'var(--primary)' }}>{R$(precoItemFinal)}</span>
                                                     {itemCPData?.custoItem > 0 && (() => {
