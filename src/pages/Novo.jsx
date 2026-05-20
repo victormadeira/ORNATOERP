@@ -3033,12 +3033,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             </div>
                                             {/* ── Dims inline ── visíveis sem precisar expandir */}
                                             {item.caixaDef && (
-                                                <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
                                                     {(item.caixaDef.dimsAplicaveis || ['L','A','P']).map(dim => {
                                                         const dk = dim.toLowerCase();
                                                         return (
-                                                            <div key={dim} className="flex flex-col items-center gap-0.5">
-                                                                <span className="text-[8px] font-bold uppercase leading-none" style={{ color: 'var(--text-muted)' }}>{dim}</span>
+                                                            <div key={dim} className="flex items-center gap-1">
+                                                                <span className="text-[9px] font-bold" style={{ color: 'var(--text-muted)' }}>{dim}</span>
                                                                 <FormulaInput
                                                                     value={item.dims[dk] || 0}
                                                                     onChange={v => upItem(amb.id, item.id, it => it.dims[dk] = v)}
