@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin, Zap, BarChart3 } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin, Zap, BarChart3, Users } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -5309,6 +5309,159 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 Configure o prazo de execução em cada orçamento para ver a comparação.
                             </p>
                         </div>
+
+                        {/* ── Equipe de Produção ── */}
+                        {(() => {
+                            let funcs = [];
+                            try { funcs = JSON.parse(emp.funcionarios_json || '[]'); } catch { funcs = []; }
+
+                            const TIPOS = {
+                                clt_simples:   { label: 'CLT — Simples Nacional', encargos: 0.35 },
+                                clt_presumido: { label: 'CLT — Lucro Presumido',  encargos: 0.60 },
+                                pj:            { label: 'PJ / Autônomo',          encargos: 0    },
+                            };
+
+                            const custoFunc = (f) => (Number(f.salario) || 0) * (1 + (TIPOS[f.tipo]?.encargos ?? 0));
+                            const totalFolha = funcs.reduce((s, f) => s + custoFunc(f), 0);
+                            const ativosCount = funcs.filter(f => f.ativo !== false).length;
+
+                            const updateFuncs = (newFuncs) =>
+                                setEmp(prev => ({ ...prev, funcionarios_json: JSON.stringify(newFuncs) }));
+
+                            const addFunc = () => updateFuncs([...funcs, {
+                                id: Date.now().toString(), nome: '', cargo: '', tipo: 'clt_simples', salario: 0, ativo: true,
+                            }]);
+
+                            const syncToCentro = () => {
+                                let linhas = [];
+                                try { linhas = JSON.parse(emp.centro_custo_json || '[]'); } catch { linhas = []; }
+                                const idx = linhas.findIndex(l => (l.descricao || '').toLowerCase().includes('funcionári'));
+                                const novoValor = Math.round(totalFolha);
+                                if (idx >= 0) {
+                                    linhas = linhas.map((l, i) => i === idx ? { ...l, valor: novoValor } : l);
+                                } else {
+                                    linhas = [...linhas, { descricao: 'Funcionários (salários + encargos)', valor: novoValor }];
+                                }
+                                setEmp(prev => ({ ...prev, centro_custo_json: JSON.stringify(linhas) }));
+                                st(prev => ({ ...prev, func_producao: ativosCount }));
+                            };
+
+                            return (
+                                <div className={Z.card} style={{ marginTop: 20 }}>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                            <Users size={18} style={{ color: 'var(--primary)' }} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Equipe de Produção</h2>
+                                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Cadastre seus colaboradores para calcular a folha real com encargos (CLT ou PJ).</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Resumo da folha */}
+                                    {funcs.length > 0 && (
+                                        <div className="mb-4 p-3 rounded-lg" style={{ background: 'var(--bg-muted)' }}>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                                    {funcs.length} colaborador{funcs.length !== 1 ? 'es' : ''} &middot; folha total com encargos
+                                                </span>
+                                                <span className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
+                                                    R$ {totalFolha.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                    Clique em Sincronizar para atualizar o Centro de Custo e o nº de funcionários no Custo-Hora.
+                                                </span>
+                                                <button
+                                                    onClick={syncToCentro}
+                                                    disabled={!isGerente || funcs.length === 0}
+                                                    className="ml-3 flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded cursor-pointer transition-opacity hover:opacity-80"
+                                                    style={{ background: 'var(--primary)', color: '#fff' }}>
+                                                    ↑ Sincronizar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Lista de funcionários */}
+                                    <div className="flex flex-col gap-2 mb-4">
+                                        {funcs.map((f, i) => {
+                                            const enc = TIPOS[f.tipo]?.encargos ?? 0;
+                                            const custo = custoFunc(f);
+                                            return (
+                                                <div key={f.id || i}
+                                                    className="p-3 rounded-lg flex flex-col gap-2"
+                                                    style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                                    {/* Linha 1: nome + cargo + delete */}
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            value={f.nome}
+                                                            onChange={e => { const a = [...funcs]; a[i] = { ...a[i], nome: e.target.value }; updateFuncs(a); }}
+                                                            className={`${Z.inp} flex-1 text-xs`}
+                                                            placeholder="Nome" disabled={!isGerente} />
+                                                        <input
+                                                            value={f.cargo}
+                                                            onChange={e => { const a = [...funcs]; a[i] = { ...a[i], cargo: e.target.value }; updateFuncs(a); }}
+                                                            className={`${Z.inp} w-32 text-xs`}
+                                                            placeholder="Cargo" disabled={!isGerente} />
+                                                        <button
+                                                            onClick={() => updateFuncs(funcs.filter((_, j) => j !== i))}
+                                                            className="p-1 rounded hover:opacity-70 cursor-pointer flex-shrink-0"
+                                                            style={{ color: 'var(--danger)' }}
+                                                            disabled={!isGerente}>
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                    </div>
+                                                    {/* Linha 2: tipo + salário + custo */}
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <select
+                                                            value={f.tipo || 'clt_simples'}
+                                                            onChange={e => { const a = [...funcs]; a[i] = { ...a[i], tipo: e.target.value }; updateFuncs(a); }}
+                                                            className={`${Z.inp} flex-1 min-w-0 text-xs`}
+                                                            disabled={!isGerente}>
+                                                            {Object.entries(TIPOS).map(([k, v]) => (
+                                                                <option key={k} value={k}>{v.label}</option>
+                                                            ))}
+                                                        </select>
+                                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
+                                                            <input
+                                                                type="number" min="0" step="100"
+                                                                value={f.salario || ''}
+                                                                onChange={e => { const a = [...funcs]; a[i] = { ...a[i], salario: parseFloat(e.target.value) || 0 }; updateFuncs(a); }}
+                                                                className={`${Z.inp} w-28 text-xs text-right`}
+                                                                placeholder="Salário bruto" disabled={!isGerente} />
+                                                        </div>
+                                                        {(Number(f.salario) || 0) > 0 && (
+                                                            <span className="text-[10px] flex-shrink-0 font-medium" style={{ color: 'var(--text-secondary)' }}>
+                                                                = R$ {custo.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                                                                {enc > 0 && <span style={{ color: 'var(--text-muted)' }}> (+{Math.round(enc * 100)}% enc.)</span>}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {funcs.length === 0 && (
+                                        <p className="text-xs mb-4 p-3 rounded-lg text-center" style={{ color: 'var(--text-muted)', background: 'var(--bg-muted)' }}>
+                                            Nenhum colaborador cadastrado. Clique em <strong>+ Adicionar</strong> para começar.
+                                        </p>
+                                    )}
+
+                                    <div className="flex items-center justify-between">
+                                        <button onClick={addFunc} className={`${Z.btn2} text-xs`} disabled={!isGerente}>
+                                            <Plus size={12} /> Adicionar
+                                        </button>
+                                        <button onClick={async () => { await saveEmpresa(); }} className={`${Z.btn} text-xs`} disabled={!isGerente}>
+                                            Salvar Equipe
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         {/* ── Fase 1: Custo-Hora da Fábrica ── */}
                         <div className={Z.card} style={{ marginTop: 20 }}>

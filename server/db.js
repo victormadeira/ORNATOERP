@@ -2633,6 +2633,9 @@ const migrations = [
   // aceleracao_z:  aceleração do eixo Z (mm/s²) — tipicamente 40% da XY
   "ALTER TABLE cnc_maquinas ADD COLUMN aceleracao_xy REAL DEFAULT 2000",
   "ALTER TABLE cnc_maquinas ADD COLUMN aceleracao_z  REAL DEFAULT 800",
+
+  // ═══ Equipe de Produção — cadastro de funcionários com encargos ═══
+  `ALTER TABLE empresa_config ADD COLUMN funcionarios_json TEXT DEFAULT '[]'`,
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

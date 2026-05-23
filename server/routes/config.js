@@ -152,6 +152,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         video_processo,
         prazo_padrao,
         escopo_servicos_json,
+        funcionarios_json,
     } = req.body;
 
     // Campos sensíveis: se vier valor mascarado (••••), manter o que está no banco
@@ -217,6 +218,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
       video_processo=?,
       prazo_padrao=?,
       escopo_servicos_json=?,
+      funcionarios_json=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=1
   `).run(
@@ -296,6 +298,7 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
         video_processo !== undefined ? video_processo : '',
         prazo_padrao !== undefined && prazo_padrao !== '' ? prazo_padrao : '45 dias úteis',
         escopo_servicos_json !== undefined ? escopo_servicos_json : (cur.escopo_servicos_json || '{"incluso":[],"por_conta_cliente":[]}'),
+        funcionarios_json !== undefined ? funcionarios_json : '[]',
     );
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
     // Mascarar campos sensíveis também na resposta do PUT
