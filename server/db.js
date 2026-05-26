@@ -2636,6 +2636,9 @@ const migrations = [
 
   // ═══ Equipe de Produção — cadastro de funcionários com encargos ═══
   `ALTER TABLE empresa_config ADD COLUMN funcionarios_json TEXT DEFAULT '[]'`,
+
+  // ═══ Proposta: nome da arquiteta/designer parceira ═══
+  "ALTER TABLE orcamentos ADD COLUMN arquiteta_nome TEXT DEFAULT ''",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

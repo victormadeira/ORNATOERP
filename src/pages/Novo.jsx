@@ -1337,6 +1337,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [validadeDias, setValidadeDias] = useState(editOrc?.validade_dias || parseInt(editOrc?.validade_proposta) || 15);
     const [ambientes, setAmbientes] = useState(editOrc?.ambientes || []);
     const [obs, so] = useState(editOrc?.obs || '');
+    const [arquitetaNome, setArquitetaNome] = useState(editOrc?.arquiteta_nome || '');
     const [expandedAmb, setExpandedAmb] = useState(null);
     const [expandedItem, setExpandedItem] = useState(null);
     const [dragOverGrupo, setDragOverGrupo] = useState(null); // grupo_id being hovered during drag
@@ -1578,6 +1579,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (orcFull.prazo_execucao != null) setPrazoExecucao(orcFull.prazo_execucao);
         if (orcFull.endereco_obra != null) setEnderecoObra(orcFull.endereco_obra);
         if (orcFull.validade_dias) setValidadeDias(orcFull.validade_dias);
+        if (orcFull.arquiteta_nome != null) setArquitetaNome(orcFull.arquiteta_nome);
     }, [orcFull]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const addBloco = () => setPagamento(p => ({
@@ -2391,13 +2393,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             const nivel = viewsData?.nivel || 'geral';
             const html = buildPropostaHtml({
                 empresa: emp, cliente: cl,
-                orcamento: { numero, projeto, obs },
+                orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
                 ambientes, tot, taxas: localTaxas, pagamento, pvComDesconto, bib, padroes,
                 nivel, prazoEntrega, enderecoObra, validadeProposta,
             });
             await api.put('/portal/update-html', { orc_id: editOrc.id, html_proposta: html, nivel });
         } catch (_) { /* silencioso — sync é best-effort */ }
-    }, [editOrc?.id, viewsData?.token, viewsData?.nivel, empresa, cid, clis, numero, projeto, obs, ambientes, tot, localTaxas, pagamento, pvComDesconto, bib, padroes, prazoEntrega, enderecoObra, validadeProposta]);
+    }, [editOrc?.id, viewsData?.token, viewsData?.nivel, empresa, cid, clis, numero, projeto, obs, arquitetaNome, ambientes, tot, localTaxas, pagamento, pvComDesconto, bib, padroes, prazoEntrega, enderecoObra, validadeProposta]);
 
     // ── buildSavePayload: monta o objeto de dados para salvar ──
     const buildSavePayload = () => {
@@ -2408,6 +2410,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
             status: 'rascunho', taxas: localTaxas, padroes, pagamento,
             prazo_entrega: prazoEntrega, prazo_execucao: prazoExecucao, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
+            arquiteta_nome: arquitetaNome,
             ...(unlocked ? { force_unlock: true } : {}),
         };
     };
@@ -2458,7 +2461,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         }, 5000);
 
         return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
-    }, [cid, projeto, numero, validadeDias, ambientes, obs, padroes, pagamento, localTaxas, prazoEntrega, prazoExecucao, enderecoObra, tot.cm, pvComDesconto, syncPropostaHtml]);
+    }, [cid, projeto, numero, validadeDias, ambientes, obs, arquitetaNome, padroes, pagamento, localTaxas, prazoEntrega, prazoExecucao, enderecoObra, tot.cm, pvComDesconto, syncPropostaHtml]);
 
     // ── beforeunload: avisar se houver alterações não salvas ──
     useEffect(() => {
@@ -2615,6 +2618,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 ambientes, obs, custo_material: tot.cm, valor_venda: pvComDesconto,
                 status: 'rascunho', taxas: localTaxas, padroes, pagamento,
                 prazo_entrega: prazoEntrega, prazo_execucao: prazoExecucao, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
+                arquiteta_nome: arquitetaNome,
             };
             await api.put(`/orcamentos/${editOrc.id}`, data);
             // Agora move para aprovado
@@ -2931,7 +2935,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             </div>
                                         </div>
                                         {/* B: campos secundários — dimmed quando vazios */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
                                             <input value={prazoEntrega} onChange={e => setPrazoEntrega(e.target.value)}
                                                 placeholder="+ prazo de entrega"
                                                 className={Z.inp} disabled={readOnly}
@@ -2940,6 +2944,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 placeholder="+ endereço da obra"
                                                 className={Z.inp} disabled={readOnly}
                                                 style={enderecoObra ? {} : { opacity: 0.4 }} />
+                                            <input value={arquitetaNome} onChange={e => setArquitetaNome(e.target.value)}
+                                                placeholder="+ arquiteta / designer"
+                                                className={Z.inp} disabled={readOnly}
+                                                style={arquitetaNome ? {} : { opacity: 0.4 }} />
                                             <input value={obs} onChange={e => so(e.target.value)}
                                                 placeholder="+ observações gerais"
                                                 className={Z.inp} disabled={readOnly}
@@ -4736,7 +4744,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     // Gerar proposta HTML para anexo do contrato
                                     const propHtml = buildPropostaHtml({
                                         empresa: emp, cliente: cl,
-                                        orcamento: { numero, projeto, obs },
+                                        orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
                                         ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
                                         nivel: 'ambiente', prazoEntrega, enderecoObra, validadeProposta,
                                     });
@@ -4763,7 +4771,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     if (!cl?.cpf) { notify('Cadastre o CPF do cliente antes de enviar para assinatura'); return; }
                                     const propHtml = buildPropostaHtml({
                                         empresa: emp, cliente: cl,
-                                        orcamento: { numero, projeto, obs },
+                                        orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
                                         ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
                                         nivel: 'ambiente', prazoEntrega, enderecoObra, validadeProposta,
                                     });
@@ -5435,7 +5443,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         const cl = clis.find(c => c.id === parseInt(cid));
                                         const html = buildPropostaHtml({
                                             empresa: emp, cliente: cl,
-                                            orcamento: { numero, projeto, obs },
+                                            orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
                                             ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
                                             nivel: opt.id, prazoEntrega, enderecoObra, validadeProposta,
                                         });

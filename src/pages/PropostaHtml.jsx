@@ -419,7 +419,7 @@ export function buildPropostaHtml({
                 </tr>
                 ${descontoR > 0 ? `
                 <tr class="invest-divider invest-row-discount">
-                    <td class="invest-row-label">Condição especial (${pagamento.desconto.tipo === '%' ? N(pagamento.desconto.valor, 1) + '%' : R$(pagamento.desconto.valor)})</td>
+                    <td class="invest-row-label">${orcamento.arquiteta_nome ? `Condição de parceria — ${orcamento.arquiteta_nome}` : `Condição especial`} (${pagamento.desconto.tipo === '%' ? N(pagamento.desconto.valor, 1) + '%' : R$(pagamento.desconto.valor)})</td>
                     <td class="invest-row-value">- ${R$(descontoR)}</td>
                 </tr>` : ''}
                 <tr class="invest-total">
@@ -427,7 +427,12 @@ export function buildPropostaHtml({
                     <td class="invest-row-value">${R$(pvComDesconto)}</td>
                 </tr>
             </table>
-            ${descontoR > 0 ? `<div class="invest-savings">Você economiza ${R$(descontoR)} nesta proposta</div>` : ''}
+            ${descontoR > 0 ? `
+            <div class="invest-savings">
+                <span class="invest-savings-badge">
+                    ✓ Você economiza <span class="invest-savings-amount">${R$(descontoR)}</span> nesta proposta
+                </span>
+            </div>` : ''}
         </div>`;
 
     // ── Pagamento (reframing: facilidade, não condição) ─────────────────────
@@ -624,6 +629,14 @@ export function buildPropostaHtml({
         color: ${corAccent};
         font-weight: 500;
     }
+    .client-hero-arq {
+        font-size: 10.5px;
+        color: ${corAccent};
+        letter-spacing: 0.8px;
+        margin-top: 5px;
+        opacity: 0.85;
+        font-style: italic;
+    }
     .client-hero-accent {
         width: 40px; height: 2.5px;
         background: ${corAccent};
@@ -792,11 +805,25 @@ export function buildPropostaHtml({
         color: ${corPrimaria};
     }
     .invest-savings {
-        margin-top: 8px;
-        font-size: 11px;
-        color: ${corAccent};
-        font-weight: 600;
-        text-align: right;
+        display: flex;
+        justify-content: center;
+        margin-top: 14px;
+    }
+    .invest-savings-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #dcfce7;
+        color: #15803d;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 7px 18px;
+        border-radius: 999px;
+        letter-spacing: 0.2px;
+    }
+    .invest-savings-amount {
+        font-size: 14px;
+        font-weight: 800;
     }
 
     /* ══════════ SECTIONS ══════════ */
@@ -1008,6 +1035,7 @@ export function buildPropostaHtml({
             <div class="client-hero-label">Proposta comercial elaborada para</div>
             <div class="client-hero-name">${cliente?.nome || '—'}</div>
             ${orcamento.projeto ? `<div class="client-hero-project">${orcamento.projeto}</div>` : ''}
+            ${orcamento.arquiteta_nome ? `<div class="client-hero-arq">com ${orcamento.arquiteta_nome}</div>` : ''}
             <div class="client-hero-accent"></div>
         </div>
 
