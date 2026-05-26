@@ -26,7 +26,7 @@ function safeEval(expr, vars) {
 
 // ── Defaults ────────────────────────────────────────────────────────────────
 const EMPTY_CAIXA = {
-    nome: '', cat: 'caixaria', desc: '', coef: 0.30,
+    nome: '', cat: 'caixaria', grupo: 'geral', desc: '', coef: 0.30,
     pecas: [
         { id: 'le', nome: 'Lateral Esq.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f'] },
         { id: 'ld', nome: 'Lateral Dir.',  qtd: 1, calc: 'A*P',   mat: 'int',   fita: ['f'] },
@@ -39,7 +39,7 @@ const EMPTY_CAIXA = {
 };
 
 const EMPTY_COMP = {
-    nome: '', cat: 'componente', desc: '', coef: 0.20,
+    nome: '', cat: 'componente', grupo: 'geral', desc: '', coef: 0.20,
     vars: [],
     varsDeriv: {},
     pecas: [],
@@ -75,6 +75,18 @@ const FACE_OPTIONS = [
     { value: 'base',    label: 'Base' },
     { value: 'fundo',   label: 'Fundo/Costas' },
 ];
+
+// ── Grupos por cômodo ────────────────────────────────────────────────────────
+const GRUPOS = [
+    { id: 'geral',        label: 'Geral',          color: '#64748b', emoji: '📦' },
+    { id: 'cozinha',      label: 'Cozinha',         color: '#f97316', emoji: '🍳' },
+    { id: 'dormitorio',   label: 'Dormitório',      color: '#8b5cf6', emoji: '🛏' },
+    { id: 'banheiro',     label: 'Banheiro',        color: '#0ea5e9', emoji: '🚿' },
+    { id: 'area_servico', label: 'Área de Serviço', color: '#22c55e', emoji: '🧺' },
+    { id: 'escritorio',   label: 'Escritório',      color: '#eab308', emoji: '💼' },
+    { id: 'sala',         label: 'Sala',            color: '#ec4899', emoji: '🛋' },
+];
+const grupoInfo = (id) => GRUPOS.find(g => g.id === id) || GRUPOS[0];
 
 const FORMULAS_CAIXA = [
     { label: 'Lateral (A×P)', formula: 'A*P' },
@@ -348,7 +360,7 @@ function VarRefPanel({ testVars, formVars = [], varsDeriv = {} }) {
     return (
         <div style={{
             padding: '8px 10px',
-            background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderRadius: 8,
+            background: 'var(--bg-muted)', borderRadius: 8,
             border: '1px solid var(--border)', marginBottom: 12,
         }}>
             {/* Cabeçalho com título e legenda de cores */}
@@ -380,7 +392,7 @@ function VarRefPanel({ testVars, formVars = [], varsDeriv = {} }) {
                         }}>
                             <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: c.color }}>{v.id}</span>
                             <span style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1, maxWidth: 80, textAlign: 'center', lineHeight: 1.2, wordBreak: 'break-all' }}>{v.label}</span>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: '#334155', marginTop: 2 }}>{N(v.val, v.val > 100 ? 0 : 1)}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 2 }}>{N(v.val, v.val > 100 ? 0 : 1)}</span>
                         </div>
                     );
                 })}
@@ -495,9 +507,14 @@ function CaixaEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS }) {
             <div className={Z.card}>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="col-span-2"><label className={Z.lbl}>Nome da Caixa</label><input value={form.nome} onChange={e => setF('nome', e.target.value)} className={Z.inp} placeholder="Ex: Caixa Alta" /></div>
-                    <div><label className={Z.lbl}>Categoria</label><select value={form.cat} onChange={e => setF('cat', e.target.value)} className={Z.inp}><option value="caixaria">Caixaria</option><option value="especial">Especial</option></select></div>
+                    <div>
+                        <label className={Z.lbl}>Cômodo / Grupo</label>
+                        <select value={form.grupo || 'geral'} onChange={e => setF('grupo', e.target.value)} className={Z.inp}>
+                            {GRUPOS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
+                        </select>
+                    </div>
                     <div><label className={Z.lbl} title="Fator de custo extra por complexidade. 0.30 = +30% sobre material">Coef. Dificuldade</label><input type="number" step="0.05" min="0" max="3" value={form.coef} onChange={e => setF('coef', parseFloat(e.target.value) || 0)} className={Z.inp} /></div>
-                    <div className="col-span-4"><label className={Z.lbl}>Descrição</label><input value={form.desc || ''} onChange={e => setF('desc', e.target.value)} className={Z.inp} placeholder="Descrição curta..." /></div>
+                    <div className="col-span-4"><label className={Z.lbl}>Descrição</label><input value={form.desc || ''} onChange={e => setF('desc', e.target.value)} className={Z.inp} placeholder="Descrição curta (aparece nos cards e no orçamento)..." /></div>
                 </div>
             </div>
 
@@ -706,8 +723,14 @@ function ComponenteEditor({ initial, onSave, onCancel, ferragens = DB_FERRAGENS 
             <div className={Z.card}>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="col-span-2"><label className={Z.lbl}>Nome do Componente</label><input value={form.nome} onChange={e => setF('nome', e.target.value)} className={Z.inp} placeholder="Ex: Gaveta, Porta, Prateleira..." /></div>
+                    <div>
+                        <label className={Z.lbl}>Cômodo / Grupo</label>
+                        <select value={form.grupo || 'geral'} onChange={e => setF('grupo', e.target.value)} className={Z.inp}>
+                            {GRUPOS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
+                        </select>
+                    </div>
                     <div><label className={Z.lbl} title="Fator de custo extra por complexidade. 0.20 = +20% sobre material">Coef. Dificuldade</label><input type="number" step="0.05" min="0" max="3" value={form.coef} onChange={e => setF('coef', parseFloat(e.target.value) || 0)} className={Z.inp} /></div>
-                    <div className="col-span-4"><label className={Z.lbl}>Descrição</label><input value={form.desc || ''} onChange={e => setF('desc', e.target.value)} className={Z.inp} placeholder="Descrição curta..." /></div>
+                    <div className="col-span-4"><label className={Z.lbl}>Descrição</label><input value={form.desc || ''} onChange={e => setF('desc', e.target.value)} className={Z.inp} placeholder="Descrição curta (aparece nos cards e no orçamento)..." /></div>
                 </div>
             </div>
 
@@ -865,6 +888,8 @@ export default function ItemBuilder({ notify }) {
     const [editing, setEditing] = useState(null); // { tipo, item } | null
     const [loading, setLoading] = useState(false);
     const [busca, setBusca] = useState('');
+    const [grupoFiltro, setGrupoFiltro] = useState('todos');
+    const [sort, setSort] = useState('nome'); // 'nome' | 'recente' | 'pecas'
     const [confirmDel, setConfirmDel] = useState(null);
     const [itemConfirm, setItemConfirm] = useState(null);
     const [bibItems, setBibItems] = useState([]);
@@ -979,13 +1004,31 @@ export default function ItemBuilder({ notify }) {
     }
 
     const todosItems = aba === 'caixas' ? caixas : componentes;
-    const items = busca.trim()
-        ? todosItems.filter(i =>
-            (i.nome || '').toLowerCase().includes(busca.toLowerCase()) ||
-            (i.desc || '').toLowerCase().includes(busca.toLowerCase())
-        )
-        : todosItems;
     const tipo = aba === 'caixas' ? 'caixa' : 'componente';
+
+    // Filtra por busca + grupo
+    const itemsFiltrados = todosItems.filter(i => {
+        const buscaOk = !busca.trim() ||
+            (i.nome || '').toLowerCase().includes(busca.toLowerCase()) ||
+            (i.desc || '').toLowerCase().includes(busca.toLowerCase());
+        const grupoOk = grupoFiltro === 'todos' || (i.grupo || 'geral') === grupoFiltro;
+        return buscaOk && grupoOk;
+    });
+
+    // Ordena
+    const items = [...itemsFiltrados].sort((a, b) => {
+        if (sort === 'nome') return (a.nome || '').localeCompare(b.nome || '', 'pt');
+        if (sort === 'recente') return (b.db_id || 0) - (a.db_id || 0);
+        if (sort === 'pecas') return ((b.pecas?.length || 0) + (b.tamponamentos?.length || 0)) - ((a.pecas?.length || 0) + (a.tamponamentos?.length || 0));
+        return 0;
+    });
+
+    // Contagem por grupo (da aba atual, sem filtro de busca)
+    const countByGrupo = {};
+    todosItems.forEach(i => {
+        const g = i.grupo || 'geral';
+        countByGrupo[g] = (countByGrupo[g] || 0) + 1;
+    });
 
     return (
         <div className={Z.pg}>
@@ -1020,23 +1063,64 @@ export default function ItemBuilder({ notify }) {
             {/* Painéis Especiais — calculadora embebida */}
             {aba === 'paineis' && <RipadoCalc embedded />}
 
-            {/* Busca */}
+            {/* Busca + Filtros */}
             {aba !== 'paineis' && (
-                <div className="relative mb-4">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
-                    <input
-                        type="text"
-                        placeholder={`Buscar ${aba === 'caixas' ? 'caixas' : 'componentes'}...`}
-                        value={busca}
-                        onChange={e => setBusca(e.target.value)}
-                        className="w-full pl-9 pr-9 py-2 rounded-lg text-sm outline-none"
-                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                    />
-                    {busca && (
-                        <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity" title="Limpar busca">
-                            <X size={13} style={{ color: 'var(--text-muted)' }} />
+                <div className="mb-4 flex flex-col gap-3">
+                    {/* Linha 1: busca + ordenação */}
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+                            <input
+                                type="text"
+                                placeholder={`Buscar ${aba === 'caixas' ? 'caixas' : 'componentes'}...`}
+                                value={busca}
+                                onChange={e => setBusca(e.target.value)}
+                                className="w-full pl-9 pr-9 py-2 rounded-lg text-sm outline-none"
+                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                            />
+                            {busca && (
+                                <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity" title="Limpar busca">
+                                    <X size={13} style={{ color: 'var(--text-muted)' }} />
+                                </button>
+                            )}
+                        </div>
+                        <select
+                            value={sort}
+                            onChange={e => setSort(e.target.value)}
+                            className="text-xs px-3 py-2 rounded-lg outline-none"
+                            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)', minWidth: 130 }}
+                        >
+                            <option value="nome">A → Z</option>
+                            <option value="recente">Mais recentes</option>
+                            <option value="pecas">Mais peças</option>
+                        </select>
+                    </div>
+                    {/* Linha 2: filtro de grupo */}
+                    <div className="flex gap-1.5 flex-wrap">
+                        <button
+                            onClick={() => setGrupoFiltro('todos')}
+                            className="text-xs px-3 py-1 rounded-full font-semibold transition-all"
+                            style={grupoFiltro === 'todos'
+                                ? { background: 'var(--primary)', color: '#fff' }
+                                : { background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
+                            }
+                        >
+                            Todos ({todosItems.length})
                         </button>
-                    )}
+                        {GRUPOS.filter(g => countByGrupo[g.id]).map(g => (
+                            <button
+                                key={g.id}
+                                onClick={() => setGrupoFiltro(g.id)}
+                                className="text-xs px-3 py-1 rounded-full font-semibold transition-all"
+                                style={grupoFiltro === g.id
+                                    ? { background: g.color, color: '#fff' }
+                                    : { background: 'var(--bg-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }
+                                }
+                            >
+                                {g.emoji} {g.label} ({countByGrupo[g.id]})
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
 
@@ -1053,45 +1137,95 @@ export default function ItemBuilder({ notify }) {
             ) : items.length === 0 ? (
                 <div className={`${Z.card} flex flex-col items-center py-16`} style={{ color: 'var(--text-muted)' }}>
                     <Search size={40} className="mb-3 opacity-30" />
-                    <p className="text-sm">Nenhum resultado para "<span className="font-semibold">{busca}</span>"</p>
-                    <button onClick={() => setBusca('')} className={`${Z.btn2} mt-4 text-xs`}>
-                        <X size={13} /> Limpar busca
+                    <p className="text-sm">Nenhum resultado{busca ? ` para "${busca}"` : ''}{grupoFiltro !== 'todos' ? ` em ${grupoInfo(grupoFiltro).label}` : ''}</p>
+                    <button onClick={() => { setBusca(''); setGrupoFiltro('todos'); }} className={`${Z.btn2} mt-4 text-xs`}>
+                        <X size={13} /> Limpar filtros
                     </button>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {items.map(item => (
-                        <div key={item.db_id} className={`${Z.card} flex flex-col gap-3`} style={{ borderTop: `2px solid ${aba === 'caixas' ? 'var(--primary)' : 'var(--success-hover)'}` }}>
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{item.nome}</div>
-                                    <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.desc || '—'}</div>
+                    {items.map(item => {
+                        const g = grupoInfo(item.grupo || 'geral');
+                        const nPecas = (item.pecas || []).length;
+                        const nTamp = (item.tamponamentos || []).length;
+                        const nFerr = (item.sub_itens || []).length;
+                        const temFrenteExt = item.frente_externa?.ativa;
+                        const nVars = (item.vars || []).length;
+                        // materiais únicos usados nas peças
+                        const mats = [...new Set([
+                            ...(item.pecas || []).map(p => p.mat),
+                            ...(item.tamponamentos || []).map(p => p.mat),
+                        ])].filter(Boolean);
+                        const matLabel = { int: 'Int', ext: 'Ext', fundo: 'Fundo', mdf15: 'MDF15', mdf18: 'MDF18', mdf25: 'MDF25', comp3: 'Comp3' };
+
+                        return (
+                            <div key={item.db_id} className={`${Z.card} flex flex-col gap-0`} style={{ padding: 0, overflow: 'hidden' }}>
+                                {/* Topo colorido com grupo */}
+                                <div style={{ height: 4, background: g.color, borderRadius: '8px 8px 0 0' }} />
+                                <div className="flex flex-col gap-3 p-4">
+                                    {/* Cabeçalho */}
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div style={{ minWidth: 0 }}>
+                                            <div className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{item.nome}</div>
+                                            {item.desc && <div className="text-[10px] mt-0.5 line-clamp-1" style={{ color: 'var(--text-muted)' }}>{item.desc}</div>}
+                                        </div>
+                                        <span
+                                            className="text-[9px] px-2 py-0.5 rounded-full font-bold shrink-0"
+                                            style={{ background: `${g.color}18`, color: g.color, border: `1px solid ${g.color}40` }}
+                                        >
+                                            {g.emoji} {g.label}
+                                        </span>
+                                    </div>
+
+                                    {/* Stats */}
+                                    <div className="flex flex-wrap gap-2">
+                                        {nPecas > 0 && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded font-medium" style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                                {nPecas} peça{nPecas > 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                        {nTamp > 0 && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded font-medium" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+                                                {nTamp} tamp.
+                                            </span>
+                                        )}
+                                        {nFerr > 0 && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded font-medium" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>
+                                                <Wrench size={9} className="inline mr-0.5" />{nFerr} ferr.
+                                            </span>
+                                        )}
+                                        {temFrenteExt && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded font-medium" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>
+                                                + frente ext.
+                                            </span>
+                                        )}
+                                        {nVars > 0 && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded font-medium font-mono" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                                {(item.vars || []).map(v => v.id).join(', ')}
+                                            </span>
+                                        )}
+                                        {mats.length > 0 && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded font-medium" style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
+                                                {mats.map(m => matLabel[m] || m).join(' + ')}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Coef */}
+                                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                        Coef. dificuldade: <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>×{(1 + (item.coef || 0)).toFixed(2)}</span>
+                                    </div>
                                 </div>
-                                <span className="text-[9px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
-                                    coef ×{(1 + (item.coef || 0)).toFixed(2)}
-                                </span>
+
+                                {/* Ações */}
+                                <div className="flex gap-2 px-4 pb-3">
+                                    <button onClick={() => setEditing({ tipo, item: JSON.parse(JSON.stringify(item)) })} className={`${Z.btn2} flex-1 text-xs py-1.5`}><Edit2 size={12} /> Editar</button>
+                                    <button onClick={() => setEditing({ tipo, item: { ...(JSON.parse(JSON.stringify(item))), db_id: undefined, nome: item.nome + ' (cópia)' } })} className={`${Z.btn2} text-xs py-1.5 px-2`} title="Duplicar"><Copy size={12} /></button>
+                                    <button onClick={() => setConfirmDel({ id: item.db_id, nome: item.nome })} className="text-xs py-1.5 px-2 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 transition-colors" title="Remover"><Trash2 size={12} /></button>
+                                </div>
                             </div>
-                            {aba === 'caixas' && (
-                                <div className="flex gap-3 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                    <span>{(item.pecas || []).length} peças</span>
-                                    <span>{(item.tamponamentos || []).length} tamp.</span>
-                                </div>
-                            )}
-                            {aba === 'componentes' && (
-                                <div className="flex gap-3 text-[10px] flex-wrap" style={{ color: 'var(--text-muted)' }}>
-                                    <span>{(item.pecas || []).length} peças</span>
-                                    {item.frente_externa?.ativa && <span className="font-semibold" style={{ color: 'var(--warning)' }}>+ frente externa</span>}
-                                    <span>{(item.sub_itens || []).length} ferragens</span>
-                                    {(item.vars || []).length > 0 && <span>{(item.vars || []).map(v => v.id).join(', ')}</span>}
-                                </div>
-                            )}
-                            <div className="flex gap-2 mt-auto pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                                <button onClick={() => setEditing({ tipo, item: JSON.parse(JSON.stringify(item)) })} className={`${Z.btn2} flex-1 text-xs py-1.5`}><Edit2 size={12} /> Editar</button>
-                                <button onClick={() => setEditing({ tipo, item: { ...(JSON.parse(JSON.stringify(item))), db_id: undefined, nome: item.nome + ' (cópia)' } })} className={`${Z.btn2} text-xs py-1.5 px-2`} title="Duplicar"><Copy size={12} /></button>
-                                <button onClick={() => setConfirmDel({ id: item.db_id, nome: item.nome })} className="text-xs py-1.5 px-2 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400 transition-colors" title="Remover"><Trash2 size={12} /></button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             ))}
 
