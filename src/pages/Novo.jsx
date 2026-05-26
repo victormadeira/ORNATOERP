@@ -4127,7 +4127,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <select
                                                 value={padroes[grp] || ''}
                                                 onChange={e => setPadroes(p => ({ ...p, [grp]: e.target.value }))}
-                                                className="text-[10px] px-1.5 py-0.5 rounded border input-glass"
+                                                className="text-[10px] px-1.5 py-0.5 rounded border input-glass flex-1"
                                                 style={{ maxWidth: 150 }}>
                                                 <option value="">Padrão</option>
                                                 {opts.map(f => (

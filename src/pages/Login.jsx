@@ -279,7 +279,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                                 <Mail className="login-input-icon" size={15} aria-hidden="true" />
                                 <input
                                     id="login-email"
-                                    className="input-glass login-input"
+                                    className="input-glass login-input w-full"
                                     type="email"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
@@ -296,7 +296,7 @@ export default function LoginPage({ dark, setDark, logoSistema: logoProp, empNom
                                 <LockKeyhole className="login-input-icon" size={15} aria-hidden="true" />
                                 <input
                                     id="login-senha"
-                                    className="input-glass login-input"
+                                    className="input-glass login-input w-full"
                                     type="password"
                                     value={senha}
                                     onChange={e => setSenha(e.target.value)}

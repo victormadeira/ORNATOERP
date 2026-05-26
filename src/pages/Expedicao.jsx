@@ -1481,7 +1481,7 @@ export default function Expedicao() {
                                         options={modulos.map(m => ({ value: m, label: m }))}
                                         emptyOption="Todos módulos"
                                         placeholder="Buscar módulo..."
-                                        className="input-glass"
+                                        className="input-glass w-full"
                                         style={{ maxWidth: 160, minWidth: 120 }}
                                     />
 

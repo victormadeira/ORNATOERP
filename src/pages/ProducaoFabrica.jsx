@@ -459,7 +459,7 @@ export default function ProducaoFabrica({ notify, user }) {
                     value={busca}
                     onChange={e => setBusca(e.target.value)}
                     placeholder="Buscar projeto ou cliente..."
-                    className="input-glass"
+                    className="input-glass w-full"
                     style={{ paddingLeft: 36 }}
                 />
             </div>

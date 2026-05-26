@@ -106,7 +106,7 @@ export const Ic = {
 };
 
 export const Z = {
-    inp: "input-glass",
+    inp: "input-glass w-full",
     btn: "btn-primary",
     btn2: "btn-secondary",
     btnD: "btn-danger",
