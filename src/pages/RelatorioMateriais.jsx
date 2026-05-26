@@ -417,9 +417,9 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
         ${Object.entries(ferrGroups).map(([name, items]) => renderFerrGroup(name, items)).join('')}
     </div>
 
-    <!-- Itens Especiais (estofados, espelhos, alumínio, vidro) -->
+    <!-- Terceirizados (estofados, espelhos, alumínio, vidro) -->
     ${allItensEspeciais.length > 0 ? `<div class="section">
-        <div class="section-title">Itens Especiais</div>
+        <div class="section-title">Terceirizados</div>
         <table style="width:100%;border-collapse:collapse;font-size:11px">
             <thead><tr style="background:${corPrimaria}0A;border-bottom:2px solid ${corPrimaria}30">
                 <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px">Item</th>
@@ -438,7 +438,7 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
             </tr>`).join('')}
             </tbody>
             <tfoot><tr style="background:${corPrimaria}0A;border-top:2px solid ${corPrimaria}30;font-weight:700">
-                <td colspan="4" style="padding:5px 8px;color:${corPrimaria}">Total Especiais</td>
+                <td colspan="4" style="padding:5px 8px;color:${corPrimaria}">Total Terceirizados</td>
                 <td style="text-align:right;padding:5px 8px;color:${corPrimaria}">${R$(custoEspeciais)}</td>
             </tr></tfoot>
         </table>
@@ -481,7 +481,7 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
         <div class="summary-grid">
             <div class="summary-box"><div class="summary-label">Material (Chapas)</div><div class="summary-value">${R$(custoChapas)}</div></div>
             <div class="summary-box"><div class="summary-label">Ferragens</div><div class="summary-value">${R$(custoFerragens)}</div></div>
-            ${custoEspeciais > 0 ? `<div class="summary-box"><div class="summary-label">Especiais</div><div class="summary-value">${R$(custoEspeciais)}</div></div>` : ''}
+            ${custoEspeciais > 0 ? `<div class="summary-box"><div class="summary-label">Terceirizados</div><div class="summary-value">${R$(custoEspeciais)}</div></div>` : ''}
             <div class="summary-box"><div class="summary-label">Mão de Obra</div><div class="summary-value">${R$(tot.custoMdo)}</div></div>
             <div class="summary-box"><div class="summary-label">Instalação</div><div class="summary-value">${R$(tot.custoInst)}</div></div>
         </div>
