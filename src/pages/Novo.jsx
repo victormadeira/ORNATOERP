@@ -4351,9 +4351,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             {/* Preço final */}
                             <div className="mt-4 pt-3" style={{ borderTop: '2px solid var(--primary)' }}>
                                 <div className="flex justify-between items-baseline">
-                                    <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>PREÇO VENDA</span>
+                                    <span className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>PREÇO VENDA</span>
                                     <div className="text-right">
-                                        <span className="font-bold text-lg" style={{ color: tot.pvErro ? 'var(--danger)' : 'var(--primary)' }}>{R$(pvComDesconto)}</span>
+                                        <span className="font-bold text-2xl" style={{ color: tot.pvErro ? 'var(--danger)' : 'var(--primary)' }}>{R$(pvComDesconto)}</span>
                                         {tot.pvErro && <div className="flex items-center gap-1 text-[9px] mt-0.5" style={{ color: 'var(--danger)' }}><AlertTriangle size={10} /> {tot.pvMsg}</div>}
                                         {tot.totalAjustes !== 0 && (
                                             <div className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
