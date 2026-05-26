@@ -4153,69 +4153,73 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                                 {taxasOpen && (
                                                     <div className="mt-2 rounded-lg p-3" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                                        {/* Taxas sobre PV — grid 2 colunas */}
-                                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
+                                                        {/* ── Seção 1: Taxas sobre o Preço de Venda ── */}
+                                                        <div className="text-[8px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)', opacity: 0.55 }}>
+                                                            Descontos sobre PV
+                                                        </div>
+                                                        <div className="flex flex-col gap-1.5 mb-1">
                                                             {[
-                                                                ['Lucro', 'lucro'],
+                                                                ['Lucro líquido', 'lucro'],
                                                                 ['Impostos', 'imp'],
                                                                 ['Comissão', 'com'],
                                                                 ['Instalação', 'inst'],
                                                                 ['Frete', 'frete'],
                                                                 ['Montagem', 'mont'],
                                                             ].map(([l, k]) => (
-                                                                <div key={k} className="flex items-center justify-between gap-1">
-                                                                    <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>{l}</span>
-                                                                    <div className="flex items-center gap-0.5">
+                                                                <div key={k} className="flex items-center justify-between gap-2">
+                                                                    <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>{l}</span>
+                                                                    <div className="flex items-center gap-1">
                                                                         <input
                                                                             type="number" step="0.5" min="0"
                                                                             value={taxas[k] ?? 0}
                                                                             onChange={e => setTaxa(k, e.target.value)}
-                                                                            className="w-12 text-[10px] px-1 py-0.5 rounded border text-right input-glass font-medium" />
-                                                                        <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                                            className="w-16 text-[11px] px-2 py-0.5 rounded border text-right input-glass font-semibold" />
+                                                                        <span className="text-[10px] w-3" style={{ color: 'var(--text-muted)' }}>%</span>
                                                                     </div>
                                                                 </div>
                                                             ))}
                                                         </div>
-                                                        {/* Margens + MDO */}
-                                                        <div className="pt-2 mb-2" style={{ borderTop: '1px solid var(--border)' }}>
-                                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                                                                <div className="flex items-center justify-between gap-1">
-                                                                    <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>Fabricados</span>
-                                                                    <div className="flex items-center gap-0.5">
-                                                                        <input type="number" step="5" min="0" value={margemFabPct}
-                                                                            onChange={e => setMargemFab(+e.target.value || 0)}
-                                                                            className="w-12 text-[10px] px-1 py-0.5 rounded border text-right input-glass font-medium" />
-                                                                        <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center justify-between gap-1">
-                                                                    <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>Comprados</span>
-                                                                    <div className="flex items-center gap-0.5">
-                                                                        <input type="number" step="5" min="0" value={margemCompPct}
-                                                                            onChange={e => setMargemComp(+e.target.value || 0)}
-                                                                            className="w-12 text-[10px] px-1 py-0.5 rounded border text-right input-glass font-medium" />
-                                                                        <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                                                    </div>
-                                                                </div>
-                                                                {!temCustoHora && (
-                                                                    <div className="flex items-center justify-between gap-1">
-                                                                        <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>Fator MDO</span>
-                                                                        <div className="flex items-center gap-0.5">
-                                                                            <input type="number" step="5" min="0" value={mdoPct}
-                                                                                onChange={e => setMdoPct(+e.target.value || 0)}
-                                                                                className="w-12 text-[10px] px-1 py-0.5 rounded border text-right input-glass font-medium" />
-                                                                            <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>%</span>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {/* Σ Taxas */}
-                                                        <div className="flex justify-between text-[10px] font-semibold pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                                                            <span style={{ color: 'var(--text-muted)' }}>Σ Taxas</span>
+                                                        {/* Σ sobre PV */}
+                                                        <div className="flex justify-between text-[10px] font-semibold pt-2 mt-1 mb-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                                            <span style={{ color: 'var(--text-muted)' }}>Σ sobre PV</span>
                                                             <span className={totalTaxasPct >= 100 ? 'text-red-500' : ''} style={totalTaxasPct < 100 ? { color: 'var(--text-secondary)' } : {}}>
                                                                 {totalTaxasPct.toFixed(1)}%
                                                             </span>
+                                                        </div>
+                                                        {/* ── Seção 2: Margens sobre o custo de produção ── */}
+                                                        <div className="text-[8px] font-bold uppercase tracking-widest mb-2 pt-2" style={{ color: 'var(--text-muted)', opacity: 0.55, borderTop: '1px solid var(--border)' }}>
+                                                            Margens sobre custo
+                                                        </div>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>Fabricados</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <input type="number" step="5" min="0" value={margemFabPct}
+                                                                        onChange={e => setMargemFab(+e.target.value || 0)}
+                                                                        className="w-16 text-[11px] px-2 py-0.5 rounded border text-right input-glass font-semibold" />
+                                                                    <span className="text-[10px] w-3" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>Comprados</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <input type="number" step="5" min="0" value={margemCompPct}
+                                                                        onChange={e => setMargemComp(+e.target.value || 0)}
+                                                                        className="w-16 text-[11px] px-2 py-0.5 rounded border text-right input-glass font-semibold" />
+                                                                    <span className="text-[10px] w-3" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                                </div>
+                                                            </div>
+                                                            {!temCustoHora && (
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>Fator MDO</span>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <input type="number" step="5" min="0" value={mdoPct}
+                                                                            onChange={e => setMdoPct(+e.target.value || 0)}
+                                                                            className="w-16 text-[11px] px-2 py-0.5 rounded border text-right input-glass font-semibold" />
+                                                                        <span className="text-[10px] w-3" style={{ color: 'var(--text-muted)' }}>%</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}
