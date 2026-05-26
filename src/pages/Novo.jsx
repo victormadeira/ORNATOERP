@@ -4020,54 +4020,71 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     };
 
                                     return (<>
-                                        {/* ── Preço de Venda editável ── */}
-                                        <div className="rounded-lg px-3 py-2 mb-2" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-[10px] font-semibold" style={{ color: 'var(--text-primary)' }}>Preço de Venda</span>
+                                        {/* ── Formação de Preço — tabela clara ── */}
+                                        <div className="rounded-lg overflow-hidden mb-2" style={{ border: '1px solid var(--border)' }}>
+                                            {/* Custo de produção */}
+                                            <div className="flex justify-between items-center px-3 py-2" style={{ background: 'var(--bg-muted)' }}>
+                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Custo de produção</span>
+                                                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>{R$(tot.cb)}</span>
+                                            </div>
+                                            {/* Deduções individuais (só mostra as que têm valor > 0) */}
+                                            {[
+                                                ['Impostos', taxas.imp || 0],
+                                                ['Comissão', taxas.com || 0],
+                                                ['Instalação', taxas.inst ?? 5],
+                                                ['Frete', taxas.frete || 0],
+                                                ['Montagem', taxas.mont || 0],
+                                            ].filter(([, pct]) => pct > 0).map(([l, pct]) => {
+                                                const val = pvAlvo > 0 ? pvAlvo * pct / 100 : 0;
+                                                return (
+                                                    <div key={l} className="flex justify-between items-center px-3 py-1" style={{ borderTop: '1px solid var(--border)' }}>
+                                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                                            {l} <span style={{ opacity: 0.5 }}>({pct}%)</span>
+                                                        </span>
+                                                        <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>−{R$(val)}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {/* Lucro líquido — linha destacada */}
+                                            <div className="flex justify-between items-center px-3 py-2"
+                                                style={{ borderTop: `1px solid ${lucroSemaforo}50`, background: lucroSemaforo + '10' }}>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[11px] font-semibold" style={{ color: lucroSemaforo }}>Lucro líquido</span>
+                                                    <span className="text-[9px] font-bold px-1.5 rounded-full"
+                                                        style={{ background: lucroSemaforo + '25', color: lucroSemaforo, lineHeight: '16px' }}>
+                                                        {lucroPct.toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                                <span className="text-[12px] font-bold" style={{ color: lucroSemaforo }}>{R$(lucroR)}</span>
+                                            </div>
+                                            {/* Barra de lucro */}
+                                            <div className="h-1" style={{ background: 'var(--border)' }}>
+                                                <div className="h-full transition-all duration-300" style={{
+                                                    width: `${Math.min(100, Math.max(0, lucroPct * 4))}%`,
+                                                    background: lucroSemaforo
+                                                }} />
+                                            </div>
+                                            {/* Preço de Venda — base da tabela, editável */}
+                                            <div className="flex items-center justify-between px-3 py-2.5"
+                                                style={{ borderTop: '2px solid var(--primary)' }}>
+                                                <span className="text-[11px] font-bold" style={{ color: 'var(--text-primary)' }}>Preço de Venda</span>
                                                 <div className="flex items-center gap-1">
-                                                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>R$</span>
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
                                                     <input type="number" step="100" min="0"
                                                         value={pvManual !== null ? pvManual : Math.round(pvCalc)}
                                                         onChange={e => handlePvInput(+e.target.value)}
                                                         onFocus={e => { if (pvManual === null) setPvManual(Math.round(pvCalc)); e.target.select(); }}
-                                                        className="w-24 text-sm px-2 py-1 rounded border text-right input-glass font-bold"
-                                                        style={{ color: 'var(--text-primary)' }} />
+                                                        className="w-28 text-base px-2 py-1 rounded border text-right input-glass font-bold"
+                                                        style={{ color: pvManual !== null ? 'var(--warning)' : 'var(--primary)' }} />
                                                     {pvManual !== null && (
-                                                        <button onClick={() => { setPvManual(null); }}
+                                                        <button onClick={() => setPvManual(null)}
                                                             title="Voltar ao cálculo automático"
-                                                            className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer" style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                                            className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer"
+                                                            style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                                                             auto
                                                         </button>
                                                     )}
                                                 </div>
-                                            </div>
-                                        </div>
-
-                                        {/* ── Resultado: impostos + lucro ── */}
-                                        <div className="rounded-lg px-3 py-2.5 mb-2" style={{
-                                            background: lucroPct >= 12 ? 'rgba(34,197,94,0.05)' : lucroPct >= 6 ? 'rgba(234,179,8,0.05)' : 'rgba(239,68,68,0.05)',
-                                            border: `1px solid ${lucroPct >= 12 ? 'rgba(34,197,94,0.2)' : lucroPct >= 6 ? 'rgba(234,179,8,0.2)' : 'rgba(239,68,68,0.2)'}`
-                                        }}>
-                                            {taxasSemLucroPct > 0 && (
-                                                <div className="flex justify-between text-[10px] mb-2">
-                                                    <span style={{ color: 'var(--text-muted)' }}>Impostos + Comissão ({taxasSemLucroPct.toFixed(0)}%)</span>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>−{R$(taxasR)}</span>
-                                                </div>
-                                            )}
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>Lucro líquido</span>
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-sm font-bold" style={{ color: lucroSemaforo }}>{R$(lucroR)}</span>
-                                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: `${lucroSemaforo}18`, color: lucroSemaforo }}>
-                                                        {lucroPct.toFixed(1)}%
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                                                <div className="h-full rounded-full transition-all duration-300" style={{
-                                                    width: `${Math.min(100, Math.max(0, lucroPct * 4))}%`,
-                                                    background: lucroSemaforo
-                                                }} />
                                             </div>
                                         </div>
 
