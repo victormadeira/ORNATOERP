@@ -189,14 +189,19 @@ function agruparItens(itens, grupos) {
 // ── buildPropostaHtml ───────────────────────────────────────────────────────
 export function buildPropostaHtml({
     empresa, cliente, orcamento, ambientes, tot, taxas,
-    pagamento, pvComDesconto, bib, padroes, nivel = 'geral',
+    pagamento, pvComDesconto, pvBase = null, bib, padroes, nivel = 'geral',
     prazoEntrega, enderecoObra, validadeProposta,
 }) {
     const ambCustos = calcAmbCustos(ambientes, bib, padroes, taxas);
     const totalCusto = ambCustos.reduce((s, a) => s + a.custo, 0);
 
+    // pvRef: preço "de tabela" antes do desconto.
+    // Quando o usuário sobrescreve o PV manualmente (pvBase), usamos esse valor;
+    // caso contrário usamos o pvFinal calculado pelo engine.
+    const pvRef = pvBase != null ? pvBase : tot.pvFinal;
+
     const descontoR = (pagamento?.desconto?.valor || 0) > 0
-        ? (pagamento.desconto.tipo === '%' ? tot.pvFinal * (pagamento.desconto.valor / 100) : Math.min(pagamento.desconto.valor, tot.pvFinal))
+        ? (pagamento.desconto.tipo === '%' ? pvRef * (pagamento.desconto.valor / 100) : Math.min(pagamento.desconto.valor, pvRef))
         : 0;
 
     // Proporcional: valor de venda do ambiente
@@ -206,7 +211,7 @@ export function buildPropostaHtml({
     // Custo de módulos/paineis/especiais (sem avulso)
     const calcCustoSemAvulso = ambCustos.filter(a => !a.manual).reduce((s, a) => s + a.custo - (a.avulso || 0), 0);
     // Fração de desconto proporcional
-    const discountRatio = tot.pvFinal > 0 ? pvComDesconto / tot.pvFinal : 1;
+    const discountRatio = pvRef > 0 ? pvComDesconto / pvRef : 1;
     // Pool para distribuir proporcionalmente entre módulos (exclui manual e avulso)
     const calcPvPool = pvComDesconto - manualTotalProp * discountRatio - avulsoTotalProp * discountRatio;
 
@@ -415,7 +420,7 @@ export function buildPropostaHtml({
             <table class="invest-table">
                 <tr class="invest-divider">
                     <td class="invest-row-label">${numAmbientes} ambiente${numAmbientes > 1 ? 's' : ''} sob medida</td>
-                    <td class="invest-row-value">${descontoR > 0 ? `<span class="invest-anchor">${R$(tot.pvFinal)}</span>` : R$(tot.pvFinal)}</td>
+                    <td class="invest-row-value">${descontoR > 0 ? `<span class="invest-anchor">${R$(pvRef)}</span>` : R$(pvRef)}</td>
                 </tr>
                 ${descontoR > 0 ? `
                 <tr class="invest-divider invest-row-discount">

@@ -2397,7 +2397,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             const html = buildPropostaHtml({
                 empresa: emp, cliente: cl,
                 orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
-                ambientes, tot, taxas: localTaxas, pagamento, pvComDesconto, bib, padroes,
+                ambientes, tot, taxas: localTaxas, pagamento, pvComDesconto, pvBase, bib, padroes,
                 nivel, prazoEntrega, enderecoObra, validadeProposta,
             });
             await api.put('/portal/update-html', { orc_id: editOrc.id, html_proposta: html, nivel });
@@ -4748,7 +4748,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const propHtml = buildPropostaHtml({
                                         empresa: emp, cliente: cl,
                                         orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
-                                        ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
+                                        ambientes, tot, taxas, pagamento, pvComDesconto, pvBase, bib, padroes,
                                         nivel: 'ambiente', prazoEntrega, enderecoObra, validadeProposta,
                                     });
                                     const html = buildContratoHtml({
@@ -4775,7 +4775,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const propHtml = buildPropostaHtml({
                                         empresa: emp, cliente: cl,
                                         orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
-                                        ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
+                                        ambientes, tot, taxas, pagamento, pvComDesconto, pvBase, bib, padroes,
                                         nivel: 'ambiente', prazoEntrega, enderecoObra, validadeProposta,
                                     });
                                     const html = buildContratoHtml({
@@ -5447,7 +5447,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         const html = buildPropostaHtml({
                                             empresa: emp, cliente: cl,
                                             orcamento: { numero, projeto, obs, arquiteta_nome: arquitetaNome },
-                                            ambientes, tot, taxas, pagamento, pvComDesconto, bib, padroes,
+                                            ambientes, tot, taxas, pagamento, pvComDesconto, pvBase, bib, padroes,
                                             nivel: opt.id, prazoEntrega, enderecoObra, validadeProposta,
                                         });
                                         const blob = await api.postBlob('/pdf/generate', { html });
