@@ -2095,7 +2095,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     const _ca = cChapas * (1 + coef);
                     const _fa = cFita * (1 + coef);
                     const _aa = cAcab * (1 + coef);
-                    const itemCP = _ca * mk.chapas + _fa * mk.fita + _aa * mk.acabamentos + cFerr * mk.ferragens + _ca * mk.mdo;
+                    const itemCP = _ca * mk.chapas + _fa * mk.fita + _aa * mk.acabamentos + cFerr * mk.ferragens + (_ca + _fa + _aa) * mk.mdo;
                     ambCP += itemCP;
                     itemCostList.push({ itemId: item.id, ambId: amb.id, custoItem: itemCusto, itemCP, coef, ajuste: item.ajuste || null });
                     Object.entries(res.chapas).forEach(([id, c]) => {
@@ -2120,11 +2120,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             const rCoef = item.ripado.coefDificuldade ?? 1.3;
                             const rQtd = item.qtd || 1;
                             const ripCustoMat = ripRes.custoMaterial * rCoef * rQtd;
+                            const ripCustoRaw = ripRes.custoMaterial * rQtd; // sem coef — para cm (custo material bruto)
                             const ripChapas = (ripRes.custoChapas || 0) * rCoef * rQtd;
                             const ripFita = (ripRes.custoFita || 0) * rCoef * rQtd;
                             totChapas += ripChapas;
                             totFita += ripFita;
-                            cm += ripCustoMat; ambCm += ripCustoMat;
+                            cm += ripCustoRaw; ambCm += ripCustoRaw;
                             const mkC = taxas.mk_chapas ?? 1.45;
                             const mkF = taxas.mk_fita ?? 1.45;
                             const mkMdo = taxas.mk_mdo ?? 0.80;
@@ -2150,11 +2151,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         const pCoef = painel.coefDificuldade ?? (painel.tipo === 'muxarabi' ? 1.5 : 1.3);
                         const qtdP = painel.qtd || 1;
                         const custoComCoef = res.custoMaterial * pCoef * qtdP;
+                        const custoRaw = res.custoMaterial * qtdP; // sem coef — para cm (custo material bruto)
                         const chapasCoef = (res.custoChapas || 0) * pCoef * qtdP;
                         const fitaCoef = (res.custoFita || 0) * pCoef * qtdP;
                         totChapas += chapasCoef;
                         totFita += fitaCoef;
-                        cm += custoComCoef; ambCm += custoComCoef;
+                        cm += custoRaw; ambCm += custoRaw;
                         // CP: chapas × mk_chapas + fita × mk_fita + mdo
                         const mkC = taxas.mk_chapas ?? 1.45;
                         const mkF = taxas.mk_fita ?? 1.45;
@@ -4565,7 +4567,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                             {row(matRaw, 'Material', '#3b82f6', 'rgba(59,130,246,0.18)')}
                                                             {/* Sub-itens material */}
                                                             <div className="ml-3 mb-0.5 flex flex-col">
-                                                                {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matEspeciais, 'Especiais (espelho/alum/etc)'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
+                                                                {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matEspeciais, 'Especiais (espelho/alum/etc)'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios'], [bd.consumiveisVal || 0, 'Consumíveis']].filter(([v]) => v > 0).map(([v, l]) => (
                                                                     <div key={l} className="flex justify-between px-1 py-0.5 text-[9px]" style={{ color: 'var(--text-muted)' }}>
                                                                         <span>{l}</span><span>{R$(v)}</span>
                                                                     </div>

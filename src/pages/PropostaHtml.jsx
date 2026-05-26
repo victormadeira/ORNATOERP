@@ -115,12 +115,14 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
         (amb.paineis || []).forEach(p => {
             try {
                 const res = calcPainelRipado(p, bib);
-                ambCm += res.custoMaterial * (p.qtd || 1);
+                const pCoef = p.coefDificuldade ?? (p.tipo === 'muxarabi' ? 1.5 : 1.3);
+                const custoP = res.custoMaterial * pCoef * (p.qtd || 1);
+                ambCm += custoP;
                 itemDetails.push({
                     nome: p.nome || `Painel ${p.tipo === 'muxarabi' ? 'Muxarabi' : 'Ripado'}`,
                     dims: { L: p.L, A: p.A },
                     qtd: p.qtd || 1,
-                    custo: res.custoMaterial * (p.qtd || 1),
+                    custo: custoP,
                     componentes: [],
                     tipo: 'painel',
                     mats: {},
