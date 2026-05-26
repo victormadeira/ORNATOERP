@@ -4681,17 +4681,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         <span style={{ color: 'var(--primary)' }}>PV Markup</span>
                                                         <span className="font-bold" style={{ color: 'var(--primary)' }}>{R$(pvAtual)}</span>
                                                     </div>
-                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--bg-muted)' }}>
+                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--border)' }}>
                                                         <div className="h-full rounded-full" style={{ width: `${Math.min(100, (pvAtual / maxVal) * 100)}%`, background: 'var(--primary)', transition: 'width 0.3s' }} />
                                                     </div>
                                                 </div>
                                                 <div>
                                                     <div className="flex justify-between text-[9px] mb-0.5">
-                                                        <span style={{ color: 'var(--muted)' }}>Ref. Centro Custo</span>
-                                                        <span className="font-bold" style={{ color: 'var(--muted)' }}>{R$(refCentroCusto)}</span>
+                                                        <span style={{ color: 'var(--text-muted)' }}>Ref. Centro Custo</span>
+                                                        <span className="font-bold" style={{ color: 'var(--text-muted)' }}>{R$(refCentroCusto)}</span>
                                                     </div>
-                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--bg-muted)' }}>
-                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (refCentroCusto / maxVal) * 100)}%`, background: 'var(--muted)', transition: 'width 0.3s' }} />
+                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--border)' }}>
+                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (refCentroCusto / maxVal) * 100)}%`, background: 'var(--text-muted)', transition: 'width 0.3s' }} />
                                                     </div>
                                                 </div>
                                             </div>
