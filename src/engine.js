@@ -850,13 +850,13 @@ export function precoVendaV2(custos, coef, taxas, custoHoraResult = null) {
 
     // Etapa 5: divisor (taxas sobre PV)
     const inst = taxas.inst ?? 5;
-    const s = ((taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (inst) + (taxas.frete || 0) + (taxas.mont || 0)) / 100;
+    const s = ((taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (inst) + (taxas.frete || 0)) / 100;
     if (s >= 1) {
         return { valor: cp, erro: true, msg: "Σ taxas ≥ 100% — ajuste os percentuais", cp, mdo, custoReal };
     }
     const pv = cp / (1 - s);
     // Preço mínimo: custo real ÷ (1 - impostos fixos), cobre custos + impostos obrigatórios
-    const sFixo = ((taxas.imp || 0) + inst + (taxas.frete || 0) + (taxas.mont || 0)) / 100;
+    const sFixo = ((taxas.imp || 0) + inst + (taxas.frete || 0)) / 100;
     const pisoMinimo = sFixo < 1 ? custoReal / (1 - sFixo) : custoReal;
 
     return {

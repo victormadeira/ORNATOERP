@@ -4031,7 +4031,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const mdoPct = Math.round((taxas.mk_mdo ?? 0.80) * 100);
 
                                     // Taxas sobre PV (sem lucro = impostos+comissão+frete+etc)
-                                    const taxasSemLucroPct = (taxas.imp || 0) + (taxas.com || 0) + (taxas.inst ?? 5) + (taxas.frete || 0) + (taxas.mont || 0);
+                                    const taxasSemLucroPct = (taxas.imp || 0) + (taxas.com || 0) + (taxas.inst ?? 5) + (taxas.frete || 0);
                                     const totalTaxasPct = taxasSemLucroPct + (taxas.lucro || 0);
                                     const lucroPct = taxas.lucro || 0;
 
@@ -4065,7 +4065,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 ['Comissão', taxas.com || 0],
                                                 ['Instalação', taxas.inst ?? 5],
                                                 ['Frete', taxas.frete || 0],
-                                                ['Montagem', taxas.mont || 0],
                                             ].filter(([, pct]) => pct > 0).map(([l, pct]) => {
                                                 const val = pvAlvo > 0 ? pvAlvo * pct / 100 : 0;
                                                 return (
@@ -4156,7 +4155,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 Math.abs((taxas.com || 0) - (globalTaxas.com ?? 0)) > 0.1,
                                                 Math.abs((taxas.inst ?? 5) - (globalTaxas.inst ?? 5)) > 0.1,
                                                 Math.abs((taxas.frete || 0) - (globalTaxas.frete ?? 0)) > 0.1,
-                                                Math.abs((taxas.mont || 0) - (globalTaxas.mont ?? 0)) > 0.1,
                                                 Math.abs(margemFabPct - defFabPct) > 1,
                                                 Math.abs(margemCompPct - defCompPct) > 1,
                                             ].filter(Boolean).length;
@@ -4186,7 +4184,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 com: globalTaxas.com ?? 0,
                                                                 inst: globalTaxas.inst ?? 5,
                                                                 frete: globalTaxas.frete ?? 0,
-                                                                mont: globalTaxas.mont ?? 0,
                                                                 mk_chapas: globalTaxas.mk_chapas ?? 1.45,
                                                                 mk_fita: globalTaxas.mk_fita ?? 1.45,
                                                                 mk_acabamentos: globalTaxas.mk_acabamentos ?? 1.30,
@@ -4213,7 +4210,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 ['Comissão', 'com'],
                                                                 ['Instalação', 'inst'],
                                                                 ['Frete', 'frete'],
-                                                                ['Montagem', 'mont'],
                                                             ].map(([l, k]) => (
                                                                 <div key={k} className="flex items-center justify-between gap-2">
                                                                     <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>{l}</span>
@@ -4435,7 +4431,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const mult = custoMat > 0 ? pvCalc / custoMat : 0;
                                     const lucroPerc = taxas.lucro || 0;
                                     const lucroR = pvCalc * (lucroPerc / 100);
-                                    const totalTaxasPerc = (taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (taxas.inst ?? 5) + (taxas.frete || 0) + (taxas.mont || 0);
+                                    const totalTaxasPerc = (taxas.imp || 0) + (taxas.com || 0) + (taxas.lucro || 0) + (taxas.inst ?? 5) + (taxas.frete || 0);
                                     const taxasR = pvCalc * (totalTaxasPerc / 100);
                                     const margemBrutaR = pvCalc - custoMat;
                                     const margemBrutaPct = pvCalc > 0 ? (margemBrutaR / pvCalc * 100) : 0;
@@ -4543,11 +4539,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const comR = pv * ((taxas.com || 0) / 100);
                                     const instR = pv * ((taxas.inst ?? 5) / 100);
                                     const freteR = pv * ((taxas.frete || 0) / 100);
-                                    const montR = pv * ((taxas.mont || 0) / 100);
                                     // Lucro = residual: garante que cp + taxas + lucro = pv (100%)
                                     // Quando pvManual/desconto altera o PV, a % configurada deixa de fechar;
                                     // usar residual corrige isso e mostra o lucro real praticado.
-                                    const lucroR = Math.max(0, pv - cpVal - impR - comR - instR - freteR - montR);
+                                    const lucroR = Math.max(0, pv - cpVal - impR - comR - instR - freteR);
                                     const lucroPctReal = pv > 0 ? (lucroR / pv * 100) : 0;
                                     const pct = (v) => pv > 0 ? (v / pv * 100).toFixed(1) : '0.0';
                                     const bar = (v, cor) => (
@@ -4621,7 +4616,6 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     [lucroR,'Lucro',      '#16a34a', 'rgba(22,163,74,0.22)',   lucroPctReal],
                                                                     [instR, 'Instalação', '#64748b', 'rgba(100,116,139,0.16)', taxas.inst ?? 5],
                                                                     [freteR,'Frete',      '#64748b', 'rgba(100,116,139,0.13)', taxas.frete],
-                                                                    [montR, 'Montagem',   '#64748b', 'rgba(100,116,139,0.13)', taxas.mont],
                                                                 ].filter(([,,,, t]) => t > 0).map(([v, l, cor, fill, t]) =>
                                                                     row(v, `${l} (${N(t, 1)}%)`, cor, fill)
                                                                 )}
