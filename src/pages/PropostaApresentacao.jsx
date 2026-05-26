@@ -1047,11 +1047,19 @@ function LoadingScreen({ c1, c2 }) {
 }
 
 function ErrorScreen({ error }) {
+    const isPaused = error === 'link_desativado';
     return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B2A4A', color: '#F5F0E8' }}>
-            <div style={{ textAlign: 'center', maxWidth: 400, padding: 40 }}>
-                <h2 style={{ fontSize: 20, marginBottom: 12 }}>Link indisponível</h2>
-                <p style={{ opacity: 0.6, fontSize: 14 }}>{error}</p>
+            <div style={{ textAlign: 'center', maxWidth: 440, padding: 40 }}>
+                {isPaused ? (<>
+                    <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+                    <h2 style={{ fontSize: 22, marginBottom: 12, color: '#C9A96E' }}>Proposta em atualização</h2>
+                    <p style={{ opacity: 0.7, fontSize: 15, lineHeight: 1.6 }}>Estamos revisando esta proposta para garantir que você receba as melhores condições. Em breve ela estará disponível novamente.</p>
+                    <p style={{ opacity: 0.4, fontSize: 12, marginTop: 20 }}>Entre em contato com nosso time se precisar de mais informações.</p>
+                </>) : (<>
+                    <h2 style={{ fontSize: 20, marginBottom: 12 }}>Link indisponível</h2>
+                    <p style={{ opacity: 0.6, fontSize: 14 }}>{error}</p>
+                </>)}
             </div>
         </div>
     );

@@ -2639,6 +2639,9 @@ const migrations = [
 
   // ═══ Proposta: nome da arquiteta/designer parceira ═══
   "ALTER TABLE orcamentos ADD COLUMN arquiteta_nome TEXT DEFAULT ''",
+
+  // ═══ Portal: desativar link do cliente temporariamente ═══
+  "ALTER TABLE orcamentos ADD COLUMN portal_ativo INTEGER DEFAULT 1",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

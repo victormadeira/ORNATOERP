@@ -240,8 +240,9 @@ router.get('/landing/:token', (req, res) => {
     const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
 
-    const orc = db.prepare('SELECT id, cliente_nome, numero, mods_json, criado_em, arquiteta_nome FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
+    const orc = db.prepare('SELECT id, cliente_nome, numero, mods_json, criado_em, arquiteta_nome, portal_ativo FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
     if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
+    if (orc.portal_ativo === 0) return res.status(403).json({ error: 'link_desativado' });
 
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
 

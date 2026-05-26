@@ -860,7 +860,7 @@ router.put('/:id', requireAuth, (req, res) => {
         return res.status(403).json({ error: 'Versão substituída — somente leitura', substituida: true });
     }
 
-    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, prazo_execucao, endereco_obra, validade_proposta, validade_dias, arquiteta_nome } = req.body;
+    const { cliente_id, cliente_nome, projeto, ambiente, ambientes, mods, taxas, padroes, pagamento, obs, custo_material, valor_venda, status, kb_col, numero, data_vencimento, prazo_entrega, prazo_execucao, endereco_obra, validade_proposta, validade_dias, arquiteta_nome, portal_ativo } = req.body;
 
     let modsJson;
     if (ambientes) {
@@ -875,7 +875,7 @@ router.put('/:id', requireAuth, (req, res) => {
     UPDATE orcamentos SET
       cliente_id=?, cliente_nome=?, ambiente=?, mods_json=?, obs=?,
       custo_material=?, valor_venda=?, status=?, kb_col=?,
-      numero=?, data_vencimento=?, arquiteta_nome=?,
+      numero=?, data_vencimento=?, arquiteta_nome=?, portal_ativo=?,
       atualizado_em=CURRENT_TIMESTAMP
     WHERE id=?
   `).run(
@@ -891,6 +891,7 @@ router.put('/:id', requireAuth, (req, res) => {
         numero ?? existing.numero,
         data_vencimento !== undefined ? data_vencimento : existing.data_vencimento,
         arquiteta_nome !== undefined ? arquiteta_nome : (existing.arquiteta_nome || ''),
+        portal_ativo !== undefined ? (portal_ativo ? 1 : 0) : (existing.portal_ativo ?? 1),
         id
     );
 

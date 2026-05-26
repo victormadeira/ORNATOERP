@@ -9,7 +9,7 @@ import { buildContratoHtml } from './ContratoHtml';
 import {
     FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Copy,
     FolderOpen, Package, Settings, Layers, X, RefreshCw, Wrench, AlertTriangle, Box, Search,
-    ToggleLeft, ToggleRight, Info, CreditCard, Eye, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
+    ToggleLeft, ToggleRight, Info, CreditCard, Eye, EyeOff, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
     Lock, Unlock, Shield, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
@@ -1099,7 +1099,7 @@ const getEspecialIcon = (tipo) => ESPECIAL_ICON[tipo] || Shapes;
 const getEspecialCor = (tipo) => (TIPOS_ESPECIAIS.find(t => t.id === tipo)?.cor) || '#a78bfa';
 
 // ── Componente: card de item especial ────────────────────────────────────────
-function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly, grupos, draggable: isDraggable, onDragStart, onDragEnd, taxas }) {
+function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly, grupos, draggable: isDraggable, onDragStart, onDragEnd, taxas, precoVenda }) {
     const [exp, setExp] = useState(false);
     const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === item.tipo) || TIPOS_ESPECIAIS[4];
     const cor = tipoInfo.cor;
@@ -1132,7 +1132,13 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
                     {calc.area > 0 && <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{N(calc.area)} m²</span>}
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs" style={{ color: cor }}>{R$(calc.custo)}</span>
+                    <div className="flex flex-col items-end">
+                        <span className="font-bold text-xs" style={{ color: cor }}>{R$(precoVenda ?? calc.custo)}</span>
+                        {precoVenda != null && calc.custo > 0 && (() => {
+                            const margemPct = precoVenda > 0 ? ((precoVenda - calc.custo) / precoVenda * 100) : 0;
+                            return <span className="text-[8px] leading-none" style={{ color: margemPct > 50 ? 'var(--info)' : margemPct > 35 ? 'var(--success)' : margemPct > 20 ? 'var(--warning)' : 'var(--danger)', opacity: 0.8 }}>{N(margemPct, 0)}% margem</span>;
+                        })()}
+                    </div>
                     {!readOnly && onCopy && <button onClick={e => { e.stopPropagation(); onCopy(); }} className="p-1 rounded hover:bg-violet-500/10 text-violet-400/50 hover:text-violet-400" title="Duplicar"><Copy size={12} /></button>}
                     {!readOnly && <button onClick={e => { e.stopPropagation(); onRemove(); }} className="p-1 rounded hover:bg-red-500/10 text-red-400/50 hover:text-red-400"><Trash2 size={12} /></button>}
                 </div>
@@ -1338,6 +1344,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [ambientes, setAmbientes] = useState(editOrc?.ambientes || []);
     const [obs, so] = useState(editOrc?.obs || '');
     const [arquitetaNome, setArquitetaNome] = useState(editOrc?.arquiteta_nome || '');
+    const [portalAtivo, setPortalAtivo] = useState(editOrc?.portal_ativo !== 0);
     const [expandedAmb, setExpandedAmb] = useState(null);
     const [expandedItem, setExpandedItem] = useState(null);
     const [dragOverGrupo, setDragOverGrupo] = useState(null); // grupo_id being hovered during drag
@@ -1580,6 +1587,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (orcFull.endereco_obra != null) setEnderecoObra(orcFull.endereco_obra);
         if (orcFull.validade_dias) setValidadeDias(orcFull.validade_dias);
         if (orcFull.arquiteta_nome != null) setArquitetaNome(orcFull.arquiteta_nome);
+        if (orcFull.portal_ativo != null) setPortalAtivo(orcFull.portal_ativo !== 0);
     }, [orcFull]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const addBloco = () => setPagamento(p => ({
@@ -2416,6 +2424,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             status: 'rascunho', taxas: localTaxas, padroes, pagamento,
             prazo_entrega: prazoEntrega, prazo_execucao: prazoExecucao, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
             arquiteta_nome: arquitetaNome,
+            portal_ativo: portalAtivo ? 1 : 0,
             ...(unlocked ? { force_unlock: true } : {}),
         };
     };
@@ -3787,17 +3796,22 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                         </div>
                                                                     ) : (<>
                                                                         {filhos.map(fi => renderItemCard(fi, { inGroup: true }))}
-                                                                        {ieFilhos.map(ie => (
+                                                                        {ieFilhos.map(ie => {
+                                                                            const ieCPData = (tot.itemCostList || []).find(x => x.itemId === ie.id);
+                                                                            const iePreco = ieCPData && tot.totalItemCP > 0 ? (ieCPData.itemCP / tot.totalItemCP) * tot.pv : undefined;
+                                                                            return (
                                                                             <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
                                                                                 grupos={amb.grupos || []}
                                                                                 taxas={taxas}
+                                                                                precoVenda={iePreco}
                                                                                 draggable={!readOnly}
                                                                                 onDragStart={e => handleDragStart(e, amb.id, ie.id, true)}
                                                                                 onDragEnd={handleDragEnd}
                                                                                 onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
                                                                                 onCopy={() => copyItemEspecial(amb.id, ie.id)}
                                                                                 onRemove={() => removeItemEspecial(amb.id, ie.id)} />
-                                                                        ))}
+                                                                            );
+                                                                        })}
                                                                         {dragOverGrupo === grupo.id && (
                                                                             <div className="text-center py-2 text-[10px] font-medium" style={{ color: 'var(--warning)' }}>
                                                                                 ↓ Solte aqui para adicionar ao grupo
@@ -3859,17 +3873,22 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         <Shapes size={10} /> Itens Especiais ({(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).length})
                                                         {(amb.grupos || []).length > 0 && <span className="font-normal ml-1" style={{ color: 'var(--text-muted)' }}>— arraste para um grupo</span>}
                                                     </div>
-                                                    {(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).map(ie => (
+                                                    {(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).map(ie => {
+                                                        const ieCPData = (tot.itemCostList || []).find(x => x.itemId === ie.id);
+                                                        const iePreco = ieCPData && tot.totalItemCP > 0 ? (ieCPData.itemCP / tot.totalItemCP) * tot.pv : undefined;
+                                                        return (
                                                         <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
                                                             grupos={amb.grupos || []}
                                                             taxas={taxas}
+                                                            precoVenda={iePreco}
                                                             draggable={!readOnly && (amb.grupos || []).length > 0}
                                                             onDragStart={e => handleDragStart(e, amb.id, ie.id, true)}
                                                             onDragEnd={handleDragEnd}
                                                             onUpdate={newItem => upItemEspecial(amb.id, ie.id, newItem)}
                                                             onCopy={() => copyItemEspecial(amb.id, ie.id)}
                                                             onRemove={() => removeItemEspecial(amb.id, ie.id)} />
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                         </div>
@@ -5041,6 +5060,25 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     {/* Botão gerar/copiar link */}
                     {viewsData?.token ? (
                         <div className="flex flex-col gap-2 mb-2">
+                            {/* Toggle ativar/desativar link */}
+                            <button onClick={async () => {
+                                const novoEstado = !portalAtivo;
+                                setPortalAtivo(novoEstado);
+                                try {
+                                    await api.put(`/orcamentos/${editOrc.id}`, { portal_ativo: novoEstado ? 1 : 0 });
+                                    notify(novoEstado ? 'Link reativado — cliente pode acessar' : 'Link pausado — cliente não consegue acessar');
+                                } catch { setPortalAtivo(!novoEstado); notify('Erro ao alterar status do link'); }
+                            }}
+                                className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                                style={{ background: portalAtivo ? 'rgba(22,163,74,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${portalAtivo ? 'rgba(22,163,74,0.25)' : 'rgba(239,68,68,0.25)'}`, color: portalAtivo ? 'var(--success)' : 'var(--danger)' }}>
+                                <span className="flex items-center gap-1.5">
+                                    {portalAtivo ? <Eye size={12} /> : <EyeOff size={12} />}
+                                    {portalAtivo ? 'Link ativo — cliente pode ver a proposta' : 'Link PAUSADO — cliente não consegue acessar'}
+                                </span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: portalAtivo ? 'rgba(22,163,74,0.15)' : 'rgba(239,68,68,0.15)' }}>
+                                    {portalAtivo ? 'PAUSAR' : 'REATIVAR'}
+                                </span>
+                            </button>
                             <div>
                                 <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
                                     EXPERIÊNCIA COMPLETA
