@@ -4520,10 +4520,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const cpVal = tot.cb || 0;
                                     const impR = pv * ((taxas.imp || 0) / 100);
                                     const comR = pv * ((taxas.com || 0) / 100);
-                                    const lucroR = pv * ((taxas.lucro || 0) / 100);
                                     const instR = pv * ((taxas.inst ?? 5) / 100);
                                     const freteR = pv * ((taxas.frete || 0) / 100);
                                     const montR = pv * ((taxas.mont || 0) / 100);
+                                    // Lucro = residual: garante que cp + taxas + lucro = pv (100%)
+                                    // Quando pvManual/desconto altera o PV, a % configurada deixa de fechar;
+                                    // usar residual corrige isso e mostra o lucro real praticado.
+                                    const lucroR = Math.max(0, pv - cpVal - impR - comR - instR - freteR - montR);
+                                    const lucroPctReal = pv > 0 ? (lucroR / pv * 100) : 0;
                                     const pct = (v) => pv > 0 ? (v / pv * 100).toFixed(1) : '0.0';
                                     const bar = (v, cor) => (
                                         <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, Math.max(2, v / pv * 100))}%`, background: cor, transition: 'width 0.3s' }} />
@@ -4592,7 +4596,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 {[
                                                                     [impR,  'Impostos',   '#e05252', 'rgba(224,82,82,0.18)',   taxas.imp],
                                                                     [comR,  'Comissão',   '#d97706', 'rgba(217,119,6,0.16)',   taxas.com],
-                                                                    [lucroR,'Lucro',      '#16a34a', 'rgba(22,163,74,0.22)',   taxas.lucro],
+                                                                    [lucroR,'Lucro',      '#16a34a', 'rgba(22,163,74,0.22)',   lucroPctReal],
                                                                     [instR, 'Instalação', '#64748b', 'rgba(100,116,139,0.16)', taxas.inst ?? 5],
                                                                     [freteR,'Frete',      '#64748b', 'rgba(100,116,139,0.13)', taxas.frete],
                                                                     [montR, 'Montagem',   '#64748b', 'rgba(100,116,139,0.13)', taxas.mont],
