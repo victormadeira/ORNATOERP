@@ -1046,7 +1046,7 @@ const getEspecialIcon = (tipo) => ESPECIAL_ICON[tipo] || Shapes;
 const getEspecialCor = (tipo) => (TIPOS_ESPECIAIS.find(t => t.id === tipo)?.cor) || '#a78bfa';
 
 // ── Componente: card de item especial ────────────────────────────────────────
-function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly, grupos, draggable: isDraggable, onDragStart, onDragEnd }) {
+function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly, grupos, draggable: isDraggable, onDragStart, onDragEnd, taxas }) {
     const [exp, setExp] = useState(false);
     const tipoInfo = TIPOS_ESPECIAIS.find(t => t.id === item.tipo) || TIPOS_ESPECIAIS[4];
     const cor = tipoInfo.cor;
@@ -1186,10 +1186,20 @@ function ItemEspecialCard({ item, bibItems, onUpdate, onRemove, onCopy, readOnly
 
                     {/* Resultado */}
                     <div className="rounded-lg p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        <div className="flex justify-between text-xs">
+                        <div className="flex justify-between text-xs mb-1">
                             <span style={{ color: 'var(--text-muted)' }}>{calc.descricao}</span>
                             <strong style={{ color: cor }}>{R$(calc.custo)}</strong>
                         </div>
+                        {calc.custo > 0 && taxas && (() => {
+                            const mkEsp = taxas.mk_ferragens ?? 1.15;
+                            const pvEst = calc.custo * mkEsp;
+                            return (
+                                <div className="flex justify-between text-[10px] pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)', opacity: 0.8 }}>PV estimado (markup {Math.round((mkEsp - 1) * 100)}%)</span>
+                                    <span style={{ color: '#22d3ee', fontWeight: 600 }}>{R$(pvEst)}</span>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}
@@ -1971,7 +1981,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const tot = useMemo(() => {
         let cm = 0, at = 0, ft = 0, manualTotal = 0;
         // ── Engine v2: custos separados por categoria ──
-        let totChapas = 0, totFita = 0, totFerragens = 0, totAcabamentos = 0, totAcessorios = 0;
+        let totChapas = 0, totFita = 0, totFerragens = 0, totAcabamentos = 0, totAcessorios = 0, totEspeciais = 0;
         const ca = {}, fa = {}, ambTotals = [];
         const itemCostList = []; // { ambId, custoItem, coef, ajuste }
         ambientes.forEach(amb => {
@@ -2108,6 +2118,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         cm += res.custo; ambCm += res.custo;
                         // Itens especiais = comprados prontos → categoria ferragens (sem coef dificuldade)
                         totFerragens += res.custo;
+                        totEspeciais += res.custo;
                         const ieCP = res.custo * mkEsp;
                         ambCP += ieCP;
                         itemCostList.push({ itemId: ie.id, ambId: amb.id, custoItem: res.custo, itemCP: ieCP, coef: 0, ajuste: null });
@@ -2256,7 +2267,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         return {
             cm, cmCalculado, at, ft, ca, fa, pv, cp,
             pvErro: pvResult.erro, pvMsg: pvResult.msg,
-            custoMdo, totChapas, totFita, totFerragens, totAcabamentos, totAcessorios,
+            custoMdo, totChapas, totFita, totFerragens, totAcabamentos, totAcessorios, totEspeciais,
             ambTotals, totalAjustes, pvFinal, manualTotal, totalItemCP, itemCostList,
             breakdown: pvResult.breakdown,
             custoReal: pvResult.custoReal || 0,
@@ -3691,6 +3702,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                         {ieFilhos.map(ie => (
                                                                             <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
                                                                                 grupos={amb.grupos || []}
+                                                                                taxas={taxas}
                                                                                 draggable={!readOnly}
                                                                                 onDragStart={e => handleDragStart(e, amb.id, ie.id, true)}
                                                                                 onDragEnd={handleDragEnd}
@@ -3762,6 +3774,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     {(amb.itensEspeciais || []).filter(ie => !ie.grupo_id).map(ie => (
                                                         <ItemEspecialCard key={ie.id} item={ie} bibItems={bibItems} readOnly={readOnly}
                                                             grupos={amb.grupos || []}
+                                                            taxas={taxas}
                                                             draggable={!readOnly && (amb.grupos || []).length > 0}
                                                             onDragStart={e => handleDragStart(e, amb.id, ie.id, true)}
                                                             onDragEnd={handleDragEnd}
@@ -3848,6 +3861,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {(() => {
                                     const bd = tot.breakdown || {};
                                     const matPuro = tot.cm || 0;
+                                    const especiaisTotal = tot.totEspeciais || 0;
+                                    const matSemEspeciais = matPuro - especiaisTotal;
                                     const matComCoef = (bd.chapasAdj || 0) + (bd.fitaAdj || 0) + (bd.acabAdj || 0) + (bd.ferrVal || 0) + (bd.acessVal || 0);
                                     const complexidade = matComCoef - matPuro;
                                     const matMk = (bd.pvChapas || 0) + (bd.pvFita || 0) + (bd.pvAcab || 0) + (bd.pvFerr || 0) + (bd.pvAcess || 0);
@@ -3855,7 +3870,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     const mdoVal = bd.mdo || tot.custoMdo || 0;
                                     const consumVal = tot.totConsumiveis || 0;
                                     return [
-                                        ['Material', matPuro],
+                                        ['Material', matSemEspeciais],
+                                        ...(especiaisTotal > 0 ? [['↳ Especiais', especiaisTotal]] : []),
                                         ['Complexidade', complexidade],
                                         ...(consumVal > 0 ? [['Consumíveis', consumVal]] : []),
                                         ['Mão de Obra', mdoVal],
@@ -3979,7 +3995,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             <div className="flex items-center justify-between gap-2">
                                                 <div>
                                                     <span className="text-[10px] font-semibold" style={{ color: 'var(--text-primary)' }}>Comprados</span>
-                                                    <span className="text-[8px] block" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>ferragens, acessórios</span>
+                                                    <span className="text-[8px] block" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>ferragens + especiais</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
                                                     <input type="range" min="5" max="80" step="5"
@@ -4055,8 +4071,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                             ['Chapas (MDF/MDP)', 'mk_chapas'],
                                                             ['Fita de Borda', 'mk_fita'],
                                                             ['Acabamentos', 'mk_acabamentos'],
-                                                            ['Ferragens', 'mk_ferragens'],
-                                                            ['Acessórios', 'mk_acessorios'],
+                                                            ['Ferragens + Especiais', 'mk_ferragens'],
                                                             ...(!temCustoHora ? [['Fator MDO', 'mk_mdo']] : []),
                                                         ].map(([l, k]) => (
                                                             <div key={k} className="flex items-center justify-between gap-2 mb-0.5">

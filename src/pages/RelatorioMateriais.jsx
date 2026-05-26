@@ -170,14 +170,18 @@ function calcAmbReports(ambientes, bib, padroes) {
             } catch (_) { }
         });
         // ── Itens Especiais ──
+        const itensEspeciaisList = [];
         (amb.itensEspeciais || []).forEach(ie => {
             try {
                 const bibFlat = bib ? Object.values(bib).flat() : [];
                 const res = calcItemEspecial(ie, bibFlat);
                 custo += res.custo;
+                if (res.custo > 0) {
+                    itensEspeciaisList.push({ nome: ie.nome || ie.tipo, tipo: ie.tipo, descricao: res.descricao, custo: res.custo, area: res.area || 0 });
+                }
             } catch (_) { }
         });
-        return { id: amb.id, nome: amb.nome, ca, fa, fita, fitaByMat, custo, custoComplexidade };
+        return { id: amb.id, nome: amb.nome, ca, fa, fita, fitaByMat, custo, custoComplexidade, itensEspeciaisList };
     });
 }
 
@@ -279,6 +283,8 @@ export function buildRelatorioHtml({ empresa, orcamento, ambientes, tot, taxas, 
     const ferrGroups = groupFerragens(tot.fa);
     const custoFerragens = Object.values(tot.fa).reduce((s, f) => s + f.preco * f.qtd, 0);
     const custoChapas = Object.values(tot.ca).reduce((s, c) => s + c.n * c.mat.preco, 0);
+    const allItensEspeciais = ambReports.flatMap(a => (a.itensEspeciaisList || []).map(ie => ({ ...ie, ambNome: a.nome })));
+    const custoEspeciais = allItensEspeciais.reduce((s, ie) => s + ie.custo, 0);
     const custoComplexidade = ambReports.reduce((s, a) => s + (a.custoComplexidade || 0), 0);
     // Agregar fitaByMat de todos os ambientes
     const fitaByMatTotal = {};
@@ -411,6 +417,33 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
         ${Object.entries(ferrGroups).map(([name, items]) => renderFerrGroup(name, items)).join('')}
     </div>
 
+    <!-- Itens Especiais (estofados, espelhos, alumínio, vidro) -->
+    ${allItensEspeciais.length > 0 ? `<div class="section">
+        <div class="section-title">Itens Especiais</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:${corPrimaria}0A;border-bottom:2px solid ${corPrimaria}30">
+                <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px">Item</th>
+                <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px">Ambiente</th>
+                <th style="text-align:left;padding:6px 8px;color:${corPrimaria};font-size:10px">Tipo</th>
+                <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px">Área</th>
+                <th style="text-align:right;padding:6px 8px;color:${corPrimaria};font-size:10px;font-weight:700">Custo</th>
+            </tr></thead>
+            <tbody>
+            ${allItensEspeciais.map((ie, i) => `<tr style="border-bottom:1px solid #eee;${i % 2 ? `background:${corPrimaria}04` : ''}">
+                <td style="padding:5px 8px;font-weight:500">${ie.nome}</td>
+                <td style="padding:5px 8px;color:#888">${ie.ambNome}</td>
+                <td style="padding:5px 8px;color:${corAccent};text-transform:capitalize">${ie.tipo}</td>
+                <td style="text-align:right;padding:5px 8px;color:#888">${ie.area > 0 ? N(ie.area, 2) + ' m²' : '—'}</td>
+                <td style="text-align:right;padding:5px 8px;font-weight:600">${R$(ie.custo)}</td>
+            </tr>`).join('')}
+            </tbody>
+            <tfoot><tr style="background:${corPrimaria}0A;border-top:2px solid ${corPrimaria}30;font-weight:700">
+                <td colspan="4" style="padding:5px 8px;color:${corPrimaria}">Total Especiais</td>
+                <td style="text-align:right;padding:5px 8px;color:${corPrimaria}">${R$(custoEspeciais)}</td>
+            </tr></tfoot>
+        </table>
+    </div>` : ''}
+
     <!-- Fita de Borda -->
     ${tot.ft > 0 ? `<div class="section">
         <div class="section-title">Fita de Borda</div>
@@ -448,6 +481,7 @@ ${watermarkSrc ? `<div class="watermark"><img src="${watermarkSrc}" /></div>` : 
         <div class="summary-grid">
             <div class="summary-box"><div class="summary-label">Material (Chapas)</div><div class="summary-value">${R$(custoChapas)}</div></div>
             <div class="summary-box"><div class="summary-label">Ferragens</div><div class="summary-value">${R$(custoFerragens)}</div></div>
+            ${custoEspeciais > 0 ? `<div class="summary-box"><div class="summary-label">Especiais</div><div class="summary-value">${R$(custoEspeciais)}</div></div>` : ''}
             <div class="summary-box"><div class="summary-label">Mão de Obra</div><div class="summary-value">${R$(tot.custoMdo)}</div></div>
             <div class="summary-box"><div class="summary-label">Instalação</div><div class="summary-value">${R$(tot.custoInst)}</div></div>
         </div>
