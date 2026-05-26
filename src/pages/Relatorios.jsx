@@ -5,7 +5,7 @@ import { R$ } from '../engine';
 import { STATUS_PROJ } from '../theme';
 import {
     FileText, Download, Calendar, Users, Briefcase, DollarSign,
-    BarChart3, Clock, Filter, Table, ChevronDown
+    BarChart3, Clock, Filter, Table, ChevronDown, TrendingUp
 } from 'lucide-react';
 
 // ── Helpers ──────────────────────────────────────
@@ -93,6 +93,15 @@ const REPORTS = [
         desc: 'Performance individual: orçamentos, aprovações, valores e conversão',
         usePeriodo: true,
     },
+    {
+        id: 'rentabilidade',
+        label: 'Rentabilidade',
+        icon: <TrendingUp size={20} />,
+        color: '#22c55e',
+        desc: 'Projetos concluídos: PV orçado × custo real × recebido × margem de lucro',
+        usePeriodo: false,
+        apiPath: '/gestao/relatorios/rentabilidade',
+    },
 ];
 
 // ── Column definitions for each report ──────────────
@@ -169,6 +178,18 @@ const COLUMNS = {
         { key: 'ticket_medio', label: 'Ticket Médio', fmt: v => R$(v) },
         { key: 'perdidos', label: 'Perdidos' },
     ],
+    rentabilidade: [
+        { key: 'nome', label: 'Projeto' },
+        { key: 'cliente_nome', label: 'Cliente' },
+        { key: 'valor_venda', label: 'PV Orçado', fmt: v => R$(v) },
+        { key: 'custo_material', label: 'Mat. Orçado', fmt: v => R$(v) },
+        { key: 'custo_material_real', label: 'Mat. Real', fmt: v => v ? R$(v) : '—' },
+        { key: 'custo_mdo_real', label: 'M.O. Real', fmt: v => v ? R$(v) : '—' },
+        { key: 'despesas', label: 'Despesas', fmt: v => R$(v) },
+        { key: 'recebido', label: 'Recebido', fmt: v => v ? R$(v) : '—' },
+        { key: 'lucro', label: 'Lucro', fmt: v => R$(v) },
+        { key: 'margem', label: 'Margem', fmt: v => `${v}%` },
+    ],
 };
 
 // ── Main Component ──────────────────────────────
@@ -182,10 +203,17 @@ export default function Relatorios({ notify }) {
     const gerar = useCallback(async (tipo) => {
         setLoading(true);
         setData(null);
+        const cfg = REPORTS.find(r => r.id === tipo);
         try {
             const params = `?periodo_inicio=${inicio}&periodo_fim=${fim}`;
-            const res = await api.get(`/dashboard/relatorio/${tipo}${params}`);
-            setData(res);
+            if (cfg?.apiPath) {
+                // Endpoint próprio — normaliza para o formato padrão { tipo, dados }
+                const rows = await api.get(cfg.apiPath);
+                setData({ tipo, dados: rows });
+            } else {
+                const res = await api.get(`/dashboard/relatorio/${tipo}${params}`);
+                setData(res);
+            }
         } catch (ex) {
             notify(ex.error || 'Erro ao gerar relatório');
         } finally {
@@ -326,7 +354,7 @@ export default function Relatorios({ notify }) {
                 </div>
             )}
 
-            {data && !loading && data.tipo !== 'financeiro' && (
+            {data && !loading && data.tipo !== 'financeiro' && data.tipo !== 'rentabilidade' && (
                 <div>
                     {/* Print Header */}
                     <div className="print-only" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '2.5px solid var(--primary)' }}>
@@ -477,12 +505,87 @@ export default function Relatorios({ notify }) {
                 </div>
             )}
 
+            {/* Rentabilidade — layout especial com summary + tabela colorida */}
+            {data && !loading && data.tipo === 'rentabilidade' && (() => {
+                const rows = data.dados || [];
+                const totalPV = rows.reduce((s, r) => s + (r.valor_venda || 0), 0);
+                const totalLucro = rows.reduce((s, r) => s + (r.lucro || 0), 0);
+                const totalRecebido = rows.reduce((s, r) => s + (r.recebido || 0), 0);
+                const avgMargem = rows.length > 0 ? Math.round(rows.reduce((s, r) => s + (r.margem || 0), 0) / rows.length) : 0;
+                const margemColor = avgMargem >= 20 ? 'var(--success)' : avgMargem >= 8 ? 'var(--warning)' : 'var(--danger)';
+                return (
+                    <div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                            {[
+                                { label: 'Projetos analisados', value: rows.length, color: 'var(--info)' },
+                                { label: 'PV total orçado', value: R$(totalPV), color: 'var(--primary)' },
+                                { label: 'Total recebido', value: R$(totalRecebido), color: 'var(--success)' },
+                                { label: 'Margem média', value: `${avgMargem}%`, color: margemColor },
+                            ].map((c, i) => (
+                                <div key={i} className="glass-card report-summary-card p-3 text-center">
+                                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</div>
+                                    <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="glass-card !p-0 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full border-collapse text-left" style={{ fontSize: 12 }}>
+                                    <thead>
+                                        <tr>
+                                            {COLUMNS.rentabilidade.map(c => (
+                                                <th key={c.key} className={Z.th} style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{c.label}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[var(--border)]">
+                                        {rows.map((row, i) => {
+                                            const mc = row.margem >= 20 ? 'var(--success)' : row.margem >= 8 ? 'var(--warning)' : 'var(--danger)';
+                                            return (
+                                                <tr key={row.id || i} className="hover:bg-[var(--bg-muted)] transition-colors">
+                                                    {COLUMNS.rentabilidade.map(c => (
+                                                        <td key={c.key} className="td-glass" style={{
+                                                            fontSize: 12, whiteSpace: 'nowrap',
+                                                            color: c.key === 'margem' ? mc : c.key === 'lucro' ? (row.lucro >= 0 ? 'var(--success)' : 'var(--danger)') : undefined,
+                                                            fontWeight: c.key === 'margem' || c.key === 'lucro' ? 700 : undefined,
+                                                        }}>
+                                                            {c.fmt ? c.fmt(row[c.key], row) : (row[c.key] ?? '—')}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style={{ background: 'var(--bg-subtle)' }}>
+                                            <td className="td-glass" colSpan={2} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>TOTAL</td>
+                                            <td className="td-glass font-tabular" style={{ fontSize: 11, fontWeight: 700 }}>{R$(totalPV)}</td>
+                                            <td className="td-glass" colSpan={4} />
+                                            <td className="td-glass font-tabular" style={{ fontSize: 11, fontWeight: 700 }}>{R$(totalRecebido)}</td>
+                                            <td className="td-glass font-tabular" style={{ fontSize: 11, fontWeight: 700, color: totalLucro >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(totalLucro)}</td>
+                                            <td className="td-glass" style={{ fontSize: 11, fontWeight: 700, color: margemColor }}>{avgMargem}%</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                        {rows.length === 0 && (
+                            <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
+                                <TrendingUp size={28} className="mx-auto mb-3 opacity-30" />
+                                <p className="text-sm">Nenhum projeto concluído/entregue encontrado.</p>
+                                <p className="text-xs mt-1">Projetos com status "concluído", "entregue" ou "instalado" aparecerão aqui.</p>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
+
             {/* Empty state when no report selected */}
             {!selected && (
                 <EmptyState
                     icon={BarChart3}
                     title="Selecione um tipo de relatório acima"
-                    description="Escolha entre Clientes, Orçamentos, Projetos, Financeiro, Conversão ou Vendedores"
+                    description="Escolha entre Clientes, Orçamentos, Projetos, Financeiro, Conversão, Vendedores ou Rentabilidade"
                 />
             )}
         </div>

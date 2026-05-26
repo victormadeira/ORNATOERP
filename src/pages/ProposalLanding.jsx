@@ -3,7 +3,7 @@
  * Rota: /lp/TOKEN  (experiência completa antes do orçamento)
  * 5 seções: Capa Hero → Sobre → Portfolio → Processo → CTA
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Star } from 'lucide-react';
 
 const BASE = '/api';
@@ -24,6 +24,7 @@ function ProposalLanding({ token }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState('');
+    const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
         fetch(`${BASE}/portal/landing/${token}`)
@@ -50,6 +51,18 @@ function ProposalLanding({ token }) {
     const { empresa, cliente_nome, numero, validade, portfolio, depoimentos, proposta_token } = data;
     const cp = empresa.cor_primaria || '#1B2A4A';
     const ca = empresa.cor_accent || '#C9A96E';
+
+    // Dias restantes de validade
+    const diasRestantes = validade
+        ? Math.ceil((new Date(validade + 'T12:00:00') - new Date()) / (1000 * 60 * 60 * 24))
+        : null;
+
+    // Sticky CTA scroll listener
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 320);
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
     const videoId        = getYouTubeId(empresa.video_url);
     const videoProcessoId = getYouTubeId(empresa.video_processo);
 
@@ -73,6 +86,8 @@ function ProposalLanding({ token }) {
                 a { color: inherit; text-decoration: none; }
                 .lp-fade { animation: fadeUp .6s ease both; }
                 @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+                @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
                 .lp-btn {
                     display: inline-flex; align-items: center; gap: 10px;
                     background: ${ca}; color: #111; font-weight: 700; font-size: 15px;
@@ -153,9 +168,20 @@ function ProposalLanding({ token }) {
                             Conhecer a empresa ↓
                         </button>
                     </div>
-                    {validade && (
-                        <p style={{ marginTop: 24, fontSize: 12, color: '#64748b' }}>
-                            Proposta válida até <strong style={{ color: '#94a3b8' }}>{fmtDate(validade)}</strong>
+                    {diasRestantes !== null && (
+                        <p style={{ marginTop: 24, fontSize: 12, color: diasRestantes <= 3 ? '#f87171' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                            {diasRestantes > 0 ? (
+                                <>
+                                    {diasRestantes <= 3 && <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.4s ease-in-out infinite' }} />}
+                                    Proposta válida por{' '}
+                                    <strong style={{ color: diasRestantes <= 3 ? '#f87171' : '#94a3b8' }}>
+                                        {diasRestantes} {diasRestantes === 1 ? 'dia' : 'dias'}
+                                    </strong>
+                                    {' '}(até {fmtDate(validade)})
+                                </>
+                            ) : (
+                                <strong style={{ color: '#f87171' }}>Esta proposta expirou em {fmtDate(validade)}</strong>
+                            )}
                         </p>
                     )}
                 </div>
@@ -435,11 +461,40 @@ function ProposalLanding({ token }) {
             </section>
 
             {/* ── FOOTER ── */}
-            <footer style={{ padding: '24px', borderTop: '1px solid #ffffff10', textAlign: 'center' }}>
+            <footer style={{ padding: '24px', borderTop: '1px solid #ffffff10', textAlign: 'center', paddingBottom: scrolled ? 80 : 24 }}>
                 <p style={{ fontSize: 11, color: '#334155' }}>
                     © {new Date().getFullYear()} {empresa.nome}. Proposta gerada pelo sistema Ornato ERP.
                 </p>
             </footer>
+
+            {/* ── STICKY CTA (aparece ao rolar) ── */}
+            {scrolled && (
+                <div style={{
+                    position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
+                    background: `${cp}ee`,
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    borderTop: `1px solid ${ca}30`,
+                    padding: '12px 24px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10,
+                    animation: 'slideUp .25s ease',
+                }}>
+                    <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {empresa.nome}
+                            {diasRestantes !== null && diasRestantes > 0 && diasRestantes <= 5 && (
+                                <span style={{ fontSize: 10, background: '#ef444420', color: '#f87171', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                                    {diasRestantes}d restantes
+                                </span>
+                            )}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>Proposta Nº {numero}</div>
+                    </div>
+                    <button className="lp-btn" onClick={abrirProposta} style={{ fontSize: 13, padding: '10px 24px' }}>
+                        Ver Orçamento →
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

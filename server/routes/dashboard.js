@@ -293,13 +293,14 @@ router.get('/', requireAuth, (req, res) => {
             const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             const label = MESES[d.getMonth()].slice(0, 3);
             const row = db.prepare(`
-                SELECT COALESCE(SUM(o.valor_venda), 0) as total
+                SELECT COALESCE(SUM(o.valor_venda), 0) as total,
+                       COALESCE(SUM(o.custo_material), 0) as custo
                 FROM orcamentos o
                 WHERE o.kb_col IN ('ok','prod','done')
                 AND strftime('%Y-%m', o.atualizado_em) = ?
                 ${userFilter}
             `).get(mes, ...params);
-            historico_faturamento.push({ mes, label, total: row.total });
+            historico_faturamento.push({ mes, label, total: row.total, custo: row.custo, lucro: row.total - row.custo });
         }
 
         // ── Histórico Orçamentos Criados vs Fechados (últimos 12 meses) ──
@@ -514,22 +515,28 @@ router.get('/financeiro', requireAuth, (req, res) => {
             ORDER BY total DESC
         `).all(mesAtual, ...params);
 
-        // ── Top 5 projetos mais lucrativos ──────────────────────
+        // ── Top 5 projetos mais lucrativos (com custo material real) ───
         const topProjetos = db.prepare(`
             SELECT p.id, p.nome, o.cliente_nome, o.valor_venda,
+                   COALESCE(o.custo_material, 0) as custo_material,
                    COALESCE((SELECT SUM(cr.valor) FROM contas_receber cr WHERE cr.projeto_id = p.id AND cr.status = 'pago'), 0) as recebido,
-                   COALESCE((SELECT SUM(d.valor) FROM despesas_projeto d WHERE d.projeto_id = p.id), 0) as despesas,
-                   o.valor_venda - COALESCE((SELECT SUM(d.valor) FROM despesas_projeto d WHERE d.projeto_id = p.id), 0) as lucro
+                   COALESCE((SELECT SUM(d.valor) FROM despesas_projeto d WHERE d.projeto_id = p.id AND d.deletado = 0), 0) as despesas
             FROM projetos p
             LEFT JOIN orcamentos o ON o.id = p.orc_id
             WHERE p.status IN ('em_andamento', 'concluido', 'nao_iniciado')
             ${userFilterP.replace('o.', 'p.')}
-            ORDER BY lucro DESC
-            LIMIT 5
-        `).all(...params).map(p => ({
-            ...p,
-            margem: p.valor_venda > 0 ? Math.round(((p.valor_venda - p.despesas) / p.valor_venda) * 100) : 0,
-        }));
+            ORDER BY o.valor_venda DESC
+            LIMIT 20
+        `).all(...params).map(p => {
+            const custo_total = (p.custo_material || 0) + (p.despesas || 0);
+            const lucro = (p.valor_venda || 0) - custo_total;
+            return {
+                ...p,
+                custo_total,
+                lucro,
+                margem: p.valor_venda > 0 ? Math.round((lucro / p.valor_venda) * 100) : 0,
+            };
+        }).sort((a, b) => b.margem - a.margem).slice(0, 5);
 
         // ── Top 5 clientes por faturamento ──────────────────────
         const topClientes = db.prepare(`

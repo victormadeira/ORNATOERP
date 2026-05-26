@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Z, Modal, PageHeader, TabBar, EmptyState } from '../ui';
 import api from '../api';
 import { useAuth } from '../auth';
@@ -33,6 +33,8 @@ export default function AssistenteIA({ notify }) {
     // Chat CRM
     const [pergunta, setPergunta] = useState('');
     const [chatHistory, setChatHistory] = useState([]);
+    const [typing, setTyping] = useState(false);
+    const chatEndRef = useRef(null);
 
     // Base de Conhecimento
     const [contextos, setContextos] = useState([]);
@@ -80,18 +82,26 @@ export default function AssistenteIA({ notify }) {
 
     // ═══ Chat CRM ═══
     const askCRM = async () => {
-        if (!pergunta.trim()) return;
+        if (!pergunta.trim() || loading) return;
         setLoading(true);
+        setTyping(true);
         const q = pergunta;
         setPergunta('');
         setChatHistory(prev => [...prev, { role: 'user', content: q }]);
         try {
             const r = await api.post('/ia/chat', { pergunta: q });
+            setTyping(false);
             setChatHistory(prev => [...prev, { role: 'assistant', content: r.resposta }]);
         } catch (e) {
+            setTyping(false);
             setChatHistory(prev => [...prev, { role: 'assistant', content: `Erro: ${e.error || 'Falha na consulta'}` }]);
         } finally { setLoading(false); }
     };
+
+    // Auto-scroll ao fundo quando novas mensagens chegam
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatHistory, typing]);
 
     // ═══ CRUD Contexto ═══
     const salvarContexto = async () => {
@@ -215,73 +225,102 @@ export default function AssistenteIA({ notify }) {
 
             {/* ═══ Tab: Chat CRM ═══ */}
             {tab === 'chat' && (
-                <div>
-                    <div className={Z.card} style={{ marginBottom: 16, padding: 16 }}>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-                            Pergunte qualquer coisa sobre seus clientes, orçamentos e pipeline de vendas. A IA vai analisar seus dados e responder.
-                        </p>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <input
-                                className={Z.inp}
-                                placeholder="Ex: Quais clientes não respondem há mais de 7 dias?"
-                                value={pergunta}
-                                onChange={e => setPergunta(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') askCRM(); }}
-                                style={{ flex: 1, fontSize: 14 }}
-                            />
-                            <button
-                                onClick={askCRM}
-                                disabled={!pergunta.trim() || loading}
-                                className={Z.btn}
-                                style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: !pergunta.trim() || loading ? 0.5 : 1 }}
-                            >
-                                {loading ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
-                            </button>
+                <div className={Z.card} style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 520, overflow: 'hidden' }}>
+                    {/* Header */}
+                    <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Bot size={16} style={{ color: 'var(--primary)' }} />
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Consultar CRM com IA</span>
                         </div>
+                        {chatHistory.length > 0 && (
+                            <button onClick={() => setChatHistory([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <XCircle size={12} /> Limpar
+                            </button>
+                        )}
                     </div>
 
-                    {/* Histórico do chat */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {chatHistory.map((m, i) => (
-                            <div key={i} className={Z.card} style={{
-                                padding: 16,
-                                borderLeft: `4px solid ${m.role === 'user' ? 'var(--primary)' : 'var(--accent)'}`,
-                            }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: m.role === 'user' ? 'var(--primary)' : 'var(--accent)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    {m.role === 'user' ? <><Send size={10} /> Você</> : <><Bot size={10} /> Assistente IA</>}
+                    {/* Histórico */}
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {chatHistory.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-muted)', margin: 'auto' }}>
+                                <Bot size={36} style={{ margin: '0 auto 10px', opacity: 0.2 }} />
+                                <p style={{ fontSize: 13, marginBottom: 16 }}>Pergunte qualquer coisa sobre seus dados de vendas</p>
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                                    {[
+                                        'Qual meu ticket médio?',
+                                        'Quais clientes estão parados?',
+                                        'Resumo do funil de vendas',
+                                    ].map(q => (
+                                        <button key={q} onClick={() => setPergunta(q)} style={{
+                                            fontSize: 12, padding: '6px 12px', borderRadius: 8,
+                                            background: 'var(--bg-muted)', color: 'var(--text-secondary)',
+                                            border: '1px solid var(--border)', cursor: 'pointer',
+                                        }}>
+                                            {q}
+                                        </button>
+                                    ))}
                                 </div>
-                                <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>
+                            </div>
+                        )}
+                        {chatHistory.map((m, i) => (
+                            <div key={i} style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: m.role === 'user' ? 'flex-end' : 'flex-start',
+                            }}>
+                                <div style={{
+                                    maxWidth: '82%',
+                                    padding: '10px 14px',
+                                    borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                                    background: m.role === 'user' ? 'var(--primary)' : 'var(--bg-elevated)',
+                                    color: m.role === 'user' ? '#fff' : 'var(--text-primary)',
+                                    fontSize: 13.5,
+                                    lineHeight: 1.6,
+                                    whiteSpace: 'pre-wrap',
+                                }}>
                                     {m.content}
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, paddingInline: 2 }}>
+                                    {m.role === 'user' ? 'Você' : 'Assistente IA'}
                                 </div>
                             </div>
                         ))}
+                        {/* Indicador de digitando */}
+                        {typing && (
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4 }}>
+                                <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 4px', background: 'var(--bg-elevated)' }}>
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                        {[0, 1, 2].map(d => (
+                                            <span key={d} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)', display: 'inline-block', animation: `bounce 1.2s ease ${d * 0.2}s infinite` }} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <div ref={chatEndRef} />
                     </div>
 
-                    {chatHistory.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                            <Bot size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                            <p style={{ fontSize: 13 }}>Faça uma pergunta para começar</p>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 12 }}>
-                                {[
-                                    'Qual meu ticket médio?',
-                                    'Quais clientes estão parados?',
-                                    'Resumo do funil de vendas',
-                                ].map(q => (
-                                    <button
-                                        key={q}
-                                        onClick={() => { setPergunta(q); }}
-                                        style={{
-                                            fontSize: 12, padding: '6px 12px', borderRadius: 8,
-                                            background: 'var(--bg-muted)', color: 'var(--text-muted)',
-                                            border: '1px solid var(--border)', cursor: 'pointer',
-                                        }}
-                                    >
-                                        {q}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    {/* Input fixo no rodapé */}
+                    <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+                        <input
+                            className={Z.inp}
+                            placeholder="Pergunte sobre clientes, orçamentos, pipeline…"
+                            value={pergunta}
+                            onChange={e => setPergunta(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askCRM(); } }}
+                            style={{ flex: 1, fontSize: 13 }}
+                            disabled={loading}
+                        />
+                        <button
+                            onClick={askCRM}
+                            disabled={!pergunta.trim() || loading}
+                            className={Z.btn}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+                        >
+                            {loading ? <RefreshCw size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Send size={14} />}
+                        </button>
+                    </div>
+                    <style>{`@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} } @keyframes spin{to{transform:rotate(360deg)}}`}</style>
                 </div>
             )}
 

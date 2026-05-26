@@ -25,11 +25,26 @@ if (typeof window !== 'undefined' && (location.hostname === 'localhost' || locat
 // Instala listeners globais de erro ANTES de montar — pega erros de init também
 installGlobalErrorHandlers();
 
+// ── Suprimir console.log/warn/error em produção ──────────────────────────────
+// Impede vazamento de dados internos no console do navegador do cliente.
+// console.error permanece ativo apenas para erros não tratados capturados pelo
+// errorReporter (window.onerror, unhandledrejection).
+if (import.meta.env.PROD) {
+    const noop = () => {};
+    console.log = noop;
+    console.warn = noop;
+    console.debug = noop;
+    console.info = noop;
+    // console.error: silenciado para catch blocks comuns;
+    // o errorReporter captura o que precisa via window.onerror
+    console.error = noop;
+}
+
 // ── Páginas públicas lazy (cada rota puxa só seu próprio chunk) ──
 // Antes eram import eager → inflavam o main chunk em ~2MB (three.js + pages)
 const ProposalPublic        = lazy(() => import('./pages/ProposalPublic'));
 const ProposalLanding       = lazy(() => import('./pages/ProposalLanding'));
-const PortalCliente         = lazy(() => import('./pages/PortalCliente'));
+// PortalCliente v1 removido — PortalClienteV2 cobre todas as rotas
 const PortalClienteV2       = lazy(() => import('./pages/PortalClienteV2'));
 const MontadorUpload        = lazy(() => import('./pages/MontadorUpload'));
 const LandingPageV2         = lazy(() => import('./pages/LandingPageV2'));

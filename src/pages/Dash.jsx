@@ -1078,16 +1078,18 @@ function TabelaTopProjetos({ data }) {
             <div className="chart-card-pro-head">
                 <div className="chart-card-pro-title">
                     <span className="kpi-pro-icon"><Briefcase size={15} strokeWidth={2.2} /></span>
-                    <h3>Top projetos por lucro</h3>
+                    <h3>Top projetos por margem</h3>
                 </div>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>PV − material − despesas</span>
             </div>
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
                     <thead>
                         <tr>
                             <th className="th-glass" style={{ textAlign: 'left' }}>Projeto</th>
-                            <th className="th-glass" style={{ textAlign: 'right' }}>Valor</th>
-                            <th className="th-glass" style={{ textAlign: 'right' }}>Despesas</th>
+                            <th className="th-glass" style={{ textAlign: 'right' }}>PV</th>
+                            <th className="th-glass" style={{ textAlign: 'right' }}>Mat.</th>
+                            <th className="th-glass" style={{ textAlign: 'right' }}>Desp.</th>
                             <th className="th-glass" style={{ textAlign: 'right' }}>Lucro</th>
                             <th className="th-glass" style={{ textAlign: 'center', width: 72 }}>Margem</th>
                         </tr>
@@ -1099,11 +1101,12 @@ function TabelaTopProjetos({ data }) {
                                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{p.nome}</div>
                                     <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>{p.cliente_nome}</div>
                                 </td>
-                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12.5, fontWeight: 600 }}>{R$(p.valor_venda)}</td>
-                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12.5, color: 'var(--danger)' }}>{R$(p.despesas)}</td>
+                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>{R$(p.valor_venda)}</td>
+                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-secondary)' }}>{R$(p.custo_material)}</td>
+                                <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12, color: 'var(--danger)' }}>{R$(p.despesas)}</td>
                                 <td className="td-glass font-tabular" style={{ textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: p.lucro >= 0 ? 'var(--success)' : 'var(--danger)' }}>{R$(p.lucro)}</td>
                                 <td className="td-glass" style={{ textAlign: 'center' }}>
-                                    <Badge label={`${p.margem}%`} color={p.margem >= 20 ? 'var(--success)' : p.margem >= 0 ? 'var(--warning)' : 'var(--danger)'} />
+                                    <Badge label={`${p.margem}%`} color={p.margem >= 20 ? 'var(--success)' : p.margem >= 8 ? 'var(--warning)' : 'var(--danger)'} />
                                 </td>
                             </tr>
                         ))}
@@ -1737,10 +1740,12 @@ function PeriodFilter({ value, onChange }) {
 // ══════════════════════════════════════════════════════════════════
 function GraficoBarrasMensal({ data }) {
     if (!data || data.length === 0) return null;
-    // Aceita array de numbers ou array de {mes, label, total}
+    // Aceita array de numbers ou array de {mes, label, total, custo, lucro}
     const items = data.map((h, i) => typeof h === 'object' ? h : { total: h, label: `M${i + 1}` });
     const maxVal = Math.max(...items.map(h => h.total), 1);
     const totalAnual = items.reduce((s, h) => s + h.total, 0);
+    const totalLucro = items.reduce((s, h) => s + (h.lucro || 0), 0);
+    const hasLucro = items.some(h => h.lucro !== undefined && h.custo > 0);
     // Mês corrente = último item
     const mesAtualIdx = items.length - 1;
 
@@ -1751,9 +1756,16 @@ function GraficoBarrasMensal({ data }) {
                     <span className="kpi-pro-icon"><BarChart3 size={15} strokeWidth={2.2} /></span>
                     <h3>Faturamento — 12 meses</h3>
                 </div>
-                <span className="font-tabular" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '-0.01em' }}>
-                    {R$(totalAnual)} <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>total</span>
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <span className="font-tabular" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '-0.01em' }}>
+                        {R$(totalAnual)} <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>faturado</span>
+                    </span>
+                    {hasLucro && (
+                        <span className="font-tabular" style={{ fontSize: 11, fontWeight: 600, color: totalLucro >= 0 ? 'var(--success)' : 'var(--danger)', letterSpacing: '-0.01em' }}>
+                            {R$(totalLucro)} <span style={{ fontSize: 9.5, fontWeight: 500, color: 'var(--text-muted)' }}>lucro</span>
+                        </span>
+                    )}
+                </div>
             </div>
             <div className="chart-card-pro-body" style={{ paddingTop: 12 }}>
                 <svg
@@ -1769,6 +1781,23 @@ function GraficoBarrasMensal({ data }) {
                         />
                     ))}
                     {/* Bars */}
+                    {/* Lucro trend line (quando custo disponível) */}
+                    {hasLucro && (() => {
+                        const gapTotal = 360 / items.length;
+                        const barW = 22;
+                        const pts = items.map((h, i) => {
+                            const x = i * gapTotal + (gapTotal - barW) / 2 + barW / 2;
+                            const lucro = h.lucro || 0;
+                            const y = 80 - (maxVal > 0 ? Math.max(lucro / maxVal, 0) * 80 : 0);
+                            return `${x},${y}`;
+                        }).join(' ');
+                        return (
+                            <polyline points={pts} fill="none"
+                                stroke="var(--success)" strokeWidth="1.5"
+                                strokeDasharray="3 2" opacity="0.7"
+                                strokeLinecap="round" strokeLinejoin="round" />
+                        );
+                    })()}
                     {items.map((h, i) => {
                         const barW = 22;
                         const gapTotal = 360 / items.length;

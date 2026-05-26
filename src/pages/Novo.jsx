@@ -271,9 +271,14 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
     const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 280 });
     const wrapRef = useRef(null);
     const inputRef = useRef(null);
+    const [selIdx, setSelIdx] = useState(-1);
+    const [recentIds, setRecentIds] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('recentCaixas') || '[]'); } catch { return []; }
+    });
     const filtered = q.trim()
         ? caixas.filter(c => c.nome.toLowerCase().includes(q.toLowerCase()) || (c.desc || '').toLowerCase().includes(q.toLowerCase()))
         : caixas;
+    const recentCaixas = !q.trim() ? recentIds.map(id => caixas.find(c => c.db_id === id)).filter(Boolean) : [];
 
     const calcPos = () => {
         if (!wrapRef.current) return;
@@ -308,7 +313,29 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
         };
     }, [open]);
 
-    const pick = (v) => { onSelect(v); setQ(''); setOpen(false); };
+    const pick = (v) => {
+        const next = [v, ...recentIds.filter(id => id !== v)].slice(0, 5);
+        setRecentIds(next);
+        try { localStorage.setItem('recentCaixas', JSON.stringify(next)); } catch {}
+        onSelect(v);
+        setQ('');
+        setOpen(false);
+        setSelIdx(-1);
+    };
+
+    // Reset navegação ao mudar busca
+    useEffect(() => { setSelIdx(-1); }, [q]);
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Escape') { setOpen(false); setSelIdx(-1); return; }
+        if (!open && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+            calcPos(); setOpen(true); setSelIdx(0); e.preventDefault(); return;
+        }
+        if (!open) return;
+        if (e.key === 'ArrowDown') { setSelIdx(i => Math.min(i + 1, filtered.length - 1)); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { setSelIdx(i => Math.max(i - 1, -1)); e.preventDefault(); }
+        else if (e.key === 'Enter' && selIdx >= 0 && filtered[selIdx]) { pick(filtered[selIdx].db_id); e.preventDefault(); }
+    };
 
     const dropdown = open && createPortal(
         <div id="caixa-search-portal"
@@ -364,20 +391,45 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
                             <span>Criar Grupo (agrupar módulos)</span>
                         </button>
                     )}
-                    {filtered.length > 0 && (
-                        <div className="px-3 pt-2 pb-1"><span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Módulos</span></div>
-                    )}
                 </>
             )}
-            {/* ── Lista de módulos (filtrada pela busca) ── */}
-            {filtered.map(c => (
+            {/* ── Módulos usados recentemente ── */}
+            {recentCaixas.length > 0 && (
+                <>
+                    <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
+                        <Clock size={9} style={{ color: 'var(--text-muted)' }} />
+                        <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>Recentes</span>
+                    </div>
+                    {recentCaixas.map(c => (
+                        <button key={`r-${c.db_id}`} onClick={() => pick(c.db_id)}
+                            className="w-full text-left px-3 py-1.5 text-sm cursor-pointer flex items-center gap-2"
+                            style={{ color: 'var(--text-primary)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <Clock size={12} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.6 }} />
+                            <span className="truncate">{c.nome}{c.desc ? <span style={{ color: 'var(--text-muted)' }}> — {c.desc}</span> : ''}</span>
+                        </button>
+                    ))}
+                </>
+            )}
+            {/* ── Label da lista de módulos ── */}
+            {filtered.length > 0 && (
+                <div className="px-3 pt-2 pb-1">
+                    <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: 'var(--text-muted)' }}>
+                        {q.trim() ? `${filtered.length} módulo${filtered.length !== 1 ? 's' : ''}` : recentCaixas.length > 0 ? 'Todos os módulos' : 'Módulos'}
+                    </span>
+                </div>
+            )}
+            {/* ── Lista de módulos (filtrada pela busca, com navegação por teclado) ── */}
+            {filtered.map((c, idx) => (
                 <button key={c.db_id} onClick={() => pick(c.db_id)}
                     className="w-full text-left px-3 py-2 text-sm cursor-pointer flex items-center gap-2"
-                    style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <Package size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                    <span>{c.nome}{c.desc ? <span style={{ color: 'var(--text-muted)' }}> — {c.desc}</span> : ''}</span>
+                    style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', background: idx === selIdx ? 'rgba(59,130,246,0.13)' : 'transparent' }}
+                    onMouseEnter={e => { if (idx !== selIdx) e.currentTarget.style.background = 'rgba(59,130,246,0.08)'; setSelIdx(idx); }}
+                    onMouseLeave={e => { e.currentTarget.style.background = idx === selIdx ? 'rgba(59,130,246,0.13)' : 'transparent'; }}>
+                    <Package size={14} style={{ color: idx === selIdx ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0, transition: 'color 0.1s' }} />
+                    <span className="flex-1 truncate">{c.nome}{c.desc ? <span style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}> — {c.desc}</span> : ''}</span>
+                    {idx === selIdx && <span style={{ fontSize: 9, color: 'var(--primary)', opacity: 0.7 }}>Enter ↵</span>}
                 </button>
             ))}
             {filtered.length === 0 && q.trim() && (
@@ -392,9 +444,10 @@ function CaixaSearch({ caixas, onSelect, onAddPainel, onAddEspecial, onAddAvulso
             <div className="flex items-center gap-2" style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', padding: '7px 10px' }}>
                 <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 <input ref={inputRef} type="text" value={q}
-                    placeholder={placeholder || '+ Adicionar módulo... (digite para buscar)'}
+                    placeholder={placeholder || '+ Adicionar módulo... (↑↓ navegar, Enter selecionar)'}
                     onChange={e => { setQ(e.target.value); if (!open) { calcPos(); setOpen(true); } }}
                     onFocus={() => { calcPos(); setOpen(true); }}
+                    onKeyDown={handleKeyDown}
                     className="flex-1 bg-transparent outline-none text-sm"
                     style={{ color: 'var(--text-primary)', minWidth: 0 }} />
                 {q && <button onClick={() => setQ('')} className="p-0.5 rounded hover:bg-red-500/10 cursor-pointer" style={{ color: 'var(--text-muted)' }}><X size={12} /></button>}
@@ -3530,13 +3583,18 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 const matIntNome = allMatsDB.find(m => m.id === amb.matInt)?.nome || '';
                                                 const matExtNome = allMatsDB.find(m => m.id === amb.matExt)?.nome || '';
 
+                                                const nItensCalc = (amb.itens || []).filter(i => i.tipo !== 'avulso').length;
                                                 if (!isMatExp) {
                                                     return (
                                                         <div className="py-2 mb-1" style={{ borderBottom: '1px dashed var(--border)' }}>
                                                             <button onClick={() => upAmb(amb.id, a => { a._matExpanded = true; })}
-                                                                className="text-[10px] flex items-center gap-1.5 cursor-pointer opacity-45 hover:opacity-100 transition-opacity w-full"
-                                                                style={{ color: 'var(--primary)' }}>
-                                                                <Layers size={10} /> Definir material do ambiente...
+                                                                className={`text-[10px] flex items-center gap-1.5 cursor-pointer transition-all w-full ${nItensCalc > 0 ? 'opacity-70 hover:opacity-100' : 'opacity-40 hover:opacity-80'}`}
+                                                                style={{ color: nItensCalc > 0 ? 'var(--warning)' : 'var(--primary)' }}>
+                                                                <Layers size={10} />
+                                                                {nItensCalc > 0
+                                                                    ? <><span>Material do ambiente</span><span className="ml-auto text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--warning)' }}>não definido</span></>
+                                                                    : <span>Definir material do ambiente...</span>
+                                                                }
                                                             </button>
                                                         </div>
                                                     );
@@ -3796,6 +3854,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 className="w-full mt-2 py-2 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-opacity opacity-40 hover:opacity-90 rounded-lg"
                                 style={{ borderTop: '1px dashed var(--border)', color: 'var(--primary)' }}>
                                 <Plus size={12} /> Adicionar ambiente
+                                {ambTemplates.length > 0 && (
+                                    <span className="text-[9px] px-1 py-0.5 rounded font-semibold" style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--success)' }}>
+                                        {ambTemplates.length} template{ambTemplates.length !== 1 ? 's' : ''}
+                                    </span>
+                                )}
                             </button>
                         )}
                     </div>
