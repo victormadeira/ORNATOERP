@@ -4531,80 +4531,72 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 <ChevronDown size={12} style={{ color: 'var(--text-muted)', transform: compExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                                             </button>
                                             {compExpanded && (
-                                                <div className="mt-2 flex flex-col gap-2">
-                                                    {/* Material (custo real) */}
-                                                    <div>
-                                                        <div className="flex justify-between items-center mb-0.5">
-                                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>Material</span>
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(matRaw)} <span className="font-semibold" style={{ color: 'var(--primary)' }}>{pct(matRaw)}%</span></span>
-                                                        </div>
-                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(matRaw, 'var(--primary)')}</div>
-                                                        {/* Sub-detalhamento material */}
-                                                        <div className="mt-1 ml-2 flex flex-col gap-0.5">
-                                                            {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
-                                                                <div key={l} className="flex justify-between text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                                                                    <span>{l}</span>
-                                                                    <span>{R$(v)}</span>
-                                                                </div>
-                                                            ))}
-                                                            {tot.chapasEconomia > 0 && (
-                                                                <div className="flex justify-between text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: 'var(--success)' }}>
-                                                                    <span>Otimização de chapas ({N(tot.chapasFrac, 1)} de {tot.chapasInteiras})</span>
-                                                                    <span>-{R$(tot.chapasEconomia)}</span>
-                                                                </div>
-                                                            )}
-                                                            {/* Fase 3: Estimativa de corte real */}
-                                                            {tot.corteReal && tot.corteReal.totalReal > 0 && tot.corteReal.totalReal !== tot.corteReal.totalFrac && (
-                                                                <div className="flex justify-between text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: tot.corteReal.totalReal > tot.corteReal.totalFrac ? 'var(--danger)' : 'var(--success)' }}>
-                                                                    <span>Corte real (FFD): {tot.corteReal.totalReal} chapas</span>
-                                                                    <span>{tot.corteReal.totalReal > tot.corteReal.totalFrac ? '+' : ''}{tot.corteReal.totalReal - tot.corteReal.totalFrac} vs fração</span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Mão de Obra */}
-                                                    <div>
-                                                        <div className="flex justify-between items-center mb-0.5">
-                                                            <span className="text-[10px] font-semibold" style={{ color: 'var(--muted)' }}>Mão de Obra</span>
-                                                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(mdo)} <span className="font-semibold" style={{ color: 'var(--muted)' }}>{pct(mdo)}%</span></span>
-                                                        </div>
-                                                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(mdo, 'var(--muted)')}</div>
-                                                    </div>
-
-                                                    {/* Custos Operacionais */}
-                                                    {custOp > 0 && (
-                                                        <div>
-                                                            <div className="flex justify-between items-center mb-0.5">
-                                                                <span className="text-[10px] font-semibold" style={{ color: 'var(--muted)' }}>Custos Operacionais</span>
-                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(custOp)} <span className="font-semibold" style={{ color: 'var(--muted)' }}>{pct(custOp)}%</span></span>
+                                                <div className="mt-2 flex flex-col gap-0.5">
+                                                    {/* helper: linha com fill de fundo proporcional ao PV */}
+                                                    {(() => {
+                                                        const row = (v, label, cor, hexFill, extra) => (
+                                                            <div key={label} className="relative flex items-center justify-between px-2 py-1.5 rounded overflow-hidden">
+                                                                <div className="absolute inset-y-0 left-0 rounded" style={{ width: `${Math.min(100, Math.max(2, v / pv * 100))}%`, background: hexFill, transition: 'width 0.4s ease' }} />
+                                                                <span className="relative text-[10px] font-semibold" style={{ color: cor }}>{label}</span>
+                                                                <span className="relative text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                                                    {R$(v)} <strong style={{ color: cor }}>{pct(v)}%</strong>
+                                                                    {extra}
+                                                                </span>
                                                             </div>
-                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(custOp, 'var(--muted)')}</div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Subtotal CP */}
-                                                    <div className="flex justify-between items-center py-1 px-2 rounded" style={{ background: 'var(--bg-muted)' }}>
-                                                        <span className="text-[10px] font-bold" style={{ color: 'var(--text-secondary)' }}>Custo Produção</span>
-                                                        <span className="text-[10px] font-bold" style={{ color: 'var(--text-primary)' }}>{R$(cpVal)} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{pct(cpVal)}%</span></span>
-                                                    </div>
-
-                                                    {/* Taxas individuais */}
-                                                    {[[impR, 'Impostos', 'var(--danger)', taxas.imp], [comR, 'Comissão', 'var(--warning)', taxas.com], [lucroR, 'Lucro', 'var(--success)', taxas.lucro], [instR, 'Instalação', 'var(--muted)', taxas.inst ?? 5], [freteR, 'Frete', 'var(--muted)', taxas.frete], [montR, 'Montagem', 'var(--muted)', taxas.mont]].filter(([v,,,t]) => t > 0).map(([v, l, cor, t]) => (
-                                                        <div key={l}>
-                                                            <div className="flex justify-between items-center mb-0.5">
-                                                                <span className="text-[10px] font-semibold" style={{ color: cor }}>{l} ({N(t,1)}%)</span>
-                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{R$(v)} <span className="font-semibold" style={{ color: cor }}>{pct(v)}%</span></span>
+                                                        );
+                                                        return (<>
+                                                            {/* ── Custos ── */}
+                                                            {row(matRaw, 'Material', 'var(--primary)', 'rgba(19,121,240,0.10)')}
+                                                            {/* Sub-itens material */}
+                                                            <div className="ml-3 mb-0.5 flex flex-col">
+                                                                {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
+                                                                    <div key={l} className="flex justify-between px-1 py-0.5 text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                                                                        <span>{l}</span><span>{R$(v)}</span>
+                                                                    </div>
+                                                                ))}
+                                                                {tot.chapasEconomia > 0 && (
+                                                                    <div className="flex justify-between px-1 py-0.5 text-[9px] mt-0.5 pt-0.5" style={{ borderTop: '1px dashed var(--border)', color: 'var(--success)' }}>
+                                                                        <span>Otimização ({N(tot.chapasFrac, 1)} de {tot.chapasInteiras} chps)</span>
+                                                                        <span>−{R$(tot.chapasEconomia)}</span>
+                                                                    </div>
+                                                                )}
+                                                                {tot.corteReal && tot.corteReal.totalReal > 0 && tot.corteReal.totalReal !== tot.corteReal.totalFrac && (
+                                                                    <div className="flex justify-between px-1 py-0.5 text-[9px]" style={{ color: tot.corteReal.totalReal > tot.corteReal.totalFrac ? 'var(--danger)' : 'var(--success)' }}>
+                                                                        <span>Corte real (FFD): {tot.corteReal.totalReal} chapas</span>
+                                                                        <span>{tot.corteReal.totalReal > tot.corteReal.totalFrac ? '+' : ''}{tot.corteReal.totalReal - tot.corteReal.totalFrac} vs fração</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                            <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-muted)' }}>{bar(v, cor)}</div>
-                                                        </div>
-                                                    ))}
+                                                            {row(mdo, 'Mão de Obra', 'var(--text-secondary)', 'rgba(100,116,139,0.13)')}
+                                                            {custOp > 0 && row(custOp, 'Custos Operacionais', 'var(--text-secondary)', 'rgba(100,116,139,0.09)')}
 
-                                                    {/* Total = PV */}
-                                                    <div className="flex justify-between items-center py-1.5 px-2 rounded-md mt-1" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.06))', border: '1px solid var(--primary-ring, rgba(19,121,240,0.15))' }}>
-                                                        <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>PREÇO VENDA</span>
-                                                        <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>{R$(pv)} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>100%</span></span>
-                                                    </div>
+                                                            {/* Subtotal CP */}
+                                                            <div className="flex justify-between items-center px-2 py-1.5 rounded mt-0.5" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                                                <span className="text-[10px] font-bold" style={{ color: 'var(--text-secondary)' }}>Custo Produção</span>
+                                                                <span className="text-[10px] font-bold" style={{ color: 'var(--text-primary)' }}>{R$(cpVal)} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{pct(cpVal)}%</span></span>
+                                                            </div>
+
+                                                            {/* ── Alocações do PV ── */}
+                                                            <div className="mt-1 flex flex-col gap-0.5">
+                                                                {[
+                                                                    [impR,  'Impostos',   '#ef4444', '#ef444420', taxas.imp],
+                                                                    [comR,  'Comissão',   '#f97316', '#f9731620', taxas.com],
+                                                                    [lucroR,'Lucro',      '#22c55e', '#22c55e20', taxas.lucro],
+                                                                    [instR, 'Instalação', '#94a3b8', '#94a3b818', taxas.inst ?? 5],
+                                                                    [freteR,'Frete',      '#94a3b8', '#94a3b812', taxas.frete],
+                                                                    [montR, 'Montagem',   '#94a3b8', '#94a3b812', taxas.mont],
+                                                                ].filter(([,,,, t]) => t > 0).map(([v, l, cor, fill, t]) =>
+                                                                    row(v, `${l} (${N(t, 1)}%)`, cor, fill)
+                                                                )}
+                                                            </div>
+
+                                                            {/* Total PV */}
+                                                            <div className="flex justify-between items-center px-2 py-2 rounded mt-0.5" style={{ background: 'rgba(19,121,240,0.06)', border: '1px solid rgba(19,121,240,0.18)' }}>
+                                                                <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>PREÇO VENDA</span>
+                                                                <span className="text-[11px] font-bold" style={{ color: 'var(--primary)' }}>{R$(pv)} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>100%</span></span>
+                                                            </div>
+                                                        </>);
+                                                    })()}
                                                 </div>
                                             )}
                                         </div>
