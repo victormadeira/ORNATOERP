@@ -4534,7 +4534,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     );
                                     const matChapas = bd.chapasAdj || 0;
                                     const matFita = bd.fitaAdj || 0;
-                                    const matFerr = bd.ferrVal || 0;
+                                    const matEspeciais = tot.totEspeciais || 0;
+                                    const matFerr = Math.max(0, (bd.ferrVal || 0) - matEspeciais); // só ferragens físicas dos módulos
                                     const matAcab = bd.acabAdj || 0;
                                     const matAcess = bd.acessVal || 0;
 
@@ -4564,7 +4565,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                             {row(matRaw, 'Material', '#3b82f6', 'rgba(59,130,246,0.18)')}
                                                             {/* Sub-itens material */}
                                                             <div className="ml-3 mb-0.5 flex flex-col">
-                                                                {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
+                                                                {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matEspeciais, 'Especiais (espelho/alum/etc)'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
                                                                     <div key={l} className="flex justify-between px-1 py-0.5 text-[9px]" style={{ color: 'var(--text-muted)' }}>
                                                                         <span>{l}</span><span>{R$(v)}</span>
                                                                     </div>
