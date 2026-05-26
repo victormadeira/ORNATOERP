@@ -4393,7 +4393,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 {descontoR > 0 && (
                                     <div className="mt-1.5 text-[10px] flex justify-between items-center px-2 py-1 rounded" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--text-muted)' }}>
                                         <span>Antes do desconto:</span>
-                                        <span style={{ textDecoration: 'line-through' }}>{R$(tot.pvFinal)}</span>
+                                        <span style={{ textDecoration: 'line-through' }}>{R$(pvBase)}</span>
                                     </div>
                                 )}
                                 {pagamento.blocos.length > 0 && (
@@ -5271,7 +5271,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                             className={`${Z.inp} w-28 text-center`} />
                         {descontoR > 0 && (
                             <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
-                                <span>Base: <strong style={{ color: 'var(--text-primary)' }}>{R$(tot.pvFinal)}</strong></span>
+                                <span>Base: <strong style={{ color: 'var(--text-primary)' }}>{R$(pvBase)}</strong></span>
                                 <span style={{ color: 'var(--danger)' }}>− {R$(descontoR)}</span>
                                 <span>Final: <strong style={{ color: 'var(--primary)', fontSize: 13 }}>{R$(pvComDesconto)}</strong></span>
                             </div>
