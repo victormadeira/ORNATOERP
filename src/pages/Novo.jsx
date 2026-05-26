@@ -4082,7 +4082,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 <div className="flex items-center gap-1">
                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
                                                     <input type="number" step="100" min="0"
-                                                        value={pvManual !== null ? pvManual : Math.round(pvCalc)}
+                                                        value={pvManual !== null ? pvManual : +pvCalc.toFixed(2)}
                                                         onChange={e => handlePvInput(+e.target.value)}
                                                         onFocus={e => { if (pvManual === null) setPvManual(Math.round(pvCalc)); e.target.select(); }}
                                                         className="w-36 text-base px-2 py-1 rounded border text-right input-glass font-bold"
