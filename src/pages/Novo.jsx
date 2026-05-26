@@ -2356,7 +2356,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             custoHoraResult, consumiveisResult, totConsumiveis,
             totNPecas, totNFerragens, totNCaixas, totNModulos, totNPortas, totNGavetas, totNPrateleiras,
         };
-    }, [ambientes, taxas, bib]);
+    }, [ambientes, taxas, bib, padroes]);
 
     // ── Sugestão automática de prazo de execução ────────────────────────────
     const sugestaoPrazo = useMemo(() => {
