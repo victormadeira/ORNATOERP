@@ -4085,7 +4085,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         value={pvManual !== null ? pvManual : pvCalc}
                                                         onChange={e => handlePvInput(+e.target.value)}
                                                         onFocus={e => { if (pvManual === null) setPvManual(Math.round(pvCalc)); e.target.select(); }}
-                                                        className="w-28 text-base px-2 py-1 rounded border text-right input-glass font-bold"
+                                                        className="w-36 text-base px-2 py-1 rounded border text-right input-glass font-bold"
                                                         style={{ color: pvManual !== null ? 'var(--warning)' : 'var(--primary)' }} />
                                                     {pvManual !== null && (
                                                         <button onClick={() => setPvManual(null)}
