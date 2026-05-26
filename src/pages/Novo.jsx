@@ -4546,7 +4546,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                         );
                                                         return (<>
                                                             {/* ── Custos ── */}
-                                                            {row(matRaw, 'Material', 'var(--primary)', 'rgba(19,121,240,0.10)')}
+                                                            {row(matRaw, 'Material', '#3b82f6', 'rgba(59,130,246,0.18)')}
                                                             {/* Sub-itens material */}
                                                             <div className="ml-3 mb-0.5 flex flex-col">
                                                                 {[[matChapas, 'Chapas'], [matFita, 'Fita'], [matFerr, 'Ferragens'], [matAcab, 'Acabamentos'], [matAcess, 'Acessórios']].filter(([v]) => v > 0).map(([v, l]) => (
@@ -4567,8 +4567,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            {row(mdo, 'Mão de Obra', 'var(--text-secondary)', 'rgba(100,116,139,0.13)')}
-                                                            {custOp > 0 && row(custOp, 'Custos Operacionais', 'var(--text-secondary)', 'rgba(100,116,139,0.09)')}
+                                                            {row(mdo, 'Mão de Obra', '#6366f1', 'rgba(99,102,241,0.16)')}
+                                                            {custOp > 0 && row(custOp, 'Custos Operacionais', '#8b5cf6', 'rgba(139,92,246,0.13)')}
 
                                                             {/* Subtotal CP */}
                                                             <div className="flex justify-between items-center px-2 py-1.5 rounded mt-0.5" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
@@ -4579,12 +4579,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                             {/* ── Alocações do PV ── */}
                                                             <div className="mt-1 flex flex-col gap-0.5">
                                                                 {[
-                                                                    [impR,  'Impostos',   '#ef4444', '#ef444420', taxas.imp],
-                                                                    [comR,  'Comissão',   '#f97316', '#f9731620', taxas.com],
-                                                                    [lucroR,'Lucro',      '#22c55e', '#22c55e20', taxas.lucro],
-                                                                    [instR, 'Instalação', '#94a3b8', '#94a3b818', taxas.inst ?? 5],
-                                                                    [freteR,'Frete',      '#94a3b8', '#94a3b812', taxas.frete],
-                                                                    [montR, 'Montagem',   '#94a3b8', '#94a3b812', taxas.mont],
+                                                                    [impR,  'Impostos',   '#e05252', 'rgba(224,82,82,0.18)',   taxas.imp],
+                                                                    [comR,  'Comissão',   '#d97706', 'rgba(217,119,6,0.16)',   taxas.com],
+                                                                    [lucroR,'Lucro',      '#16a34a', 'rgba(22,163,74,0.22)',   taxas.lucro],
+                                                                    [instR, 'Instalação', '#64748b', 'rgba(100,116,139,0.16)', taxas.inst ?? 5],
+                                                                    [freteR,'Frete',      '#64748b', 'rgba(100,116,139,0.13)', taxas.frete],
+                                                                    [montR, 'Montagem',   '#64748b', 'rgba(100,116,139,0.13)', taxas.mont],
                                                                 ].filter(([,,,, t]) => t > 0).map(([v, l, cor, fill, t]) =>
                                                                     row(v, `${l} (${N(t, 1)}%)`, cor, fill)
                                                                 )}
