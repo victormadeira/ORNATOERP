@@ -634,7 +634,7 @@ export default function PropostaApresentacao({ token }) {
     if (error) return <ErrorScreen error={error} />;
     if (!data) return null;
 
-    const { cliente_nome, empresa, portfolio, depoimentos, proposta_token, validade, criado_em } = data;
+    const { cliente_nome, arquiteta_nome, empresa, portfolio, depoimentos, proposta_token, validade, criado_em } = data;
     const videoProcessoId = getYouTubeId(empresa.video_processo);
 
     return (
@@ -651,7 +651,12 @@ export default function PropostaApresentacao({ token }) {
                         <div className="ap-hero-divider" style={{ background: c2 }} />
                         <p className="ap-hero-label" style={{ color: `${c2}` }}>PROPOSTA EXCLUSIVA</p>
                         <h1 className="ap-hero-name" style={{ color: cream, fontFamily: "'Georgia', 'Times New Roman', serif" }}>{cliente_nome}</h1>
-                        <p className="ap-hero-date" style={{ color: `${cream}80` }}>
+                        {arquiteta_nome && (
+                            <p style={{ color: `${c2}CC`, fontSize: '13px', letterSpacing: '1px', margin: '6px 0 0', fontStyle: 'italic' }}>
+                                com {arquiteta_nome}
+                            </p>
+                        )}
+                        <p className="ap-hero-date" style={{ color: `${cream}80`, marginTop: arquiteta_nome ? '10px' : undefined }}>
                             {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                     </div>
