@@ -652,8 +652,8 @@ export default function PropostaApresentacao({ token }) {
                         <p className="ap-hero-label" style={{ color: `${c2}` }}>PROPOSTA EXCLUSIVA</p>
                         <h1 className="ap-hero-name" style={{ color: cream, fontFamily: "'Georgia', 'Times New Roman', serif" }}>{cliente_nome}</h1>
                         {arquiteta_nome && (
-                            <p style={{ color: `${c2}CC`, fontSize: '13px', letterSpacing: '1px', margin: '6px 0 0', fontStyle: 'italic' }}>
-                                com {arquiteta_nome}
+                            <p style={{ color: `${c2}CC`, fontSize: '12px', letterSpacing: '1.5px', margin: '10px 0 0', fontStyle: 'normal', textTransform: 'uppercase' }}>
+                                Responsável pelo projeto — {arquiteta_nome}
                             </p>
                         )}
                         <p className="ap-hero-date" style={{ color: `${cream}80`, marginTop: arquiteta_nome ? '10px' : undefined }}>

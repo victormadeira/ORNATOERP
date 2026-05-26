@@ -630,12 +630,12 @@ export function buildPropostaHtml({
         font-weight: 500;
     }
     .client-hero-arq {
-        font-size: 10.5px;
+        font-size: 10px;
         color: ${corAccent};
-        letter-spacing: 0.8px;
-        margin-top: 5px;
-        opacity: 0.85;
-        font-style: italic;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-top: 8px;
+        opacity: 0.9;
     }
     .client-hero-accent {
         width: 40px; height: 2.5px;
@@ -1035,7 +1035,7 @@ export function buildPropostaHtml({
             <div class="client-hero-label">Proposta comercial elaborada para</div>
             <div class="client-hero-name">${cliente?.nome || '—'}</div>
             ${orcamento.projeto ? `<div class="client-hero-project">${orcamento.projeto}</div>` : ''}
-            ${orcamento.arquiteta_nome ? `<div class="client-hero-arq">com ${orcamento.arquiteta_nome}</div>` : ''}
+            ${orcamento.arquiteta_nome ? `<div class="client-hero-arq">Responsável pelo projeto — ${orcamento.arquiteta_nome}</div>` : ''}
             <div class="client-hero-accent"></div>
         </div>
 
