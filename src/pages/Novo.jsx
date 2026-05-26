@@ -4674,26 +4674,18 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 </div>
                                             </div>
 
-                                            {/* Comparison bars */}
-                                            <div className="mt-3 flex flex-col gap-1.5">
-                                                <div>
-                                                    <div className="flex justify-between text-[9px] mb-0.5">
-                                                        <span style={{ color: 'var(--primary)' }}>PV Markup</span>
-                                                        <span className="font-bold" style={{ color: 'var(--primary)' }}>{R$(pvAtual)}</span>
+                                            {/* Comparison bars — mesmo estilo das linhas de taxa */}
+                                            <div className="mt-3 flex flex-col gap-0.5">
+                                                {[
+                                                    [pvAtual,        'PV Markup',         'var(--primary)',      'rgba(19,121,240,0.18)'],
+                                                    [refCentroCusto, 'Ref. Centro Custo',  '#64748b',             'rgba(100,116,139,0.16)'],
+                                                ].map(([v, label, cor, fill]) => (
+                                                    <div key={label} className="relative flex items-center justify-between px-2 py-1.5 rounded overflow-hidden">
+                                                        <div className="absolute inset-y-0 left-0 rounded" style={{ width: `${Math.min(100, Math.max(2, (v / maxVal) * 100))}%`, background: fill, transition: 'width 0.4s ease' }} />
+                                                        <span className="relative text-[10px] font-semibold" style={{ color: cor }}>{label}</span>
+                                                        <span className="relative text-[10px] font-bold" style={{ color: cor }}>{R$(v)}</span>
                                                     </div>
-                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--border)' }}>
-                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (pvAtual / maxVal) * 100)}%`, background: 'var(--primary)', transition: 'width 0.3s' }} />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="flex justify-between text-[9px] mb-0.5">
-                                                        <span style={{ color: 'var(--text-muted)' }}>Ref. Centro Custo</span>
-                                                        <span className="font-bold" style={{ color: 'var(--text-muted)' }}>{R$(refCentroCusto)}</span>
-                                                    </div>
-                                                    <div className="w-full h-2 rounded-full" style={{ background: 'var(--border)' }}>
-                                                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (refCentroCusto / maxVal) * 100)}%`, background: 'var(--text-muted)', transition: 'width 0.3s' }} />
-                                                    </div>
-                                                </div>
+                                                ))}
                                             </div>
 
                                             {/* Difference indicator */}
