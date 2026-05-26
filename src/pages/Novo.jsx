@@ -2373,14 +2373,17 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const prazoExecEfetivo = prazoExecucao ?? sugestaoPrazo;
 
     // ── Desconto e totais de pagamento ───────────────────────────────────────
+    // pvBase: quando pvManual está definido, ele é a fonte da verdade do PV
+    // (o engine back-calcula lucro% com arredondamento, o que gera pequena divergência)
+    const pvBase = pvManual !== null ? pvManual : tot.pvFinal;
     const descontoR = (() => {
         const v = pagamento.desconto.valor || 0;
         if (!v) return 0;
         return pagamento.desconto.tipo === '%'
-            ? tot.pvFinal * (v / 100)
-            : Math.min(v, tot.pvFinal);
+            ? pvBase * (v / 100)
+            : Math.min(v, pvBase);
     })();
-    const pvComDesconto = Math.max(0, tot.pvFinal - descontoR);
+    const pvComDesconto = Math.max(0, pvBase - descontoR);
     const somaBlocos = pagamento.blocos.reduce((s, b) => s + (Number(b.percentual) || 0), 0);
 
     // ── Sync proposta HTML: regenera e envia para o portal a cada save ─────
@@ -4079,7 +4082,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 <div className="flex items-center gap-1">
                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>R$</span>
                                                     <input type="number" step="100" min="0"
-                                                        value={pvManual !== null ? pvManual : Math.round(pvCalc)}
+                                                        value={pvManual !== null ? pvManual : pvCalc}
                                                         onChange={e => handlePvInput(+e.target.value)}
                                                         onFocus={e => { if (pvManual === null) setPvManual(Math.round(pvCalc)); e.target.select(); }}
                                                         className="w-28 text-base px-2 py-1 rounded border text-right input-glass font-bold"
