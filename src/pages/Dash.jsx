@@ -313,12 +313,21 @@ function QuickActions({ nav, isVendedor }) {
 // ATTENTION STRIP — compact banner acima das tabs, sempre visível
 // ══════════════════════════════════════════════════════════════════
 function AtencaoStrip({ data, nav }) {
-    if (!data || (data.total_parados === 0 && data.total_vencidas === 0)) return null;
-    const hasBoth = data.total_parados > 0 && data.total_vencidas > 0;
+    const receberHoje = data?.contas_receber_hoje?.length || 0;
+    const pagarHoje = data?.pagar_hoje?.length || 0;
+    const temHoje = receberHoje + pagarHoje > 0;
+    if (!data || (data.total_parados === 0 && data.total_vencidas === 0 && !temHoje)) return null;
     const critical = data.total_vencidas > 0;
-    const color = critical ? 'var(--danger)' : 'var(--warning)';
+    const color = critical ? 'var(--danger)' : temHoje ? 'var(--warning)' : 'var(--warning)';
     const bg = critical ? 'var(--danger-bg)' : 'var(--warning-bg)';
     const border = critical ? 'var(--danger-border)' : 'var(--warning-border)';
+
+    const pills = [];
+    if (data.total_parados > 0) pills.push({ label: `${data.total_parados} orçamento${data.total_parados > 1 ? 's' : ''} parado${data.total_parados > 1 ? 's' : ''}`, onClick: () => nav('orcs'), col: color });
+    if (data.total_vencidas > 0) pills.push({ label: `${data.total_vencidas} conta${data.total_vencidas > 1 ? 's' : ''} vencida${data.total_vencidas > 1 ? 's' : ''} · ${R$(data.valor_vencido)}`, onClick: () => nav('financeiro'), col: 'var(--danger)' });
+    if (receberHoje > 0) pills.push({ label: `${receberHoje} a receber hoje · ${R$(data.valor_receber_hoje)}`, onClick: () => nav('financeiro'), col: 'var(--warning)' });
+    if (pagarHoje > 0) pills.push({ label: `${pagarHoje} a pagar hoje · ${R$(data.valor_pagar_hoje)}`, onClick: () => nav('financeiro'), col: 'var(--warning)' });
+
     return (
         <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -328,17 +337,14 @@ function AtencaoStrip({ data, nav }) {
         }}>
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                 <AlertTriangle size={13} style={{ color, flexShrink: 0 }} strokeWidth={2.4} />
-                {data.total_parados > 0 && (
-                    <button onClick={() => nav('orcs')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color, padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 }}>
-                        {data.total_parados} orçamento{data.total_parados > 1 ? 's' : ''} parado{data.total_parados > 1 ? 's' : ''}
-                    </button>
-                )}
-                {hasBoth && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>·</span>}
-                {data.total_vencidas > 0 && (
-                    <button onClick={() => nav('financeiro')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--danger)', padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 }}>
-                        {data.total_vencidas} conta{data.total_vencidas > 1 ? 's' : ''} vencida{data.total_vencidas > 1 ? 's' : ''} · {R$(data.valor_vencido)}
-                    </button>
-                )}
+                {pills.map((p, i) => (
+                    <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {i > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>·</span>}
+                        <button onClick={p.onClick} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: p.col, padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                            {p.label}
+                        </button>
+                    </span>
+                ))}
             </div>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500, flexShrink: 0 }}>Precisa de atenção</span>
         </div>
@@ -347,7 +353,26 @@ function AtencaoStrip({ data, nav }) {
 
 // ══════════════════════════════════════════════════════════════════
 function FilaAtencao({ data, nav }) {
-    if (!data || (data.total_parados === 0 && data.total_vencidas === 0)) return null;
+    const receberHoje = data?.contas_receber_hoje || [];
+    const pagarHoje = data?.pagar_hoje || [];
+    const temHoje = receberHoje.length + pagarHoje.length > 0;
+    if (!data || (data.total_parados === 0 && data.total_vencidas === 0 && !temHoje)) return null;
+
+    // Número de colunas: até 3 (parados | vencidas | hoje)
+    const cols = [data.total_parados > 0, data.total_vencidas > 0, temHoje].filter(Boolean).length;
+    const colTemplate = `repeat(${cols}, 1fr)`;
+
+    // Itens do painel "Vence hoje" — receber + pagar mesclados, ordenados por valor desc
+    const hojeItems = [
+        ...receberHoje.map(c => ({ ...c, tipo: 'receber', label: c.descricao || c.projeto_nome || '—' })),
+        ...pagarHoje.map(c => ({ ...c, tipo: 'pagar', label: c.descricao || c.fornecedor || '—' })),
+    ].sort((a, b) => (b.valor || 0) - (a.valor || 0)).slice(0, 5);
+
+    const subtitle = [
+        data.total_parados > 0 && `${data.total_parados} orçamento${data.total_parados > 1 ? 's' : ''} parado${data.total_parados > 1 ? 's' : ''}`,
+        data.total_vencidas > 0 && `${data.total_vencidas} vencida${data.total_vencidas > 1 ? 's' : ''}`,
+        temHoje && `${receberHoje.length + pagarHoje.length} vencem hoje`,
+    ].filter(Boolean).join(' · ');
 
     return (
         <div className="chart-card-pro animate-fade-up" style={{ marginBottom: 20 }}>
@@ -362,16 +387,12 @@ function FilaAtencao({ data, nav }) {
                     </span>
                     <h3>Fila de atenção</h3>
                 </div>
-                <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>
-                    {data.total_parados > 0 && `${data.total_parados} orçamento${data.total_parados > 1 ? 's' : ''} parado${data.total_parados > 1 ? 's' : ''}`}
-                    {data.total_parados > 0 && data.total_vencidas > 0 && ' · '}
-                    {data.total_vencidas > 0 && `${data.total_vencidas} conta${data.total_vencidas > 1 ? 's' : ''} vencida${data.total_vencidas > 1 ? 's' : ''}`}
-                </span>
+                <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500 }}>{subtitle}</span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: data.total_parados > 0 && data.total_vencidas > 0 ? '1fr 1fr' : '1fr' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: colTemplate }}>
                 {data.total_parados > 0 && (
-                    <div style={{ borderRight: data.total_vencidas > 0 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{ borderRight: '1px solid var(--border)' }}>
                         <div style={{ padding: '10px 22px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.10em', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
                             <Clock size={11} strokeWidth={2.4} /> Orçamentos parados (&gt;7 dias)
                         </div>
@@ -380,18 +401,11 @@ function FilaAtencao({ data, nav }) {
                                 : o.dias_parado >= 7 ? { color: 'var(--warning)', bg: 'rgba(176,120,32,0.12)', border: 'rgba(176,120,32,0.28)' }
                                     : { color: 'var(--text-muted)', bg: 'var(--bg-muted)', border: 'var(--border)' };
                             return (
-                                <div
-                                    key={o.id}
-                                    onClick={() => nav('orcs')}
+                                <div key={o.id} onClick={() => nav('orcs')}
                                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('orcs'); } }}
                                     role="button" tabIndex={0}
                                     aria-label={`Orçamento de ${o.cliente_nome}, ${o.dias_parado} dias parado`}
-                                    style={{
-                                        padding: '12px 22px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                                        animation: `stagger-in 0.25s ease ${i * 40}ms both`,
-                                        transition: 'background 150ms var(--ease-out)',
-                                    }}
+                                    style={{ padding: '12px 22px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, animation: `stagger-in 0.25s ease ${i * 40}ms both`, transition: 'background 150ms var(--ease-out)' }}
                                     onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
                                     onMouseLeave={e => { e.currentTarget.style.background = ''; }}
                                 >
@@ -399,13 +413,7 @@ function FilaAtencao({ data, nav }) {
                                         <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{o.cliente_nome}</div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{o.ambiente || '—'} · <span className="font-tabular">{R$(o.valor_venda)}</span></div>
                                     </div>
-                                    <span style={{
-                                        fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
-                                        background: urgency.bg, color: urgency.color,
-                                        border: `1px solid ${urgency.border}`,
-                                        whiteSpace: 'nowrap', flexShrink: 0,
-                                        fontVariantNumeric: 'tabular-nums',
-                                    }}>{o.dias_parado}d</span>
+                                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '4px 10px', borderRadius: 99, background: urgency.bg, color: urgency.color, border: `1px solid ${urgency.border}`, whiteSpace: 'nowrap', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{o.dias_parado}d</span>
                                 </div>
                             );
                         })}
@@ -413,23 +421,16 @@ function FilaAtencao({ data, nav }) {
                 )}
 
                 {data.total_vencidas > 0 && (
-                    <div>
+                    <div style={{ borderRight: temHoje ? '1px solid var(--border)' : 'none' }}>
                         <div style={{ padding: '10px 22px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.10em', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
                             <XCircle size={11} strokeWidth={2.4} style={{ color: 'var(--danger)' }} /> Contas vencidas · <span className="font-tabular" style={{ color: 'var(--danger)' }}>{R$(data.valor_vencido)}</span>
                         </div>
                         {data.contas_vencidas.slice(0, 5).map((c, i) => (
-                            <div
-                                key={c.id}
-                                onClick={() => nav('financeiro')}
+                            <div key={c.id} onClick={() => nav('financeiro')}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('financeiro'); } }}
                                 role="button" tabIndex={0}
                                 aria-label={`Conta vencida: ${c.descricao}, ${c.dias_atraso} dias atraso, ${R$(c.valor)}`}
-                                style={{
-                                    padding: '12px 22px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                                    animation: `stagger-in 0.25s ease ${i * 40}ms both`,
-                                    transition: 'background 150ms var(--ease-out)',
-                                }}
+                                style={{ padding: '12px 22px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, animation: `stagger-in 0.25s ease ${i * 40}ms both`, transition: 'background 150ms var(--ease-out)' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = ''; }}
                             >
@@ -443,6 +444,47 @@ function FilaAtencao({ data, nav }) {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* ── Painel: Vence hoje ─────────────────────────────── */}
+                {temHoje && (
+                    <div>
+                        <div style={{ padding: '10px 22px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.10em', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Calendar size={11} strokeWidth={2.4} style={{ color: 'var(--warning)' }} />
+                            <span style={{ color: 'var(--warning)' }}>Vence hoje</span>
+                            <span className="font-tabular" style={{ color: 'var(--warning)' }}>
+                                · {R$((data.valor_receber_hoje || 0) + (data.valor_pagar_hoje || 0))}
+                            </span>
+                        </div>
+                        {hojeItems.map((c, i) => (
+                            <div key={`${c.tipo}-${c.id}`} onClick={() => nav('financeiro')}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav('financeiro'); } }}
+                                role="button" tabIndex={0}
+                                style={{ padding: '12px 22px', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, animation: `stagger-in 0.25s ease ${i * 40}ms both`, transition: 'background 150ms var(--ease-out)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                            >
+                                <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{c.label}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{c.tipo === 'receber' ? 'A receber' : 'A pagar'}</div>
+                                </div>
+                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div className="font-tabular" style={{ fontSize: 14, fontWeight: 700, color: c.tipo === 'receber' ? 'var(--success)' : 'var(--warning)', letterSpacing: '-0.02em' }}>{R$(c.valor)}</div>
+                                    <div style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginTop: 3, display: 'inline-block', background: c.tipo === 'receber' ? 'var(--success-bg)' : 'var(--warning-bg)', color: c.tipo === 'receber' ? 'var(--success)' : 'var(--warning)' }}>
+                                        {c.tipo === 'receber' ? '↑ Receber' : '↓ Pagar'}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {/* Resumo dos próximos 7 dias */}
+                        {((data.receber_7d_qtd || 0) + (data.pagar_7d_qtd || 0)) > 0 && (
+                            <div style={{ padding: '10px 22px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Próximos 7 dias:</span>
+                                {data.receber_7d_qtd > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--success)' }}>+{R$(data.receber_7d_valor)} a receber</span>}
+                                {data.pagar_7d_qtd > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)' }}>−{R$(data.pagar_7d_valor)} a pagar</span>}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

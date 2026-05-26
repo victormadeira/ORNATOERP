@@ -92,12 +92,63 @@ router.get('/', requireAuth, (req, res) => {
             LIMIT 10
         `).all(...params);
 
+        // ── Contas a receber que vencem HOJE ─────────────────────────
+        const contasReceberHoje = db.prepare(`
+            SELECT cr.id, cr.descricao, cr.valor, cr.data_vencimento,
+                   p.nome as projeto_nome, p.id as projeto_id
+            FROM contas_receber cr
+            JOIN projetos p ON p.id = cr.projeto_id
+            WHERE cr.status = 'pendente'
+            AND cr.data_vencimento = today_sp()
+            ${userFilterP.replace('o.', 'p.')}
+            ORDER BY cr.valor DESC
+            LIMIT 10
+        `).all(...params);
+
+        // ── Contas a receber que vencem nos próximos 7 dias (excl. hoje) ─
+        const receber7d = db.prepare(`
+            SELECT COALESCE(SUM(cr.valor), 0) as valor, COUNT(*) as qtd
+            FROM contas_receber cr
+            JOIN projetos p ON p.id = cr.projeto_id
+            WHERE cr.status = 'pendente'
+            AND cr.data_vencimento > today_sp()
+            AND cr.data_vencimento <= date(today_sp(), '+7 days')
+            ${userFilterP.replace('o.', 'p.')}
+        `).get(...params);
+
+        // ── Contas a pagar que vencem HOJE ───────────────────────────
+        const pagarHoje = db.prepare(`
+            SELECT id, descricao, valor, data_vencimento, categoria, fornecedor
+            FROM contas_pagar
+            WHERE status = 'pendente' AND data_vencimento = today_sp()
+            ORDER BY valor DESC
+            LIMIT 10
+        `).all();
+
+        // ── Contas a pagar que vencem nos próximos 7 dias (excl. hoje) ─
+        const pagar7d = db.prepare(`
+            SELECT COALESCE(SUM(valor), 0) as valor, COUNT(*) as qtd
+            FROM contas_pagar
+            WHERE status = 'pendente'
+            AND data_vencimento > today_sp()
+            AND data_vencimento <= date(today_sp(), '+7 days')
+        `).get();
+
         const atencao = {
             orcamentos_parados: orcParados,
             contas_vencidas: contasVencidas,
             total_parados: orcParados.length,
             total_vencidas: contasVencidas.length,
             valor_vencido: contasVencidas.reduce((s, c) => s + (c.valor || 0), 0),
+            // a vencer
+            contas_receber_hoje: contasReceberHoje,
+            valor_receber_hoje: contasReceberHoje.reduce((s, c) => s + (c.valor || 0), 0),
+            pagar_hoje: pagarHoje,
+            valor_pagar_hoje: pagarHoje.reduce((s, c) => s + (c.valor || 0), 0),
+            receber_7d_qtd: receber7d?.qtd || 0,
+            receber_7d_valor: receber7d?.valor || 0,
+            pagar_7d_qtd: pagar7d?.qtd || 0,
+            pagar_7d_valor: pagar7d?.valor || 0,
         };
 
         // ── Pipeline (só lead→prod, sem done/arquivo/perdido) ────────

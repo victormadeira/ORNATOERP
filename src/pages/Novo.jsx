@@ -2775,6 +2775,22 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     {saveStatus === 'error' && <><AlertTriangle size={12} /> Erro</>}
                                 </span>
                             )}
+                            {editOrc?.id && (
+                                <button
+                                    title="Clonar este orçamento como novo rascunho"
+                                    onClick={async () => {
+                                        try {
+                                            const novo = await api.post(`/orcamentos/${editOrc.id}/duplicar`);
+                                            notify(`Clonado → ${novo.numero}`);
+                                            nav('novo', novo);
+                                        } catch (ex) { notify(ex.error || 'Erro ao clonar'); }
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                                    style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                                >
+                                    <Copy size={13} /> Clonar
+                                </button>
+                            )}
                             <button onClick={salvar} className={Z.btn}>Salvar</button>
                         </div>
                     )}
