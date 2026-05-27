@@ -240,20 +240,25 @@ router.get('/landing/:token', (req, res) => {
     const portalToken = db.prepare('SELECT * FROM portal_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > datetime(\'now\'))').get(token);
     if (!portalToken) return res.status(404).json({ error: 'Link inválido ou expirado' });
 
-    const orc = db.prepare('SELECT id, cliente_nome, numero, mods_json, criado_em, arquiteta_nome, portal_ativo FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
+    const orc = db.prepare('SELECT id, cliente_nome, numero, mods_json, criado_em, arquiteta_nome, portal_ativo, portal_validade_ate FROM orcamentos WHERE id = ?').get(portalToken.orc_id);
     if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
     if (orc.portal_ativo === 0) return res.status(403).json({ error: 'link_desativado' });
 
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
 
     // Calcular validade e bloquear acesso se vencida
+    // portal_validade_ate sobrescreve o cálculo padrão (criado_em + validade_dias)
     let validade = null;
     try {
-        const mods = orc.mods_json ? JSON.parse(orc.mods_json) : {};
-        const dias = mods.validade_dias || parseInt(mods.validade_proposta) || 15;
-        const base = orc.criado_em ? new Date(orc.criado_em) : new Date();
-        base.setDate(base.getDate() + dias);
-        validade = base.toISOString().split('T')[0];
+        if (orc.portal_validade_ate) {
+            validade = orc.portal_validade_ate;
+        } else {
+            const mods = orc.mods_json ? JSON.parse(orc.mods_json) : {};
+            const dias = mods.validade_dias || parseInt(mods.validade_proposta) || 15;
+            const base = orc.criado_em ? new Date(orc.criado_em) : new Date();
+            base.setDate(base.getDate() + dias);
+            validade = base.toISOString().split('T')[0];
+        }
     } catch(e) {}
     const hoje = new Date().toISOString().split('T')[0];
     if (validade && validade < hoje) {
@@ -382,14 +387,18 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
         }
     }
 
-    // Calcular validade
+    // Calcular validade (portal_validade_ate sobrescreve criado_em + dias)
     let validade = null;
     try {
-        const mods = orc.mods_json ? JSON.parse(orc.mods_json) : {};
-        const dias = mods.validade_dias || parseInt(mods.validade_proposta) || 15;
-        const base = orc.criado_em ? new Date(orc.criado_em) : new Date();
-        base.setDate(base.getDate() + dias);
-        validade = base.toISOString().split('T')[0];
+        if (orc.portal_validade_ate) {
+            validade = orc.portal_validade_ate;
+        } else {
+            const mods = orc.mods_json ? JSON.parse(orc.mods_json) : {};
+            const dias = mods.validade_dias || parseInt(mods.validade_proposta) || 15;
+            const base = orc.criado_em ? new Date(orc.criado_em) : new Date();
+            base.setDate(base.getDate() + dias);
+            validade = base.toISOString().split('T')[0];
+        }
     } catch (_) {}
 
     const empFull = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent, telefone, telefone_whatsapp, email FROM empresa_config WHERE id = 1').get();

@@ -2642,6 +2642,9 @@ const migrations = [
 
   // ═══ Portal: desativar link do cliente temporariamente ═══
   "ALTER TABLE orcamentos ADD COLUMN portal_ativo INTEGER DEFAULT 1",
+
+  // ═══ Portal: renovar validade manualmente (override da data calculada) ═══
+  "ALTER TABLE orcamentos ADD COLUMN portal_validade_ate TEXT DEFAULT NULL",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

@@ -9,7 +9,7 @@ import { buildContratoHtml } from './ContratoHtml';
 import {
     FileText, BarChart3, FileSignature, Plus, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Copy,
     FolderOpen, Package, Settings, Layers, X, RefreshCw, Wrench, AlertTriangle, Box, Search,
-    ToggleLeft, ToggleRight, Info, CreditCard, Eye, EyeOff, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2,
+    ToggleLeft, ToggleRight, Info, CreditCard, Eye, EyeOff, Globe, Monitor, Smartphone, Clock, ExternalLink, Share2, CalendarDays,
     Lock, Unlock, Shield, ShieldAlert, FilePlus2, CheckCircle, Upload, Brain, Sparkles,
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
@@ -1344,7 +1344,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [ambientes, setAmbientes] = useState(editOrc?.ambientes || []);
     const [obs, so] = useState(editOrc?.obs || '');
     const [arquitetaNome, setArquitetaNome] = useState(editOrc?.arquiteta_nome || '');
-    const [portalAtivo, setPortalAtivo] = useState(editOrc?.portal_ativo !== 0);
+    const [portalAtivo, setPortalAtivo] = useState(editOrc?.portal_ativo !== 0)
+    const [portalValidadeAte, setPortalValidadeAte] = useState(editOrc?.portal_validade_ate || null);
     const [expandedAmb, setExpandedAmb] = useState(null);
     const [expandedItem, setExpandedItem] = useState(null);
     const [dragOverGrupo, setDragOverGrupo] = useState(null); // grupo_id being hovered during drag
@@ -1587,7 +1588,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         if (orcFull.endereco_obra != null) setEnderecoObra(orcFull.endereco_obra);
         if (orcFull.validade_dias) setValidadeDias(orcFull.validade_dias);
         if (orcFull.arquiteta_nome != null) setArquitetaNome(orcFull.arquiteta_nome);
-        if (orcFull.portal_ativo != null) setPortalAtivo(orcFull.portal_ativo !== 0);
+        if (orcFull.portal_ativo != null) setPortalAtivo(orcFull.portal_ativo !== 0)
+        if (orcFull.portal_validade_ate !== undefined) setPortalValidadeAte(orcFull.portal_validade_ate || null);
     }, [orcFull]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const addBloco = () => setPagamento(p => ({
@@ -2425,6 +2427,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             prazo_entrega: prazoEntrega, prazo_execucao: prazoExecucao, endereco_obra: enderecoObra, validade_proposta: validadeProposta, validade_dias: validadeDias,
             arquiteta_nome: arquitetaNome,
             portal_ativo: portalAtivo ? 1 : 0,
+            portal_validade_ate: portalValidadeAte || null,
             ...(unlocked ? { force_unlock: true } : {}),
         };
     };
@@ -5065,6 +5068,55 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     {portalAtivo ? 'PAUSAR' : 'REATIVAR'}
                                 </span>
                             </button>
+
+                            {/* Validade da proposta */}
+                            {(() => {
+                                const hojeStr = new Date().toISOString().split('T')[0];
+                                let venceEm = null;
+                                if (portalValidadeAte) {
+                                    venceEm = portalValidadeAte;
+                                } else if (editOrc?.criado_em) {
+                                    const base = new Date(editOrc.criado_em);
+                                    base.setDate(base.getDate() + (Number(validadeDias) || 15));
+                                    venceEm = base.toISOString().split('T')[0];
+                                }
+                                const vencida = venceEm && venceEm < hojeStr;
+                                const fmtData = d => { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
+                                const renovar = async (dias) => {
+                                    const nova = new Date();
+                                    nova.setDate(nova.getDate() + dias);
+                                    const novaStr = nova.toISOString().split('T')[0];
+                                    const prev = portalValidadeAte;
+                                    setPortalValidadeAte(novaStr);
+                                    try {
+                                        await api.put(`/orcamentos/${editOrc.id}`, { portal_validade_ate: novaStr });
+                                        notify(`Proposta renovada até ${fmtData(novaStr)}`);
+                                    } catch { setPortalValidadeAte(prev); notify('Erro ao renovar'); }
+                                };
+                                return (
+                                    <div className="px-3 py-2 rounded-lg text-xs" style={{ background: vencida ? 'rgba(239,68,68,0.06)' : 'var(--bg-muted)', border: `1px solid ${vencida ? 'rgba(239,68,68,0.22)' : 'var(--border)'}` }}>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="flex items-center gap-1.5" style={{ color: vencida ? 'var(--danger)' : 'var(--text-muted)' }}>
+                                                <CalendarDays size={11} />
+                                                <span>{vencida ? '⚠ VENCIDA em' : 'Vence em'}</span>
+                                                <strong style={{ color: vencida ? 'var(--danger)' : 'var(--text-secondary)' }}>{fmtData(venceEm)}</strong>
+                                                {portalValidadeAte && <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>renovada</span>}
+                                            </span>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <span className="text-[8px] mr-0.5" style={{ color: 'var(--text-muted)' }}>Renovar:</span>
+                                                {[15, 30, 60].map(d => (
+                                                    <button key={d} onClick={() => renovar(d)}
+                                                        className="text-[9px] px-1.5 py-0.5 rounded font-bold cursor-pointer transition-opacity hover:opacity-70"
+                                                        style={{ background: vencida ? 'rgba(239,68,68,0.14)' : 'rgba(19,121,240,0.1)', color: vencida ? 'var(--danger)' : 'var(--primary)' }}>
+                                                        +{d}d
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             <div>
                                 <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
                                     EXPERIÊNCIA COMPLETA
