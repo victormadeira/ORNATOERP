@@ -179,9 +179,7 @@ export default function LandingPageV2() {
     const [faqOpen, setFaqOpen]             = useState(-1);
     const [statsVisible, setStatsVisible]   = useState(false);
     const [heroStatsVisible, setHeroStatsVisible] = useState(false);
-    const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
-    const [carouselIdx, setCarouselIdx]       = useState(0);
-    const carouselTrackRef                    = useRef(null);
+    const [verMais, setVerMais] = useState(false);
     const [showStickyWA, setShowStickyWA]     = useState(false);
     const [menuOpen, setMenuOpen]             = useState(false);
     const [popupOpen, setPopupOpen]           = useState(false);
@@ -317,30 +315,8 @@ export default function LandingPageV2() {
         }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
         document.querySelectorAll('.lp-reveal').forEach(el => obs.observe(el));
         return () => obs.disconnect();
-    }, [config, portfolio, categoriaAtiva, portfolioLoaded]);
+    }, [config, portfolio, portfolioLoaded]);
 
-    // Carrossel: reset ao trocar categoria + keyboard nav + scroll detection
-    useEffect(() => {
-        setCarouselIdx(0);
-        if (carouselTrackRef.current) carouselTrackRef.current.scrollTo({ left: 0, behavior: 'auto' });
-    }, [categoriaAtiva]);
-
-    useEffect(() => {
-        const track = carouselTrackRef.current;
-        if (!track) return;
-        let raf = 0;
-        const onScroll = () => {
-            cancelAnimationFrame(raf);
-            raf = requestAnimationFrame(() => {
-                const w = track.children[0]?.offsetWidth || track.clientWidth;
-                if (!w) return;
-                const idx = Math.round(track.scrollLeft / w);
-                setCarouselIdx(prev => (prev !== idx ? idx : prev));
-            });
-        };
-        track.addEventListener('scroll', onScroll, { passive: true });
-        return () => { track.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
-    }, [portfolio, categoriaAtiva]);
 
     useEffect(() => {
         const active = document.querySelector('.lp-thumb.active');
@@ -576,22 +552,30 @@ export default function LandingPageV2() {
     const etapas  = parseJsonList(config?.landing_etapas_json, ETAPAS_DEFAULT);
     const faqList = parseJsonList(config?.landing_faq_json, FAQ_DEFAULT);
 
-    // Só mostra placeholders após o fetch terminar e se não tiver fotos suficientes
-    // Enquanto carrega (portfolioLoaded=false), allItems fica vazio e o carousel não aparece
-    const allItems = !portfolioLoaded
-        ? []
-        : portfolio.length >= 6
-            ? portfolio
-            : [...portfolio, ...PORTFOLIO_PLACEHOLDER.slice(0, 6 - portfolio.length)];
+    // Só mostra itens após o fetch terminar
+    const allItems = !portfolioLoaded ? [] : portfolio;
 
-    const portfolioFiltrado = categoriaAtiva === 'Todos'
-        ? allItems
-        : allItems.filter(item => getCategoria(item) === categoriaAtiva);
+    // Seleção inteligente das primeiras 10 fotos: 1 de cada categoria, depois completa
+    const INITIAL_LIMIT = 10;
+    const initialItems = useMemo(() => {
+        if (!allItems.length) return [];
+        const categorias = [...new Set(allItems.map(item => getCategoria(item)))];
+        const seen = new Set();
+        const result = [];
+        // 1ª passagem: 1 foto de cada categoria
+        for (const cat of categorias) {
+            const item = allItems.find(i => getCategoria(i) === cat && !seen.has(i.id || i));
+            if (item) { result.push(item); seen.add(item.id || item); }
+        }
+        // 2ª passagem: preenche até o limite
+        for (const item of allItems) {
+            if (result.length >= INITIAL_LIMIT) break;
+            if (!seen.has(item.id || item)) { result.push(item); seen.add(item.id || item); }
+        }
+        return result.slice(0, INITIAL_LIMIT);
+    }, [allItems]);
 
-    const categoriasVisiveis = CATEGORIAS.filter(cat => {
-        if (cat === 'Todos') return true;
-        return allItems.some(item => getCategoria(item) === cat);
-    });
+    const displayedItems = verMais ? allItems : initialItems;
 
     const formatTel = (v) => {
         const nums = v.replace(/\D/g, '').slice(0, 11);
@@ -926,160 +910,47 @@ export default function LandingPageV2() {
                         Projetos que já <span className="lp-hl">executamos</span>
                     </h2>
 
-                    {categoriasVisiveis.length > 1 && (
-                        <div className="lp-portfolio-tabs-wrap">
-                            <div className="lp-portfolio-tabs">
-                                {categoriasVisiveis.map(cat => (
-                                    <button
-                                        key={cat}
-                                        className={`lp-tab-btn${categoriaAtiva === cat ? ' active' : ''}`}
-                                        onClick={(e) => {
-                                            setCategoriaAtiva(cat);
-                                            e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                        }}
-                                    >
-                                        {cat}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                     {!portfolioLoaded ? (
                         <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0', opacity: 0.3 }}>
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                         </div>
-                    ) : portfolioFiltrado.length > 0 ? (
-                        <div className="lp-carousel" key={categoriaAtiva} style={{ opacity: 1, transform: 'none' }}>
-                            <div className="lp-carousel-header">
-                                <div className="lp-carousel-counter">
-                                    <span className="lp-counter-current">{String(Math.min(carouselIdx + 1, portfolioFiltrado.length)).padStart(2, '0')}</span>
-                                    <span className="lp-counter-sep">/</span>
-                                    <span className="lp-counter-total">{String(portfolioFiltrado.length).padStart(2, '0')}</span>
-                                </div>
-                                <div className="lp-carousel-cat">{categoriaAtiva}</div>
-                            </div>
-
-                            <div className="lp-carousel-stage">
-                                <button
-                                    type="button"
-                                    className="lp-carousel-arrow lp-arrow-prev"
-                                    onClick={() => {
-                                        const t = carouselTrackRef.current;
-                                        if (!t) return;
-                                        t.scrollTo({ left: Math.max(0, carouselIdx - 1) * (t.children[0]?.offsetWidth || t.clientWidth), behavior: 'smooth' });
-                                    }}
-                                    disabled={carouselIdx === 0}
-                                    aria-label="Foto anterior"
-                                >
-                                    <ChevronLeft size={24} strokeWidth={2.2} />
-                                </button>
-
-                                <div ref={carouselTrackRef} className="lp-carousel-track">
-                                    {portfolioFiltrado.map((item, i) => {
-                                        const near = Math.abs(i - carouselIdx) <= 1;
-                                        return (
-                                            <div key={item.id || i} className="lp-carousel-slide">
-                                                <div className="lp-carousel-img-wrap">
-                                                    <img
-                                                        className="lp-carousel-img-front"
-                                                        src={item.imagem}
-                                                        alt={item.titulo || 'Projeto'}
-                                                        loading={near ? 'eager' : 'lazy'}
-                                                        decoding="async"
-                                                        fetchpriority={i === carouselIdx ? 'high' : 'auto'}
-                                                        draggable="false"
-                                                        style={{ opacity: 0, transition: 'opacity 0.4s ease' }}
-                                                        onLoad={e => {
-                                                            const img = e.currentTarget;
-                                                            img.style.opacity = '1';
-                                                            const wrap = img.parentElement;
-                                                            if (!wrap || !img.naturalWidth || !img.naturalHeight) return;
-                                                            const ratio = img.naturalWidth / img.naturalHeight;
-                                                            if (ratio >= 1) {
-                                                                // Paisagem/quadrada: container exato → sem bordas, sem corte
-                                                                wrap.style.aspectRatio = String(Math.min(16 / 9, ratio));
-                                                                img.style.objectFit = 'cover';
-                                                            } else {
-                                                                // Retrato: container 4:3, foto inteira visível, fundo branco nas laterais
-                                                                wrap.style.aspectRatio = '4/3';
-                                                                img.style.objectFit = 'contain';
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                <button
-                                    type="button"
-                                    className="lp-carousel-arrow lp-arrow-next"
-                                    onClick={() => {
-                                        const t = carouselTrackRef.current;
-                                        if (!t) return;
-                                        t.scrollTo({ left: Math.min(portfolioFiltrado.length - 1, carouselIdx + 1) * (t.children[0]?.offsetWidth || t.clientWidth), behavior: 'smooth' });
-                                    }}
-                                    disabled={carouselIdx >= portfolioFiltrado.length - 1}
-                                    aria-label="Próxima foto"
-                                >
-                                    <ChevronRight size={24} strokeWidth={2.2} />
-                                </button>
-                            </div>
-
-                            {(portfolioFiltrado[carouselIdx]?.titulo || portfolioFiltrado[carouselIdx]?.descricao || portfolioFiltrado[carouselIdx]?.designer) && (
-                                <div className="lp-carousel-caption" key={`cap-${carouselIdx}`}>
-                                    {portfolioFiltrado[carouselIdx]?.titulo && (
-                                        <h3 className="lp-caption-title">{portfolioFiltrado[carouselIdx].titulo}</h3>
-                                    )}
-                                    {portfolioFiltrado[carouselIdx]?.descricao && (
-                                        <p className="lp-caption-desc">{portfolioFiltrado[carouselIdx].descricao}</p>
-                                    )}
-                                    {portfolioFiltrado[carouselIdx]?.designer && (
-                                        <p className="lp-caption-designer">
-                                            <span className="lp-caption-designer-label">Projeto</span>
-                                            {portfolioFiltrado[carouselIdx].designer}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-
-                            {portfolioFiltrado.length > 1 && (
-                                <>
-                                    <div className="lp-carousel-progress" aria-hidden="true">
-                                        <div
-                                            className="lp-carousel-progress-fill"
-                                            style={{ width: `${((carouselIdx + 1) / portfolioFiltrado.length) * 100}%` }}
+                    ) : displayedItems.length > 0 ? (
+                        <>
+                            <div className="lp-masonry">
+                                {displayedItems.map((item, i) => (
+                                    <div key={item.id || i} className="lp-masonry-item">
+                                        <img
+                                            src={item.imagem}
+                                            alt={item.titulo || 'Projeto'}
+                                            loading={i < 4 ? 'eager' : 'lazy'}
+                                            decoding="async"
+                                            draggable="false"
+                                            style={{ opacity: 0, transition: 'opacity 0.45s ease' }}
+                                            onLoad={e => { e.currentTarget.style.opacity = '1'; }}
                                         />
+                                        {(item.titulo || item.ambiente) && (
+                                            <div className="lp-masonry-caption">
+                                                {item.titulo && <p className="lp-masonry-title">{item.titulo}</p>}
+                                                {item.ambiente && <p className="lp-masonry-cat">{item.ambiente.toUpperCase()}</p>}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="lp-carousel-thumbs" role="tablist" aria-label="Navegar fotos">
-                                        {portfolioFiltrado.map((item, i) => (
-                                            <button
-                                                key={item.id || i}
-                                                type="button"
-                                                role="tab"
-                                                aria-selected={i === carouselIdx}
-                                                className={`lp-thumb${i === carouselIdx ? ' active' : ''}`}
-                                                onClick={() => {
-                                                    const t = carouselTrackRef.current;
-                                                    if (!t) return;
-                                                    t.scrollTo({ left: i * (t.children[0]?.offsetWidth || t.clientWidth), behavior: 'smooth' });
-                                                }}
-                                                aria-label={`Foto ${i + 1}: ${item.titulo || 'Projeto'}`}
-                                            >
-                                                <img src={item.imagem} alt="" loading="lazy" decoding="async" draggable="false" />
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
+                                ))}
+                            </div>
+
+                            {!verMais && allItems.length > INITIAL_LIMIT && (
+                                <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
+                                    <button
+                                        onClick={() => setVerMais(true)}
+                                        className="lp-btn-outline"
+                                        style={{ gap: '0.5rem' }}
+                                    >
+                                        Ver todos os {allItems.length} projetos <ChevronDown size={16} />
+                                    </button>
+                                </div>
                             )}
-                        </div>
-                    ) : (
-                        <div className="lp-portfolio-empty">
-                            <p>Em breve projetos nessa categoria.</p>
-                        </div>
-                    )}
+                        </>
+                    ) : null}
 
 
                     {igHandle && (
@@ -1574,6 +1445,28 @@ function buildCSS(acc) {
 .lp-proj-bg { position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse 80% 60% at 20% 80%, ${acc}0d 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 20%, ${acc}08 0%, transparent 50%); }
 .lp-portfolio-container { max-width:1200px; margin:0 auto; position:relative; z-index:5; }
 
+/* ── Masonry grid ── */
+.lp-masonry { columns:3; column-gap:14px; }
+.lp-masonry-item {
+  break-inside:avoid; margin-bottom:14px;
+  position:relative; border-radius:0.75rem; overflow:hidden;
+  background:#F0EDE8;
+}
+.lp-masonry-item img {
+  width:100%; height:auto; display:block;
+  transition:transform 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+.lp-masonry-item:hover img { transform:scale(1.04); }
+.lp-masonry-caption {
+  position:absolute; bottom:0; left:0; right:0;
+  padding:2.5rem 1rem 0.9rem;
+  background:linear-gradient(to top, rgba(20,16,12,0.72), transparent);
+  opacity:0; transition:opacity 0.3s ease; pointer-events:none;
+}
+.lp-masonry-item:hover .lp-masonry-caption { opacity:1; }
+.lp-masonry-title { font-size:0.9rem; font-weight:600; color:#fff; margin:0 0 0.2rem; line-height:1.2; }
+.lp-masonry-cat { font-size:0.65rem; font-weight:700; letter-spacing:0.1em; color:rgba(255,255,255,0.65); margin:0; }
+
 .lp-portfolio-tabs-wrap { position:relative; margin-bottom:2.5rem; }
 .lp-portfolio-tabs {
   display:flex; gap:0.6rem; flex-wrap:nowrap;
@@ -2066,6 +1959,8 @@ function buildCSS(acc) {
 
   .lp-portfolio-sec { padding: 4.5rem 0 6rem; }
   .lp-portfolio-container { padding: 0 1.25rem; }
+  .lp-masonry { columns: 1; column-gap: 12px; }
+  .lp-masonry-item { margin-bottom: 12px; }
   .lp-portfolio-tabs-wrap {
     margin-left: -1.25rem;
     margin-right: -1.25rem;
