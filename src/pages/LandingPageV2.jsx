@@ -1923,14 +1923,6 @@ function buildCSS(acc) {
   .lp-marquee-content { animation-duration: 45s !important; }
 }
 
-/* ═══ DESKTOP — 2 fotos lado a lado no carrossel ═══ */
-@media (min-width: 900px) {
-  .lp-carousel-slide {
-    flex: 0 0 calc(50% - 6px);
-    width: calc(50% - 6px);
-  }
-}
-
 /* ═══ TABLET — 1024px ═══ */
 @media (max-width: 1024px) {
   .lp-container { padding: 0 2rem; }
