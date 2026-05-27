@@ -547,6 +547,8 @@ export default function PropostaApresentacao({ token }) {
     const [loading, setLoading] = useState(true);
     const [statsVisible, setStatsVisible] = useState(false);
     const [videoMuted, setVideoMuted] = useState(true);
+    const [lightboxIdx, setLightboxIdx] = useState(null);
+    const [verMais, setVerMais] = useState(false);
     const statsRef = useRef(null);
     const reveal = useScrollReveal();
     const timelineRef = useRef(null);
@@ -602,6 +604,22 @@ export default function PropostaApresentacao({ token }) {
         obs.observe(el);
         return () => obs.disconnect();
     }, [data]);
+
+    // ── Portfolio lightbox — deve vir antes de early returns (Rules of Hooks) ──
+    const portfolioAll = data?.portfolio || [];
+    const PORTFOLIO_LIMIT = 9;
+    const displayedPort = verMais ? portfolioAll : portfolioAll.slice(0, PORTFOLIO_LIMIT);
+    useEffect(() => {
+        if (lightboxIdx === null) return;
+        document.body.style.overflow = 'hidden';
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLightboxIdx(null);
+            if (e.key === 'ArrowLeft')  setLightboxIdx(i => Math.max(0, i - 1));
+            if (e.key === 'ArrowRight') setLightboxIdx(i => Math.min(displayedPort.length - 1, i + 1));
+        };
+        window.addEventListener('keydown', onKey);
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+    }, [lightboxIdx, displayedPort.length]);
 
     // Saw blade animation
     const { progress: sawProgress, done: sawDone, isScrolling, scrollDir, scrollEnergy } = useSawScroll(timelineRef, itemRefs, !!data);
@@ -696,23 +714,89 @@ export default function PropostaApresentacao({ token }) {
                                     Projetos que inspiram
                                 </h2>
                             </div>
-                            <div className="ap-portfolio-list">
-                                {portfolio.map((p, i) => (
-                                    <div key={p.id} ref={reveal} className={`ap-reveal ap-portfolio-row${i % 2 !== 0 ? ' ap-row-reverse' : ''}`} style={{ transitionDelay: `${i * 0.12}s` }}>
-                                        <div className="ap-portfolio-img-wrap">
-                                            <img src={p.imagem} alt={p.titulo} className="ap-portfolio-img" loading="lazy" />
-                                        </div>
-                                        <div className="ap-portfolio-text">
-                                            <h3 className="ap-portfolio-title" style={{ color: cream }}>{p.titulo}</h3>
-                                            {p.designer && <p className="ap-portfolio-designer" style={{ color: c2 }}>{p.designer}</p>}
-                                            {p.descricao && <p className="ap-portfolio-desc" style={{ color: `${cream}A0` }}>{p.descricao}</p>}
-                                        </div>
+                            <div className="ap-masonry" style={{ marginTop: 40 }}>
+                                {displayedPort.map((p, i) => (
+                                    <div
+                                        key={p.id || i}
+                                        className="ap-masonry-item"
+                                        onClick={() => setLightboxIdx(i)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={e => e.key === 'Enter' && setLightboxIdx(i)}
+                                        aria-label={`Ampliar: ${p.titulo || 'Projeto'}`}
+                                    >
+                                        <img
+                                            src={p.imagem}
+                                            alt={p.titulo || 'Projeto'}
+                                            loading={i < 4 ? 'eager' : 'lazy'}
+                                            decoding="async"
+                                            draggable="false"
+                                            style={{ opacity: 0, transition: 'opacity 0.45s ease' }}
+                                            onLoad={e => { e.currentTarget.style.opacity = '1'; }}
+                                        />
+                                        {(p.titulo || p.designer) && (
+                                            <div className="ap-masonry-caption">
+                                                {p.titulo && <p className="ap-masonry-title">{p.titulo}</p>}
+                                                {p.designer && <p className="ap-masonry-designer" style={{ color: c2 }}>{p.designer}</p>}
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
+                            {!verMais && portfolioAll.length > PORTFOLIO_LIMIT && (
+                                <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
+                                    <button
+                                        onClick={() => setVerMais(true)}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', color: c2, border: `1.5px solid ${c2}55`, borderRadius: 50, padding: '12px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.25s', fontFamily: 'inherit' }}
+                                    >
+                                        Ver todos os {portfolioAll.length} projetos ↓
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </section>
                 )}
+
+                {/* ── Lightbox ── */}
+                {lightboxIdx !== null && displayedPort[lightboxIdx] && (() => {
+                    const it = displayedPort[lightboxIdx];
+                    const btnS = { position: 'fixed', width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', border: `1px solid ${c2}50`, color: cream, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 10001, transition: 'background 0.15s' };
+                    return (
+                        <div
+                            style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.97)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, animation: 'apLbFade 0.2s ease' }}
+                            onClick={e => { if (e.target === e.currentTarget) setLightboxIdx(null); }}
+                        >
+                            <img
+                                key={it.id || lightboxIdx}
+                                src={it.imagem}
+                                alt={it.titulo || 'Projeto'}
+                                style={{ maxWidth: '92vw', maxHeight: '88vh', width: 'auto', height: 'auto', display: 'block', borderRadius: 12, boxShadow: `0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px ${c2}20`, objectFit: 'contain', animation: 'apLbImg 0.25s ease' }}
+                            />
+                            <button onClick={() => setLightboxIdx(null)} style={{ ...btnS, top: 16, right: 16 }} aria-label="Fechar">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                            {lightboxIdx > 0 && (
+                                <button onClick={() => setLightboxIdx(i => i - 1)} style={{ ...btnS, left: 16, top: '50%', transform: 'translateY(-50%)' }} aria-label="Anterior">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+                                </button>
+                            )}
+                            {lightboxIdx < displayedPort.length - 1 && (
+                                <button onClick={() => setLightboxIdx(i => i + 1)} style={{ ...btnS, right: 16, top: '50%', transform: 'translateY(-50%)' }} aria-label="Próxima">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="9 18 15 12 9 6"/></svg>
+                                </button>
+                            )}
+                            {(it.titulo || it.designer) && (
+                                <div style={{ position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none', maxWidth: '80vw' }}>
+                                    {it.titulo && <p style={{ margin: 0, fontWeight: 600, fontSize: '0.95rem', color: cream, textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>{it.titulo}</p>}
+                                    {it.designer && <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: c2, fontWeight: 600 }}>{it.designer}</p>}
+                                </div>
+                            )}
+                            <div style={{ position: 'fixed', top: 22, left: '50%', transform: 'translateX(-50%)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.38)', letterSpacing: '0.06em' }}>
+                                {lightboxIdx + 1} / {displayedPort.length}
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* ═══ SEÇÃO 4: PROCESSO (com serra animada) ═══ */}
                 <section className="ap-section ap-section-processo" style={{ background: cream, color: c1 }}>
@@ -1181,19 +1265,16 @@ function buildCSS(c1, c2, cream) {
 .ap-stat-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; color:${c1}; }
 .ap-stat-desc { font-size:11px; line-height:1.5; opacity:0.5; margin-top:6px; color:${c1}; }
 
-/* ── Portfolio — layout alternado imagem/texto ── */
-.ap-portfolio-list { display:flex; flex-direction:column; gap:48px; margin-top:48px; }
-.ap-portfolio-row { display:grid; grid-template-columns:1.2fr 1fr; gap:36px; align-items:center; }
-.ap-portfolio-row.ap-row-reverse { grid-template-columns:1fr 1.2fr; }
-.ap-portfolio-row.ap-row-reverse .ap-portfolio-img-wrap { order:2; }
-.ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:1; text-align:right; }
-.ap-portfolio-img-wrap { position:relative; border-radius:14px; overflow:hidden; aspect-ratio:16/10; }
-.ap-portfolio-img { width:100%; height:100%; object-fit:cover; transition:transform 0.6s cubic-bezier(.16,1,.3,1); }
-.ap-portfolio-row:hover .ap-portfolio-img { transform:scale(1.04); }
-.ap-portfolio-text { padding:8px 0; }
-.ap-portfolio-title { font-size:22px; font-weight:700; margin-bottom:6px; }
-.ap-portfolio-designer { font-size:13px; font-weight:600; margin-bottom:10px; }
-.ap-portfolio-desc { font-size:14px; line-height:1.7; opacity:0.75; }
+/* ── Portfolio — masonry ── */
+.ap-masonry { columns:3; column-gap:14px; }
+.ap-masonry-item { break-inside:avoid; margin-bottom:14px; position:relative; border-radius:12px; overflow:hidden; background:#00000025; cursor:pointer; }
+.ap-masonry-item img { width:100%; height:auto; display:block; transition:transform 0.5s cubic-bezier(.16,1,.3,1); }
+.ap-masonry-item:hover img { transform:scale(1.04); }
+.ap-masonry-caption { position:absolute; bottom:0; left:0; right:0; padding:32px 14px 12px; background:linear-gradient(to top,rgba(0,0,0,0.82) 0%,transparent 100%); }
+.ap-masonry-title { font-size:13px; font-weight:600; color:${cream}; margin:0; line-height:1.3; }
+.ap-masonry-designer { font-size:11px; font-weight:600; margin:3px 0 0; }
+@keyframes apLbFade { from{opacity:0} to{opacity:1} }
+@keyframes apLbImg  { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
 
 /* ── Timeline ── */
 .ap-timeline { position:relative; margin-top:48px; padding:0 20px; }
@@ -1244,15 +1325,9 @@ function buildCSS(c1, c2, cream) {
     .ap-stat-label { font-size:9px; letter-spacing:0.05em; }
     .ap-stat-desc { font-size:8px; }
 
-    /* Portfolio mobile: empilhado, imagem + texto abaixo */
-    .ap-portfolio-list { gap:32px; margin-top:32px; }
-    .ap-portfolio-row, .ap-portfolio-row.ap-row-reverse { grid-template-columns:1fr !important; gap:14px; }
-    .ap-portfolio-row.ap-row-reverse .ap-portfolio-img-wrap { order:1; }
-    .ap-portfolio-row.ap-row-reverse .ap-portfolio-text { order:2; text-align:left; }
-    .ap-portfolio-img-wrap { aspect-ratio:16/9; border-radius:10px; }
-    .ap-portfolio-title { font-size:17px; }
-    .ap-portfolio-designer { font-size:12px; margin-bottom:6px; }
-    .ap-portfolio-desc { font-size:13px; line-height:1.6; }
+    /* Portfolio mobile: 2 colunas, depois 1 */
+    .ap-masonry { columns:2; column-gap:10px; }
+    @media (max-width:480px) { .ap-masonry { columns:1; } }
 
     /* Timeline mobile: linear à esquerda */
     .ap-timeline { margin-top:32px; padding:0; }
