@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { initClarity, identifyClarity, setClarityTag } from '../utils/clarity';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -607,8 +607,14 @@ export default function PropostaApresentacao({ token }) {
 
     // ── Portfolio lightbox — deve vir antes de early returns (Rules of Hooks) ──
     const portfolioAll = data?.portfolio || [];
-    const PORTFOLIO_LIMIT = 9;
-    const displayedPort = verMais ? portfolioAll : portfolioAll.slice(0, PORTFOLIO_LIMIT);
+    const PORTFOLIO_LIMIT = 15;
+    // Embaralha uma vez por carregamento de dados (estável entre re-renders, varia entre visitas)
+    const portfolioShuffled = useMemo(
+        () => [...portfolioAll].sort(() => Math.random() - 0.5),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [data?.portfolio]
+    );
+    const displayedPort = verMais ? portfolioShuffled : portfolioShuffled.slice(0, PORTFOLIO_LIMIT);
     useEffect(() => {
         if (lightboxIdx === null) return;
         document.body.style.overflow = 'hidden';

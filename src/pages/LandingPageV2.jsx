@@ -503,19 +503,21 @@ export default function LandingPageV2() {
 
     // ── Portfolio computed values — hooks DEVEM vir antes de qualquer early return (Rules of Hooks) ──
     const allItems = !portfolioLoaded ? [] : portfolio;
-    const INITIAL_LIMIT = 10;
+    const INITIAL_LIMIT = 15;
     const initialItems = useMemo(() => {
         if (!portfolioLoaded || !portfolio.length) return [];
-        const categorias = [...new Set(portfolio.map(item => getCategoria(item)))];
+        // Embaralha a cada visita (estável durante a sessão, varia entre page loads)
+        const shuffled = [...portfolio].sort(() => Math.random() - 0.5);
+        const categorias = [...new Set(shuffled.map(item => getCategoria(item)))];
         const seen = new Set();
         const result = [];
-        // 1ª passagem: 1 foto de cada categoria
+        // 1ª passagem: 1 foto aleatória de cada categoria
         for (const cat of categorias) {
-            const item = portfolio.find(i => getCategoria(i) === cat && !seen.has(i.id || i));
+            const item = shuffled.find(i => getCategoria(i) === cat && !seen.has(i.id || i));
             if (item) { result.push(item); seen.add(item.id || item); }
         }
-        // 2ª passagem: preenche até o limite
-        for (const item of portfolio) {
+        // 2ª passagem: preenche até o limite com fotos aleatórias restantes
+        for (const item of shuffled) {
             if (result.length >= INITIAL_LIMIT) break;
             if (!seen.has(item.id || item)) { result.push(item); seen.add(item.id || item); }
         }
