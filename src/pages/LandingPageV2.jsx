@@ -1643,14 +1643,15 @@ function buildCSS(acc) {
 }
 
 .lp-carousel-img-wrap {
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
   width:100%;
   overflow:hidden;
   background:#1A1614;
+  border-radius: 0.5rem;
 }
 .lp-carousel-img-front {
   width:100%; height:100%;
-  object-fit:cover; display:block;
+  object-fit:contain; display:block;
   user-select:none; -webkit-user-drag:none;
 }
 
