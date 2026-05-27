@@ -543,6 +543,7 @@ function usePrefersReducedMotion() {
 export default function PropostaApresentacao({ token }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [errorMeta, setErrorMeta] = useState(null);
     const [loading, setLoading] = useState(true);
     const [statsVisible, setStatsVisible] = useState(false);
     const [videoMuted, setVideoMuted] = useState(true);
@@ -559,7 +560,7 @@ export default function PropostaApresentacao({ token }) {
         fetch(`/api/portal/landing/${token}`)
             .then(r => r.json())
             .then(d => {
-                if (d.error) { setError(d.error); return; }
+                if (d.error) { setError(d.error); setErrorMeta(d); return; }
                 setData(d);
             })
             .catch(() => setError('Não foi possível carregar'))
@@ -631,7 +632,7 @@ export default function PropostaApresentacao({ token }) {
     const cnt3 = useCountUp(statMaquinas, 1800, statsVisible);
 
     if (loading) return <LoadingScreen c1={c1} c2={c2} />;
-    if (error) return <ErrorScreen error={error} />;
+    if (error) return <ErrorScreen error={error} meta={errorMeta} />;
     if (!data) return null;
 
     const { cliente_nome, arquiteta_nome, empresa, portfolio, depoimentos, proposta_token, validade, criado_em } = data;
@@ -1046,20 +1047,80 @@ function LoadingScreen({ c1, c2 }) {
     );
 }
 
-function ErrorScreen({ error }) {
-    const isPaused = error === 'link_desativado';
+function ErrorScreen({ error, meta }) {
+    // Proposta pausada pelo gestor → redireciona silenciosamente para o site
+    useEffect(() => {
+        if (error === 'link_desativado') {
+            window.location.replace('https://studioornato.com.br');
+        }
+    }, [error]);
+
+    if (error === 'link_desativado') {
+        // Tela breve enquanto o redirect acontece (< 1s)
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B2A4A' }}>
+                <div style={{ width: 32, height: 32, border: '3px solid rgba(201,169,110,0.3)', borderTopColor: '#C9A96E', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
+
+    if (error === 'proposta_vencida') {
+        const fmtData = (d) => {
+            if (!d) return '';
+            const [y, m, day] = d.split('-');
+            return `${day}/${m}/${y}`;
+        };
+        const tel = meta?.empresa?.telefone_whatsapp || meta?.empresa?.telefone || '';
+        const email = meta?.empresa?.email || '';
+        const waNum = tel.replace(/\D/g, '');
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B2A4A', color: '#F5F0E8', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                <div style={{ textAlign: 'center', maxWidth: 420, padding: '48px 32px' }}>
+                    <div style={{ fontSize: 48, marginBottom: 20 }}>📅</div>
+                    <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 12, color: '#C9A96E', letterSpacing: '-0.02em' }}>
+                        Proposta vencida
+                    </h2>
+                    <p style={{ fontSize: 15, lineHeight: 1.65, opacity: 0.75, marginBottom: 8 }}>
+                        Esta proposta venceu em{' '}
+                        <strong style={{ color: '#C9A96E' }}>{fmtData(meta?.validade)}</strong>.
+                    </p>
+                    <p style={{ fontSize: 14, lineHeight: 1.6, opacity: 0.55, marginBottom: 32 }}>
+                        Entre em contato para solicitar uma nova proposta atualizada com os valores vigentes.
+                    </p>
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        {waNum && (
+                            <a
+                                href={`https://wa.me/55${waNum}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 22px', background: '#25D366', color: '#fff', borderRadius: 10, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.956 9.956 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+                                WhatsApp
+                            </a>
+                        )}
+                        {email && (
+                            <a
+                                href={`mailto:${email}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 22px', background: 'rgba(201,169,110,0.12)', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.3)', borderRadius: 10, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                                E-mail
+                            </a>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Erro genérico
     return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B2A4A', color: '#F5F0E8' }}>
             <div style={{ textAlign: 'center', maxWidth: 440, padding: 40 }}>
-                {isPaused ? (<>
-                    <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
-                    <h2 style={{ fontSize: 22, marginBottom: 12, color: '#C9A96E' }}>Proposta em atualização</h2>
-                    <p style={{ opacity: 0.7, fontSize: 15, lineHeight: 1.6 }}>Estamos revisando esta proposta para garantir que você receba as melhores condições. Em breve ela estará disponível novamente.</p>
-                    <p style={{ opacity: 0.4, fontSize: 12, marginTop: 20 }}>Entre em contato com nosso time se precisar de mais informações.</p>
-                </>) : (<>
-                    <h2 style={{ fontSize: 20, marginBottom: 12 }}>Link indisponível</h2>
-                    <p style={{ opacity: 0.6, fontSize: 14 }}>{error}</p>
-                </>)}
+                <h2 style={{ fontSize: 20, marginBottom: 12 }}>Link indisponível</h2>
+                <p style={{ opacity: 0.6, fontSize: 14 }}>{error}</p>
             </div>
         </div>
     );

@@ -246,15 +246,7 @@ router.get('/landing/:token', (req, res) => {
 
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
 
-    const portfolio = db.prepare(
-        'SELECT id, titulo, designer, descricao, imagem FROM portfolio WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
-    ).all();
-
-    const depoimentos = db.prepare(
-        'SELECT id, nome_cliente, texto, estrelas FROM depoimentos WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
-    ).all();
-
-    // Calcular data de validade da proposta
+    // Calcular validade e bloquear acesso se vencida
     let validade = null;
     try {
         const mods = orc.mods_json ? JSON.parse(orc.mods_json) : {};
@@ -263,6 +255,27 @@ router.get('/landing/:token', (req, res) => {
         base.setDate(base.getDate() + dias);
         validade = base.toISOString().split('T')[0];
     } catch(e) {}
+    const hoje = new Date().toISOString().split('T')[0];
+    if (validade && validade < hoje) {
+        return res.status(403).json({
+            error: 'proposta_vencida',
+            validade,
+            empresa: {
+                telefone: emp?.telefone || '',
+                telefone_whatsapp: emp?.telefone_whatsapp || '',
+                email: emp?.email || '',
+                nome: emp?.nome || '',
+            }
+        });
+    }
+
+    const portfolio = db.prepare(
+        'SELECT id, titulo, designer, descricao, imagem FROM portfolio WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
+    ).all();
+
+    const depoimentos = db.prepare(
+        'SELECT id, nome_cliente, texto, estrelas FROM depoimentos WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
+    ).all();
 
     res.json({
         cliente_nome: orc.cliente_nome || '',
@@ -307,6 +320,7 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
         WHERE o.id = ?
     `).get(portalToken.orc_id);
     if (!orc) return res.status(404).json({ error: 'Proposta não encontrada' });
+    if (orc.portal_ativo === 0) return res.status(403).json({ error: 'link_desativado' });
 
     // Se usuário logado no ERP, não registrar visita nas estatísticas
     if (!isLoggedIn) {
@@ -378,8 +392,24 @@ router.get('/public/:token', optionalAuth, async (req, res) => {
         validade = base.toISOString().split('T')[0];
     } catch (_) {}
 
-    // Retornar dados (single query para empresa_config)
-    const emp = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent FROM empresa_config WHERE id = 1').get();
+    const empFull = db.prepare('SELECT nome, proposta_cor_primaria, proposta_cor_accent, telefone, telefone_whatsapp, email FROM empresa_config WHERE id = 1').get();
+
+    // Bloquear acesso se proposta vencida
+    const hoje = new Date().toISOString().split('T')[0];
+    if (validade && validade < hoje) {
+        return res.status(403).json({
+            error: 'proposta_vencida',
+            validade,
+            empresa: {
+                telefone: empFull?.telefone || '',
+                telefone_whatsapp: empFull?.telefone_whatsapp || '',
+                email: empFull?.email || '',
+                nome: empFull?.nome || '',
+            }
+        });
+    }
+
+    const emp = empFull;
     res.json({
         html_proposta: portalToken.html_proposta || '',
         nivel: portalToken.nivel || 'geral',
