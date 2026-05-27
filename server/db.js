@@ -2645,6 +2645,9 @@ const migrations = [
 
   // ═══ Portal: renovar validade manualmente (override da data calculada) ═══
   "ALTER TABLE orcamentos ADD COLUMN portal_validade_ate TEXT DEFAULT NULL",
+
+  // ═══ Empresa: WhatsApp dedicado (separado do telefone principal) ═══
+  "ALTER TABLE empresa_config ADD COLUMN telefone_whatsapp TEXT DEFAULT ''",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

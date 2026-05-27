@@ -1,6 +1,6 @@
 // Ornato ERP — Service Worker
 // Estratégia: shell-first para operadores, network-first para API
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `ornato-erp-${CACHE_VERSION}`;
 
 const SHELL_ASSETS = [
