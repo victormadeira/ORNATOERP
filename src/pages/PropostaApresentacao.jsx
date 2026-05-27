@@ -660,6 +660,7 @@ export default function PropostaApresentacao({ token }) {
     if (!data) return null;
 
     const { cliente_nome, arquiteta_nome, empresa, portfolio, depoimentos, proposta_token, validade, criado_em } = data;
+    const primeiroNome = cliente_nome?.split(' ')[0] || cliente_nome;
     const videoProcessoId = getYouTubeId(empresa.video_processo);
 
     return (
@@ -683,6 +684,12 @@ export default function PropostaApresentacao({ token }) {
                         )}
                         <p className="ap-hero-date" style={{ color: `${cream}80`, marginTop: arquiteta_nome ? '10px' : undefined }}>
                             {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                        <p className="ap-hero-welcome" style={{ color: `${cream}70` }}>
+                            <span style={{ color: c2, fontStyle: 'normal', fontWeight: 600 }}>{primeiroNome}</span>
+                            {', preparamos esta apresentação pensando especialmente no seu projeto.\nQueremos que você se sinta seguro em cada etapa — do primeiro detalhe à instalação final.'.split('\n').map((line, i) => (
+                                <span key={i}>{line}{i === 0 && <br />}</span>
+                            ))}
                         </p>
                     </div>
                     <div className={`ap-scroll-hint${reduceMotion ? '' : ' ap-bounce'}`}>
@@ -1252,6 +1259,7 @@ function buildCSS(c1, c2, cream) {
 .ap-hero-label { font-size:12px; letter-spacing:0.3em; font-weight:600; margin-bottom:12px; }
 .ap-hero-name { font-size:clamp(28px, 6vw, 48px); font-weight:300; letter-spacing:-0.02em; line-height:1.2; }
 .ap-hero-date { font-size:13px; margin-top:16px; font-weight:400; }
+.ap-hero-welcome { font-size:15px; font-style:italic; line-height:1.75; max-width:480px; margin:22px auto 0; font-family:'Georgia','Times New Roman',serif; }
 .ap-scroll-hint { position:absolute; bottom:32px; z-index:2; opacity:0.5; }
 
 /* ── Bounce ── */
@@ -1358,6 +1366,7 @@ function buildCSS(c1, c2, cream) {
     .ap-hero-divider { width:40px; margin-bottom:20px; }
     .ap-hero-label { font-size:11px; letter-spacing:0.2em; }
     .ap-hero-date { font-size:12px; }
+    .ap-hero-welcome { font-size:13px; max-width:320px; }
 
     /* CTA mobile */
     .ap-cta { padding:48px 0; }
