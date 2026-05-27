@@ -1548,9 +1548,12 @@ function buildCSS(acc) {
 
 .lp-portfolio-tabs-wrap { position:relative; margin-bottom:2.5rem; }
 .lp-portfolio-tabs {
-  display:flex; gap:0.6rem; flex-wrap:wrap;
+  display:flex; gap:0.6rem; flex-wrap:nowrap;
   justify-content:center;
+  overflow-x:auto; scrollbar-width:none;
+  padding-bottom:4px;
 }
+.lp-portfolio-tabs::-webkit-scrollbar { display:none; }
 .lp-tab-btn {
   padding:0.55rem 1.4rem;
   background:#FAF7F2;
@@ -1634,7 +1637,7 @@ function buildCSS(acc) {
 }
 .lp-carousel-img-wrap img {
   width:100%; height:100%;
-  object-fit:cover; display:block;
+  object-fit:contain; display:block;
   user-select:none; -webkit-user-drag:none;
 }
 
