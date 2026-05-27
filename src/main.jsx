@@ -188,3 +188,20 @@ requestAnimationFrame(() => requestAnimationFrame(() => {
         setTimeout(() => loader.remove(), 220);
     }
 }));
+
+// Auto-reload quando um novo Service Worker assume o controle.
+// Resolve o problema de chunks stale após deploy: o SW antigo servia JS com
+// hashes rotacionados → React lazy() falhava → ErrorBoundary disparava em todas
+// as rotas. Com este listener, a página recarrega automaticamente assim que o
+// SW v5+ ativa e chama clients.claim(), garantindo que os novos chunks sejam
+// servidos da rede (network-first para /assets/).
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator &&
+    location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    let _swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!_swRefreshing) {
+            _swRefreshing = true;
+            window.location.reload();
+        }
+    });
+}
