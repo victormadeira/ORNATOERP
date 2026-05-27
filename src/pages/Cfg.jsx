@@ -75,14 +75,21 @@ function compressImage(file, maxW = 1200, quality = 0.8) {
 }
 
 // ── Logo Uploader ──────────────────────────────────────────────────────────
-function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 2 * 1024 * 1024 }) {
+function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 30 * 1024 * 1024, compressMaxW = 1200, compressQuality = 0.8 }) {
     const inputRef = useRef();
+    const [compressing, setCompressing] = useState(false);
 
     const handleFile = async (file) => {
         if (!file) return;
-        if (file.size > maxSize) { alert(`Imagem muito grande. Máximo: ${Math.round(maxSize / 1024)} KB.`); return; }
-        const compressed = await compressImage(file);
-        onChange(compressed);
+        // Limite generoso (30 MB) — compressImage redimensiona automaticamente qualquer tamanho
+        if (file.size > maxSize) { alert(`Arquivo muito grande. Máximo: ${Math.round(maxSize / 1024 / 1024)} MB.`); return; }
+        setCompressing(true);
+        try {
+            const compressed = await compressImage(file, compressMaxW, compressQuality);
+            onChange(compressed);
+        } finally {
+            setCompressing(false);
+        }
     };
 
     const onDrop = (e) => {
@@ -121,9 +128,10 @@ function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 2 * 1
                         <div style={{ color: 'var(--text-muted)', opacity: 0.5 }}><Ic.Image /></div>
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                {disabled ? 'Sem imagem' : 'Clique ou arraste'}
+                                {compressing ? 'Otimizando...' : disabled ? 'Sem imagem' : 'Clique ou arraste'}
                             </div>
-                            {!disabled && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{hint || 'PNG, JPG, SVG · Máx. 600 KB'}</div>}
+                            {!disabled && !compressing && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{hint || 'PNG, JPG, SVG · Máx. 600 KB'}</div>}
+                            {compressing && <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 2 }}>Redimensionando e comprimindo…</div>}
                         </div>
                     </>
                 )}
@@ -4658,7 +4666,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                     <label className={Z.lbl}>Descrição (opcional)</label>
                                     <textarea className={Z.inp} rows={2} value={portEdit.descricao} onChange={e => setPortEdit({ ...portEdit, descricao: e.target.value })} placeholder="Breve descrição do projeto..." />
                                 </div>
-                                <ImageUploader label="Foto do Projeto" image={portEdit.imagem} onChange={img => setPortEdit({ ...portEdit, imagem: img })} disabled={false} hint="Foto de alta qualidade · Máx. 600 KB" />
+                                <ImageUploader label="Foto do Projeto" image={portEdit.imagem} onChange={img => setPortEdit({ ...portEdit, imagem: img })} disabled={false} hint="Qualquer tamanho · otimizado automaticamente para web" compressMaxW={900} compressQuality={0.78} />
                                 <div className="flex gap-2 mt-3">
                                     <button
                                         onClick={async () => {
