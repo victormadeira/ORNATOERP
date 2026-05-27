@@ -170,6 +170,7 @@ function useCountUp(end, duration, trigger) {
 export default function LandingPageV2() {
     const [config, setConfig]               = useState(null);
     const [portfolio, setPortfolio]         = useState([]);
+    const [portfolioLoaded, setPortfolioLoaded] = useState(false);
     const [form, setForm]                   = useState({ nome: '', telefone: '', ambiente: '', estagio: '', bairro: '' });
     const [stats, setStats]                 = useState(null);
     const [enviando, setEnviando]           = useState(false);
@@ -261,7 +262,7 @@ export default function LandingPageV2() {
             })
             .catch(() => setConfig({ nome: 'Studio Ornato' }));
 
-        fetch('/api/portfolio').then(r => r.json()).then(d => setPortfolio(Array.isArray(d) ? d : [])).catch(() => setPortfolio([]));
+        fetch('/api/portfolio').then(r => r.json()).then(d => { setPortfolio(Array.isArray(d) ? d : []); setPortfolioLoaded(true); }).catch(() => { setPortfolio([]); setPortfolioLoaded(true); });
         fetch('/api/landing/stats').then(r => r.json()).then(setStats).catch(() => setStats(null));
     }, []);
 
@@ -575,9 +576,13 @@ export default function LandingPageV2() {
     const etapas  = parseJsonList(config?.landing_etapas_json, ETAPAS_DEFAULT);
     const faqList = parseJsonList(config?.landing_faq_json, FAQ_DEFAULT);
 
-    const allItems = portfolio.length >= 6
-        ? portfolio
-        : [...portfolio, ...PORTFOLIO_PLACEHOLDER.slice(0, 6 - portfolio.length)];
+    // Só mostra placeholders após o fetch terminar e se não tiver fotos suficientes
+    // Enquanto carrega (portfolioLoaded=false), allItems fica vazio e o carousel não aparece
+    const allItems = !portfolioLoaded
+        ? []
+        : portfolio.length >= 6
+            ? portfolio
+            : [...portfolio, ...PORTFOLIO_PLACEHOLDER.slice(0, 6 - portfolio.length)];
 
     const portfolioFiltrado = categoriaAtiva === 'Todos'
         ? allItems
