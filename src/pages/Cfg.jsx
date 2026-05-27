@@ -384,6 +384,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [driveBackupLoading, setDriveBackupLoading] = useState(false);
     const [portfolio, setPortfolio] = useState([]);
     const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem, ambiente } or null
+    const [portSaving, setPortSaving] = useState(false);
     const portImgRef = useRef();
     // Config visual/texto da página pública /portfolioornato (desacoplada da landing)
     const [portCfg, setPortCfg] = useState({
@@ -4669,8 +4670,11 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 <ImageUploader label="Foto do Projeto" image={portEdit.imagem} onChange={img => setPortEdit({ ...portEdit, imagem: img })} disabled={false} hint="Qualquer tamanho · otimizado automaticamente para web" compressMaxW={900} compressQuality={0.78} />
                                 <div className="flex gap-2 mt-3">
                                     <button
+                                        disabled={portSaving}
                                         onClick={async () => {
                                             if (!portEdit.imagem) { notify?.('Adicione uma foto'); return; }
+                                            if (portSaving) return;
+                                            setPortSaving(true);
                                             try {
                                                 if (portEdit.id) {
                                                     await api.put(`/portfolio/${portEdit.id}`, portEdit);
@@ -4680,12 +4684,19 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 notify?.('Portfolio salvo!');
                                                 setPortEdit(null);
                                                 loadPortfolio();
-                                            } catch (ex) { notify?.(ex.error || 'Erro ao salvar'); }
+                                            } catch (ex) {
+                                                notify?.(ex.error || 'Erro ao salvar');
+                                            } finally {
+                                                setPortSaving(false);
+                                            }
                                         }}
                                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
-                                        style={{ background: 'var(--primary)' }}
+                                        style={{ background: 'var(--primary)', opacity: portSaving ? 0.7 : 1, cursor: portSaving ? 'not-allowed' : 'pointer' }}
                                     >
-                                        <Check size={14} /> {portEdit.id ? 'Atualizar' : 'Salvar'}
+                                        {portSaving
+                                            ? <><svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Salvando…</>
+                                            : <><Check size={14} /> {portEdit.id ? 'Atualizar' : 'Salvar'}</>
+                                        }
                                     </button>
                                     <button
                                         onClick={() => setPortEdit(null)}
