@@ -501,6 +501,41 @@ export default function LandingPageV2() {
         }).catch(() => {});
     }, [utm]);
 
+    // ── Portfolio computed values — hooks DEVEM vir antes de qualquer early return (Rules of Hooks) ──
+    const allItems = !portfolioLoaded ? [] : portfolio;
+    const INITIAL_LIMIT = 10;
+    const initialItems = useMemo(() => {
+        if (!portfolioLoaded || !portfolio.length) return [];
+        const categorias = [...new Set(portfolio.map(item => getCategoria(item)))];
+        const seen = new Set();
+        const result = [];
+        // 1ª passagem: 1 foto de cada categoria
+        for (const cat of categorias) {
+            const item = portfolio.find(i => getCategoria(i) === cat && !seen.has(i.id || i));
+            if (item) { result.push(item); seen.add(item.id || item); }
+        }
+        // 2ª passagem: preenche até o limite
+        for (const item of portfolio) {
+            if (result.length >= INITIAL_LIMIT) break;
+            if (!seen.has(item.id || item)) { result.push(item); seen.add(item.id || item); }
+        }
+        return result.slice(0, INITIAL_LIMIT);
+    }, [portfolio, portfolioLoaded]);
+    const displayedItems = verMais ? allItems : initialItems;
+
+    // Lightbox keyboard navigation — deve vir antes de qualquer early return (Rules of Hooks)
+    useEffect(() => {
+        if (lightboxIdx === null) return;
+        document.body.style.overflow = 'hidden';
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLightboxIdx(null);
+            if (e.key === 'ArrowLeft')  setLightboxIdx(i => Math.max(0, i - 1));
+            if (e.key === 'ArrowRight') setLightboxIdx(i => Math.min(displayedItems.length - 1, i + 1));
+        };
+        window.addEventListener('keydown', onKey);
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+    }, [lightboxIdx, displayedItems.length]);
+
     const depoimentos = config ? parseJsonList(config?.landing_provas_json, [
         { nome: 'Daniela Ferreira', projeto: 'Cozinha + Área Gourmet', depoimento: 'Investir alto em marcenaria parecia arriscado. Mas quando vi o resultado — e a cara dos meus amigos na primeira visita — entendi que valeu cada centavo. Voltaria a contratar sem pensar duas vezes.', estrelas: 5 },
         { nome: 'Ricardo Abreu',    projeto: 'Closet e Home Office',    depoimento: 'Já tive experiências ruins antes — atraso, acabamento fraco, peça errada. Aqui foi completamente diferente: prazo cumprido, projeto idêntico ao 3D aprovado, e qualidade de material que não encontrei em nenhum outro lugar.', estrelas: 5 },
@@ -546,31 +581,6 @@ export default function LandingPageV2() {
 
     const etapas  = parseJsonList(config?.landing_etapas_json, ETAPAS_DEFAULT);
     const faqList = parseJsonList(config?.landing_faq_json, FAQ_DEFAULT);
-
-    // Só mostra itens após o fetch terminar
-    const allItems = !portfolioLoaded ? [] : portfolio;
-
-    // Seleção inteligente das primeiras 10 fotos: 1 de cada categoria, depois completa
-    const INITIAL_LIMIT = 10;
-    const initialItems = useMemo(() => {
-        if (!allItems.length) return [];
-        const categorias = [...new Set(allItems.map(item => getCategoria(item)))];
-        const seen = new Set();
-        const result = [];
-        // 1ª passagem: 1 foto de cada categoria
-        for (const cat of categorias) {
-            const item = allItems.find(i => getCategoria(i) === cat && !seen.has(i.id || i));
-            if (item) { result.push(item); seen.add(item.id || item); }
-        }
-        // 2ª passagem: preenche até o limite
-        for (const item of allItems) {
-            if (result.length >= INITIAL_LIMIT) break;
-            if (!seen.has(item.id || item)) { result.push(item); seen.add(item.id || item); }
-        }
-        return result.slice(0, INITIAL_LIMIT);
-    }, [allItems]);
-
-    const displayedItems = verMais ? allItems : initialItems;
 
     const formatTel = (v) => {
         const nums = v.replace(/\D/g, '').slice(0, 11);
@@ -624,19 +634,6 @@ export default function LandingPageV2() {
             setEnviando(false);
         }, 400);
     };
-
-    // Lightbox keyboard navigation
-    useEffect(() => {
-        if (lightboxIdx === null) return;
-        document.body.style.overflow = 'hidden';
-        const onKey = (e) => {
-            if (e.key === 'Escape') setLightboxIdx(null);
-            if (e.key === 'ArrowLeft')  setLightboxIdx(i => Math.max(0, i - 1));
-            if (e.key === 'ArrowRight') setLightboxIdx(i => Math.min(displayedItems.length - 1, i + 1));
-        };
-        window.addEventListener('keydown', onKey);
-        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
-    }, [lightboxIdx, displayedItems.length]);
 
     return (
         <div className="lp">
