@@ -981,16 +981,6 @@ export default function LandingPageV2() {
                                         return (
                                             <div key={item.id || i} className="lp-carousel-slide">
                                                 <div className="lp-carousel-img-wrap">
-                                                    {/* backdrop borrado — elimina bordas em fotos verticais */}
-                                                    <img
-                                                        className="lp-carousel-img-bg"
-                                                        src={item.imagem}
-                                                        alt=""
-                                                        aria-hidden="true"
-                                                        loading={near ? 'eager' : 'lazy'}
-                                                        draggable="false"
-                                                    />
-                                                    {/* foto principal nítida — começa transparente, fade-in ao decodificar */}
                                                     <img
                                                         className="lp-carousel-img-front"
                                                         src={item.imagem}
@@ -1652,26 +1642,14 @@ function buildCSS(acc) {
 }
 
 .lp-carousel-img-wrap {
-  position:relative;
   aspect-ratio: 16 / 10;
   width:100%;
   overflow:hidden;
   background:#1A1614;
 }
-/* backdrop borrado — preenche as bordas laterais de fotos verticais */
-.lp-carousel-img-bg {
-  position:absolute; inset:0;
+.lp-carousel-img-front {
   width:100%; height:100%;
   object-fit:cover; display:block;
-  filter:blur(20px) brightness(0.55) saturate(0.7);
-  transform:scale(1.1); /* evita borda do blur aparecer */
-  pointer-events:none;
-}
-/* foto principal nítida por cima */
-.lp-carousel-img-front {
-  position:relative; z-index:1;
-  width:100%; height:100%;
-  object-fit:contain; display:block;
   user-select:none; -webkit-user-drag:none;
 }
 
