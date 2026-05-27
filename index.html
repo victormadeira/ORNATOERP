@@ -100,6 +100,10 @@
     <p>CNPJ registrado no Brasil. Atendimento via <a href="https://wa.me/5598987015547">WhatsApp</a>.</p>
     <p><a href="/privacidade.html">Política de Privacidade</a></p>
   </div>
+  <!-- Oculta o static-fallback imediatamente quando JS está ativo.
+       Assim o #page-loader (overlay opaco) nunca deixa o texto vazar durante sua transição de fade.
+       Bots sem JS (SEO) continuam enxergando o conteúdo normalmente. -->
+  <script>(function(){var e=document.getElementById('static-fallback');if(e)e.style.display='none';}())</script>
   <noscript>
     <style>
       body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; color: #1a1a1a; }
