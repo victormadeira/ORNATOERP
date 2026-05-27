@@ -688,7 +688,7 @@ export default function LandingPageV2() {
                     <div className="lp-nav-links">
                         <a href="#diferenciais">Diferenciais</a>
                         <a href="#processo">Processo</a>
-                        <a href="#portfolio">Projetos</a>
+                        <a href="#portfolio">Portfólio</a>
                         <a href="#orcamento">Contato</a>
                     </div>
                     {waHref ? (
@@ -713,7 +713,7 @@ export default function LandingPageV2() {
                         <button className="lp-mobile-menu-close" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">×</button>
                         <a href="#diferenciais" onClick={() => setMenuOpen(false)}>Diferenciais</a>
                         <a href="#processo" onClick={() => setMenuOpen(false)}>Processo</a>
-                        <a href="#portfolio" onClick={() => setMenuOpen(false)}>Projetos</a>
+                        <a href="#portfolio" onClick={() => setMenuOpen(false)}>Portfólio</a>
                         <a href="#orcamento" onClick={() => setMenuOpen(false)}>Contato</a>
                         {waHref && (
                             <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-copper" style={{ marginTop: '0.5rem' }} onClick={() => setMenuOpen(false)}>
