@@ -25,6 +25,8 @@ function ProposalLanding({ token }) {
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState('');
     const [scrolled, setScrolled] = useState(false);
+    const [lightboxIdx, setLightboxIdx] = useState(null);
+    const [verMais, setVerMais] = useState(false);
 
     useEffect(() => {
         fetch(`${BASE}/portal/landing/${token}`)
@@ -33,6 +35,29 @@ function ProposalLanding({ token }) {
             .catch(e => setErr(e.error || 'Link inválido ou expirado'))
             .finally(() => setLoading(false));
     }, [token]);
+
+    // ── Scroll → sticky CTA — antes de early returns (Rules of Hooks) ──
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 320);
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    // ── Portfolio + lightbox keyboard — antes de early returns ──
+    const portfolioItems = data?.portfolio || [];
+    const PORTFOLIO_LIMIT = 9;
+    const displayedPort = verMais ? portfolioItems : portfolioItems.slice(0, PORTFOLIO_LIMIT);
+    useEffect(() => {
+        if (lightboxIdx === null) return;
+        document.body.style.overflow = 'hidden';
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLightboxIdx(null);
+            if (e.key === 'ArrowLeft')  setLightboxIdx(i => Math.max(0, i - 1));
+            if (e.key === 'ArrowRight') setLightboxIdx(i => Math.min(displayedPort.length - 1, i + 1));
+        };
+        window.addEventListener('keydown', onKey);
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+    }, [lightboxIdx, displayedPort.length]);
 
     if (loading) return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b0e13' }}>
@@ -57,12 +82,6 @@ function ProposalLanding({ token }) {
         ? Math.ceil((new Date(validade + 'T12:00:00') - new Date()) / (1000 * 60 * 60 * 24))
         : null;
 
-    // Sticky CTA scroll listener
-    useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 320);
-        window.addEventListener('scroll', onScroll, { passive: true });
-        return () => window.removeEventListener('scroll', onScroll);
-    }, []);
     const videoId        = getYouTubeId(empresa.video_url);
     const videoProcessoId = getYouTubeId(empresa.video_processo);
 
@@ -128,6 +147,18 @@ function ProposalLanding({ token }) {
                     .port-card-img { height: 180px !important; }
                     .lp-header { padding: 16px 20px !important; }
                 }
+                /* ── Masonry Portfolio ── */
+                .pl-masonry { columns: 3; column-gap: 14px; }
+                .pl-masonry-item { break-inside: avoid; margin-bottom: 14px; position: relative; border-radius: 12px; overflow: hidden; background: #0d111880; cursor: pointer; }
+                .pl-masonry-item img { width: 100%; height: auto; display: block; transition: transform 0.5s cubic-bezier(0.16,1,0.3,1); }
+                .pl-masonry-item:hover img { transform: scale(1.04); }
+                .pl-masonry-caption { position: absolute; bottom: 0; left: 0; right: 0; padding: 28px 14px 12px; background: linear-gradient(to top, rgba(0,0,0,0.80) 0%, transparent 100%); }
+                .pl-masonry-title { font-size: 13px; font-weight: 600; color: #fff; margin: 0; line-height: 1.3; }
+                .pl-masonry-cat { font-size: 10px; color: rgba(255,255,255,0.50); text-transform: uppercase; letter-spacing: 0.1em; margin: 3px 0 0; }
+                @keyframes plLbFade { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes plLbImg  { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+                @media (max-width: 900px) { .pl-masonry { columns: 2; column-gap: 12px; } }
+                @media (max-width: 480px) { .pl-masonry { columns: 1; column-gap: 0; } }
             `}</style>
 
             {/* ── HEADER ── */}
@@ -252,32 +283,55 @@ function ProposalLanding({ token }) {
             </section>
 
             {/* ── SEÇÃO 3: PORTFOLIO ── */}
-            {portfolio && portfolio.length > 0 && (
+            {portfolioItems.length > 0 && (
                 <section className="lp-section-pad" style={{ padding: '80px 24px' }}>
-                    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+                    <div style={{ maxWidth: 1280, margin: '0 auto' }}>
                         <div style={{ textAlign: 'center', marginBottom: 48 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: ca, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Portfolio</div>
                             <h2 className="section-title" style={{ fontSize: 38, fontWeight: 800, color: '#fff' }}>Projetos realizados</h2>
-                            <p style={{ fontSize: 16, color: '#64748b', marginTop: 12 }}>Cada projeto é único, como seu espaço.</p>
+                            <p style={{ fontSize: 15, color: '#475569', marginTop: 12 }}>
+                                Clique em qualquer foto para ampliar.
+                            </p>
                         </div>
-                        <div className="port-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
-                            {portfolio.slice(0, 6).map((p, i) => (
-                                <div key={p.id || i} className="port-card" style={{ borderRadius: 16, overflow: 'hidden', background: '#13182280', border: '1px solid #ffffff12' }}>
-                                    {p.imagem && (
-                                        <div className="port-card-img" style={{ height: 220, overflow: 'hidden' }}>
-                                            <img src={p.imagem} alt={p.titulo || 'Projeto'} loading="lazy" decoding="async"
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .4s' }}
-                                                onMouseEnter={e => e.target.style.transform = 'scale(1.05)'}
-                                                onMouseLeave={e => e.target.style.transform = 'scale(1)'} />
+                        <div className="pl-masonry">
+                            {displayedPort.map((p, i) => (
+                                <div
+                                    key={p.id || i}
+                                    className="pl-masonry-item"
+                                    onClick={() => setLightboxIdx(i)}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={e => e.key === 'Enter' && setLightboxIdx(i)}
+                                    aria-label={`Ampliar: ${p.titulo || 'Projeto'}`}
+                                >
+                                    <img
+                                        src={p.imagem}
+                                        alt={p.titulo || 'Projeto'}
+                                        loading={i < 4 ? 'eager' : 'lazy'}
+                                        decoding="async"
+                                        draggable="false"
+                                        style={{ opacity: 0, transition: 'opacity 0.45s ease' }}
+                                        onLoad={e => { e.currentTarget.style.opacity = '1'; }}
+                                    />
+                                    {(p.titulo || p.ambiente) && (
+                                        <div className="pl-masonry-caption">
+                                            {p.titulo && <p className="pl-masonry-title">{p.titulo}</p>}
+                                            {p.ambiente && <p className="pl-masonry-cat">{p.ambiente}</p>}
                                         </div>
                                     )}
-                                    <div style={{ padding: '16px 18px' }}>
-                                        {p.titulo && <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{p.titulo}</div>}
-                                        {p.descricao && <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{p.descricao}</div>}
-                                    </div>
                                 </div>
                             ))}
                         </div>
+                        {!verMais && portfolioItems.length > PORTFOLIO_LIMIT && (
+                            <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
+                                <button
+                                    onClick={() => setVerMais(true)}
+                                    className="lp-btn-ghost"
+                                >
+                                    Ver todos os {portfolioItems.length} projetos ↓
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </section>
             )}
@@ -459,6 +513,52 @@ function ProposalLanding({ token }) {
                     )}
                 </div>
             </section>
+
+            {/* ── LIGHTBOX ── */}
+            {lightboxIdx !== null && displayedPort[lightboxIdx] && (() => {
+                const it = displayedPort[lightboxIdx];
+                const btnS = { position: 'fixed', width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', border: `1px solid ${ca}40`, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 10001, transition: 'background 0.15s' };
+                return (
+                    <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.97)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, animation: 'plLbFade 0.2s ease' }}
+                        onClick={e => { if (e.target === e.currentTarget) setLightboxIdx(null); }}
+                    >
+                        <img
+                            key={it.id || lightboxIdx}
+                            src={it.imagem}
+                            alt={it.titulo || 'Projeto'}
+                            style={{ maxWidth: '92vw', maxHeight: '88vh', width: 'auto', height: 'auto', display: 'block', borderRadius: 12, boxShadow: `0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px ${ca}20`, objectFit: 'contain', animation: 'plLbImg 0.25s ease' }}
+                        />
+                        {/* Fechar */}
+                        <button onClick={() => setLightboxIdx(null)} style={{ ...btnS, top: 16, right: 16 }} aria-label="Fechar">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                        {/* Anterior */}
+                        {lightboxIdx > 0 && (
+                            <button onClick={() => setLightboxIdx(i => i - 1)} style={{ ...btnS, left: 16, top: '50%', transform: 'translateY(-50%)' }} aria-label="Anterior">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                        )}
+                        {/* Próxima */}
+                        {lightboxIdx < displayedPort.length - 1 && (
+                            <button onClick={() => setLightboxIdx(i => i + 1)} style={{ ...btnS, right: 16, top: '50%', transform: 'translateY(-50%)' }} aria-label="Próxima">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        )}
+                        {/* Caption */}
+                        {(it.titulo || it.ambiente) && (
+                            <div style={{ position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none', maxWidth: '80vw' }}>
+                                {it.titulo && <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>{it.titulo}</p>}
+                                {it.ambiente && <p style={{ margin: '3px 0 0', fontSize: '0.65rem', color: `${ca}bb`, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{it.ambiente}</p>}
+                            </div>
+                        )}
+                        {/* Contador */}
+                        <div style={{ position: 'fixed', top: 22, left: '50%', transform: 'translateX(-50%)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.38)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                            {lightboxIdx + 1} / {displayedPort.length}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ── FOOTER ── */}
             <footer style={{ padding: '24px', borderTop: '1px solid #ffffff10', textAlign: 'center', paddingBottom: scrolled ? 80 : 24 }}>
