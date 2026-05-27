@@ -179,7 +179,8 @@ export default function LandingPageV2() {
     const [faqOpen, setFaqOpen]             = useState(-1);
     const [statsVisible, setStatsVisible]   = useState(false);
     const [heroStatsVisible, setHeroStatsVisible] = useState(false);
-    const [verMais, setVerMais] = useState(false);
+    const [verMais, setVerMais]         = useState(false);
+    const [lightboxIdx, setLightboxIdx] = useState(null);
     const [showStickyWA, setShowStickyWA]     = useState(false);
     const [menuOpen, setMenuOpen]             = useState(false);
     const [popupOpen, setPopupOpen]           = useState(false);
@@ -630,6 +631,19 @@ export default function LandingPageV2() {
         }, 400);
     };
 
+    // Lightbox keyboard navigation
+    useEffect(() => {
+        if (lightboxIdx === null) return;
+        document.body.style.overflow = 'hidden';
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLightboxIdx(null);
+            if (e.key === 'ArrowLeft')  setLightboxIdx(i => Math.max(0, i - 1));
+            if (e.key === 'ArrowRight') setLightboxIdx(i => Math.min(displayedItems.length - 1, i + 1));
+        };
+        window.addEventListener('keydown', onKey);
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+    }, [lightboxIdx, displayedItems.length]);
+
     return (
         <div className="lp">
             <style>{buildCSS(acc)}</style>
@@ -918,7 +932,7 @@ export default function LandingPageV2() {
                         <>
                             <div className="lp-masonry">
                                 {displayedItems.map((item, i) => (
-                                    <div key={item.id || i} className="lp-masonry-item">
+                                    <div key={item.id || i} className="lp-masonry-item" onClick={() => setLightboxIdx(i)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setLightboxIdx(i)} aria-label={`Ampliar: ${item.titulo || 'Projeto'}`}>
                                         <img
                                             src={item.imagem}
                                             alt={item.titulo || 'Projeto'}
@@ -1254,6 +1268,52 @@ export default function LandingPageV2() {
                     </a>
                 </div>
             )}
+
+            {/* ── Lightbox ── */}
+            {lightboxIdx !== null && displayedItems[lightboxIdx] && (() => {
+                const it = displayedItems[lightboxIdx];
+                const btnStyle = { position:'fixed', width:44, height:44, borderRadius:'50%', background:'rgba(255,255,255,0.13)', border:'1px solid rgba(255,255,255,0.18)', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)', transition:'background 0.15s', zIndex:10001 };
+                return (
+                    <div
+                        style={{ position:'fixed', inset:0, zIndex:10000, background:'rgba(8,6,5,0.96)', display:'flex', alignItems:'center', justifyContent:'center', padding:16, animation:'lpLbFade 0.2s ease' }}
+                        onClick={e => { if (e.target === e.currentTarget) setLightboxIdx(null); }}
+                    >
+                        <img
+                            key={it.id || lightboxIdx}
+                            src={it.imagem}
+                            alt={it.titulo || 'Projeto'}
+                            style={{ maxWidth:'92vw', maxHeight:'88vh', width:'auto', height:'auto', display:'block', borderRadius:'0.75rem', boxShadow:'0 32px 80px rgba(0,0,0,0.7)', objectFit:'contain', animation:'lpLbImg 0.25s ease' }}
+                        />
+                        {/* Fechar */}
+                        <button onClick={() => setLightboxIdx(null)} style={{ ...btnStyle, top:16, right:16 }} aria-label="Fechar">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                        {/* Anterior */}
+                        {lightboxIdx > 0 && (
+                            <button onClick={() => setLightboxIdx(i => i - 1)} style={{ ...btnStyle, left:16, top:'50%', transform:'translateY(-50%)' }} aria-label="Anterior">
+                                <ChevronLeft size={22} />
+                            </button>
+                        )}
+                        {/* Próxima */}
+                        {lightboxIdx < displayedItems.length - 1 && (
+                            <button onClick={() => setLightboxIdx(i => i + 1)} style={{ ...btnStyle, right:16, top:'50%', transform:'translateY(-50%)' }} aria-label="Próxima">
+                                <ChevronRight size={22} />
+                            </button>
+                        )}
+                        {/* Caption */}
+                        {(it.titulo || it.ambiente) && (
+                            <div style={{ position:'fixed', bottom:20, left:'50%', transform:'translateX(-50%)', textAlign:'center', pointerEvents:'none', maxWidth:'80vw' }}>
+                                {it.titulo && <p style={{ margin:0, fontWeight:600, fontSize:'0.9rem', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.8)' }}>{it.titulo}</p>}
+                                {it.ambiente && <p style={{ margin:'0.2rem 0 0', fontSize:'0.65rem', color:'rgba(255,255,255,0.55)', textTransform:'uppercase', letterSpacing:'0.1em' }}>{it.ambiente}</p>}
+                            </div>
+                        )}
+                        {/* Contador */}
+                        <div style={{ position:'fixed', top:20, left:'50%', transform:'translateX(-50%)', fontSize:'0.75rem', color:'rgba(255,255,255,0.45)', letterSpacing:'0.05em' }}>
+                            {lightboxIdx + 1} / {displayedItems.length}
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }
@@ -1445,8 +1505,12 @@ function buildCSS(acc) {
 .lp-proj-bg { position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse 80% 60% at 20% 80%, ${acc}0d 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 20%, ${acc}08 0%, transparent 50%); }
 .lp-portfolio-container { max-width:1200px; margin:0 auto; position:relative; z-index:5; }
 
+@keyframes lpLbFade { from { opacity:0; } to { opacity:1; } }
+@keyframes lpLbImg  { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
+
 /* ── Masonry grid ── */
 .lp-masonry { columns:3; column-gap:14px; }
+.lp-masonry-item { cursor:pointer; }
 .lp-masonry-item {
   break-inside:avoid; margin-bottom:14px;
   position:relative; border-radius:0.75rem; overflow:hidden;

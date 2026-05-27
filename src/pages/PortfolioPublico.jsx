@@ -286,8 +286,7 @@ export default function PortfolioPublico() {
     const [empresa, setEmpresa] = useState(null);
     const [loading, setLoading] = useState(true);
     const [filtro, setFiltro] = useState('Todos');
-    const [modal, setModal] = useState(null);
-    const modalRef = useRef(null);
+    const [lbIdx, setLbIdx]   = useState(null); // lightbox index em filtered
 
     useEffect(() => {
         Promise.all([
@@ -299,17 +298,18 @@ export default function PortfolioPublico() {
         }).finally(() => setLoading(false));
     }, []);
 
-    // Fechar modal com Escape
+    // Lightbox: teclado (Escape + setas)
     useEffect(() => {
-        if (!modal) return;
-        const onKey = (e) => { if (e.key === 'Escape') setModal(null); };
-        window.addEventListener('keydown', onKey);
+        if (lbIdx === null) return;
         document.body.style.overflow = 'hidden';
-        return () => {
-            window.removeEventListener('keydown', onKey);
-            document.body.style.overflow = '';
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLbIdx(null);
+            if (e.key === 'ArrowLeft')  setLbIdx(i => Math.max(0, i - 1));
+            if (e.key === 'ArrowRight') setLbIdx(i => Math.min(filtered.length - 1, i + 1));
         };
-    }, [modal]);
+        window.addEventListener('keydown', onKey);
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+    }, [lbIdx, filtered.length]);
 
     const buildWaHref = useCallback((titulo) => {
         const tel = (empresa?.telefone || '').replace(/\D/g, '');
@@ -414,14 +414,14 @@ export default function PortfolioPublico() {
                             </p>
                         )}
                         <div className="pf-grid">
-                            {filtered.map(item => (
+                            {filtered.map((item, idx) => (
                                 <div
                                     key={item.id}
                                     className="pf-card"
-                                    onClick={() => setModal(item)}
+                                    onClick={() => setLbIdx(idx)}
                                     role="button"
                                     tabIndex={0}
-                                    onKeyDown={e => e.key === 'Enter' && setModal(item)}
+                                    onKeyDown={e => e.key === 'Enter' && setLbIdx(idx)}
                                     aria-label={`Ver projeto: ${item.titulo || 'Sem título'}`}
                                 >
                                     <img
@@ -461,57 +461,58 @@ export default function PortfolioPublico() {
                 {nome}{footerTxt ? ` · ${footerTxt}` : ''}
             </footer>
 
-            {/* ── Modal ──────────────────────────────────────────── */}
-            {modal && (
-                <div
-                    className="pf-modal-backdrop"
-                    onClick={e => { if (e.target === e.currentTarget) setModal(null); }}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label={modal.titulo || 'Detalhes do projeto'}
-                >
-                    <div className="pf-modal" ref={modalRef}>
-                        {/* Imagem */}
-                        <div className="pf-modal-img-wrap">
-                            <img src={modal.imagem} alt={modal.titulo || 'Projeto'} />
-                            <button
-                                className="pf-modal-close"
-                                onClick={() => setModal(null)}
-                                aria-label="Fechar"
-                            >
-                                ×
-                            </button>
-                        </div>
+            {/* ── Lightbox ──────────────────────────────────────── */}
+            {lbIdx !== null && filtered[lbIdx] && (() => {
+                const it = filtered[lbIdx];
+                const btn = { width:44, height:44, borderRadius:'50%', background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.18)', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)', flexShrink:0 };
+                return (
+                    <div
+                        style={{ position:'fixed', inset:0, zIndex:300, background:'rgba(8,5,4,0.96)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, animation:'fadeIn .18s ease' }}
+                        onClick={e => { if (e.target === e.currentTarget) setLbIdx(null); }}
+                        role="dialog" aria-modal="true"
+                    >
+                        {/* Foto */}
+                        <img
+                            key={it.id || lbIdx}
+                            src={it.imagem}
+                            alt={it.titulo || 'Projeto'}
+                            style={{ maxWidth:'92vw', maxHeight:'80vh', width:'auto', height:'auto', objectFit:'contain', borderRadius:'0.75rem', boxShadow:'0 32px 80px rgba(0,0,0,0.8)', display:'block', animation:'slideUp .22s ease' }}
+                        />
 
-                        {/* Detalhes */}
-                        <div className="pf-modal-body">
-                            {modal.ambiente && (
-                                <div className="pf-modal-amb">{modal.ambiente}</div>
-                            )}
-                            {modal.titulo && (
-                                <h2 className="pf-modal-title">{modal.titulo}</h2>
-                            )}
-                            {modal.designer && (
-                                <p className="pf-modal-designer">Projeto por {modal.designer}</p>
-                            )}
-                            {modal.descricao && (
-                                <p className="pf-modal-desc">{modal.descricao}</p>
-                            )}
-
-                            <a
-                                href={buildWaHref(modal.titulo)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="pf-modal-wa"
-                                onClick={() => setModal(null)}
-                            >
-                                <WaIcon className="pf-wa-icon" />
-                                Quero um projeto similar
+                        {/* Info + WA */}
+                        <div style={{ marginTop:16, display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', justifyContent:'center' }}>
+                            <div style={{ textAlign:'center' }}>
+                                {it.titulo && <p style={{ margin:0, fontWeight:600, fontSize:'0.92rem', color:'#DDD2CC' }}>{it.titulo}</p>}
+                                {it.ambiente && <p style={{ margin:'0.15rem 0 0', fontSize:'0.65rem', color:acc, textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:700 }}>{it.ambiente}</p>}
+                            </div>
+                            <a href={buildWaHref(it.titulo)} target="_blank" rel="noreferrer"
+                                style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 20px', background:'#25D366', color:'#fff', borderRadius:9999, fontWeight:700, fontSize:'0.8rem', textDecoration:'none', flexShrink:0 }}>
+                                <WaIcon style={{ width:16, height:16 }} />
+                                Quero similar
                             </a>
                         </div>
+
+                        {/* Fechar */}
+                        <button onClick={() => setLbIdx(null)} style={{ ...btn, position:'fixed', top:16, right:16 }} aria-label="Fechar">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                        {lbIdx > 0 && (
+                            <button onClick={() => setLbIdx(i => i - 1)} style={{ ...btn, position:'fixed', left:16, top:'50%', transform:'translateY(-50%)' }} aria-label="Anterior">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                        )}
+                        {lbIdx < filtered.length - 1 && (
+                            <button onClick={() => setLbIdx(i => i + 1)} style={{ ...btn, position:'fixed', right:16, top:'50%', transform:'translateY(-50%)' }} aria-label="Próxima">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        )}
+                        {/* Contador */}
+                        <div style={{ position:'fixed', top:20, left:'50%', transform:'translateX(-50%)', fontSize:'0.72rem', color:'rgba(255,255,255,0.4)', letterSpacing:'0.05em' }}>
+                            {lbIdx + 1} / {filtered.length}
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </>
     );
 }
