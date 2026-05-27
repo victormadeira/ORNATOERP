@@ -990,7 +990,22 @@ export default function LandingPageV2() {
                                                         fetchpriority={i === carouselIdx ? 'high' : 'auto'}
                                                         draggable="false"
                                                         style={{ opacity: 0, transition: 'opacity 0.4s ease' }}
-                                                        onLoad={e => { e.currentTarget.style.opacity = '1'; }}
+                                                        onLoad={e => {
+                                                            const img = e.currentTarget;
+                                                            img.style.opacity = '1';
+                                                            const wrap = img.parentElement;
+                                                            if (!wrap || !img.naturalWidth || !img.naturalHeight) return;
+                                                            const ratio = img.naturalWidth / img.naturalHeight;
+                                                            if (ratio >= 1) {
+                                                                // Paisagem/quadrada: container exato → sem bordas, sem corte
+                                                                wrap.style.aspectRatio = String(Math.min(16 / 9, ratio));
+                                                                img.style.objectFit = 'cover';
+                                                            } else {
+                                                                // Retrato: container 4:3, foto inteira visível, fundo branco nas laterais
+                                                                wrap.style.aspectRatio = '4/3';
+                                                                img.style.objectFit = 'contain';
+                                                            }
+                                                        }}
                                                     />
                                                 </div>
                                             </div>
@@ -1643,15 +1658,15 @@ function buildCSS(acc) {
 }
 
 .lp-carousel-img-wrap {
-  aspect-ratio: 4 / 3;
   width:100%;
+  aspect-ratio: 4 / 3;     /* padrão — JS sobrescreve ao carregar */
   overflow:hidden;
-  background:#1A1614;
-  border-radius: 0.5rem;
+  background: transparent;  /* fundo branco da seção aparece, sem moldura preta */
+  border-radius: 0.75rem;
 }
 .lp-carousel-img-front {
   width:100%; height:100%;
-  object-fit:contain; display:block;
+  object-fit:cover; display:block; /* JS muda para contain em fotos retrato */
   user-select:none; -webkit-user-drag:none;
 }
 
