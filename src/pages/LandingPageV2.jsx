@@ -332,7 +332,7 @@ export default function LandingPageV2() {
         const onScroll = () => {
             cancelAnimationFrame(raf);
             raf = requestAnimationFrame(() => {
-                const w = track.clientWidth;
+                const w = track.children[0]?.offsetWidth || track.clientWidth;
                 if (!w) return;
                 const idx = Math.round(track.scrollLeft / w);
                 setCarouselIdx(prev => (prev !== idx ? idx : prev));
@@ -967,7 +967,7 @@ export default function LandingPageV2() {
                                     onClick={() => {
                                         const t = carouselTrackRef.current;
                                         if (!t) return;
-                                        t.scrollTo({ left: Math.max(0, carouselIdx - 1) * t.clientWidth, behavior: 'smooth' });
+                                        t.scrollTo({ left: Math.max(0, carouselIdx - 1) * (t.children[0]?.offsetWidth || t.clientWidth), behavior: 'smooth' });
                                     }}
                                     disabled={carouselIdx === 0}
                                     aria-label="Foto anterior"
@@ -1004,7 +1004,7 @@ export default function LandingPageV2() {
                                     onClick={() => {
                                         const t = carouselTrackRef.current;
                                         if (!t) return;
-                                        t.scrollTo({ left: Math.min(portfolioFiltrado.length - 1, carouselIdx + 1) * t.clientWidth, behavior: 'smooth' });
+                                        t.scrollTo({ left: Math.min(portfolioFiltrado.length - 1, carouselIdx + 1) * (t.children[0]?.offsetWidth || t.clientWidth), behavior: 'smooth' });
                                     }}
                                     disabled={carouselIdx >= portfolioFiltrado.length - 1}
                                     aria-label="Próxima foto"
@@ -1049,7 +1049,7 @@ export default function LandingPageV2() {
                                                 onClick={() => {
                                                     const t = carouselTrackRef.current;
                                                     if (!t) return;
-                                                    t.scrollTo({ left: i * t.clientWidth, behavior: 'smooth' });
+                                                    t.scrollTo({ left: i * (t.children[0]?.offsetWidth || t.clientWidth), behavior: 'smooth' });
                                                 }}
                                                 aria-label={`Foto ${i + 1}: ${item.titulo || 'Projeto'}`}
                                             >
@@ -1625,6 +1625,7 @@ function buildCSS(acc) {
 
 .lp-carousel-track {
   display:flex;
+  gap:12px;
   overflow-x:auto;
   scroll-snap-type:x mandatory;
   scroll-behavior:smooth;
@@ -1919,6 +1920,14 @@ function buildCSS(acc) {
   .lp-tab-btn:hover, .lp-diferencial-item:hover, .lp-timeline-card:hover,
   .lp-project-card:hover, .lp-testimonial-card:hover { transform: none !important; }
   .lp-marquee-content { animation-duration: 45s !important; }
+}
+
+/* ═══ DESKTOP — 2 fotos lado a lado no carrossel ═══ */
+@media (min-width: 900px) {
+  .lp-carousel-slide {
+    flex: 0 0 calc(50% - 6px);
+    width: calc(50% - 6px);
+  }
 }
 
 /* ═══ TABLET — 1024px ═══ */
