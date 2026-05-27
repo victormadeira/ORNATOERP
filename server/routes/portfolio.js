@@ -1,6 +1,33 @@
 import { Router } from 'express';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { mkdirSync, writeFileSync } from 'fs';
+import multer from 'multer';
 import db from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'portfolio');
+mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const portfolioStorage = multer.diskStorage({
+    destination: (_, __, cb) => cb(null, UPLOADS_DIR),
+    filename: (_, file, cb) => {
+        const ext = file.mimetype === 'image/jpeg' ? 'jpg'
+                  : file.mimetype === 'image/png'  ? 'png'
+                  : file.mimetype === 'image/webp' ? 'webp'
+                  : 'jpg';
+        cb(null, `port-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
+    },
+});
+const portfolioUpload = multer({
+    storage: portfolioStorage,
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB (já comprimido no client)
+    fileFilter: (_, file, cb) => {
+        if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) return cb(null, true);
+        cb(new Error('Tipo não permitido. Use JPG, PNG ou WebP.'));
+    },
+});
 
 const router = Router();
 
@@ -95,6 +122,52 @@ router.put('/reorder', requireAuth, requireRole('admin', 'gerente'), (req, res) 
 router.delete('/:id', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
     db.prepare('DELETE FROM portfolio WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
+});
+
+// ── POST /api/portfolio/upload — salva foto como arquivo em disco ──────────
+// Recebe multipart/form-data com campo "file"
+// Retorna { url: '/uploads/portfolio/filename.jpg' }
+router.post('/upload', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    portfolioUpload.single('file')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message });
+        if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        res.json({ url: `/uploads/portfolio/${req.file.filename}` });
+    });
+});
+
+// ── POST /api/portfolio/migrate — converte base64 existentes para arquivo ──
+// Converte todos os itens do portfolio que ainda têm imagem em base64 para
+// arquivos em disco, atualizando a URL no banco.
+router.post('/migrate', requireAuth, requireRole('admin', 'gerente'), async (req, res) => {
+    const rows = db.prepare('SELECT id, imagem FROM portfolio WHERE ativo = 1').all();
+    let converted = 0;
+    let skipped = 0;
+    let errors = 0;
+    let counter = 0;
+
+    for (const row of rows) {
+        if (!row.imagem || !row.imagem.startsWith('data:image/')) {
+            skipped++;
+            continue;
+        }
+        try {
+            const match = row.imagem.match(/^data:image\/(\w+);base64,(.+)$/s);
+            if (!match) { skipped++; continue; }
+            const rawExt = match[1] === 'jpeg' ? 'jpg' : match[1] === 'svg+xml' ? 'svg' : match[1];
+            const ext = ['jpg', 'png', 'webp', 'gif'].includes(rawExt) ? rawExt : 'jpg';
+            const buffer = Buffer.from(match[2], 'base64');
+            const filename = `port-${Date.now()}-${++counter}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+            writeFileSync(join(UPLOADS_DIR, filename), buffer);
+            db.prepare('UPDATE portfolio SET imagem = ? WHERE id = ?').run(
+                `/uploads/portfolio/${filename}`, row.id
+            );
+            converted++;
+        } catch (e) {
+            errors++;
+        }
+    }
+
+    res.json({ ok: true, converted, skipped, errors });
 });
 
 export default router;

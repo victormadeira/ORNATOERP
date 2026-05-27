@@ -385,6 +385,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
     const [portfolio, setPortfolio] = useState([]);
     const [portEdit, setPortEdit] = useState(null); // { titulo, designer, descricao, imagem, ambiente } or null
     const [portSaving, setPortSaving] = useState(false);
+    const [portMigrating, setPortMigrating] = useState(false);
     const portImgRef = useRef();
     // Config visual/texto da página pública /portfolioornato (desacoplada da landing)
     const [portCfg, setPortCfg] = useState({
@@ -4624,6 +4625,36 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 >
                                     <ExternalLink size={13} /> Ver página
                                 </a>
+                                {isGerente && portfolio.length > 0 && !portEdit && (
+                                    <button
+                                        onClick={async () => {
+                                            if (portMigrating) return;
+                                            setPortMigrating(true);
+                                            try {
+                                                const r = await api.post('/portfolio/migrate');
+                                                if (r.converted > 0) {
+                                                    notify?.(`${r.converted} foto(s) migrada(s) para arquivo — carregamento mais rápido!`);
+                                                    loadPortfolio();
+                                                } else {
+                                                    notify?.('Fotos já estão otimizadas.');
+                                                }
+                                            } catch (ex) {
+                                                notify?.(ex.error || 'Erro na migração');
+                                            } finally {
+                                                setPortMigrating(false);
+                                            }
+                                        }}
+                                        disabled={portMigrating}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                                        style={{ border: '1px solid var(--border)', color: portMigrating ? 'var(--text-muted)' : 'var(--text-secondary)', opacity: portMigrating ? 0.7 : 1 }}
+                                        title="Converte fotos em base64 para arquivos — melhora performance"
+                                    >
+                                        {portMigrating
+                                            ? <><svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Otimizando…</>
+                                            : <><Database size={12} /> Otimizar fotos</>
+                                        }
+                                    </button>
+                                )}
                                 {isGerente && !portEdit && (
                                     <button
                                         onClick={() => setPortEdit({ titulo: '', designer: '', descricao: '', imagem: '', ambiente: '' })}
@@ -4676,10 +4707,21 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             if (portSaving) return;
                                             setPortSaving(true);
                                             try {
+                                                // Se ainda for base64 (recém-comprimido), faz upload como arquivo
+                                                let imagemFinal = portEdit.imagem;
+                                                if (imagemFinal && imagemFinal.startsWith('data:image/')) {
+                                                    const resp = await fetch(imagemFinal);
+                                                    const blob = await resp.blob();
+                                                    const ext = blob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+                                                    const file = new File([blob], `portfolio.${ext}`, { type: blob.type });
+                                                    const uploaded = await api.upload('/portfolio/upload', file);
+                                                    imagemFinal = uploaded.url;
+                                                }
+                                                const payload = { ...portEdit, imagem: imagemFinal };
                                                 if (portEdit.id) {
-                                                    await api.put(`/portfolio/${portEdit.id}`, portEdit);
+                                                    await api.put(`/portfolio/${portEdit.id}`, payload);
                                                 } else {
-                                                    await api.post('/portfolio', portEdit);
+                                                    await api.post('/portfolio', payload);
                                                 }
                                                 notify?.('Portfolio salvo!');
                                                 setPortEdit(null);

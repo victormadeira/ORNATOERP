@@ -990,7 +990,7 @@ export default function LandingPageV2() {
                                                         loading={near ? 'eager' : 'lazy'}
                                                         draggable="false"
                                                     />
-                                                    {/* foto principal nítida */}
+                                                    {/* foto principal nítida — começa transparente, fade-in ao decodificar */}
                                                     <img
                                                         className="lp-carousel-img-front"
                                                         src={item.imagem}
@@ -999,6 +999,8 @@ export default function LandingPageV2() {
                                                         decoding="async"
                                                         fetchpriority={i === carouselIdx ? 'high' : 'auto'}
                                                         draggable="false"
+                                                        style={{ opacity: 0, transition: 'opacity 0.4s ease' }}
+                                                        onLoad={e => { e.currentTarget.style.opacity = '1'; }}
                                                     />
                                                 </div>
                                             </div>
