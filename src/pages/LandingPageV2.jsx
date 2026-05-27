@@ -744,12 +744,18 @@ export default function LandingPageV2() {
                             </div>
                             <p className="lp-subheadline lp-animate-fade-up lp-delay-2">{heroDesc}</p>
                             <div className="lp-cta-group lp-animate-fade-up lp-delay-3">
-                                <a href="#portfolio" className="lp-btn-copper">
-                                    Ver Projetos <ArrowRight size={16} />
-                                </a>
-                                {waHref && (
-                                    <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-outline">
-                                        Falar no WhatsApp <ArrowRight size={14} />
+                                {waHref ? (
+                                    <>
+                                        <a href={waHref} target="_blank" rel="noreferrer" className="lp-btn-copper">
+                                            Falar no WhatsApp <ArrowRight size={16} />
+                                        </a>
+                                        <a href="#portfolio" className="lp-btn-outline">
+                                            Ver Portfólio <ArrowRight size={14} />
+                                        </a>
+                                    </>
+                                ) : (
+                                    <a href="#portfolio" className="lp-btn-copper">
+                                        Ver Projetos <ArrowRight size={16} />
                                     </a>
                                 )}
                             </div>
@@ -1075,32 +1081,19 @@ export default function LandingPageV2() {
                                     <div className="lp-form-badge">
                                         <Zap size={14} /> Atendimento especializado · responde em segundos
                                     </div>
+                                    {/* Sinal de escassez — cria urgência passiva */}
+                                    <div className="lp-form-agenda">
+                                        <span className="lp-agenda-dot" />
+                                        Agenda: <strong>3 consultorias</strong> disponíveis esta semana
+                                    </div>
                                     <h3 className="lp-form-title">
                                         Deixe seu contato e receba nosso atendimento para tirar seus <span className="lp-hl">sonhos do papel.</span>
                                     </h3>
                                     <p className="lp-form-sub">
-                                        Preenche em 30 segundos — nossa equipe te responde direto no WhatsApp.
+                                        Preenche em 10 segundos — nossa equipe te responde direto no WhatsApp.
                                     </p>
                                     <input className="lp-dark-input lp-input-lg" placeholder="Seu nome *" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
                                     <input className="lp-dark-input lp-input-lg" placeholder="WhatsApp (com DDD) *" required inputMode="tel" value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: formatTel(e.target.value) }))} />
-                                    <select className="lp-dark-input lp-input-lg lp-select" value={form.ambiente} onChange={e => setForm(f => ({ ...f, ambiente: e.target.value }))}>
-                                        <option value="">Qual ambiente? (opcional)</option>
-                                        <option>Cozinha</option>
-                                        <option>Closet / Dormitório</option>
-                                        <option>Home Office</option>
-                                        <option>Sala de Estar</option>
-                                        <option>Área Gourmet</option>
-                                        <option>Banheiro</option>
-                                        <option>Múltiplos Ambientes</option>
-                                    </select>
-                                    <select className="lp-dark-input lp-input-lg lp-select" value={form.estagio} onChange={e => setForm(f => ({ ...f, estagio: e.target.value }))}>
-                                        <option value="">Em que estágio está o imóvel? (opcional)</option>
-                                        <option>Reforma em andamento</option>
-                                        <option>Obra nova / construção</option>
-                                        <option>Mobília para imóvel novo</option>
-                                        <option>Apenas planejando</option>
-                                    </select>
-                                    <input className="lp-dark-input lp-input-lg" placeholder="Bairro / região (opcional)" value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))} />
                                     {erro && <div className="lp-form-erro">{erro}</div>}
                                     {waNum ? (
                                         <button type="submit" className="lp-btn-wa-hero" disabled={enviando}>
@@ -1759,6 +1752,10 @@ function buildCSS(acc) {
 .lp-dark-input::placeholder { color:rgba(26,22,20,0.4); }
 .lp-form-erro { font-size:13px; color:#B91C1C; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:10px 12px; }
 .lp-form-badge { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; padding:5px 12px; border-radius:9999px; background:${acc}18; border:1px solid ${acc}50; color:${acc}; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; }
+.lp-form-agenda { display:inline-flex; align-items:center; gap:8px; align-self:flex-start; font-size:0.78rem; color:rgba(26,22,20,0.70); font-weight:400; }
+.lp-form-agenda strong { color:#1A1614; font-weight:700; }
+.lp-agenda-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; display:inline-block; flex-shrink:0; box-shadow:0 0 0 3px rgba(34,197,94,0.20); animation:lp-pulse 2s ease-in-out infinite; }
+@keyframes lp-pulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,0.20)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0.08)} }
 .lp-form-title { font-family:'Oswald',sans-serif; font-size:clamp(1.5rem,3vw,2rem); font-weight:400; line-height:1.2; letter-spacing:-0.01em; color:#1A1614; }
 .lp-form-sub { font-size:0.95rem; color:rgba(26,22,20,0.65); line-height:1.65; font-weight:400; }
 .lp-input-lg { padding:18px 20px !important; font-size:16px !important; border-radius:14px !important; }

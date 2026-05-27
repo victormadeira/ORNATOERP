@@ -697,27 +697,8 @@ export default function PropostaApresentacao({ token }) {
                     </div>
                 </section>
 
-                {/* ═══ SEÇÃO 2: SOBRE ═══ */}
-                <section className="ap-section" style={{ background: cream, color: c1 }}>
-                    <div className="ap-container">
-                        <div ref={reveal} className="ap-reveal">
-                            <p className="ap-section-tag" style={{ color: c2 }}>QUEM SOMOS</p>
-                            <h2 className="ap-section-title" style={{ color: c1 }}>
-                                Transformamos espaços em experiências únicas.
-                            </h2>
-                            <p className="ap-about-text" style={{ color: `${c1}B0` }}>
-                                {empresa.texto_institucional || 'Somos especialistas em móveis planejados sob medida, unindo a precisão e a agilidade da tecnologia de ponta ao capricho e à essência da marcenaria fina tradicional. Trabalhamos com materiais de mais alta qualidade e processos modernos para garantir qualidade superior em cada entrega. Cada projeto é desenvolvido para refletir a personalidade e o estilo de vida de nossos clientes, com acabamento impecável e atenção absoluta aos detalhes.'}
-                            </p>
-                        </div>
-                        <div className="ap-stats" ref={statsRef}>
-                            <StatCard label="Projetos Entregues" value={`${cnt1}+`} color={c2} reveal={reveal} delay={0} />
-                            <StatCard label="Anos de Experiência" value={cnt2} color={c2} reveal={reveal} delay={1} />
-                            <StatCard label="Máquinas Industriais" value={`${cnt3}+`} color={c2} reveal={reveal} delay={2} desc={descMaquinas || undefined} />
-                        </div>
-                    </div>
-                </section>
-
-                {/* ═══ SEÇÃO 3: PORTFOLIO ═══ */}
+                {/* ═══ SEÇÃO 2 (nova ordem): PORTFOLIO ═══ */}
+                {/* Portfolio antes de "Sobre": o cliente quer ver o trabalho antes de ouvir sobre a empresa */}
                 {portfolio.length > 0 && (
                     <section className="ap-section" style={{ background: darkBg, color: cream }}>
                         <div className="ap-container">
@@ -726,6 +707,17 @@ export default function PropostaApresentacao({ token }) {
                                 <h2 className="ap-section-title" style={{ color: cream }}>
                                     Projetos que inspiram
                                 </h2>
+                                {/* Urgência discreta — só aparece quando a proposta tem ≤ 7 dias */}
+                                {validade && (() => {
+                                    const dias = Math.ceil((new Date(validade + 'T23:59:59') - new Date()) / 86400000);
+                                    if (dias <= 0 || dias > 7) return null;
+                                    return (
+                                        <div style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:14, padding:'6px 14px', borderRadius:50, background:`${c2}18`, border:`1px solid ${c2}40`, fontSize:12, color:c2, fontWeight:600, letterSpacing:'0.03em' }}>
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={c2} strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                            Esta proposta é válida por mais {dias} {dias === 1 ? 'dia' : 'dias'}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                             <div className="ap-masonry" style={{ marginTop: 40 }}>
                                 {displayedPort.map((p, i) => (
@@ -769,6 +761,27 @@ export default function PropostaApresentacao({ token }) {
                         </div>
                     </section>
                 )}
+
+                {/* ═══ SEÇÃO 3 (nova ordem): SOBRE ═══ */}
+                {/* "Quem somos" vem depois do portfólio: a empresa se apresenta através dos projetos */}
+                <section className="ap-section" style={{ background: cream, color: c1 }}>
+                    <div className="ap-container">
+                        <div ref={reveal} className="ap-reveal">
+                            <p className="ap-section-tag" style={{ color: c2 }}>QUEM SOMOS</p>
+                            <h2 className="ap-section-title" style={{ color: c1 }}>
+                                Transformamos espaços em experiências únicas.
+                            </h2>
+                            <p className="ap-about-text" style={{ color: `${c1}B0` }}>
+                                {empresa.texto_institucional || 'Somos especialistas em móveis planejados sob medida, unindo a precisão e a agilidade da tecnologia de ponta ao capricho e à essência da marcenaria fina tradicional. Trabalhamos com materiais de mais alta qualidade e processos modernos para garantir qualidade superior em cada entrega. Cada projeto é desenvolvido para refletir a personalidade e o estilo de vida de nossos clientes, com acabamento impecável e atenção absoluta aos detalhes.'}
+                            </p>
+                        </div>
+                        <div className="ap-stats" ref={statsRef}>
+                            <StatCard label="Projetos Entregues" value={`${cnt1}+`} color={c2} reveal={reveal} delay={0} />
+                            <StatCard label="Anos de Experiência" value={cnt2} color={c2} reveal={reveal} delay={1} />
+                            <StatCard label="Máquinas Industriais" value={`${cnt3}+`} color={c2} reveal={reveal} delay={2} desc={descMaquinas || undefined} />
+                        </div>
+                    </div>
+                </section>
 
                 {/* ── Lightbox ── */}
                 {lightboxIdx !== null && displayedPort[lightboxIdx] && (() => {
@@ -1086,6 +1099,21 @@ export default function PropostaApresentacao({ token }) {
                             >
                                 Abrir Minha Proposta Personalizada
                             </a>
+                            {/* Caminho alternativo para quem chega com dúvidas — salva leads indecisos */}
+                            {empresa.telefone && (
+                                <a
+                                    href={`https://wa.me/55${empresa.telefone.replace(/\D/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="ap-cta-btn-ghost"
+                                >
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                                        <path d="M5.337 21.672L.4 24l2.433-5.15A11.934 11.934 0 0 1 .001 12C.001 5.374 5.374 0 12 0s12 5.373 12 12c0 6.628-5.373 12-12 12a11.96 11.96 0 0 1-6.663-2.328z"/>
+                                    </svg>
+                                    Tenho dúvidas — falar no WhatsApp
+                                </a>
+                            )}
                             <div className="ap-cta-contacts" style={{ marginTop: 40 }}>
                                 {empresa.telefone && (
                                     <a href={`https://wa.me/55${empresa.telefone.replace(/\D/g, '')}`}
@@ -1318,6 +1346,8 @@ function buildCSS(c1, c2, cream) {
 .ap-cta-bg { position:absolute; inset:0; }
 .ap-cta-btn { display:inline-flex; align-items:center; gap:8px; padding:16px 48px; font-size:15px; font-weight:700; letter-spacing:0.02em; border-radius:50px; text-decoration:none; transition:all 0.3s; box-shadow:0 4px 20px ${c2}40; animation:ctaGlow 3s ease-in-out infinite; }
 .ap-cta-btn:hover { transform:translateY(-2px); box-shadow:0 6px 28px ${c2}60; }
+.ap-cta-btn-ghost { display:inline-flex; align-items:center; justify-content:center; gap:8px; margin-top:14px; padding:13px 36px; font-size:14px; font-weight:600; letter-spacing:0.01em; border-radius:50px; text-decoration:none; color:${cream}90; border:1px solid ${cream}20; background:transparent; transition:all 0.25s; }
+.ap-cta-btn-ghost:hover { color:${cream}; border-color:${cream}50; background:${cream}08; }
 @keyframes ctaGlow { 0%,100%{box-shadow:0 4px 20px ${c2}40;} 50%{box-shadow:0 6px 32px ${c2}70;} }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
 .ap-cta-contacts { display:flex; gap:24px; justify-content:center; flex-wrap:wrap; align-items:center; }
@@ -1371,6 +1401,7 @@ function buildCSS(c1, c2, cream) {
     /* CTA mobile */
     .ap-cta { padding:48px 0; }
     .ap-cta-btn { padding:14px 28px; font-size:13px; width:100%; max-width:320px; justify-content:center; text-align:center; white-space:normal; line-height:1.4; }
+    .ap-cta-btn-ghost { width:100%; max-width:320px; padding:11px 24px; font-size:13px; }
     .ap-cta-contacts { gap:16px; flex-direction:column; align-items:center; }
     .ap-contact-link { font-size:12px; }
 }
