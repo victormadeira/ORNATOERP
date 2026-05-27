@@ -319,12 +319,6 @@ export default function LandingPageV2() {
     }, [config, portfolio, portfolioLoaded]);
 
 
-    useEffect(() => {
-        const active = document.querySelector('.lp-thumb.active');
-        if (active && typeof active.scrollIntoView === 'function') {
-            active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-    }, [carouselIdx]);
 
     useEffect(() => {
         const id = config?.fb_pixel_id;
