@@ -317,7 +317,7 @@ export default function LandingPageV2() {
         }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
         document.querySelectorAll('.lp-reveal').forEach(el => obs.observe(el));
         return () => obs.disconnect();
-    }, [config, portfolio, categoriaAtiva]);
+    }, [config, portfolio, categoriaAtiva, portfolioLoaded]);
 
     // Carrossel: reset ao trocar categoria + keyboard nav + scroll detection
     useEffect(() => {
@@ -945,8 +945,12 @@ export default function LandingPageV2() {
                         </div>
                     )}
 
-                    {portfolioFiltrado.length > 0 ? (
-                        <div className="lp-carousel lp-reveal" key={categoriaAtiva}>
+                    {!portfolioLoaded ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0', opacity: 0.3 }}>
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        </div>
+                    ) : portfolioFiltrado.length > 0 ? (
+                        <div className="lp-carousel" key={categoriaAtiva} style={{ opacity: 1, transform: 'none' }}>
                             <div className="lp-carousel-header">
                                 <div className="lp-carousel-counter">
                                     <span className="lp-counter-current">{String(Math.min(carouselIdx + 1, portfolioFiltrado.length)).padStart(2, '0')}</span>
@@ -1069,6 +1073,7 @@ export default function LandingPageV2() {
                             <p>Em breve projetos nessa categoria.</p>
                         </div>
                     )}
+
 
                     {igHandle && (
                         <div style={{ textAlign: 'center', marginTop: '3rem' }}>
