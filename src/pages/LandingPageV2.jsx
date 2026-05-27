@@ -972,7 +972,18 @@ export default function LandingPageV2() {
                                         return (
                                             <div key={item.id || i} className="lp-carousel-slide">
                                                 <div className="lp-carousel-img-wrap">
+                                                    {/* backdrop borrado — elimina bordas em fotos verticais */}
                                                     <img
+                                                        className="lp-carousel-img-bg"
+                                                        src={item.imagem}
+                                                        alt=""
+                                                        aria-hidden="true"
+                                                        loading={near ? 'eager' : 'lazy'}
+                                                        draggable="false"
+                                                    />
+                                                    {/* foto principal nítida */}
+                                                    <img
+                                                        className="lp-carousel-img-front"
                                                         src={item.imagem}
                                                         alt={item.titulo || 'Projeto'}
                                                         loading={near ? 'eager' : 'lazy'}
@@ -1633,9 +1644,20 @@ function buildCSS(acc) {
   aspect-ratio: 16 / 10;
   width:100%;
   overflow:hidden;
-  background:#EFE9DF;
+  background:#1A1614;
 }
-.lp-carousel-img-wrap img {
+/* backdrop borrado — preenche as bordas laterais de fotos verticais */
+.lp-carousel-img-bg {
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  object-fit:cover; display:block;
+  filter:blur(20px) brightness(0.55) saturate(0.7);
+  transform:scale(1.1); /* evita borda do blur aparecer */
+  pointer-events:none;
+}
+/* foto principal nítida por cima */
+.lp-carousel-img-front {
+  position:relative; z-index:1;
   width:100%; height:100%;
   object-fit:contain; display:block;
   user-select:none; -webkit-user-drag:none;
@@ -2078,7 +2100,7 @@ function buildCSS(acc) {
 
   /* Carrossel mobile */
   .lp-carousel-stage { border-radius: 1rem; }
-  .lp-carousel-img-wrap { aspect-ratio: 4 / 5; }
+  .lp-carousel-img-wrap { aspect-ratio: 4 / 3; }
   .lp-carousel-arrow { display: none; }
   .lp-carousel-header { margin-bottom: 0.875rem; }
   .lp-carousel-counter .lp-counter-current { font-size: 1.15rem; }
@@ -2147,7 +2169,7 @@ function buildCSS(acc) {
   .lp-portfolio-tabs {
     padding: 4px 1rem 6px;
   }
-  .lp-carousel-img-wrap { aspect-ratio: 4 / 5; }
+  .lp-carousel-img-wrap { aspect-ratio: 4 / 3; }
   .lp-caption-title { font-size: 1.05rem; }
   .lp-caption-desc { font-size: 0.83rem; }
   .lp-thumb { width: 52px; height: 40px; }
