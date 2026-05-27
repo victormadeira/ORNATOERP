@@ -564,9 +564,8 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
     const [matFilter, setMatFilter] = useState('all');
     const [showGrid, setShowGrid] = useState(false);
 
-    if (!plano) return null;
-    const { resumo, plano: pl } = plano;
-    const chapas = pl.chapas || [];
+    // ⚠️ Todos os hooks ANTES de qualquer return condicional (Rules of Hooks)
+    const chapas = plano ? (plano.plano?.chapas || []) : [];
     const chapaAtual = chapas[chapaIdx];
 
     // Agrupar chapas por material para navegação inteligente
@@ -587,12 +586,6 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
         return matGroups[matFilter]?.indices || [];
     }, [matFilter, matGroups, chapas]);
 
-    const currentPosInFilter = filteredIndices.indexOf(chapaIdx);
-    const canPrev = currentPosInFilter > 0;
-    const canNext = currentPosInFilter < filteredIndices.length - 1;
-    const goPrev = () => canPrev && setChapaIdx(filteredIndices[currentPosInFilter - 1]);
-    const goNext = () => canNext && setChapaIdx(filteredIndices[currentPosInFilter + 1]);
-
     // Extrair fitas únicas para legenda
     const fitaTypes = useMemo(() => {
         if (!chapaAtual) return [];
@@ -606,6 +599,15 @@ function StepResultado({ plano, chapaIdx, setChapaIdx, zoom, setZoom, ambColorMa
         });
         return [...types];
     }, [chapaAtual]);
+
+    if (!plano) return null;
+    const { resumo, plano: pl } = plano;
+
+    const currentPosInFilter = filteredIndices.indexOf(chapaIdx);
+    const canPrev = currentPosInFilter > 0;
+    const canNext = currentPosInFilter < filteredIndices.length - 1;
+    const goPrev = () => canPrev && setChapaIdx(filteredIndices[currentPosInFilter - 1]);
+    const goNext = () => canNext && setChapaIdx(filteredIndices[currentPosInFilter + 1]);
 
     return (
         <div>
