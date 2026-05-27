@@ -1394,7 +1394,7 @@ function OficinaDesktop({ notify }) {
   const atrasados   = cards.filter(c => c.prazo && new Date(c.prazo + 'T12:00:00') < new Date()).length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-muted)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 56px)', background: 'var(--bg-muted)', overflow: 'hidden' }}>
       {/* ── Header ──────────────────────────────────────────── */}
       <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid #E2E8F0', padding: '14px 20px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -1477,7 +1477,7 @@ function OficinaDesktop({ notify }) {
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setActiveId(active.id)} onDragEnd={handleDragEnd}>
-            <div style={{ display: 'flex', gap: 12, height: 'calc(100vh - 160px)', minWidth: 'max-content' }}>
+            <div style={{ display: 'flex', gap: 12, height: '100%', minWidth: 'max-content' }}>
               {ETAPAS.map(etapa => (
                 <KanbanColumn key={etapa.id} etapa={etapa} cards={byEtapa(etapa.id)} onOpen={setOpenId} onAddCard={setNewCardEtapa} />
               ))}
