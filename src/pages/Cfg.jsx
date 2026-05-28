@@ -4672,35 +4672,83 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             </div>
                         </div>
                         {isGerente && (
-                            <div className="flex justify-end items-center gap-3 mt-4">
-                                {adSaveStatus === 'ok'   && <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>✓ Salvo!</span>}
-                                {adSaveStatus === 'erro' && <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>✗ Erro ao salvar</span>}
-                                <button
-                                    disabled={adSaving}
-                                    onClick={async () => {
-                                        setAdSaving(true);
-                                        setAdSaveStatus(null);
-                                        try {
-                                            await api.patch('/config/empresa/ad-slider', {
-                                                landing_ad_antes: emp.landing_ad_antes,
-                                                landing_ad_depois: emp.landing_ad_depois,
-                                                landing_ad_titulo: emp.landing_ad_titulo,
-                                            });
-                                            setAdSaveStatus('ok');
-                                            setTimeout(() => setAdSaveStatus(null), 3000);
-                                        } catch (ex) {
-                                            setAdSaveStatus('erro');
-                                            notify(ex?.error || 'Erro ao salvar slider');
-                                        } finally {
-                                            setAdSaving(false);
-                                        }
-                                    }}
-                                    className={Z.btn}
-                                    style={{ opacity: adSaving ? 0.65 : 1 }}
-                                >
-                                    {adSaving ? 'Salvando…' : 'Salvar'}
-                                </button>
-                            </div>
+                            <>
+                                {/* Banner de feedback — bem visível, 5s */}
+                                {adSaveStatus === 'ok' && (
+                                    <div style={{
+                                        marginTop: 16,
+                                        padding: '12px 16px',
+                                        borderRadius: 10,
+                                        background: '#dcfce7',
+                                        border: '1px solid #86efac',
+                                        color: '#15803d',
+                                        fontWeight: 600,
+                                        fontSize: 13,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        animation: 'slideInFade 0.3s ease-out',
+                                    }}>
+                                        <span style={{ fontSize: 18 }}>✓</span>
+                                        Fotos salvas com sucesso! Recarregue a landing page para ver no ar.
+                                    </div>
+                                )}
+                                {adSaveStatus === 'erro' && (
+                                    <div style={{
+                                        marginTop: 16,
+                                        padding: '12px 16px',
+                                        borderRadius: 10,
+                                        background: '#fee2e2',
+                                        border: '1px solid #fca5a5',
+                                        color: '#b91c1c',
+                                        fontWeight: 600,
+                                        fontSize: 13,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                    }}>
+                                        <span style={{ fontSize: 18 }}>✗</span>
+                                        Erro ao salvar — verifique o console
+                                    </div>
+                                )}
+                                <div className="flex justify-end mt-4">
+                                    <button
+                                        disabled={adSaving}
+                                        onClick={async () => {
+                                            const t0 = Date.now();
+                                            setAdSaving(true);
+                                            setAdSaveStatus(null);
+                                            try {
+                                                await api.patch('/config/empresa/ad-slider', {
+                                                    landing_ad_antes: emp.landing_ad_antes,
+                                                    landing_ad_depois: emp.landing_ad_depois,
+                                                    landing_ad_titulo: emp.landing_ad_titulo,
+                                                });
+                                                // Garante mínimo de 600ms para o "Salvando..." ser percebido
+                                                const elapsed = Date.now() - t0;
+                                                if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
+                                                setAdSaveStatus('ok');
+                                                setTimeout(() => setAdSaveStatus(null), 5000);
+                                            } catch (ex) {
+                                                setAdSaveStatus('erro');
+                                                console.error('[ad-slider] save error:', ex);
+                                            } finally {
+                                                setAdSaving(false);
+                                            }
+                                        }}
+                                        className={Z.btn}
+                                        style={{
+                                            opacity: adSaving ? 0.7 : 1,
+                                            minWidth: 140,
+                                            background: adSaveStatus === 'ok' ? '#16a34a' : undefined,
+                                            transition: 'background 0.2s',
+                                        }}
+                                    >
+                                        {adSaving ? '⏳ Salvando…' : adSaveStatus === 'ok' ? '✓ Salvo!' : 'Salvar fotos'}
+                                    </button>
+                                </div>
+                                <style>{`@keyframes slideInFade { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                            </>
                         )}
                     </div>
 
