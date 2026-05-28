@@ -319,6 +319,27 @@ router.put('/empresa', requireAuth, requireRole('admin', 'gerente'), (req, res) 
 });
 
 // ═══════════════════════════════════════════════════════
+// PATCH /api/config/empresa/ad-slider — salva só as fotos antes/depois
+// Endpoint dedicado: payload pequeno (2 imagens), sem sobrescrever outros campos
+// ═══════════════════════════════════════════════════════
+router.patch('/empresa/ad-slider', requireAuth, requireRole('admin', 'gerente'), (req, res) => {
+    const { landing_ad_antes, landing_ad_depois, landing_ad_titulo } = req.body;
+    db.prepare(`
+        UPDATE empresa_config SET
+            landing_ad_antes  = ?,
+            landing_ad_depois = ?,
+            landing_ad_titulo = ?,
+            atualizado_em     = CURRENT_TIMESTAMP
+        WHERE id = 1
+    `).run(
+        landing_ad_antes  !== undefined ? landing_ad_antes  : '',
+        landing_ad_depois !== undefined ? landing_ad_depois : '',
+        landing_ad_titulo !== undefined ? landing_ad_titulo : '',
+    );
+    res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
 // GET/PUT /api/config/progresso-pesos — pesos do cálculo de progresso
 // ═══════════════════════════════════════════════════════
 router.get('/progresso-pesos', requireAuth, (req, res) => {

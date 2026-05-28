@@ -4673,19 +4673,24 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                         </div>
                         {isGerente && (
                             <div className="flex justify-end items-center gap-3 mt-4">
-                                {adSaveStatus === 'ok'   && <span style={{ fontSize: 12, color: 'var(--success, #16a34a)', fontWeight: 600 }}>✓ Salvo com sucesso!</span>}
-                                {adSaveStatus === 'erro' && <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>✗ Erro ao salvar</span>}
+                                {adSaveStatus === 'ok'   && <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>✓ Salvo!</span>}
+                                {adSaveStatus === 'erro' && <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>✗ Erro ao salvar</span>}
                                 <button
                                     disabled={adSaving}
                                     onClick={async () => {
                                         setAdSaving(true);
                                         setAdSaveStatus(null);
                                         try {
-                                            await saveEmpresa(true);
+                                            await api.patch('/config/empresa/ad-slider', {
+                                                landing_ad_antes: emp.landing_ad_antes,
+                                                landing_ad_depois: emp.landing_ad_depois,
+                                                landing_ad_titulo: emp.landing_ad_titulo,
+                                            });
                                             setAdSaveStatus('ok');
-                                            setTimeout(() => setAdSaveStatus(null), 3500);
-                                        } catch {
+                                            setTimeout(() => setAdSaveStatus(null), 3000);
+                                        } catch (ex) {
                                             setAdSaveStatus('erro');
+                                            notify(ex?.error || 'Erro ao salvar slider');
                                         } finally {
                                             setAdSaving(false);
                                         }
