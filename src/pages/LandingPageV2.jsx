@@ -12,7 +12,6 @@ import {
     Loader2,
     Mail,
     MapPin,
-    MessageCircle,
     Phone,
     Ruler,
     Sparkles,
@@ -1185,7 +1184,7 @@ export default function LandingPageV2() {
                 <a href={waHref} target="_blank" rel="noreferrer"
                    className={`lp-wa-float${showStickyWA ? ' lp-wa-float-hidden-mobile' : ''}`}
                    aria-label="WhatsApp">
-                    <MessageCircle size={28} fill="#fff" />
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M5.337 21.672L.4 24l2.433-5.15A11.934 11.934 0 0 1 .001 12C.001 5.374 5.374 0 12 0s12 5.373 12 12c0 6.628-5.373 12-12 12a11.96 11.96 0 0 1-6.663-2.328z"/></svg>
                 </a>
             )}
 
@@ -1761,7 +1760,7 @@ function buildCSS(acc) {
 .lp-input-lg { padding:18px 20px !important; font-size:16px !important; border-radius:14px !important; }
 .lp-select { appearance:none; -webkit-appearance:none; cursor:pointer; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231a161477' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 18px center; padding-right:44px !important; }
 .lp-select option { background:#fff; color:#1A1614; }
-.lp-btn-wa-hero { --wa-glow-rgb:37,211,102; display:inline-flex; align-items:center; justify-content:center; gap:12px; width:100%; height:64px; padding:0 2rem; margin-top:6px; background:linear-gradient(135deg, #25D366, #128C7E); color:#fff; border:none; border-radius:14px; font-family:inherit; font-size:1.02rem; font-weight:800; cursor:pointer; transition:all 0.3s; box-shadow:0 8px 24px rgba(var(--wa-glow-rgb),0.3); animation:waHeroPulse 2.4s ease-in-out infinite; }
+.lp-btn-wa-hero { --wa-glow-rgb:29,170,97; display:inline-flex; align-items:center; justify-content:center; gap:12px; width:100%; height:64px; padding:0 2rem; margin-top:6px; background:linear-gradient(135deg, #1DAA61, #0D7A55); color:#fff; border:none; border-radius:14px; font-family:inherit; font-size:1.02rem; font-weight:800; cursor:pointer; transition:all 0.3s; box-shadow:0 8px 24px rgba(var(--wa-glow-rgb),0.3); animation:waHeroPulse 2.4s ease-in-out infinite; }
 .lp-btn-wa-hero:hover { transform:translateY(-2px); box-shadow:0 14px 40px rgba(var(--wa-glow-rgb),0.5); animation-play-state:paused; }
 .lp-btn-wa-hero:disabled { opacity:0.7; cursor:wait; animation:none; }
 @keyframes waHeroPulse { 0%,100%{box-shadow:0 8px 24px rgba(var(--wa-glow-rgb),0.3),0 0 0 0 rgba(var(--wa-glow-rgb),0.4)} 50%{box-shadow:0 8px 24px rgba(var(--wa-glow-rgb),0.3),0 0 0 12px rgba(var(--wa-glow-rgb),0)} }
@@ -1787,8 +1786,8 @@ function buildCSS(acc) {
 .lp-cta-section .lp-hl { color:${acc}; }
 .lp-cta-subtitle { font-size:1.2rem; max-width:550px; margin:0 auto 3rem; color:rgba(250,247,242,0.7); font-weight:400; line-height:1.6; }
 .lp-cta-actions { display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap; justify-content:center; position:relative; z-index:2; }
-.lp-btn-wa-cta { display:inline-flex; align-items:center; gap:8px; padding:16px 32px; background:#25D366; color:#fff; border:none; border-radius:9999px; font-size:0.9rem; font-weight:700; text-decoration:none; cursor:pointer; transition:all 0.3s; text-transform:uppercase; letter-spacing:0.08em; box-shadow:0 4px 18px rgba(37,211,102,0.4); }
-.lp-btn-wa-cta:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(37,211,102,0.55); }
+.lp-btn-wa-cta { display:inline-flex; align-items:center; gap:8px; padding:16px 32px; background:#1DAA61; color:#fff; border:none; border-radius:9999px; font-size:0.9rem; font-weight:700; text-decoration:none; cursor:pointer; transition:all 0.3s; text-transform:uppercase; letter-spacing:0.08em; box-shadow:0 4px 18px rgba(29,170,97,0.4); }
+.lp-btn-wa-cta:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(29,170,97,0.55); background:#1A9E59; }
 .lp-footer-contacts { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; margin-top:3rem; padding-top:2rem; border-top:1px solid rgba(250,247,242,0.12); position:relative; z-index:2; }
 .lp-footer-contacts a, .lp-footer-contacts span { display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; text-decoration:none; color:rgba(250,247,242,0.55); transition:color 0.2s; }
 .lp-footer-contacts a:hover { color:${acc}; }
@@ -1809,7 +1808,7 @@ function buildCSS(acc) {
 @media (max-width:768px) {
   .lp-wa-float-hidden-mobile { display:none !important; }
   .lp-sticky-wa-bar { display:flex; position:fixed; bottom:0; left:0; right:0; z-index:9998; padding:10px 16px; padding-bottom:max(10px,env(safe-area-inset-bottom,10px)); background:rgba(255,255,255,0.97); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-top:1px solid rgba(26,22,20,0.1); box-shadow:0 -8px 30px rgba(26,22,20,0.1); }
-  .lp-sticky-wa-btn { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; height:52px; background:#25D366; color:#fff; border-radius:12px; font-weight:800; font-size:0.92rem; text-decoration:none; letter-spacing:0.02em; transition:opacity 0.2s; font-family:inherit; }
+  .lp-sticky-wa-btn { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; height:52px; background:#1DAA61; color:#fff; border-radius:12px; font-weight:800; font-size:0.92rem; text-decoration:none; letter-spacing:0.02em; transition:opacity 0.2s; font-family:inherit; }
   .lp-sticky-wa-btn:hover { opacity:0.9; }
 }
 
