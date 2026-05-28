@@ -423,6 +423,8 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         portfolio_cta_texto: 'Solicitar projeto',
     });
     const [portCfgSaving, setPortCfgSaving] = useState(false);
+    const [adSaving, setAdSaving]           = useState(false);
+    const [adSaveStatus, setAdSaveStatus]   = useState(null); // null | 'ok' | 'erro'
     const [depoimentos, setDepoimentos] = useState([]);
     const [depEdit, setDepEdit] = useState(null); // { nome_cliente, texto, estrelas } or null
     const [fuColunas, setFuColunas] = useState([]);
@@ -4670,8 +4672,29 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                             </div>
                         </div>
                         {isGerente && (
-                            <div className="flex justify-end mt-4">
-                                <button onClick={saveEmpresa} className={Z.btn}>Salvar</button>
+                            <div className="flex justify-end items-center gap-3 mt-4">
+                                {adSaveStatus === 'ok'   && <span style={{ fontSize: 12, color: 'var(--success, #16a34a)', fontWeight: 600 }}>✓ Salvo com sucesso!</span>}
+                                {adSaveStatus === 'erro' && <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>✗ Erro ao salvar</span>}
+                                <button
+                                    disabled={adSaving}
+                                    onClick={async () => {
+                                        setAdSaving(true);
+                                        setAdSaveStatus(null);
+                                        try {
+                                            await saveEmpresa(true);
+                                            setAdSaveStatus('ok');
+                                            setTimeout(() => setAdSaveStatus(null), 3500);
+                                        } catch {
+                                            setAdSaveStatus('erro');
+                                        } finally {
+                                            setAdSaving(false);
+                                        }
+                                    }}
+                                    className={Z.btn}
+                                    style={{ opacity: adSaving ? 0.65 : 1 }}
+                                >
+                                    {adSaving ? 'Salvando…' : 'Salvar'}
+                                </button>
                             </div>
                         )}
                     </div>
