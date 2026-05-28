@@ -42,31 +42,50 @@ function parseJsonList(value, fallback) {
 }
 
 // ── Comprime imagem via canvas (max 1200px, JPEG 80%) ─────────────────────
-function compressImage(file, maxW = 1200, quality = 0.8) {
+/**
+ * Comprime e redimensiona uma imagem usando Canvas.
+ * - Redimensiona para maxW se necessário
+ * - Para JPEG: aplica qualidade inicial e reduz automaticamente até atingir targetKB
+ * - Para PNG com transparência: mantém PNG (sem degradação de alfa)
+ * - targetKB: tamanho alvo do arquivo final em KB (default 480 KB)
+ */
+function compressImage(file, maxW = 1200, quality = 0.82, targetKB = 480) {
     return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                // Se já é pequena o suficiente e não precisa resize, retorna direto
-                if (img.width <= maxW && file.size <= 150 * 1024) {
-                    resolve(e.target.result);
-                    return;
-                }
                 const isPng = file.type === 'image/png';
+
+                // PNG pequeno ou imagem já dentro do alvo → retorna direto
+                if (isPng && file.size <= targetKB * 1024) { resolve(e.target.result); return; }
+                if (!isPng && img.width <= maxW && file.size <= targetKB * 1024) { resolve(e.target.result); return; }
+
                 const canvas = document.createElement('canvas');
                 let w = img.width, h = img.height;
                 if (w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
                 canvas.width = w;
                 canvas.height = h;
                 const ctx = canvas.getContext('2d');
-                // PNG com transparência: não preencher fundo (preserva canal alfa)
+
                 if (!isPng) {
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(0, 0, w, h);
                 }
                 ctx.drawImage(img, 0, 0, w, h);
-                resolve(isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', quality));
+
+                if (isPng) { resolve(canvas.toDataURL('image/png')); return; }
+
+                // JPEG: reduz qualidade progressivamente até caber no targetKB
+                // Base64 tem overhead de ~37%, então: base64.length ≈ bytes × 1.37
+                const targetBase64Chars = targetKB * 1024 * 1.37;
+                let q = quality;
+                let result = canvas.toDataURL('image/jpeg', q);
+                while (result.length > targetBase64Chars && q > 0.35) {
+                    q = parseFloat((q - 0.08).toFixed(2));
+                    result = canvas.toDataURL('image/jpeg', q);
+                }
+                resolve(result);
             };
             img.src = e.target.result;
         };
@@ -4629,6 +4648,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 onChange={landing_ad_antes => setEmp({ ...emp, landing_ad_antes })}
                                 disabled={!isGerente}
                                 hint="Estado original do espaço"
+                                compressMaxW={1400}
                             />
                             <ImageUploader
                                 label="Foto DEPOIS"
@@ -4636,6 +4656,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 onChange={landing_ad_depois => setEmp({ ...emp, landing_ad_depois })}
                                 disabled={!isGerente}
                                 hint="Resultado final com os móveis planejados"
+                                compressMaxW={1400}
                             />
                             <div className="md:col-span-2">
                                 <label className={Z.lbl}>Título da seção (opcional)</label>
