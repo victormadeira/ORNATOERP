@@ -4713,38 +4713,48 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 )}
                                 <div className="flex justify-end mt-4">
                                     <button
+                                        type="button"
                                         disabled={adSaving}
                                         onClick={async () => {
+                                            alert('[1] Botão clicado. Tamanho ANTES: ' + (emp.landing_ad_antes?.length || 0) + ' chars, DEPOIS: ' + (emp.landing_ad_depois?.length || 0));
                                             const t0 = Date.now();
                                             setAdSaving(true);
                                             setAdSaveStatus(null);
                                             try {
-                                                await api.patch('/config/empresa/ad-slider', {
+                                                const resp = await api.patch('/config/empresa/ad-slider', {
                                                     landing_ad_antes: emp.landing_ad_antes,
                                                     landing_ad_depois: emp.landing_ad_depois,
                                                     landing_ad_titulo: emp.landing_ad_titulo,
                                                 });
-                                                // Garante mínimo de 600ms para o "Salvando..." ser percebido
+                                                alert('[2] PATCH retornou: ' + JSON.stringify(resp));
                                                 const elapsed = Date.now() - t0;
                                                 if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
                                                 setAdSaveStatus('ok');
                                                 setTimeout(() => setAdSaveStatus(null), 5000);
                                             } catch (ex) {
+                                                alert('[3] ERRO: ' + JSON.stringify(ex));
                                                 setAdSaveStatus('erro');
                                                 console.error('[ad-slider] save error:', ex);
                                             } finally {
                                                 setAdSaving(false);
                                             }
                                         }}
-                                        className={Z.btn}
                                         style={{
+                                            padding: '14px 28px',
+                                            background: adSaveStatus === 'ok' ? '#16a34a' : '#1379F0',
+                                            color: '#fff',
+                                            border: 'none',
+                                            borderRadius: 10,
+                                            fontSize: 15,
+                                            fontWeight: 700,
+                                            cursor: adSaving ? 'wait' : 'pointer',
                                             opacity: adSaving ? 0.7 : 1,
-                                            minWidth: 140,
-                                            background: adSaveStatus === 'ok' ? '#16a34a' : undefined,
+                                            minWidth: 180,
                                             transition: 'background 0.2s',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                         }}
                                     >
-                                        {adSaving ? '⏳ Salvando…' : adSaveStatus === 'ok' ? '✓ Salvo!' : 'Salvar fotos'}
+                                        {adSaving ? '⏳ Salvando…' : adSaveStatus === 'ok' ? '✓ Salvo!' : '💾 SALVAR FOTOS'}
                                     </button>
                                 </div>
                                 <style>{`@keyframes slideInFade { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
