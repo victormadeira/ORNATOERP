@@ -114,6 +114,8 @@ app.use('/api/cnc', express.json({ limit: '50mb' }));
 app.use('/api/cnc/scan', scanLimiter);
 app.use('/api/plano-corte', express.json({ limit: '50mb' }));
 app.use('/api/industrializacao', express.json({ limit: '20mb' }));
+// Config empresa: payload contém múltiplas imagens base64 já comprimidas
+app.use('/api/config', express.json({ limit: '10mb' }));
 // Demais rotas: limite menor por seguranca
 app.use(express.json({ limit: '5mb' }));
 
@@ -217,7 +219,7 @@ app.post('/api/whatsapp/conversas/*/backfill', backfillLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/orcamentos', orcamentosRoutes);
-app.use('/api/config', express.json({ limit: '8mb' }), configRoutes);
+app.use('/api/config', configRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/biblioteca', bibliotecaRoutes);
 // Portal: rotas públicas por token recebem rate limit antes do router
