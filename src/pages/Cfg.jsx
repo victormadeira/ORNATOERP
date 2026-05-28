@@ -303,6 +303,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
         landing_video_institucional: '',
         video_processo: '',
         landing_grafismo_imagem: '',
+        landing_ad_antes: '',
+        landing_ad_depois: '',
+        landing_ad_titulo: '',
         landing_cor_fundo: '#1E1917',
         landing_cor_destaque: '#93614C',
         landing_cor_neutra: '#847974',
@@ -491,6 +494,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_video_institucional: d.landing_video_institucional || '',
                 video_processo: d.video_processo || '',
                 landing_grafismo_imagem: d.landing_grafismo_imagem || '',
+                landing_ad_antes: d.landing_ad_antes || '',
+                landing_ad_depois: d.landing_ad_depois || '',
+                landing_ad_titulo: d.landing_ad_titulo || '',
                 landing_cor_fundo: d.landing_cor_fundo || '#1E1917',
                 landing_cor_destaque: d.landing_cor_destaque || '#93614C',
                 landing_cor_neutra: d.landing_cor_neutra || '#847974',
@@ -688,6 +694,9 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                 landing_video_institucional: emp.landing_video_institucional,
                 video_processo: emp.video_processo,
                 landing_grafismo_imagem: emp.landing_grafismo_imagem,
+                landing_ad_antes: emp.landing_ad_antes,
+                landing_ad_depois: emp.landing_ad_depois,
+                landing_ad_titulo: emp.landing_ad_titulo,
                 landing_cor_fundo: emp.landing_cor_fundo,
                 landing_cor_destaque: emp.landing_cor_destaque,
                 landing_cor_neutra: emp.landing_cor_neutra,
@@ -4022,6 +4031,39 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             hint="Imagem escura para textura no hero (recomendado 1920x1080)"
                                         />
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={Z.card + ' mt-4'}>
+                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Slider Antes & Depois</h3>
+                            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+                                Aparece acima do portfólio na landing page. Cadastre as duas fotos para ativar a seção.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <ImageUploader
+                                    label="Foto ANTES"
+                                    image={emp.landing_ad_antes}
+                                    onChange={landing_ad_antes => setEmp({ ...emp, landing_ad_antes })}
+                                    disabled={!isGerente}
+                                    hint="Estado original do espaço"
+                                />
+                                <ImageUploader
+                                    label="Foto DEPOIS"
+                                    image={emp.landing_ad_depois}
+                                    onChange={landing_ad_depois => setEmp({ ...emp, landing_ad_depois })}
+                                    disabled={!isGerente}
+                                    hint="Resultado final com os móveis planejados"
+                                />
+                                <div className="md:col-span-2">
+                                    <label className={Z.lbl}>Título da seção (opcional)</label>
+                                    <input
+                                        className={Z.inp}
+                                        value={emp.landing_ad_titulo || ''}
+                                        onChange={e => setEmp({ ...emp, landing_ad_titulo: e.target.value })}
+                                        disabled={!isGerente}
+                                        placeholder="Ex: A transformação que só a Ornato entrega"
+                                    />
                                 </div>
                             </div>
                         </div>

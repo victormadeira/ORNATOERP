@@ -46,6 +46,7 @@ router.get('/config', (req, res) => {
         'landing_cta_titulo','landing_cta_descricao','landing_texto_rodape',
         'landing_prova_titulo','landing_provas_json',
         'landing_logo','landing_hero_imagem',
+        'landing_ad_antes','landing_ad_depois','landing_ad_titulo',
         'landing_hero_video_url','landing_hero_video_poster','landing_video_institucional',
         'landing_grafismo_imagem',
         'landing_cor_fundo','landing_cor_destaque','landing_cor_neutra','landing_cor_clara',

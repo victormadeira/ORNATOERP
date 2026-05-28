@@ -20,6 +20,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { initClarity, setClarityTag } from '../utils/clarity';
+import { BeforeAfterSlider } from '../components/BeforeAfterSlider';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LandingPageV2 — Light Premium:
@@ -914,6 +915,25 @@ export default function LandingPageV2() {
                 </div>
             </section>
 
+            {/* ═══ ANTES & DEPOIS ═══ */}
+            {config?.landing_ad_antes && config?.landing_ad_depois && (
+                <section className="lp-ad-section lp-reveal">
+                    <div className="lp-ad-container">
+                        <div className="lp-ad-header">
+                            <p className="lp-ad-eyebrow">Transformação</p>
+                            <h2 className="lp-headline lp-ad-titulo">
+                                {config.landing_ad_titulo || <>Antes <span className="lp-hl">&amp;</span> Depois</>}
+                            </h2>
+                            <p className="lp-ad-sub">Arraste para comparar</p>
+                        </div>
+                        <BeforeAfterSlider
+                            imagemAntes={config.landing_ad_antes.startsWith('http') ? config.landing_ad_antes : `${window.location.origin}${config.landing_ad_antes}`}
+                            imagemDepois={config.landing_ad_depois.startsWith('http') ? config.landing_ad_depois : `${window.location.origin}${config.landing_ad_depois}`}
+                        />
+                    </div>
+                </section>
+            )}
+
             {/* ═══ PORTFOLIO COM CATEGORIAS ═══ */}
             <section className="lp-portfolio-sec" id="portfolio">
                 <div className="lp-proj-bg" />
@@ -1487,6 +1507,15 @@ function buildCSS(acc) {
 /* ══════════════════════════════════════════
    PORTFOLIO COM ABAS
 ══════════════════════════════════════════ */
+/* ── Antes & Depois ── */
+.lp-ad-section { padding:6rem 2rem; background:#FAF7F2; }
+.lp-ad-container { max-width:900px; margin:0 auto; }
+.lp-ad-header { text-align:center; margin-bottom:2.5rem; }
+.lp-ad-eyebrow { font-size:0.7rem; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:${acc}; margin:0 0 0.75rem; }
+.lp-ad-titulo { margin:0 0 0.6rem; }
+.lp-ad-sub { font-size:0.8rem; color:rgba(26,22,20,0.4); margin:0; letter-spacing:0.04em; display:flex; align-items:center; justify-content:center; gap:6px; }
+.lp-ad-sub::before,.lp-ad-sub::after { content:''; display:block; width:28px; height:1px; background:rgba(26,22,20,0.2); }
+
 .lp-portfolio-sec { position:relative; padding:8rem 2rem 10rem; background:#FFFFFF; overflow:hidden; }
 .lp-portfolio-sec::before { content:""; position:absolute; top:0; left:0; right:0; height:200px; background:linear-gradient(to bottom, #FAF7F2, #FFFFFF); z-index:0; pointer-events:none; }
 .lp-proj-bg { position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse 80% 60% at 20% 80%, ${acc}0d 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 20%, ${acc}08 0%, transparent 50%); }
@@ -2013,6 +2042,7 @@ function buildCSS(acc) {
   .lp-timeline-desc { font-size: 0.88rem; }
   .lp-timeline-icon { width: 40px; height: 40px; font-size: 0.9rem; }
 
+  .lp-ad-section { padding: 4rem 1.25rem; }
   .lp-portfolio-sec { padding: 4.5rem 0 6rem; }
   .lp-portfolio-container { padding: 0 1.25rem; }
   .lp-masonry { columns: 1; column-gap: 12px; }
