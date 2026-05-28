@@ -1,6 +1,6 @@
 // Ornato ERP — Service Worker
 // Estratégia: shell-first para operadores, network-first para API
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = `ornato-erp-${CACHE_VERSION}`;
 
 const SHELL_ASSETS = [
@@ -51,9 +51,14 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.includes('/.vite/') || url.pathname.includes('/node_modules/')) return;
 
   // API: network-first com fallback de cache (offline graceful)
+  // Para /api/landing/* usa cache: 'reload' — força bypass do HTTP cache do
+  // browser e revalidação no servidor (respeita ETag para 304s, mas garante
+  // que mudanças apareçam imediatamente após o admin atualizar).
   if (url.pathname.startsWith('/api/')) {
+    const isLanding = url.pathname.startsWith('/api/landing/');
+    const fetchOpts = isLanding ? { cache: 'no-cache' } : undefined;
     event.respondWith(
-      fetch(request)
+      fetch(request, fetchOpts)
         .then((response) => {
           if (response.ok) {
             const clone = response.clone();
