@@ -12,6 +12,7 @@ const ROUTE_TIMEOUTS = {
     '/cnc/': 600000,        // CNC: 10min (otimização SA pesada)
     '/plano-corte/': 300000, // Plano de corte: 5min
     '/whatsapp/qrcode': 60000, // QR Code: backend faz poll/restart da instância Evolution
+    '/config/empresa': 120000, // Config empresa: pode ter múltiplas imagens base64 grandes
 };
 
 function getTimeout(path) {

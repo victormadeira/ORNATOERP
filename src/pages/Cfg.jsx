@@ -45,19 +45,18 @@ function parseJsonList(value, fallback) {
 /**
  * Comprime e redimensiona uma imagem usando Canvas.
  * - Redimensiona para maxW se necessário
+ * - forceJpeg=true: sempre converte para JPEG (use para fotos onde transparência não importa)
  * - Para JPEG: aplica qualidade inicial e reduz automaticamente até atingir targetKB
- * - Para PNG com transparência: mantém PNG (sem degradação de alfa)
- * - targetKB: tamanho alvo do arquivo final em KB (default 480 KB)
+ * - Para PNG (sem forceJpeg): mantém PNG (preserva canal alfa)
  */
-function compressImage(file, maxW = 1200, quality = 0.82, targetKB = 480) {
+function compressImage(file, maxW = 1200, quality = 0.82, targetKB = 480, forceJpeg = false) {
     return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                const isPng = file.type === 'image/png';
+                const isPng = file.type === 'image/png' && !forceJpeg;
 
-                // PNG pequeno ou imagem já dentro do alvo → retorna direto
                 if (isPng && file.size <= targetKB * 1024) { resolve(e.target.result); return; }
                 if (!isPng && img.width <= maxW && file.size <= targetKB * 1024) { resolve(e.target.result); return; }
 
@@ -76,8 +75,6 @@ function compressImage(file, maxW = 1200, quality = 0.82, targetKB = 480) {
 
                 if (isPng) { resolve(canvas.toDataURL('image/png')); return; }
 
-                // JPEG: reduz qualidade progressivamente até caber no targetKB
-                // Base64 tem overhead de ~37%, então: base64.length ≈ bytes × 1.37
                 const targetBase64Chars = targetKB * 1024 * 1.37;
                 let q = quality;
                 let result = canvas.toDataURL('image/jpeg', q);
@@ -93,8 +90,43 @@ function compressImage(file, maxW = 1200, quality = 0.82, targetKB = 480) {
     });
 }
 
+/**
+ * Re-comprime uma imagem já em base64 (dataURL).
+ * Útil para otimizar fotos antigas que ficaram grandes no banco.
+ */
+function recompressBase64(dataUrl, maxW = 1400, quality = 0.8, targetKB = 400) {
+    return new Promise((resolve, reject) => {
+        if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+            resolve(dataUrl); // não é base64, retorna como está
+            return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let w = img.width, h = img.height;
+            if (w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            const targetBase64Chars = targetKB * 1024 * 1.37;
+            let q = quality;
+            let result = canvas.toDataURL('image/jpeg', q);
+            while (result.length > targetBase64Chars && q > 0.35) {
+                q = parseFloat((q - 0.08).toFixed(2));
+                result = canvas.toDataURL('image/jpeg', q);
+            }
+            resolve(result);
+        };
+        img.onerror = () => reject(new Error('Falha ao decodificar imagem'));
+        img.src = dataUrl;
+    });
+}
+
 // ── Logo Uploader ──────────────────────────────────────────────────────────
-function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 30 * 1024 * 1024, compressMaxW = 1200, compressQuality = 0.8 }) {
+function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 30 * 1024 * 1024, compressMaxW = 1200, compressQuality = 0.8, forceJpeg = false, targetKB = 480 }) {
     const inputRef = useRef();
     const [compressing, setCompressing] = useState(false);
 
@@ -104,7 +136,7 @@ function ImageUploader({ label, image, onChange, disabled, hint, maxSize = 30 * 
         if (file.size > maxSize) { alert(`Arquivo muito grande. Máximo: ${Math.round(maxSize / 1024 / 1024)} MB.`); return; }
         setCompressing(true);
         try {
-            const compressed = await compressImage(file, compressMaxW, compressQuality);
+            const compressed = await compressImage(file, compressMaxW, compressQuality, targetKB, forceJpeg);
             onChange(compressed);
         } finally {
             setCompressing(false);
@@ -4649,16 +4681,20 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 image={emp.landing_ad_antes}
                                 onChange={landing_ad_antes => setEmp({ ...emp, landing_ad_antes })}
                                 disabled={!isGerente}
-                                hint="Estado original do espaço"
+                                hint="Estado original — fica em JPEG ~300KB"
                                 compressMaxW={1400}
+                                forceJpeg
+                                targetKB={400}
                             />
                             <ImageUploader
                                 label="Foto DEPOIS"
                                 image={emp.landing_ad_depois}
                                 onChange={landing_ad_depois => setEmp({ ...emp, landing_ad_depois })}
                                 disabled={!isGerente}
-                                hint="Resultado final com os móveis planejados"
+                                hint="Resultado final — fica em JPEG ~300KB"
                                 compressMaxW={1400}
+                                forceJpeg
+                                targetKB={400}
                             />
                             <div className="md:col-span-2">
                                 <label className={Z.lbl}>Título da seção (opcional)</label>
@@ -4716,23 +4752,25 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         type="button"
                                         disabled={adSaving}
                                         onClick={async () => {
-                                            alert('[1] Botão clicado. Tamanho ANTES: ' + (emp.landing_ad_antes?.length || 0) + ' chars, DEPOIS: ' + (emp.landing_ad_depois?.length || 0));
-                                            const t0 = Date.now();
                                             setAdSaving(true);
                                             setAdSaveStatus(null);
                                             try {
-                                                const resp = await api.patch('/config/empresa/ad-slider', {
-                                                    landing_ad_antes: emp.landing_ad_antes,
-                                                    landing_ad_depois: emp.landing_ad_depois,
+                                                // Re-comprime as fotos ANTES de enviar
+                                                // (fotos antigas eram PNG gigante; agora viram JPEG ~300KB)
+                                                const [antesOpt, depoisOpt] = await Promise.all([
+                                                    recompressBase64(emp.landing_ad_antes, 1400, 0.8, 400),
+                                                    recompressBase64(emp.landing_ad_depois, 1400, 0.8, 400),
+                                                ]);
+                                                // Atualiza o state local para refletir os tamanhos otimizados
+                                                setEmp(p => ({ ...p, landing_ad_antes: antesOpt, landing_ad_depois: depoisOpt }));
+                                                await api.patch('/config/empresa/ad-slider', {
+                                                    landing_ad_antes: antesOpt,
+                                                    landing_ad_depois: depoisOpt,
                                                     landing_ad_titulo: emp.landing_ad_titulo,
                                                 });
-                                                alert('[2] PATCH retornou: ' + JSON.stringify(resp));
-                                                const elapsed = Date.now() - t0;
-                                                if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
                                                 setAdSaveStatus('ok');
                                                 setTimeout(() => setAdSaveStatus(null), 5000);
                                             } catch (ex) {
-                                                alert('[3] ERRO: ' + JSON.stringify(ex));
                                                 setAdSaveStatus('erro');
                                                 console.error('[ad-slider] save error:', ex);
                                             } finally {
@@ -4741,11 +4779,11 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                         }}
                                         style={{
                                             padding: '14px 28px',
-                                            background: adSaveStatus === 'ok' ? '#16a34a' : '#1379F0',
+                                            background: adSaveStatus === 'ok' ? '#16a34a' : 'var(--primary)',
                                             color: '#fff',
                                             border: 'none',
                                             borderRadius: 10,
-                                            fontSize: 15,
+                                            fontSize: 14,
                                             fontWeight: 700,
                                             cursor: adSaving ? 'wait' : 'pointer',
                                             opacity: adSaving ? 0.7 : 1,
@@ -4754,7 +4792,7 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                         }}
                                     >
-                                        {adSaving ? '⏳ Salvando…' : adSaveStatus === 'ok' ? '✓ Salvo!' : '💾 SALVAR FOTOS'}
+                                        {adSaving ? '⏳ Otimizando e salvando…' : adSaveStatus === 'ok' ? '✓ Salvo!' : 'Salvar fotos'}
                                     </button>
                                 </div>
                                 <style>{`@keyframes slideInFade { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
