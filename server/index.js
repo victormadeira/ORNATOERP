@@ -217,7 +217,7 @@ app.post('/api/whatsapp/conversas/*/backfill', backfillLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/orcamentos', orcamentosRoutes);
-app.use('/api/config', configRoutes);
+app.use('/api/config', express.json({ limit: '25mb' }), configRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/biblioteca', bibliotecaRoutes);
 // Portal: rotas públicas por token recebem rate limit antes do router
