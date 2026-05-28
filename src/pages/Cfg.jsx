@@ -4777,22 +4777,14 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                                 setAdSaving(false);
                                             }
                                         }}
+                                        className={Z.btn}
                                         style={{
-                                            padding: '14px 28px',
-                                            background: adSaveStatus === 'ok' ? '#16a34a' : 'var(--primary)',
-                                            color: '#fff',
-                                            border: 'none',
-                                            borderRadius: 10,
-                                            fontSize: 14,
-                                            fontWeight: 700,
-                                            cursor: adSaving ? 'wait' : 'pointer',
+                                            background: adSaveStatus === 'ok' ? '#16a34a' : undefined,
                                             opacity: adSaving ? 0.7 : 1,
-                                            minWidth: 180,
                                             transition: 'background 0.2s',
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                         }}
                                     >
-                                        {adSaving ? '⏳ Otimizando e salvando…' : adSaveStatus === 'ok' ? '✓ Salvo!' : 'Salvar fotos'}
+                                        {adSaving ? 'Otimizando…' : adSaveStatus === 'ok' ? '✓ Salvo!' : 'Salvar fotos'}
                                     </button>
                                 </div>
                                 <style>{`@keyframes slideInFade { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>

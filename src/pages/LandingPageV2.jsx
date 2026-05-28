@@ -927,8 +927,8 @@ export default function LandingPageV2() {
                             <p className="lp-ad-sub">Arraste para comparar</p>
                         </div>
                         <BeforeAfterSlider
-                            imagemAntes={config.landing_ad_antes.startsWith('http') ? config.landing_ad_antes : `${window.location.origin}${config.landing_ad_antes}`}
-                            imagemDepois={config.landing_ad_depois.startsWith('http') ? config.landing_ad_depois : `${window.location.origin}${config.landing_ad_depois}`}
+                            imagemAntes={(config.landing_ad_antes.startsWith('http') || config.landing_ad_antes.startsWith('data:')) ? config.landing_ad_antes : `${window.location.origin}${config.landing_ad_antes}`}
+                            imagemDepois={(config.landing_ad_depois.startsWith('http') || config.landing_ad_depois.startsWith('data:')) ? config.landing_ad_depois : `${window.location.origin}${config.landing_ad_depois}`}
                         />
                     </div>
                 </section>
