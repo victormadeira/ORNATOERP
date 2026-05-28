@@ -4,7 +4,7 @@ import api from '../api';
 import { useAuth } from '../auth';
 import { applyPrimaryColor } from '../theme';
 import { DEFAULT_CONTRATO_TEMPLATE } from './ContratoHtml';
-import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin, Zap, BarChart3, Users } from 'lucide-react';
+import { RefreshCw, Search, Smartphone, Check, CheckCircle2, XCircle, FlaskConical, Brain, Bot, Download, Upload, Database, Images, ArrowUp, ArrowDown, Pencil, Trash2, Plus, PenTool, Shield, BellOff, AlertTriangle, Palette, ExternalLink, Bell, Clock, MessageCircle, Phone, MapPin, Zap, BarChart3, Users, Layers } from 'lucide-react';
 
 const ESTADOS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -4036,39 +4036,6 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                         </div>
 
                         <div className={Z.card + ' mt-4'}>
-                            <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Slider Antes & Depois</h3>
-                            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
-                                Aparece acima do portfólio na landing page. Cadastre as duas fotos para ativar a seção.
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <ImageUploader
-                                    label="Foto ANTES"
-                                    image={emp.landing_ad_antes}
-                                    onChange={landing_ad_antes => setEmp({ ...emp, landing_ad_antes })}
-                                    disabled={!isGerente}
-                                    hint="Estado original do espaço"
-                                />
-                                <ImageUploader
-                                    label="Foto DEPOIS"
-                                    image={emp.landing_ad_depois}
-                                    onChange={landing_ad_depois => setEmp({ ...emp, landing_ad_depois })}
-                                    disabled={!isGerente}
-                                    hint="Resultado final com os móveis planejados"
-                                />
-                                <div className="md:col-span-2">
-                                    <label className={Z.lbl}>Título da seção (opcional)</label>
-                                    <input
-                                        className={Z.inp}
-                                        value={emp.landing_ad_titulo || ''}
-                                        onChange={e => setEmp({ ...emp, landing_ad_titulo: e.target.value })}
-                                        disabled={!isGerente}
-                                        placeholder="Ex: A transformação que só a Ornato entrega"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={Z.card + ' mt-4'}>
                             <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--primary)' }}>Paleta da Landing</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {[
@@ -4640,6 +4607,50 @@ export default function Cfg({ taxas, reload, notify, allMenuItems, menusOcultos,
                                 >
                                     {portCfgSaving ? 'Salvando…' : 'Salvar aparência'}
                                 </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Card: Slider Antes & Depois ── */}
+                    <div className={Z.card}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                <Layers size={20} style={{ color: 'var(--primary)' }} />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Slider Antes & Depois</h3>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aparece acima do portfólio na landing. Ativo quando as duas fotos estiverem cadastradas.</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <ImageUploader
+                                label="Foto ANTES"
+                                image={emp.landing_ad_antes}
+                                onChange={landing_ad_antes => setEmp({ ...emp, landing_ad_antes })}
+                                disabled={!isGerente}
+                                hint="Estado original do espaço"
+                            />
+                            <ImageUploader
+                                label="Foto DEPOIS"
+                                image={emp.landing_ad_depois}
+                                onChange={landing_ad_depois => setEmp({ ...emp, landing_ad_depois })}
+                                disabled={!isGerente}
+                                hint="Resultado final com os móveis planejados"
+                            />
+                            <div className="md:col-span-2">
+                                <label className={Z.lbl}>Título da seção (opcional)</label>
+                                <input
+                                    className={Z.inp}
+                                    value={emp.landing_ad_titulo || ''}
+                                    onChange={e => setEmp({ ...emp, landing_ad_titulo: e.target.value })}
+                                    disabled={!isGerente}
+                                    placeholder="Ex: O mesmo espaço. Outro ambiente."
+                                />
+                            </div>
+                        </div>
+                        {isGerente && (
+                            <div className="flex justify-end mt-4">
+                                <button onClick={saveEmpresa} className={Z.btn}>Salvar</button>
                             </div>
                         )}
                     </div>
