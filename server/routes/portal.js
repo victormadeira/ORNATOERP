@@ -282,6 +282,9 @@ router.get('/landing/:token', (req, res) => {
         'SELECT id, nome_cliente, texto, estrelas FROM depoimentos WHERE ativo = 1 ORDER BY ordem ASC, id ASC'
     ).all();
 
+    // Cache privado curto — beneficia refresh/back-nav sem comprometer
+    // exclusividade do token (private = só browser, nunca CDN)
+    res.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=600');
     res.json({
         cliente_nome: orc.cliente_nome || '',
         arquiteta_nome: orc.arquiteta_nome || '',
