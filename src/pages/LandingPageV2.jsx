@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import {
     ArrowRight,
     Award,
@@ -20,7 +20,8 @@ import {
     Zap,
 } from 'lucide-react';
 import { initClarity, setClarityTag } from '../utils/clarity';
-import { BeforeAfterSlider } from '../components/BeforeAfterSlider';
+// BeforeAfterSlider é pesado (componente + imagens base64) — carrega só quando o slider entra no viewport
+const BeforeAfterSlider = lazy(() => import('../components/BeforeAfterSlider').then(m => ({ default: m.BeforeAfterSlider })));
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LandingPageV2 — Light Premium:
@@ -167,6 +168,58 @@ function useCountUp(end, duration, trigger) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * Seção de antes/depois — lazy.
+ * Só baixa as imagens (~500KB) e o código do slider quando o usuário
+ * se aproxima da seção via IntersectionObserver.
+ */
+function AdSliderSection({ titulo }) {
+    const ref = useRef(null);
+    const [shouldLoad, setShouldLoad] = useState(false);
+    const [imgs, setImgs] = useState(null); // { antes, depois }
+
+    // Detecta proximidade do viewport (margem 400px → começa a carregar antes de aparecer)
+    useEffect(() => {
+        if (!ref.current || shouldLoad) return;
+        const io = new IntersectionObserver(
+            entries => { if (entries[0].isIntersecting) setShouldLoad(true); },
+            { rootMargin: '400px 0px' }
+        );
+        io.observe(ref.current);
+        return () => io.disconnect();
+    }, [shouldLoad]);
+
+    // Quando deve carregar, busca as imagens do endpoint dedicado
+    useEffect(() => {
+        if (!shouldLoad || imgs) return;
+        fetch('/api/landing/config/ad-images')
+            .then(r => r.json())
+            .then(d => setImgs({ antes: d.antes || '', depois: d.depois || '' }))
+            .catch(() => setImgs({ antes: '', depois: '' }));
+    }, [shouldLoad, imgs]);
+
+    return (
+        <section ref={ref} className="lp-ad-section lp-reveal">
+            <div className="lp-ad-container">
+                <div className="lp-ad-header">
+                    <p className="lp-ad-eyebrow">Transformação</p>
+                    <h2 className="lp-headline lp-ad-titulo">
+                        {titulo || <>O mesmo espaço. <span className="lp-hl">Outro ambiente.</span></>}
+                    </h2>
+                    <p className="lp-ad-sub">Arraste para comparar</p>
+                </div>
+                {imgs?.antes && imgs?.depois ? (
+                    <Suspense fallback={<div style={{ aspectRatio: '16/9', background: 'rgba(0,0,0,0.04)', borderRadius: '1rem' }} />}>
+                        <BeforeAfterSlider imagemAntes={imgs.antes} imagemDepois={imgs.depois} />
+                    </Suspense>
+                ) : (
+                    <div style={{ aspectRatio: '16/9', background: 'rgba(0,0,0,0.04)', borderRadius: '1rem' }} />
+                )}
+            </div>
+        </section>
+    );
+}
+
 export default function LandingPageV2() {
     const [config, setConfig]               = useState(null);
     const [portfolio, setPortfolio]         = useState([]);
@@ -915,24 +968,8 @@ export default function LandingPageV2() {
                 </div>
             </section>
 
-            {/* ═══ ANTES & DEPOIS ═══ */}
-            {config?.landing_ad_antes && config?.landing_ad_depois && (
-                <section className="lp-ad-section lp-reveal">
-                    <div className="lp-ad-container">
-                        <div className="lp-ad-header">
-                            <p className="lp-ad-eyebrow">Transformação</p>
-                            <h2 className="lp-headline lp-ad-titulo">
-                                {config.landing_ad_titulo || <>O mesmo espaço. <span className="lp-hl">Outro ambiente.</span></>}
-                            </h2>
-                            <p className="lp-ad-sub">Arraste para comparar</p>
-                        </div>
-                        <BeforeAfterSlider
-                            imagemAntes={(config.landing_ad_antes.startsWith('http') || config.landing_ad_antes.startsWith('data:')) ? config.landing_ad_antes : `${window.location.origin}${config.landing_ad_antes}`}
-                            imagemDepois={(config.landing_ad_depois.startsWith('http') || config.landing_ad_depois.startsWith('data:')) ? config.landing_ad_depois : `${window.location.origin}${config.landing_ad_depois}`}
-                        />
-                    </div>
-                </section>
-            )}
+            {/* ═══ ANTES & DEPOIS (lazy: imagens só baixam ao aproximar) ═══ */}
+            {config?.ad_disponivel && <AdSliderSection titulo={config.landing_ad_titulo} />}
 
             {/* ═══ PORTFOLIO COM CATEGORIAS ═══ */}
             <section className="lp-portfolio-sec" id="portfolio">

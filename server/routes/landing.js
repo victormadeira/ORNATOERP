@@ -29,12 +29,13 @@ function stripHtml(value, maxLen = 500) {
 
 // ═══════════════════════════════════════════════════════
 // GET /api/leads/config — dados públicos da empresa (sem auth)
+// PERFORMANCE: cache público 5 min + stale-while-revalidate.
+// Bandeira "ad_disponivel" sinaliza ao client buscar as fotos do slider
+// só quando necessário via /config/ad-images (lazy).
 // ═══════════════════════════════════════════════════════
 router.get('/config', (req, res) => {
-    // SELECT * para não quebrar quando novos campos são adicionados sem migração explícita
     const emp = db.prepare('SELECT * FROM empresa_config WHERE id = 1').get();
 
-    // Expõe apenas campos públicos — nunca retorna chaves de API, tokens, etc.
     const PUBLIC_FIELDS = [
         'nome','telefone','email','endereco','cidade','estado','uf',
         'proposta_cor_primaria','proposta_cor_accent',
@@ -46,7 +47,8 @@ router.get('/config', (req, res) => {
         'landing_cta_titulo','landing_cta_descricao','landing_texto_rodape',
         'landing_prova_titulo','landing_provas_json',
         'landing_logo','landing_hero_imagem',
-        'landing_ad_antes','landing_ad_depois','landing_ad_titulo',
+        // NOTA: landing_ad_antes/depois movidos para /config/ad-images (lazy)
+        'landing_ad_titulo',
         'landing_hero_video_url','landing_hero_video_poster','landing_video_institucional',
         'landing_grafismo_imagem',
         'landing_cor_fundo','landing_cor_destaque','landing_cor_neutra','landing_cor_clara',
@@ -64,7 +66,26 @@ router.get('/config', (req, res) => {
     const safe = {};
     if (emp) PUBLIC_FIELDS.forEach(f => { if (f in emp) safe[f] = emp[f]; });
 
+    // Flag para o client saber se há slider disponível sem precisar baixar as imagens
+    safe.ad_disponivel = !!(emp?.landing_ad_antes && emp?.landing_ad_depois);
+
+    // Cache público — dados raramente mudam, paga visitas instantâneas
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     res.json(Object.keys(safe).length ? safe : { nome: 'Marcenaria' });
+});
+
+// ═══════════════════════════════════════════════════════
+// GET /api/leads/config/ad-images — fotos antes/depois (lazy)
+// Endpoint separado para o client buscar só quando o slider entra
+// no viewport. Permite cache agressivo (1h) sem afetar o resto da config.
+// ═══════════════════════════════════════════════════════
+router.get('/config/ad-images', (req, res) => {
+    const row = db.prepare('SELECT landing_ad_antes, landing_ad_depois FROM empresa_config WHERE id = 1').get();
+    res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    res.json({
+        antes:  row?.landing_ad_antes  || '',
+        depois: row?.landing_ad_depois || '',
+    });
 });
 
 // ═══════════════════════════════════════════════════════

@@ -120,7 +120,10 @@ app.use('/api/config', express.json({ limit: '10mb' }));
 app.use(express.json({ limit: '5mb' }));
 
 // ═══ Anti-cache para API (evita dados stale entre dispositivos) ═══
+// Exceção: /api/landing/* é público + raramente muda → as rotas definem
+// o próprio Cache-Control. Pular esse middleware nelas.
 app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/landing/')) return next();
     res.set({
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
