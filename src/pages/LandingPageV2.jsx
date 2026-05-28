@@ -940,10 +940,11 @@ export default function LandingPageV2() {
                                             style={{ opacity: 0, transition: 'opacity 0.45s ease' }}
                                             onLoad={e => { e.currentTarget.style.opacity = '1'; }}
                                         />
-                                        {(item.titulo || item.ambiente) && (
+                                        {(item.titulo || item.ambiente || item.designer) && (
                                             <div className="lp-masonry-caption">
                                                 {item.titulo && <p className="lp-masonry-title">{item.titulo}</p>}
                                                 {item.ambiente && <p className="lp-masonry-cat">{item.ambiente.toUpperCase()}</p>}
+                                                {item.designer && <p className="lp-masonry-designer">{item.designer}</p>}
                                             </div>
                                         )}
                                     </div>
@@ -1286,10 +1287,11 @@ export default function LandingPageV2() {
                             </button>
                         )}
                         {/* Caption */}
-                        {(it.titulo || it.ambiente) && (
+                        {(it.titulo || it.ambiente || it.designer) && (
                             <div style={{ position:'fixed', bottom:20, left:'50%', transform:'translateX(-50%)', textAlign:'center', pointerEvents:'none', maxWidth:'80vw' }}>
                                 {it.titulo && <p style={{ margin:0, fontWeight:600, fontSize:'0.9rem', color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.8)' }}>{it.titulo}</p>}
                                 {it.ambiente && <p style={{ margin:'0.2rem 0 0', fontSize:'0.65rem', color:'rgba(255,255,255,0.55)', textTransform:'uppercase', letterSpacing:'0.1em' }}>{it.ambiente}</p>}
+                                {it.designer && <p style={{ margin:'0.3rem 0 0', fontSize:'0.65rem', color:'rgba(255,255,255,0.38)', fontStyle:'italic' }}>{it.designer}</p>}
                             </div>
                         )}
                         {/* Contador */}
@@ -1515,6 +1517,7 @@ function buildCSS(acc) {
 .lp-masonry-item:hover .lp-masonry-caption { opacity:1; }
 .lp-masonry-title { font-size:0.9rem; font-weight:600; color:#fff; margin:0 0 0.2rem; line-height:1.2; }
 .lp-masonry-cat { font-size:0.65rem; font-weight:700; letter-spacing:0.1em; color:rgba(255,255,255,0.65); margin:0; }
+.lp-masonry-designer { font-size:0.63rem; font-weight:400; color:rgba(255,255,255,0.45); margin:0.25rem 0 0; font-style:italic; }
 
 .lp-portfolio-tabs-wrap { position:relative; margin-bottom:2.5rem; }
 .lp-portfolio-tabs {
