@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { initClarity, identifyClarity, setClarityTag } from '../utils/clarity';
+// Slider antes/depois — lazy: só carrega quando o usuário se aproxima da seção
+const BeforeAfterSlider = lazy(() => import('../components/BeforeAfterSlider').then(m => ({ default: m.BeforeAfterSlider })));
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PropostaApresentacao — Landing Page pré-proposta com identidade Ornato
@@ -540,6 +542,63 @@ function usePrefersReducedMotion() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * Seção de antes/depois para a apresentação da proposta.
+ * Lazy: busca imagens só quando o usuário se aproxima do viewport.
+ * Usa o mesmo endpoint público da landing — fotos são institucionais.
+ */
+function AdSliderApresentacao({ c1, c2, cream }) {
+    const ref = useRef(null);
+    const [shouldLoad, setShouldLoad] = useState(false);
+    const [imgs, setImgs] = useState(null);
+
+    useEffect(() => {
+        if (!ref.current || shouldLoad) return;
+        const io = new IntersectionObserver(
+            entries => { if (entries[0].isIntersecting) setShouldLoad(true); },
+            { rootMargin: '400px 0px' }
+        );
+        io.observe(ref.current);
+        return () => io.disconnect();
+    }, [shouldLoad]);
+
+    useEffect(() => {
+        if (!shouldLoad || imgs) return;
+        fetch('/api/landing/config/ad-images')
+            .then(r => r.json())
+            .then(d => setImgs({ antes: d.antes || '', depois: d.depois || '' }))
+            .catch(() => setImgs({ antes: '', depois: '' }));
+    }, [shouldLoad, imgs]);
+
+    // Se já carregou e não veio nada, não renderiza a seção
+    if (imgs && (!imgs.antes || !imgs.depois)) return null;
+
+    return (
+        <section ref={ref} className="ap-section" style={{ background: cream, color: c1 }}>
+            <div className="ap-container">
+                <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                    <p className="ap-section-tag" style={{ color: c2 }}>TRANSFORMAÇÃO</p>
+                    <h2 className="ap-section-title" style={{ color: c1 }}>
+                        O mesmo espaço. <span style={{ color: c2, fontStyle: 'italic' }}>Outro ambiente.</span>
+                    </h2>
+                    <p style={{ color: `${c1}80`, fontSize: '0.9rem', letterSpacing: '0.04em', marginTop: '0.5rem' }}>
+                        Arraste para comparar
+                    </p>
+                </div>
+                <div style={{ maxWidth: 960, margin: '0 auto' }}>
+                    {imgs?.antes && imgs?.depois ? (
+                        <Suspense fallback={<div style={{ aspectRatio: '16/9', background: 'rgba(0,0,0,0.06)', borderRadius: '1rem' }} />}>
+                            <BeforeAfterSlider imagemAntes={imgs.antes} imagemDepois={imgs.depois} />
+                        </Suspense>
+                    ) : (
+                        <div style={{ aspectRatio: '16/9', background: 'rgba(0,0,0,0.06)', borderRadius: '1rem' }} />
+                    )}
+                </div>
+            </div>
+        </section>
+    );
+}
+
 export default function PropostaApresentacao({ token }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
@@ -685,17 +744,15 @@ export default function PropostaApresentacao({ token }) {
                         <p className="ap-hero-date" style={{ color: `${cream}80`, marginTop: arquiteta_nome ? '10px' : undefined }}>
                             {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
-                        <p className="ap-hero-welcome" style={{ color: `${cream}70` }}>
-                            <span style={{ color: c2, fontStyle: 'normal', fontWeight: 600 }}>{primeiroNome}</span>
-                            {', preparamos esta apresentação pensando especialmente no seu projeto.\nQueremos que você se sinta seguro em cada etapa — do primeiro detalhe à instalação final.'.split('\n').map((line, i) => (
-                                <span key={i}>{line}{i === 0 && <br />}</span>
-                            ))}
-                        </p>
                     </div>
                     <div className={`ap-scroll-hint${reduceMotion ? '' : ' ap-bounce'}`}>
                         {icons.chevron(`${cream}60`)}
                     </div>
                 </section>
+
+                {/* ═══ SEÇÃO 1.5: ANTES & DEPOIS ═══ */}
+                {/* Ancora o portfolio com uma transformação concreta antes de mostrar a galeria */}
+                <AdSliderApresentacao c1={c1} c2={c2} cream={cream} />
 
                 {/* ═══ SEÇÃO 2 (nova ordem): PORTFOLIO ═══ */}
                 {/* Portfolio antes de "Sobre": o cliente quer ver o trabalho antes de ouvir sobre a empresa */}

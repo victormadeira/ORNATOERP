@@ -1,0 +1,1717 @@
+import puppeteer from 'puppeteer';
+import { writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ornato ERP — Documento do Sistema</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --primary: #1379F0;
+    --accent: #C9A96E;
+    --dark: #0b0e13;
+    --dark2: #111318;
+    --dark3: #1a1e26;
+    --border: rgba(255,255,255,0.08);
+    --text: rgba(255,255,255,0.92);
+    --text2: rgba(255,255,255,0.60);
+    --text3: rgba(255,255,255,0.38);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    font-size: 10pt;
+    line-height: 1.6;
+  }
+
+  /* CAPA */
+  .cover {
+    width: 100%;
+    min-height: 297mm;
+    background: linear-gradient(145deg, #0b0e13 0%, #111827 60%, #0f1a2e 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    page-break-after: always;
+    overflow: hidden;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -80px; left: -80px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(19,121,240,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; right: -60px;
+    width: 350px; height: 350px;
+    background: radial-gradient(circle, rgba(201,169,110,0.14) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cover-inner {
+    text-align: center;
+    z-index: 1;
+    padding: 40px;
+  }
+
+  .cover-badge {
+    display: inline-block;
+    background: rgba(19,121,240,0.15);
+    border: 1px solid rgba(19,121,240,0.35);
+    color: #1379F0;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 5px 16px;
+    border-radius: 20px;
+    margin-bottom: 28px;
+  }
+
+  .cover-logo {
+    font-size: 52pt;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  .cover-logo span {
+    color: var(--accent);
+  }
+
+  .cover-subtitle {
+    font-size: 16pt;
+    font-weight: 300;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.08em;
+    margin-bottom: 48px;
+  }
+
+  .cover-divider {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    border-radius: 2px;
+    margin: 0 auto 48px;
+  }
+
+  .cover-meta {
+    font-size: 9pt;
+    color: rgba(255,255,255,0.35);
+  }
+
+  .cover-meta strong {
+    color: rgba(255,255,255,0.60);
+  }
+
+  .cover-stats {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    margin-top: 40px;
+  }
+
+  .cover-stat {
+    text-align: center;
+  }
+
+  .cover-stat-num {
+    font-size: 28pt;
+    font-weight: 700;
+    color: var(--primary);
+    display: block;
+  }
+
+  .cover-stat-label {
+    font-size: 8pt;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* SUMÁRIO */
+  .toc-page {
+    page-break-after: always;
+    padding: 48px 48px 48px;
+    background: var(--dark);
+  }
+
+  .toc-title {
+    font-size: 9pt;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 28px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 32px;
+  }
+
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 9pt;
+    color: rgba(255,255,255,0.70);
+  }
+
+  .toc-num {
+    font-size: 8pt;
+    font-weight: 700;
+    color: var(--primary);
+    min-width: 22px;
+  }
+
+  .toc-name { flex: 1; }
+
+  .toc-dot {
+    flex: 1;
+    border-bottom: 1px dotted rgba(255,255,255,0.15);
+    margin: 0 6px;
+    transform: translateY(-3px);
+  }
+
+  /* CONTEÚDO */
+  .content {
+    padding: 0;
+  }
+
+  /* SEÇÃO PRINCIPAL */
+  .section {
+    padding: 40px 48px;
+    border-bottom: 1px solid var(--border);
+    page-break-inside: avoid;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .section-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    background: rgba(19,121,240,0.15);
+    border: 1px solid rgba(19,121,240,0.3);
+    border-radius: 8px;
+    font-size: 9pt;
+    font-weight: 700;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.01em;
+  }
+
+  .section-url {
+    font-size: 8pt;
+    font-weight: 500;
+    color: rgba(19,121,240,0.8);
+    background: rgba(19,121,240,0.08);
+    border: 1px solid rgba(19,121,240,0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+  }
+
+  p {
+    color: rgba(255,255,255,0.72);
+    margin-bottom: 12px;
+    font-size: 9.5pt;
+  }
+
+  p strong {
+    color: rgba(255,255,255,0.92);
+    font-weight: 600;
+  }
+
+  /* TABELAS */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 9pt;
+  }
+
+  thead tr {
+    background: rgba(19,121,240,0.12);
+  }
+
+  thead th {
+    text-align: left;
+    padding: 9px 12px;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    border-bottom: 1px solid rgba(19,121,240,0.25);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  tbody tr:hover {
+    background: rgba(255,255,255,0.02);
+  }
+
+  tbody td {
+    padding: 8px 12px;
+    color: rgba(255,255,255,0.72);
+    vertical-align: top;
+  }
+
+  tbody td:first-child {
+    color: rgba(255,255,255,0.88);
+    font-weight: 500;
+  }
+
+  td code {
+    font-family: 'Courier New', monospace;
+    font-size: 8pt;
+    color: #1379F0;
+    background: rgba(19,121,240,0.10);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* LISTAS */
+  ul, ol {
+    padding-left: 18px;
+    margin: 10px 0;
+  }
+
+  li {
+    color: rgba(255,255,255,0.72);
+    font-size: 9.5pt;
+    margin-bottom: 5px;
+    padding-left: 4px;
+  }
+
+  li strong {
+    color: rgba(255,255,255,0.90);
+    font-weight: 600;
+  }
+
+  /* CALLOUTS / CARDS */
+  .callout {
+    background: rgba(19,121,240,0.07);
+    border: 1px solid rgba(19,121,240,0.20);
+    border-left: 3px solid var(--primary);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 9pt;
+    color: rgba(255,255,255,0.75);
+  }
+
+  .callout-accent {
+    background: rgba(201,169,110,0.07);
+    border-color: rgba(201,169,110,0.20);
+    border-left-color: var(--accent);
+  }
+
+  .callout strong {
+    color: rgba(255,255,255,0.92);
+    font-weight: 600;
+  }
+
+  /* GRID DE FEATURES */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 14px 0;
+  }
+
+  .feature-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .feature-card-title {
+    font-size: 9pt;
+    font-weight: 600;
+    color: rgba(255,255,255,0.90);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .feature-card-title .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .feature-card p {
+    font-size: 8.5pt;
+    color: rgba(255,255,255,0.55);
+    margin: 0;
+  }
+
+  /* FLUXO */
+  .flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 14px 0;
+    font-size: 8.5pt;
+  }
+
+  .flow-step {
+    background: rgba(19,121,240,0.12);
+    border: 1px solid rgba(19,121,240,0.25);
+    color: rgba(255,255,255,0.80);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  .flow-arrow {
+    color: rgba(255,255,255,0.25);
+    font-size: 10pt;
+  }
+
+  /* KANBAN COLUNAS */
+  .kanban-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin: 14px 0;
+  }
+
+  .kanban-col {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 6px;
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 8pt;
+    font-weight: 600;
+  }
+
+  .kanban-col .label { color: rgba(255,255,255,0.85); }
+  .kanban-col .sub { font-size: 7.5pt; color: rgba(255,255,255,0.40); margin-top: 2px; font-weight: 400; }
+
+  /* SEPARADOR DE CAPÍTULO */
+  .chapter-break {
+    page-break-before: always;
+    padding: 32px 48px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0;
+  }
+
+  .chapter-label {
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .chapter-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(201,169,110,0.3), transparent);
+  }
+
+  /* HEADER DE SEÇÃO INTERNA */
+  h3 {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: rgba(255,255,255,0.90);
+    margin: 18px 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  h4 {
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 14px 0 6px;
+  }
+
+  /* BADGES */
+  .badge {
+    display: inline-block;
+    font-size: 7.5pt;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin: 2px 3px 2px 0;
+  }
+
+  .badge-blue { background: rgba(19,121,240,0.15); color: #4fa3ff; border: 1px solid rgba(19,121,240,0.25); }
+  .badge-green { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.22); }
+  .badge-orange { background: rgba(249,115,22,0.12); color: #fb923c; border: 1px solid rgba(249,115,22,0.22); }
+  .badge-red { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.22); }
+  .badge-accent { background: rgba(201,169,110,0.12); color: #C9A96E; border: 1px solid rgba(201,169,110,0.25); }
+
+  /* ATALHOS */
+  .shortcut-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: 14px 0;
+  }
+
+  .shortcut-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+  }
+
+  kbd {
+    display: inline-block;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 8pt;
+    color: rgba(255,255,255,0.80);
+  }
+
+  .shortcut-desc {
+    font-size: 8.5pt;
+    color: rgba(255,255,255,0.60);
+  }
+
+  /* NOTIFICAÇÕES */
+  .notif-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin: 12px 0;
+  }
+
+  .notif-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 5px;
+    font-size: 8.5pt;
+  }
+
+  .notif-icon { font-size: 11pt; }
+  .notif-name { color: rgba(255,255,255,0.75); font-weight: 500; }
+  .notif-when { color: rgba(255,255,255,0.38); font-size: 7.5pt; margin-left: auto; }
+
+  /* RODAPÉ */
+  .footer {
+    padding: 24px 48px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+  }
+
+  .footer-brand {
+    font-size: 10pt;
+    font-weight: 700;
+    color: rgba(255,255,255,0.40);
+    letter-spacing: -0.01em;
+  }
+
+  .footer-brand span { color: var(--accent); }
+
+  .footer-note {
+    font-size: 7.5pt;
+    color: rgba(255,255,255,0.25);
+  }
+
+  /* INTRO CARD */
+  .intro-card {
+    background: rgba(19,121,240,0.06);
+    border: 1px solid rgba(19,121,240,0.15);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+
+  .intro-card-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .intro-card p {
+    font-size: 9.5pt;
+    color: rgba(255,255,255,0.65);
+    margin: 0;
+  }
+
+  /* STACK TECH */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 14px 0;
+  }
+
+  .tech-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 7px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .tech-label {
+    font-size: 9pt;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 3px;
+  }
+
+  .tech-sub {
+    font-size: 7.5pt;
+    color: rgba(255,255,255,0.38);
+  }
+
+  /* FLUXO WORKFLOW */
+  .workflow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 14px 0;
+    position: relative;
+    padding-left: 28px;
+  }
+
+  .workflow::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 16px;
+    bottom: 16px;
+    width: 1px;
+    background: linear-gradient(180deg, var(--primary), var(--accent));
+    opacity: 0.4;
+  }
+
+  .workflow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 9px 0;
+    position: relative;
+  }
+
+  .workflow-dot {
+    position: absolute;
+    left: -23px;
+    top: 13px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--dark);
+    flex-shrink: 0;
+  }
+
+  .workflow-num {
+    font-size: 8pt;
+    font-weight: 700;
+    color: var(--primary);
+    min-width: 20px;
+    padding-top: 1px;
+  }
+
+  .workflow-content { flex: 1; }
+  .workflow-title {
+    font-size: 9pt;
+    font-weight: 600;
+    color: rgba(255,255,255,0.88);
+  }
+  .workflow-desc {
+    font-size: 8.5pt;
+    color: rgba(255,255,255,0.50);
+    margin-top: 2px;
+  }
+
+  /* PÁGINA PÚBLICA TABLE */
+  .pub-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: 12px 0;
+  }
+
+  .pub-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 5px;
+  }
+
+  .pub-url {
+    font-family: 'Courier New', monospace;
+    font-size: 7.5pt;
+    color: #1379F0;
+    min-width: 120px;
+  }
+
+  .pub-desc {
+    font-size: 8pt;
+    color: rgba(255,255,255,0.55);
+  }
+
+  /* PAGE BREAK UTIL */
+  .pb { page-break-after: always; }
+</style>
+</head>
+<body>
+
+<!-- ===== CAPA ===== -->
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-badge">Documento Interno · Confidencial</div>
+    <div class="cover-logo">ORNA<span>TO</span></div>
+    <div class="cover-subtitle">Sistema de Gestão ERP</div>
+    <div class="cover-divider"></div>
+    <div class="cover-meta">
+      <strong>Versão</strong> 2026.1 &nbsp;·&nbsp; <strong>Data</strong> Maio 2026 &nbsp;·&nbsp; <strong>Domínio</strong> studioornato.com.br
+    </div>
+    <div class="cover-stats">
+      <div class="cover-stat">
+        <span class="cover-stat-num">25+</span>
+        <span class="cover-stat-label">Módulos</span>
+      </div>
+      <div class="cover-stat">
+        <span class="cover-stat-num">100%</span>
+        <span class="cover-stat-label">Personalizado</span>
+      </div>
+      <div class="cover-stat">
+        <span class="cover-stat-num">360°</span>
+        <span class="cover-stat-label">Do lead à entrega</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SUMÁRIO ===== -->
+<div class="toc-page">
+  <div class="toc-title">Sumário</div>
+  <div class="toc-grid">
+    <div class="toc-item"><span class="toc-num">01</span><span class="toc-name">Visão Geral do Sistema</span></div>
+    <div class="toc-item"><span class="toc-num">14</span><span class="toc-name">Corte &amp; CNC</span></div>
+    <div class="toc-item"><span class="toc-num">02</span><span class="toc-name">Tecnologia &amp; Infraestrutura</span></div>
+    <div class="toc-item"><span class="toc-num">15</span><span class="toc-name">Industrialização</span></div>
+    <div class="toc-item"><span class="toc-num">03</span><span class="toc-name">Fluxo Geral do Negócio</span></div>
+    <div class="toc-item"><span class="toc-num">16</span><span class="toc-name">Oficina (Chão de Fábrica)</span></div>
+    <div class="toc-item"><span class="toc-num">04</span><span class="toc-name">Dashboard</span></div>
+    <div class="toc-item"><span class="toc-num">17</span><span class="toc-name">Acompanhamento de Fábrica</span></div>
+    <div class="toc-item"><span class="toc-num">05</span><span class="toc-name">Funil de Leads</span></div>
+    <div class="toc-item"><span class="toc-num">18</span><span class="toc-name">Expedição</span></div>
+    <div class="toc-item"><span class="toc-num">06</span><span class="toc-name">Clientes (CRM)</span></div>
+    <div class="toc-item"><span class="toc-num">19</span><span class="toc-name">Financeiro</span></div>
+    <div class="toc-item"><span class="toc-num">07</span><span class="toc-name">Orçamentos — Lista</span></div>
+    <div class="toc-item"><span class="toc-num">20</span><span class="toc-name">Estoque</span></div>
+    <div class="toc-item"><span class="toc-num">08</span><span class="toc-name">Editor de Orçamento</span></div>
+    <div class="toc-item"><span class="toc-num">21</span><span class="toc-name">Compras &amp; NF</span></div>
+    <div class="toc-item"><span class="toc-num">09</span><span class="toc-name">Pipeline Kanban</span></div>
+    <div class="toc-item"><span class="toc-num">22</span><span class="toc-name">Biblioteca de Materiais</span></div>
+    <div class="toc-item"><span class="toc-num">10</span><span class="toc-name">Proposta Pública</span></div>
+    <div class="toc-item"><span class="toc-num">23</span><span class="toc-name">Engenharia de Módulos</span></div>
+    <div class="toc-item"><span class="toc-num">11</span><span class="toc-name">Portal do Cliente</span></div>
+    <div class="toc-item"><span class="toc-num">24</span><span class="toc-name">WhatsApp / Mensagens</span></div>
+    <div class="toc-item"><span class="toc-num">12</span><span class="toc-name">Projetos</span></div>
+    <div class="toc-item"><span class="toc-num">25</span><span class="toc-name">Assistente IA</span></div>
+    <div class="toc-item"><span class="toc-num">13</span><span class="toc-name">Configurações</span></div>
+    <div class="toc-item"><span class="toc-num">26</span><span class="toc-name">Outros Módulos</span></div>
+  </div>
+</div>
+
+<!-- ===== 01 — VISÃO GERAL ===== -->
+<div class="chapter-break">
+  <span class="chapter-label">Introdução</span>
+  <div class="chapter-line"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">01</div>
+    <div class="section-title">Visão Geral do Sistema</div>
+  </div>
+
+  <div class="intro-card">
+    <div class="intro-card-title">O que é o Ornato ERP?</div>
+    <p>O Ornato ERP é um sistema de gestão completo desenvolvido exclusivamente para marcenarias e empresas de móveis planejados. Ele cobre 100% do ciclo operacional do negócio — desde a captação do lead até a entrega final do projeto, passando por orçamentação, produção CNC, controle financeiro e relacionamento com o cliente. Tudo em uma única plataforma web, acessível de qualquer dispositivo.</p>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Comercial completo</div>
+      <p>Funil de leads, CRM de clientes, orçamentos com precificação automática e pipeline Kanban.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Proposta digital</div>
+      <p>Proposta visual com identidade da empresa, rastreamento de engajamento e aprovação online pelo cliente.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Produção integrada</div>
+      <p>CNC, plano de corte, etiquetas, G-code, chão de fábrica e expedição com scanner de QR.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Portal do cliente</div>
+      <p>Cliente acompanha o projeto em tempo real via link exclusivo, com fotos, etapas e mensagens.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Financeiro</div>
+      <p>Contas a pagar e receber, parcelamentos, recorrências, fluxo de caixa e alertas automáticos.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Inteligência Artificial</div>
+      <p>Assistente IA integrado ao CRM, sugestões de follow-up e WhatsApp com atendimento por bot.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 02 — TECNOLOGIA ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">02</div>
+    <div class="section-title">Tecnologia &amp; Infraestrutura</div>
+  </div>
+
+  <div class="tech-grid">
+    <div class="tech-card">
+      <div class="tech-label">React + Vite</div>
+      <div class="tech-sub">Frontend SPA</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-label">Node.js + Express</div>
+      <div class="tech-sub">Backend API</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-label">SQLite</div>
+      <div class="tech-sub">Banco de dados</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-label">PM2 + Nginx</div>
+      <div class="tech-sub">Processo + Proxy</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Componente</th><th>Detalhe</th></tr></thead>
+    <tbody>
+      <tr><td>Domínio</td><td>studioornato.com.br (HTTPS)</td></tr>
+      <tr><td>Servidor</td><td>VPS Hostinger — IP 187.127.30.4</td></tr>
+      <tr><td>Processo</td><td>PM2 — ornato-erp (cluster mode)</td></tr>
+      <tr><td>Banco de dados</td><td>/home/ornato/app/server/marcenaria.db (SQLite + WAL)</td></tr>
+      <tr><td>Build</td><td>~1.4MB JS gzipado ~330KB</td></tr>
+      <tr><td>Autenticação</td><td>JWT Bearer Token (localStorage)</td></tr>
+      <tr><td>Realtime</td><td>WebSocket (CNC + WhatsApp)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== 03 — FLUXO GERAL ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">03</div>
+    <div class="section-title">Fluxo Geral do Negócio</div>
+  </div>
+
+  <p>O sistema acompanha todo o ciclo de vida de um projeto, do primeiro contato à entrega final:</p>
+
+  <div class="workflow">
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">1</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Captação de Lead</div>
+        <div class="workflow-desc">WhatsApp, landing page, redes sociais ou entrada manual no Funil de Leads</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">2</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Qualificação</div>
+        <div class="workflow-desc">Lead avança no funil de vendas com temperatura, score e origem rastreados</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">3</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Criação do Orçamento</div>
+        <div class="workflow-desc">Módulos de móveis selecionados, materiais atribuídos, precificação automática com todas as taxas</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">4</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Envio da Proposta</div>
+        <div class="workflow-desc">Link público gerado — cliente acessa, a empresa acompanha engajamento em tempo real</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">5</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Aprovação</div>
+        <div class="workflow-desc">Cliente aprova online — notificação automática, orçamento converte em projeto</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">6</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Compras &amp; Materiais</div>
+        <div class="workflow-desc">Ordens de compra geradas, estoque atualizado, fornecedores notificados</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">7</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Produção CNC</div>
+        <div class="workflow-desc">Peças exportadas para lote CNC, plano de corte otimizado, G-code gerado, etiquetas impressas</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">8</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Chão de Fábrica</div>
+        <div class="workflow-desc">Peças rastreadas no Kanban da Oficina: Corte → Cola de Borda → Pré-Montagem → Acabamento → Expedição</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">9</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Entrega e Instalação</div>
+        <div class="workflow-desc">Expedição via scanner QR, Termo de Entrega assinado, fotos de conclusão</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot" style="background:var(--accent)"></div>
+      <div class="workflow-num" style="color:var(--accent)">10</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Fechamento Financeiro</div>
+        <div class="workflow-desc">Contas a receber marcadas como pagas, margens calculadas, relatórios gerados</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 04 — DASHBOARD ===== -->
+<div class="chapter-break">
+  <span class="chapter-label">Módulos — Comercial</span>
+  <div class="chapter-line"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">04</div>
+    <div class="section-title">Dashboard</div>
+    <span class="section-url">/dash</span>
+  </div>
+  <p>Tela inicial após o login. Painel de comando com <strong>KPIs animados em tempo real</strong>, variação percentual mês a mês e sparklines de tendência.</p>
+  <table>
+    <thead><tr><th>Indicador</th><th>O que mostra</th></tr></thead>
+    <tbody>
+      <tr><td>Faturamento do Mês</td><td>Receita realizada no mês atual vs. mês anterior</td></tr>
+      <tr><td>Pipeline Ativo</td><td>Soma de orçamentos em negociação</td></tr>
+      <tr><td>Projetos Ativos</td><td>Projetos em andamento</td></tr>
+      <tr><td>Contas Vencidas</td><td>Valor total de inadimplência</td></tr>
+      <tr><td>Peças Pendentes</td><td>Peças aguardando na fila de produção</td></tr>
+    </tbody>
+  </table>
+  <p>Usuários com perfil <strong>Vendedor</strong> veem uma versão filtrada sem dados financeiros sigilosos.</p>
+</div>
+
+<!-- ===== 05 — FUNIL ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">05</div>
+    <div class="section-title">Funil de Leads</div>
+    <span class="section-url">/funil</span>
+  </div>
+  <p>Kanban de pré-venda para qualificação de leads antes de criar orçamento formal.</p>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Temperatura do lead</div>
+      <p>🔥 Muito quente, Quente, Morno, Frio — calculado por score ou definido manualmente</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Origem rastreada</div>
+      <p>Instagram, Google, Indicação, Facebook, Arquiteto, Site, WhatsApp</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Score 0–100</div>
+      <p>Pontuação por lead para priorização da equipe comercial</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Métricas</div>
+      <p>Total de leads por coluna e valor potencial acumulado por etapa</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 06 — CLIENTES ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">06</div>
+    <div class="section-title">Clientes (CRM)</div>
+    <span class="section-url">/cli</span>
+  </div>
+  <p>Cadastro completo de clientes com suporte a Pessoa Física (CPF) e Jurídica (CNPJ).</p>
+
+  <h3>Dados Cadastrais</h3>
+  <table>
+    <thead><tr><th>Campo</th><th>Detalhe</th></tr></thead>
+    <tbody>
+      <tr><td>Nome</td><td>Nome completo ou razão social</td></tr>
+      <tr><td>Documento</td><td>CPF (PF) ou CNPJ (PJ) com máscara automática</td></tr>
+      <tr><td>Contato</td><td>Telefone e e-mail</td></tr>
+      <tr><td>Endereço</td><td>CEP com auto-preenchimento, cidade, estado, bairro</td></tr>
+      <tr><td>Origem</td><td>De onde o cliente veio (atribuição de canal)</td></tr>
+      <tr><td>Nascimento</td><td>Data — gera alerta automático de aniversário 🎁</td></tr>
+      <tr><td>Observações</td><td>Notas livres com código de cores</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Visão 360° do Cliente</h3>
+  <p>Painel lateral com <strong>todos os orçamentos vinculados</strong> e <strong>timeline completa de atividades</strong>: orçamento criado, projeto, nota, WhatsApp, follow-up, ligação, reunião, visita, e-mail — tudo em ordem cronológica com status do pipeline por orçamento.</p>
+</div>
+
+<!-- ===== 07 — ORÇAMENTOS LISTA ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">07</div>
+    <div class="section-title">Orçamentos — Lista</div>
+    <span class="section-url">/orcs</span>
+  </div>
+  <p>Lista mestra de todos os orçamentos do sistema com busca, filtros e paginação (25 por página).</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Busca &amp; Filtros</div>
+      <p>Por cliente, ambiente, número, obs — filtros de status, cliente e período (7/30/90 dias)</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Versionamento</div>
+      <p>Orçamentos podem ter versões (aditivos). Somente a versão ativa aparece na lista</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Analytics</div>
+      <p>Engajamento por proposta: visualizações, dispositivo, localização, tempo, scroll %, seção</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Portal público</div>
+      <p>Geração de link com token único para o cliente acessar a proposta</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 08 — EDITOR ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">08</div>
+    <div class="section-title">Editor de Orçamento</div>
+    <span class="section-url">/novo</span>
+  </div>
+
+  <p>O módulo mais complexo do sistema. Aqui os orçamentos são criados e editados com motor de precificação automático.</p>
+
+  <h3>Estrutura de um Orçamento</h3>
+
+  <h4>Cabeçalho</h4>
+  <table>
+    <thead><tr><th>Campo</th><th>Descrição</th></tr></thead>
+    <tbody>
+      <tr><td>Cliente</td><td>Busca inteligente no cadastro de clientes</td></tr>
+      <tr><td>Ambiente</td><td>Nome do cômodo/projeto (ex: "Cozinha", "Quarto Casal")</td></tr>
+      <tr><td>Número</td><td>Gerado automaticamente (ex: ORN-2026-00012)</td></tr>
+      <tr><td>Validade</td><td>Data de validade da proposta</td></tr>
+      <tr><td>Entrega</td><td>Prazo de entrega estimado</td></tr>
+      <tr><td>Pagamento</td><td>Forma de pagamento (entrada + parcelas)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Materiais do Ambiente</h4>
+  <p>Define o <strong>material padrão</strong> (interno e externo) para todos os itens do ambiente. Cada item pode herdar ou sobrescrever individualmente.</p>
+
+  <h4>Itens (Módulos de Móveis)</h4>
+  <table>
+    <thead><tr><th>Campo</th><th>Descrição</th></tr></thead>
+    <tbody>
+      <tr><td>Dimensões</td><td>Altura × Largura × Profundidade (mm)</td></tr>
+      <tr><td>Material</td><td>Herda do ambiente ou define individual</td></tr>
+      <tr><td>Puxador</td><td>Seleção com busca no catálogo</td></tr>
+      <tr><td>Categoria</td><td>Caixaria, Cozinha, Sala, Quarto, Banheiro, Closet, etc.</td></tr>
+      <tr><td>Sub-itens</td><td>Ferragens: dobradiças, corrediças, articuladores, etc.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Motor de Precificação (engine.js)</h3>
+  <p>O sistema calcula automaticamente, por item e para o orçamento total:</p>
+  <ul>
+    <li><strong>Área de corte</strong> e metragem de fita de borda</li>
+    <li><strong>Custo de material</strong> (m² × preço da chapa + perda %)</li>
+    <li><strong>MDO</strong> — Mão de Obra (R$/m² configurável)</li>
+    <li><strong>Instalação</strong> (R$/m² configurável)</li>
+    <li><strong>Taxas</strong>: Imposto %, Comissão %, Montagem %, Lucro %, Frete %</li>
+    <li>Suporte a <strong>painéis ripados</strong> e <strong>itens especiais</strong></li>
+  </ul>
+
+  <div class="callout">
+    <strong>Importante:</strong> Todas as taxas são configuradas em <code>Configurações → Taxas</code> e aplicadas automaticamente em todos os orçamentos novos.
+  </div>
+
+  <h3>Documentos Gerados pelo Editor</h3>
+  <table>
+    <thead><tr><th>Documento</th><th>Descrição</th></tr></thead>
+    <tbody>
+      <tr><td>📄 Proposta</td><td>Documento visual com identidade Ornato (fundo escuro + cobre), cores personalizáveis, enviável ao cliente</td></tr>
+      <tr><td>📋 Relatório de Materiais</td><td>Lista de corte completa e BOM (bill of materials) para produção</td></tr>
+      <tr><td>📝 Contrato</td><td>Contrato de prestação de serviço com template configurável</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== 09 — KANBAN ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">09</div>
+    <div class="section-title">Pipeline Kanban</div>
+    <span class="section-url">/kb</span>
+  </div>
+
+  <p>Kanban de drag-and-drop com todos os orçamentos organizados por etapa do pipeline de vendas.</p>
+
+  <div class="kanban-grid">
+    <div class="kanban-col"><div class="label">Lead</div><div class="sub">Primeiro contato</div></div>
+    <div class="kanban-col"><div class="label">Orçamento</div><div class="sub">Em elaboração</div></div>
+    <div class="kanban-col"><div class="label">Enviado</div><div class="sub">Proposta enviada</div></div>
+    <div class="kanban-col"><div class="label">Negociação</div><div class="sub">Em negociação</div></div>
+    <div class="kanban-col"><div class="label">Aprovado</div><div class="sub">Cliente aprovou</div></div>
+  </div>
+  <div class="kanban-grid">
+    <div class="kanban-col"><div class="label">Produção</div><div class="sub">Em fabricação</div></div>
+    <div class="kanban-col"><div class="label">Montagem</div><div class="sub">Instalação</div></div>
+    <div class="kanban-col"><div class="label">Arquivo</div><div class="sub">Concluído</div></div>
+    <div class="kanban-col"><div class="label">Perdido</div><div class="sub">Negócio perdido</div></div>
+    <div class="kanban-col" style="opacity:0.3"><div class="label">—</div></div>
+  </div>
+
+  <p style="margin-top:12px">Arrastar o card muda automaticamente o status do orçamento no banco de dados.</p>
+</div>
+
+<!-- ===== 10 — PROPOSTA PÚBLICA ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">10</div>
+    <div class="section-title">Proposta Pública</div>
+    <span class="section-url">/p/:token</span>
+  </div>
+
+  <p>Página pública (sem login) que o cliente acessa pelo link. Renderiza a proposta visualmente com sistema de rastreamento completo.</p>
+
+  <h3>Rastreamento Automático</h3>
+  <table>
+    <thead><tr><th>Dado Coletado</th><th>Como</th></tr></thead>
+    <tbody>
+      <tr><td>Dispositivo</td><td>User-Agent, resolução, idioma, fuso horário</td></tr>
+      <tr><td>Tempo na página</td><td>Heartbeat periódico</td></tr>
+      <tr><td>Scroll máximo</td><td>Event listener de scroll</td></tr>
+      <tr><td>Tempo por seção</td><td>IntersectionObserver por bloco da proposta</td></tr>
+      <tr><td>Gravação de sessão</td><td>Microsoft Clarity integrado</td></tr>
+      <tr><td>Cliques e interações</td><td>Fila de eventos em batch</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Ações do Cliente</h3>
+  <ul>
+    <li><strong>✅ Aprovar proposta</strong> — checkbox de aceite + "Aprovar" → registra aprovação, dispara notificação para a empresa, animação de confete</li>
+    <li><strong>🔗 Copiar link do portal</strong> — copia o link do Portal do Cliente</li>
+    <li><strong>🖨️ Imprimir</strong> — impressão pelo navegador</li>
+    <li>Exibe a <strong>validade da proposta</strong> com alerta visual</li>
+  </ul>
+
+  <div class="callout callout-accent">
+    Todos os dados de engajamento ficam visíveis para o gestor na lista de orçamentos (<code>/orcs</code>) em tempo real.
+  </div>
+</div>
+
+<!-- ===== 11 — PORTAL CLIENTE ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">11</div>
+    <div class="section-title">Portal do Cliente</div>
+    <span class="section-url">/portal/:token</span>
+  </div>
+
+  <p>Portal exclusivo do projeto acessado pelo cliente via link único (sem login). Permite acompanhar a evolução da obra em tempo real.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Timeline de etapas</div>
+      <p>Etapas do projeto com ícones, animações e status: aguardando / em andamento / concluído</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Galeria de fotos</div>
+      <p>Empresa faz upload de fotos de progresso, o cliente visualiza em galeria animada</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Resumo financeiro</div>
+      <p>Parcelas, valores pagos vs. pendentes com visualização clara</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Chat</div>
+      <p>Cliente envia mensagens direto pelo portal — dispara notificação para a empresa</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Documentos</div>
+      <p>Download do Termo de Entrega e outros documentos do projeto</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Rastreamento</div>
+      <p>Microsoft Clarity integrado para gravação de sessão e analytics</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 12 — PROJETOS ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">12</div>
+    <div class="section-title">Projetos</div>
+    <span class="section-url">/proj</span>
+  </div>
+
+  <p>Gestão pós-aprovação. Cada projeto é criado a partir de um orçamento aprovado e acompanha o ciclo completo de fabricação e entrega.</p>
+
+  <h3>Funcionalidades</h3>
+  <table>
+    <thead><tr><th>Recurso</th><th>Descrição</th></tr></thead>
+    <tbody>
+      <tr><td>Etapas configuráveis</td><td>Data início/fim, responsável, progresso % e notas por etapa</td></tr>
+      <tr><td>Gantt interativo</td><td>Gráfico de Gantt com barras, marcos, linha do "hoje" e edição por arrastar</td></tr>
+      <tr><td>Alertas de atraso</td><td>Dias restantes com cores (verde/laranja/vermelho)</td></tr>
+      <tr><td>Despesas do projeto</td><td>Controle de gastos vinculados ao projeto específico</td></tr>
+      <tr><td>Documentos de entrega</td><td>Termo de Entrega, Termo por Ambiente, Certificado de Garantia</td></tr>
+      <tr><td>Galeria de fotos</td><td>Upload de fotos de progresso e entrega</td></tr>
+      <tr><td>Checklists</td><td>Listas de verificação por projeto</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== 13 — CFG ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">13</div>
+    <div class="section-title">Configurações</div>
+    <span class="section-url">/cfg</span>
+  </div>
+
+  <table>
+    <thead><tr><th>Seção</th><th>O que configura</th></tr></thead>
+    <tbody>
+      <tr><td>Empresa</td><td>Nome, CNPJ, endereço, telefone, 3 logos (sistema, cabeçalho, marca d'água), cor primária</td></tr>
+      <tr><td>Taxas de Precificação</td><td>Imposto %, Comissão %, Montagem %, Lucro %, Frete %, MDO (R$/m²), Instalação (R$/m²)</td></tr>
+      <tr><td>Proposta</td><td>Cor de fundo e destaque da proposta, template do contrato (HTML)</td></tr>
+      <tr><td>Landing Page</td><td>Serviços, diferenciais, etapas do processo, depoimentos, portfolio de fotos</td></tr>
+      <tr><td>Menus Ocultos</td><td>Ocultar itens do menu lateral por usuário (admin)</td></tr>
+      <tr><td>IA</td><td>Configurações do assistente e WhatsApp bot</td></tr>
+      <tr><td>Backup</td><td>Exportação e restauração do banco de dados</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>As taxas de precificação são críticas:</strong> qualquer alteração afeta o cálculo de todos os orçamentos novos criados a partir da mudança.
+  </div>
+</div>
+
+<!-- ===== PRODUÇÃO ===== -->
+<div class="chapter-break">
+  <span class="chapter-label">Módulos — Produção</span>
+  <div class="chapter-line"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">14</div>
+    <div class="section-title">Corte &amp; CNC</div>
+    <span class="section-url">/cnc</span>
+  </div>
+
+  <p>O módulo de produção CNC mais técnico do sistema. Integra-se ao plugin SketchUp para receber peças e gera o plano de corte e G-code para a máquina.</p>
+
+  <h3>Fluxo Dentro do Módulo (Stepper)</h3>
+  <div class="workflow" style="padding-left:24px">
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">1</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Importar Peças</div>
+        <div class="workflow-desc">Seleciona projeto/orçamento e importa peças para um lote de corte</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">2</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Revisão das Peças</div>
+        <div class="workflow-desc">Lista de peças do lote com visualização 3D e leitura de QR</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">3</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Plano de Corte</div>
+        <div class="workflow-desc">Otimização do layout nas chapas, % de aproveitamento, alertas de material</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">4</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Usinagens</div>
+        <div class="workflow-desc">Operações CNC por peça: furos, ranhuras, perfis</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot"></div>
+      <div class="workflow-num">5</div>
+      <div class="workflow-content">
+        <div class="workflow-title">G-code</div>
+        <div class="workflow-desc">Revisão e exportação do código para a máquina CNC</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="workflow-dot" style="background:var(--accent)"></div>
+      <div class="workflow-num" style="color:var(--accent)">6</div>
+      <div class="workflow-content">
+        <div class="workflow-title">Etiquetas</div>
+        <div class="workflow-desc">Editor visual SVG de etiquetas, impressão por peça com QR code</div>
+      </div>
+    </div>
+  </div>
+
+  <p>Comunicação em <strong>tempo real</strong> com a máquina via WebSocket. Dashboard com métricas de utilização e controle de retalhos (sobras de chapa).</p>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">15</div>
+    <div class="section-title">Industrialização</div>
+    <span class="section-url">/industrializacao</span>
+  </div>
+  <p>Wizard que converte um projeto em <strong>Ordem de Produção (OP)</strong> — faz a ponte entre o comercial/projetos e a produção física.</p>
+  <div class="flow">
+    <span class="flow-step">Confirmar peças</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Verificar prontidão</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Plano de corte</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Etiquetas</span><span class="flow-arrow">→</span>
+    <span class="flow-step">G-code</span><span class="flow-arrow">→</span>
+    <span class="flow-step" style="background:rgba(201,169,110,0.15);border-color:rgba(201,169,110,0.3);color:#C9A96E">Liberar para produção</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">16</div>
+    <div class="section-title">Oficina (Chão de Fábrica)</div>
+    <span class="section-url">/oficina</span>
+  </div>
+  <p>Kanban físico de rastreamento da produção. Cada card representa um ambiente de um projeto.</p>
+  <table>
+    <thead><tr><th>Etapa</th><th>Cor</th><th>Descrição</th></tr></thead>
+    <tbody>
+      <tr><td>Corte</td><td><span class="badge badge-blue">Azul</span></td><td>Peças sendo cortadas na CNC</td></tr>
+      <tr><td>Cola de Borda</td><td><span class="badge badge-orange">Laranja</span></td><td>Aplicação de fita de borda</td></tr>
+      <tr><td>Pré-Montagem</td><td><span class="badge" style="background:rgba(147,51,234,0.15);color:#c084fc;border:1px solid rgba(147,51,234,0.25)">Roxo</span></td><td>Montagem estrutural</td></tr>
+      <tr><td>Acabamento</td><td><span class="badge badge-accent">Cobre</span></td><td>Lixamento, pintura, verniz</td></tr>
+      <tr><td>Expedição</td><td><span class="badge badge-green">Verde</span></td><td>Pronto para entrega</td></tr>
+    </tbody>
+  </table>
+  <p>Cards possuem checklists, notas, anexos e comentários. Modo TV (<code>/oficina_tv</code>) em tela cheia para monitor na parede da fábrica, sem interação, auto-atualização.</p>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">17</div>
+    <div class="section-title">Acompanhamento de Fábrica</div>
+    <span class="section-url">/producao_fabrica</span>
+  </div>
+  <p>Visão de projetos por etapas granulares de fabricação — otimizado para tablets.</p>
+  <div class="flow" style="flex-wrap:wrap">
+    <span class="flow-step">Aguardando</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Corte</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Usinagem</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Cola Borda</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Furação</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Montagem</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Acabamento</span><span class="flow-arrow">→</span>
+    <span class="flow-step">Embalagem</span><span class="flow-arrow">→</span>
+    <span class="flow-step" style="background:rgba(201,169,110,0.15);border-color:rgba(201,169,110,0.3);color:#C9A96E">Concluído</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">18</div>
+    <div class="section-title">Expedição</div>
+    <span class="section-url">/expedicao</span>
+  </div>
+  <p>Módulo de despacho otimizado para iPad em modo paisagem.</p>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Scanner QR</div>
+      <p>Lê QR codes das etiquetas via câmera do dispositivo</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Visualização 3D</div>
+      <p>Mostra modelo 3D da peça escaneada</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Mini plano de corte</div>
+      <p>Destaca na chapa a posição de origem da peça</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Checkpoints</div>
+      <p>Marca peças como despachadas com timestamp e operador</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GESTÃO ===== -->
+<div class="chapter-break">
+  <span class="chapter-label">Módulos — Gestão &amp; Suporte</span>
+  <div class="chapter-line"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">19</div>
+    <div class="section-title">Financeiro</div>
+    <span class="section-url">/financeiro</span>
+  </div>
+
+  <h3>Contas a Pagar</h3>
+  <table>
+    <thead><tr><th>Campo</th><th>Detalhe</th></tr></thead>
+    <tbody>
+      <tr><td>Valor, vencimento, categoria</td><td>Campos básicos com seleção de fornecedor</td></tr>
+      <tr><td>Recorrência</td><td>Semanal, quinzenal, mensal, bimestral, trimestral, anual</td></tr>
+      <tr><td>Parcelamento</td><td>Divide automaticamente em N parcelas com intervalo configurável</td></tr>
+      <tr><td>Pagamento</td><td>Marcação como pago com data e método (PIX, Boleto, TED, Cartão, Dinheiro, Cheque)</td></tr>
+      <tr><td>Anexo</td><td>Upload de comprovante/nota fiscal</td></tr>
+    </tbody>
+  </table>
+
+  <p>Status visual: <span class="badge badge-red">🔴 Vencida</span> <span class="badge badge-orange">⚠️ Próximo vencimento</span> <span class="badge badge-green">✅ Pago</span> <span class="badge" style="background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.12)">⏳ Pendente</span></p>
+
+  <p><strong>Contas a Receber</strong> — mesma estrutura, para receitas. <strong>Fluxo de Caixa</strong> — visão semanal/mensal de entradas e saídas.</p>
+
+  <div class="callout">
+    O sistema dispara notificações automáticas para contas vencidas e que vencerão em até 7 dias.
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">20</div>
+    <div class="section-title">Estoque</div>
+    <span class="section-url">/estoque</span>
+  </div>
+  <p>Controle de inventário de três tipos: <strong>Material</strong>, <strong>Ferragem</strong> e <strong>Acessório</strong>.</p>
+  <table>
+    <thead><tr><th>Recurso</th><th>Descrição</th></tr></thead>
+    <tbody>
+      <tr><td>Saldo atual vs. mínimo</td><td>Acompanhamento com alertas visuais</td></tr>
+      <tr><td>🔴 Alerta crítico</td><td>Ponto pulsante quando estoque ≤ 0</td></tr>
+      <tr><td>🟠 Alerta baixo</td><td>Quando próximo do estoque mínimo</td></tr>
+      <tr><td>Movimentação</td><td>Entrada (compra) ou saída (consumo) com qty, preço e projeto vinculado</td></tr>
+      <tr><td>Histórico</td><td>Log de movimentações por item</td></tr>
+      <tr><td>CSV</td><td>Exportação do inventário completo</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">21</div>
+    <div class="section-title">Compras &amp; NF</div>
+    <span class="section-url">/compras</span>
+  </div>
+  <p>Gestão de fornecedores e ordens de compra.</p>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Fornecedores</div>
+      <p>Cadastro com CNPJ, contato, cidade, e-mail, observações</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Ordens de compra</div>
+      <p>Rascunho → Pendente → Aprovada → Recebida → Cancelada</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Itens da ordem</div>
+      <p>Descrição, quantidade e valor unitário por item da compra</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Comparativo de preço</div>
+      <p>Mostra variação % em relação à última compra do mesmo item</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">22</div>
+    <div class="section-title">Biblioteca de Materiais</div>
+    <span class="section-url">/cat</span>
+  </div>
+  <p>Catálogo de matérias-primas usadas nos orçamentos. Import/export em CSV para gestão em massa.</p>
+  <table>
+    <thead><tr><th>Tipo</th><th>Campos</th></tr></thead>
+    <tbody>
+      <tr><td>Chapas/Painéis</td><td>Nome, código, espessura, dimensões, preço/m², perda %, preço de fita de borda</td></tr>
+      <tr><td>Ferragens</td><td>Dobradiças, corrediças, articuladores, puxadores, perfis — as 3 primeiras categorias fazem substituição global em todos os orçamentos</td></tr>
+      <tr><td>Acabamentos</td><td>Tratamentos de superfície</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">23</div>
+    <div class="section-title">Engenharia de Módulos</div>
+    <span class="section-url">/catalogo_itens</span>
+  </div>
+  <p>Builder paramétrico de templates de móveis — o motor de templates que alimenta o editor de orçamentos.</p>
+  <p>Cada módulo define suas peças com <strong>fórmulas matemáticas</strong> usando variáveis:</p>
+  <table>
+    <thead><tr><th>Variável</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td><code>A</code></td><td>Altura do módulo</td></tr>
+      <tr><td><code>L</code></td><td>Largura do módulo</td></tr>
+      <tr><td><code>P</code></td><td>Profundidade do módulo</td></tr>
+      <tr><td><code>Li</code></td><td>Largura interna (L − 2× espessura)</td></tr>
+      <tr><td><code>Ai</code></td><td>Altura interna (A − 2× espessura)</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    Exemplo: uma peça "Lateral" com fórmula <code>A * P</code> — ao criar o item com A=700mm e P=550mm, o sistema calcula a área de corte automaticamente.
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">24</div>
+    <div class="section-title">WhatsApp / Mensagens</div>
+    <span class="section-url">/whatsapp</span>
+  </div>
+  <p>Inbox integrado de WhatsApp para CRM com atendimento por IA ou humano.</p>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Modos de atendimento</div>
+      <p>🤖 IA (bot responde) · 👤 Humano (operador assume) · 🔒 Fechado</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot"></div>Qualificação de lead</div>
+      <p>Novo, em qualificação, qualificado, desqualificado, fora da área</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Atribuição</div>
+      <p>Direciona conversa para usuário específico da equipe</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-title"><div class="dot" style="background:#C9A96E"></div>Tempo real</div>
+      <p>WebSocket para recebimento instantâneo — badge atualiza a cada 15 segundos</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">25</div>
+    <div class="section-title">Assistente IA</div>
+    <span class="section-url">/assistente</span>
+  </div>
+  <table>
+    <thead><tr><th>Aba</th><th>Funcionalidade</th></tr></thead>
+    <tbody>
+      <tr><td>Follow-ups</td><td>Sugestões geradas por IA com prioridade (alta/média/baixa) — com base no histórico do CRM</td></tr>
+      <tr><td>Chat CRM</td><td>Pergunte ao assistente sobre clientes, orçamentos e pipeline — ele acessa os dados do sistema</td></tr>
+      <tr><td>Base de Conhecimento</td><td>Textos e instruções que alimentam o contexto da IA (FAQ, respostas padrão, info da empresa)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <div class="section-num">26</div>
+    <div class="section-title">Outros Módulos</div>
+  </div>
+
+  <table>
+    <thead><tr><th>Módulo</th><th>URL</th><th>Descrição</th></tr></thead>
+    <tbody>
+      <tr><td>Ponto</td><td><code>/ponto</code></td><td>Controle de ponto multi-funcionário, calendário mensal, tipos de dia, cálculo de horas, exportação</td></tr>
+      <tr><td>Relatórios</td><td><code>/relatorios</code></td><td>Relatórios por período com exportação CSV (compatível com Excel)</td></tr>
+      <tr><td>Gestão Avançada</td><td><code>/gestao</code></td><td>KPIs gerenciais: ticket médio, margem, conversão, pontualidade, NPS, metas</td></tr>
+      <tr><td>Usuários</td><td><code>/users</code></td><td>CRUD de usuários com perfis: Gerente, Vendedor, Produção, Library Curator</td></tr>
+      <tr><td>Plugin SketchUp</td><td><code>/plugin_download</code></td><td>Plugin proprietário que integra SketchUp ao módulo CNC — exporta peças 3D direto para o sistema</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Páginas Públicas (sem login)</h3>
+  <div class="pub-grid">
+    <div class="pub-row"><span class="pub-url">/</span><span class="pub-desc">Landing page da empresa</span></div>
+    <div class="pub-row"><span class="pub-url">/p/:token</span><span class="pub-desc">Proposta pública com rastreamento</span></div>
+    <div class="pub-row"><span class="pub-url">/portal/:token</span><span class="pub-desc">Portal do cliente</span></div>
+    <div class="pub-row"><span class="pub-url">/lp/:token</span><span class="pub-desc">Landing page da proposta</span></div>
+    <div class="pub-row"><span class="pub-url">/assinar/:token</span><span class="pub-desc">Assinatura eletrônica</span></div>
+    <div class="pub-row"><span class="pub-url">/verificar/:cod</span><span class="pub-desc">Verificação de assinatura</span></div>
+    <div class="pub-row"><span class="pub-url">/montador/:token</span><span class="pub-desc">Upload de fotos (montador)</span></div>
+    <div class="pub-row"><span class="pub-url">/tv-corte</span><span class="pub-desc">TV do CNC — tela cheia</span></div>
+    <div class="pub-row"><span class="pub-url">/portfolioornato</span><span class="pub-desc">Portfólio público de projetos</span></div>
+    <div class="pub-row"><span class="pub-url">/operador-cnc</span><span class="pub-desc">Modo operador CNC</span></div>
+  </div>
+</div>
+
+<!-- ===== NOTIFICAÇÕES ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num" style="background:rgba(201,169,110,0.12);border-color:rgba(201,169,110,0.3);color:#C9A96E">🔔</div>
+    <div class="section-title">Sistema de Notificações</div>
+  </div>
+  <p>O sistema verifica notificações a cada <strong>15 segundos</strong>. O sino no topo da tela fica <span style="color:#f87171;font-weight:600">vermelho</span> quando há contas vencidas.</p>
+  <div class="notif-grid">
+    <div class="notif-row"><span class="notif-icon">💰</span><span class="notif-name">Conta vencida</span><span class="notif-when">Financeiro</span></div>
+    <div class="notif-row"><span class="notif-icon">⚠️</span><span class="notif-name">Próximo vencimento</span><span class="notif-when">7 dias antes</span></div>
+    <div class="notif-row"><span class="notif-icon">✅</span><span class="notif-name">Orçamento aprovado</span><span class="notif-when">Cliente aprova</span></div>
+    <div class="notif-row"><span class="notif-icon">📁</span><span class="notif-name">Projeto criado</span><span class="notif-when">Aprovação</span></div>
+    <div class="notif-row"><span class="notif-icon">📦</span><span class="notif-name">Estoque baixo</span><span class="notif-when">Abaixo do mínimo</span></div>
+    <div class="notif-row"><span class="notif-icon">👁️</span><span class="notif-name">Proposta visualizada</span><span class="notif-when">Cliente abre link</span></div>
+    <div class="notif-row"><span class="notif-icon">💬</span><span class="notif-name">Mensagem do portal</span><span class="notif-when">Cliente escreve</span></div>
+    <div class="notif-row"><span class="notif-icon">📸</span><span class="notif-name">Foto do montador</span><span class="notif-when">Upload externo</span></div>
+    <div class="notif-row"><span class="notif-icon">🎁</span><span class="notif-name">Aniversário do cliente</span><span class="notif-when">Data de nascimento</span></div>
+    <div class="notif-row"><span class="notif-icon">📋</span><span class="notif-name">Etapa atrasada</span><span class="notif-when">Projeto com atraso</span></div>
+    <div class="notif-row"><span class="notif-icon">⏸️</span><span class="notif-name">Orçamento parado</span><span class="notif-when">Sem movimentação</span></div>
+    <div class="notif-row"><span class="notif-icon">🖨️</span><span class="notif-name">Proposta impressa</span><span class="notif-when">Cliente imprime</span></div>
+  </div>
+</div>
+
+<!-- ===== ATALHOS ===== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-num" style="background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.12);color:rgba(255,255,255,0.60)">⌨️</div>
+    <div class="section-title">Atalhos de Teclado</div>
+  </div>
+  <div class="shortcut-grid">
+    <div class="shortcut-row"><kbd>Ctrl+K</kbd> <span class="shortcut-desc">Paleta de comandos (busca global)</span></div>
+    <div class="shortcut-row"><kbd>?</kbd> <span class="shortcut-desc">Mostra todos os atalhos</span></div>
+    <div class="shortcut-row"><kbd>G</kbd>+<kbd>D</kbd> <span class="shortcut-desc">Ir para Dashboard</span></div>
+    <div class="shortcut-row"><kbd>G</kbd>+<kbd>O</kbd> <span class="shortcut-desc">Ir para Orçamentos</span></div>
+    <div class="shortcut-row"><kbd>G</kbd>+<kbd>P</kbd> <span class="shortcut-desc">Ir para Projetos</span></div>
+    <div class="shortcut-row"><kbd>G</kbd>+<kbd>C</kbd> <span class="shortcut-desc">Ir para Clientes</span></div>
+    <div class="shortcut-row"><kbd>G</kbd>+<kbd>F</kbd> <span class="shortcut-desc">Ir para Financeiro</span></div>
+    <div class="shortcut-row"><kbd>G</kbd>+<kbd>E</kbd> <span class="shortcut-desc">Ir para Estoque</span></div>
+  </div>
+</div>
+
+<!-- ===== RODAPÉ ===== -->
+<div class="footer">
+  <div class="footer-brand">ORNA<span>TO</span> ERP</div>
+  <div class="footer-note">Documento interno · Versão 2026.1 · studioornato.com.br · Confidencial</div>
+</div>
+
+</body>
+</html>`;
+
+writeFileSync(path.join(__dirname, 'ornato-doc.html'), html, 'utf-8');
+
+const browser = await puppeteer.launch({
+  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  headless: 'new',
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
+
+const page = await browser.newPage();
+await page.setContent(html, { waitUntil: 'networkidle0' });
+
+// Wait a bit for fonts to load
+await new Promise(r => setTimeout(r, 2000));
+
+await page.pdf({
+  path: path.join(__dirname, 'Ornato-ERP-Documento-do-Sistema.pdf'),
+  format: 'A4',
+  printBackground: true,
+  margin: { top: '0', right: '0', bottom: '0', left: '0' },
+  preferCSSPageSize: false,
+});
+
+await browser.close();
+console.log('PDF gerado com sucesso!');

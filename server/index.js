@@ -52,7 +52,7 @@ import errorsRoutes, { recordError } from './routes/errors.js';
 import oficinaRoutes from './routes/oficina.js';
 
 // Inicializa DB (efeito colateral — cria tabelas e seed)
-import './db.js';
+import db from './db.js';
 import { verifyToken } from './auth.js';
 import { iniciarAutomacoes } from './services/automacoes.js';
 import { iniciarBackupDiario } from './services/backup.js';
@@ -410,6 +410,15 @@ const server = app.listen(PORT, () => {
     iniciarGerenteRevisional();
     // Retry Queue — re-envia mensagens que falharam por sobrecarga da IA (10s → 2min → 10min → 30min → 2h)
     iniciarRetryQueue();
+
+    // ── Cleanup automático: error_log > 30 dias ──
+    // Roda 1x por dia. Mantém só erros recentes para diagnóstico.
+    setInterval(() => {
+        try {
+            const r = db.prepare("DELETE FROM error_log WHERE last_seen < datetime('now', '-30 days')").run();
+            if (r.changes > 0) console.log(`[Cleanup] error_log: ${r.changes} registros antigos removidos`);
+        } catch (e) { console.error('[Cleanup] error_log falhou:', e.message); }
+    }, 24 * 60 * 60 * 1000); // 24h
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });
