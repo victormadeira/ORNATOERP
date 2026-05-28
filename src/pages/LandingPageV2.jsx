@@ -922,7 +922,7 @@ export default function LandingPageV2() {
                         <div className="lp-ad-header">
                             <p className="lp-ad-eyebrow">Transformação</p>
                             <h2 className="lp-headline lp-ad-titulo">
-                                {config.landing_ad_titulo || <>Antes <span className="lp-hl">&amp;</span> Depois</>}
+                                {config.landing_ad_titulo || <>O mesmo espaço. <span className="lp-hl">Outro ambiente.</span></>}
                             </h2>
                             <p className="lp-ad-sub">Arraste para comparar</p>
                         </div>
