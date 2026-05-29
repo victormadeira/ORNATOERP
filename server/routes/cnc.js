@@ -1835,7 +1835,7 @@ router.get('/retalhos-preview/:loteId', requireAuth, (req, res) => {
             if (!chapa) continue;
 
             const retalhosDisp = db.prepare(
-                'SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura DESC'
+                'SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura ASC'
             ).all(group.material_code, group.espessura);
 
             if (retalhosDisp.length === 0) {
@@ -2158,7 +2158,7 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                         // Only use specifically selected retalhos
                         const placeholders = retSelecionados.map(() => '?').join(',');
                         retalhosDisp = db.prepare(
-                            `SELECT * FROM cnc_retalhos WHERE id IN (${placeholders}) AND disponivel = 1 ORDER BY comprimento * largura DESC`
+                            `SELECT * FROM cnc_retalhos WHERE id IN (${placeholders}) AND disponivel = 1 ORDER BY comprimento * largura ASC`
                         ).all(...retSelecionados);
                     } else if (retSelecionados && retSelecionados.length === 0) {
                         // Explicitly empty = don't use any retalhos
@@ -2166,7 +2166,7 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                     } else {
                         // No selection provided = use all matching (backward compat)
                         retalhosDisp = db.prepare(
-                            'SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura DESC'
+                            'SELECT * FROM cnc_retalhos WHERE material_code = ? AND ABS(espessura_real - ?) <= 1.0 AND disponivel = 1 ORDER BY comprimento * largura ASC'
                         ).all(group.material_code, group.espessura);
                     }
                     // Portfolio multi-pass para retalhos: testa combinações heurística × ordenação × bin type
@@ -2840,7 +2840,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
             if (useRetalhos) {
                 const retalhosDisp = db.prepare(
-                    'SELECT * FROM cnc_retalhos WHERE material_code = ? AND espessura_real = ? AND disponivel = 1 ORDER BY comprimento * largura DESC'
+                    'SELECT * FROM cnc_retalhos WHERE material_code = ? AND espessura_real = ? AND disponivel = 1 ORDER BY comprimento * largura ASC'
                 ).all(group.material_code, group.espessura);
 
                 for (const ret of retalhosDisp) {
