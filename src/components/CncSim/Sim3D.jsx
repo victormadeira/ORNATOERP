@@ -1,24 +1,19 @@
-// CncSim/Sim3D.jsx — v5, reescrita do zero
-// Princípio: ZERO closures no RAF loop. Todo estado em $.current.
-// Animação por índice de move: +1 a cada (60/speed) ms.
-// $.current.playing = playing durante render → RAF lê o valor correto sempre.
+// CncSim/Sim3D.jsx — v6, reescrito no estilo do simulador de referência.
+// Câmera-órbita própria (sem OrbitControls), THREE.Line simples (sem Line2),
+// playback por tempo. Estado todo em $.current; zero closures no RAF loop.
+// Drop-in: mesmas props { parsed, chapa, playing, speed, onMoveChange, onPlayEnd }
+// e mesma API de ref { reset, seekTo, seekToTime, getTotalMoves, getCurMove,
+// getTotalTime, getCurrentTime }.
 
-import {
-    useEffect, useRef, useMemo, forwardRef, useImperativeHandle, useState,
-} from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Line2 }        from 'three/examples/jsm/lines/Line2.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
-import { getOpCat, getToolDiameter } from './parseGcode.js';
+import { getOpCat } from './parseGcode.js';
 
-// ── Constantes ────────────────────────────────────────────────────────────────
-const BG       = 0x0c1018;
-const MDF_TOP  = '#c2a46a';
+const BG       = 0x0d1117;
+const MDF_TOP  = 0xc2a46a;
 const MDF_SIDE = 0x8b6030;
+const PIECE_PALETTE = [0x4a90d9, 0x50b888, 0xe0a13c, 0xc56bd6, 0xe07a5f, 0x5bc0be, 0xd98cb3, 0x8a8fd0, 0x6ab04c, 0xeb8f34];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtTime(s) {
     if (!s || s <= 0) return '0:00';
     const m = Math.floor(s / 60);
@@ -34,527 +29,376 @@ function clearGroup(g) {
     }
 }
 
-function makeMdfCanvas(w, h) {
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = MDF_TOP; ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 80; i++) {
-        const y  = Math.random() * h;
-        const ht = 1 + Math.random() * 3;
-        const a  = 0.04 + Math.random() * 0.07;
-        ctx.fillStyle = Math.random() > 0.5
-            ? `rgba(255,235,180,${a})`
-            : `rgba(140,90,30,${a})`;
-        ctx.fillRect(0, y, w, ht);
-    }
-    return c;
-}
-
-// Sombra de contato fake (gradiente radial) — aterra a chapa na mesa sem
-// custo de shadow-map dinâmico. Funciona pra qualquer tamanho de chapa.
-function makeContactShadowTexture() {
-    const c = document.createElement('canvas');
-    c.width = c.height = 256;
-    const ctx = c.getContext('2d');
-    const g = ctx.createRadialGradient(128, 128, 20, 128, 128, 128);
-    g.addColorStop(0, 'rgba(0,0,0,0.55)');
-    g.addColorStop(0.6, 'rgba(0,0,0,0.28)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 256, 256);
-    return new THREE.CanvasTexture(c);
-}
-
-function paintMdfMove(ctx, m, cW, cH, texW, texH, toolDiam) {
-    if (m.type === 'G0') return false;
-    const depth = Math.max(0, -Math.min(m.z1, m.z2));
-    if (depth < 0.02) return false;
-    const scX = texW / cW, scY = texH / cH;
-    const lw  = Math.max(2, toolDiam * Math.min(scX, scY));
-    const ratio = Math.min(1, depth / 18);
-    const light = Math.round(55 - ratio * 35);
-    ctx.strokeStyle = `hsl(22, 38%, ${light}%)`;
-    ctx.lineWidth = lw; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(m.x1 * scX, texH - m.y1 * scY);
-    ctx.lineTo(m.x2 * scX, texH - m.y2 * scY);
-    ctx.stroke();
-    return true;
-}
-
-// ── Componente ────────────────────────────────────────────────────────────────
 export const Sim3D = forwardRef(function Sim3D(
-    { parsed, chapa, playing, speed, onPlayEnd, onMoveChange },
+    { parsed, chapa, playing, speed, onMoveChange, onPlayEnd },
     ref
 ) {
     const mountRef = useRef(null);
 
-    // ── ÚNICO objeto de estado — o RAF loop lê daqui diretamente ─────────────
-    const $ = useRef({
-        renderer: null, scene: null, camera: null, controls: null,
-        stockGroup: null, pathGroup: null, toolGroup: null,
-        segments: [], lineMats: [],
-        matCtx: null, matTexture: null, matDims: { texW: 0, texH: 0 },
-        chapaW: 2750, chapaH: 1850,
-        toolDiamByMove: [],
-        bbox: null, rafId: null,
-        // Animação
-        playing: false, speed: 1,
-        curMove: -1, simTime: 0, lastTick: 0,
-        lastPainted: -1, lastReported: -1, lastHudTs: 0, lastMdfTs: 0,
-        // Dados (sync durante render)
-        moves: [], totalTime: 0,
-        // Callbacks (sync durante render)
-        onPlayEnd: null, onMoveChange: null,
-        // Funções (set no setup effect)
-        renderAt: null, updateHud: null,
-    });
+    // Chapa estável por valor (evita rebuild espúrio)
+    const chapaKey = `${chapa?.comprimento}|${chapa?.largura}|${chapa?.espessura}|${chapa?.refilo}`;
 
-    // ── Sync props → $.current DURANTE O RENDER (seguro — ref não causa re-render) ──
+    const $ = useRef({
+        renderer: null, scene: null, camera: null,
+        stockGroup: null, pathGroup: null, toolGroup: null,
+        orbit: null,
+        segments: [],          // { line, mat, isRapid, baseColor, doneColor, done }
+        moves: [],
+        totalTime: 0,
+        curMove: -1, simTime: 0, lastTick: 0,
+        lastReported: -2,
+        playing: false, speed: 1,
+        onMoveChange: null, onPlayEnd: null,
+        renderAt: null, setHud: null, setActiveView: null,
+        needsRender: true,
+        rafId: null,
+        bbox: null,
+    });
     const s = $.current;
     s.playing      = playing || false;
     s.speed        = speed   || 1;
-    s.moves        = parsed?.moves    ?? [];
-    s.totalTime    = parsed?.totalTime ?? 0;
-    s.onPlayEnd    = onPlayEnd;
     s.onMoveChange = onMoveChange;
+    s.onPlayEnd    = onPlayEnd;
 
-    // ── Memoiza chapa por valores (não por referência) ────────────────────────
-    const chapaKey = `${chapa?.comprimento}|${chapa?.largura}|${chapa?.espessura}|${chapa?.refilo}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const chapaStable = useMemo(() => chapa, [chapaKey]);
-
-    // ── HUD (React state, throttled, só pra display) ──────────────────────────
-    const [hud, setHud]           = useState({ x: 0, y: 0, z: 0, f: 0, t: 0 });
+    const [hud, setHud] = useState({ x: 0, y: 0, z: 0, f: 0, t: 0 });
     const [activeView, setActiveView] = useState('iso');
-    s.updateHud = setHud; // RAF chama sem closure
+    s.setHud = setHud;
+    s.setActiveView = setActiveView;
 
-    // ── Setup Three.js (UMA VEZ) ──────────────────────────────────────────────
+    // ── Setup (UMA VEZ) ───────────────────────────────────────────────────────
     useEffect(() => {
         const el = mountRef.current;
         if (!el) return;
 
-        // Renderer
-        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 2→1.5: ~44% menos pixels em telas retina
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.setClearColor(BG);
         renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
         el.appendChild(renderer.domElement);
 
-        // Scene / Camera
         const scene  = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200000);
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 400000);
         camera.up.set(0, 0, 1);
-        // Iluminação: hemisfério (céu claro / mesa escura) dá sombreamento natural
-        // sem lavar as cores semânticas do toolpath. Sol quente + preenchimento frio.
-        scene.add(new THREE.HemisphereLight(0xaec4dc, 0x14181f, 0.7));
-        scene.add(new THREE.AmbientLight(0x203040, 0.45));
-        const sun = new THREE.DirectionalLight(0xfff4e0, 1.35);
+
+        scene.add(new THREE.HemisphereLight(0xaec4dc, 0x14181f, 0.75));
+        scene.add(new THREE.AmbientLight(0x404a58, 0.5));
+        const sun = new THREE.DirectionalLight(0xfff4e0, 1.15);
         sun.position.set(800, 600, 2000); scene.add(sun);
-        const fill = new THREE.DirectionalLight(0x4080c0, 0.30);
-        fill.position.set(-600, -800, 400); scene.add(fill);
 
-        // Controls
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping   = true;
-        controls.dampingFactor   = 0.07;
-        controls.screenSpacePanning = true;
-        controls.minDistance     = 10;
-        controls.maxDistance     = 300000;
-        controls.zoomToCursor    = true;
+        // ── Câmera-órbita própria (Z-up) ──────────────────────────────────────
+        const orbit = {
+            target: new THREE.Vector3(0, 0, 0),
+            distance: 3000,
+            theta: -Math.PI / 3,
+            phi: Math.PI / 3.5,
+            apply() {
+                const { target: t, distance: d, phi, theta } = this;
+                camera.position.set(
+                    t.x + d * Math.sin(phi) * Math.cos(theta),
+                    t.y + d * Math.sin(phi) * Math.sin(theta),
+                    t.z + d * Math.cos(phi),
+                );
+                camera.up.set(0, 0, 1);
+                camera.lookAt(t);
+                s.needsRender = true;
+            },
+            setView(name) {
+                if (name === 'top')        { this.theta = -Math.PI / 2; this.phi = 0.0001; }
+                else if (name === 'front') { this.theta = -Math.PI / 2; this.phi = Math.PI / 2; }
+                else if (name === 'side')  { this.theta = 0;            this.phi = Math.PI / 2; }
+                else                       { this.theta = -Math.PI / 3; this.phi = Math.PI / 3.5; }
+                this.apply();
+                s.setActiveView?.(name);
+            },
+        };
+        s.orbit = orbit;
 
-        // Groups
+        // ── Interação mouse (rotacionar / pan / zoom) ─────────────────────────
+        let dragging = false, panning = false, lastX = 0, lastY = 0;
+        const onDown = (e) => { dragging = true; panning = e.button === 2 || e.shiftKey; lastX = e.clientX; lastY = e.clientY; e.preventDefault(); };
+        const onMove = (e) => {
+            if (!dragging) return;
+            const dx = e.clientX - lastX, dy = e.clientY - lastY;
+            lastX = e.clientX; lastY = e.clientY;
+            if (panning) {
+                const scale = orbit.distance * 0.0015;
+                const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+                const right = dir.clone().cross(camera.up).normalize();
+                const up = camera.up.clone();
+                orbit.target.addScaledVector(right, -dx * scale);
+                orbit.target.addScaledVector(up, dy * scale);
+            } else {
+                orbit.theta -= dx * 0.005;
+                orbit.phi = Math.max(0.02, Math.min(Math.PI - 0.02, orbit.phi - dy * 0.005));
+            }
+            orbit.apply();
+        };
+        const onUp = () => { dragging = false; panning = false; };
+        const onWheel = (e) => {
+            e.preventDefault();
+            orbit.distance = Math.max(50, Math.min(360000, orbit.distance * (e.deltaY > 0 ? 1.1 : 0.9)));
+            orbit.apply();
+        };
+        const onCtx = (e) => e.preventDefault();
+        const onDbl = () => { if (s.bbox) { orbit.target.set(s.bbox.cx, s.bbox.cy, 0); orbit.distance = s.bbox.span * 1.5; orbit.apply(); } };
+        renderer.domElement.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+        renderer.domElement.addEventListener('contextmenu', onCtx);
+        renderer.domElement.addEventListener('dblclick', onDbl);
+
+        // Grupos
         const stockGroup = new THREE.Group();
         const pathGroup  = new THREE.Group();
         const toolGroup  = new THREE.Group();
         scene.add(stockGroup, pathGroup, toolGroup);
 
-        // Tool mesh
-        const shankMat = new THREE.MeshStandardMaterial({ color: 0xd0d8e0, metalness: 0.9, roughness: 0.08 });
-        const tipMat   = new THREE.MeshStandardMaterial({ color: 0xffd060, metalness: 0.95, roughness: 0.05, emissive: 0xd08000, emissiveIntensity: 1.8 });
-        const shank = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 60, 16), shankMat);
-        shank.rotation.x = Math.PI / 2; shank.position.z = 32;
-        const tip   = new THREE.Mesh(new THREE.ConeGeometry(5, 10, 16), tipMat);
-        tip.rotation.x = -Math.PI / 2;  tip.position.z = -5;
+        // Ferramenta (fresa/broca) — escala ao diâmetro atual em runtime
+        const shankMat = new THREE.MeshStandardMaterial({ color: 0xd0d8e0, metalness: 0.85, roughness: 0.15 });
+        const tipMat   = new THREE.MeshStandardMaterial({ color: 0xf78166, emissive: 0xb03a1a, emissiveIntensity: 0.8, metalness: 0.3, roughness: 0.4 });
+        const shank = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 60, 24), shankMat);
+        shank.rotation.x = Math.PI / 2; shank.position.z = 33;
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(3, 8, 24), tipMat);
+        tip.rotation.x = -Math.PI / 2; tip.position.z = -1;
         toolGroup.add(shank, tip);
         toolGroup.visible = false;
 
-        Object.assign(s, { renderer, scene, camera, controls, stockGroup, pathGroup, toolGroup, segments: [], lineMats: [] });
+        Object.assign(s, { renderer, scene, camera, stockGroup, pathGroup, toolGroup });
 
-        // Resize observer (debounced — evita rajada ao colapsar/arrastar painéis)
-        let _resizeT = null;
+        // Resize (debounced)
+        let resizeT = null;
         const ro = new ResizeObserver(() => {
-            if (_resizeT) return;
-            _resizeT = setTimeout(() => {
-                _resizeT = null;
+            if (resizeT) return;
+            resizeT = setTimeout(() => {
+                resizeT = null;
                 const w = el.clientWidth, h = el.clientHeight;
                 if (!w || !h) return;
                 renderer.setSize(w, h, false);
                 camera.aspect = w / h; camera.updateProjectionMatrix();
-                const res = new THREE.Vector2(w, h);
-                for (const mat of s.lineMats) mat.resolution.copy(res);
                 s.needsRender = true;
-            }, 120);
+            }, 100);
         });
         ro.observe(el);
 
-        // Double-click → fit
-        renderer.domElement.addEventListener('dblclick', () => {
-            const { bbox } = s;
-            if (!bbox) return;
-            controls.target.set(bbox.cx, bbox.cy, 0);
-            camera.position.set(bbox.cx + bbox.span * 0.7, bbox.cy - bbox.span * 0.9, bbox.span * 0.75);
-            camera.up.set(0, 0, 1); camera.lookAt(bbox.cx, bbox.cy, 0); controls.update();
-            s.needsRender = true;
-        });
-
-        // Render sob demanda: qualquer mudança de câmera (drag/zoom/damping) pede 1 frame
-        controls.addEventListener('change', () => { s.needsRender = true; });
-
-        // ── renderAt: lê tudo de s, sem closures ─────────────────────────────
+        // ── renderAt: atualiza cores executado/pendente + ferramenta + HUD ────
         function renderAt(idx) {
             const mvs = s.moves;
-            if (!s.renderer) return;
             const clamped = mvs.length === 0 ? -1 : Math.max(-1, Math.min(mvs.length - 1, idx));
 
-            // Cores dos segmentos
             for (let i = 0; i < s.segments.length; i++) {
-                const seg  = s.segments[i];
+                const seg = s.segments[i];
                 const done = clamped >= 0 && i <= clamped;
                 if (seg.done !== done) {
-                    seg.mat.color.setHex(done ? seg.execColor : seg.pendColor);
-                    seg.mat.opacity = done
-                        ? (seg.isRapid ? 0.45 : 0.9)
-                        : (seg.isRapid ? 0    : 0.35);
-                    seg.mat.needsUpdate = true;
                     seg.done = done;
+                    seg.mat.color.setHex(done ? seg.doneColor : seg.baseColor);
+                    seg.mat.opacity = seg.isRapid ? (done ? 0.18 : 0.4) : (done ? 1.0 : 0.4);
                 }
             }
+            // segmento atual em destaque branco
+            if (clamped >= 0 && s.segments[clamped]) {
+                s.segments[clamped].mat.color.setHex(0xffffff);
+                s.segments[clamped].mat.opacity = 1.0;
+                s.segments[clamped].done = null; // força refresh no próximo passo
+            }
 
-            // Ferramenta: oculta em G0 (posicionamento rápido)
-            if (clamped >= 0) {
-                const m = mvs[clamped];
-                s.toolGroup.visible = m.type !== 'G0';
-                s.toolGroup.position.set(m.x2, m.y2, m.z2);
+            // posição da ferramenta
+            const m = clamped >= 0 ? mvs[clamped] : null;
+            if (m) {
+                s.toolGroup.visible = true;
+                s.toolGroup.position.set(m.x2, m.y2, Math.max(m.z2, 0.5));
+                // escala ao diâmetro real da operação (se conhecido)
+                const d = m.toolDiam || 6;
+                const sc = Math.max(0.4, d / 6);
+                s.toolGroup.scale.set(sc, sc, 1);
             } else {
                 s.toolGroup.visible = false;
             }
 
-            // MDF canvas (incremental ou full rebuild)
-            const now = performance.now();
-            if (!s.playing || now - s.lastMdfTs > 50) {
-                if (s.matCtx && s.matTexture && s.matDims.texW > 0) {
-                    const { texW, texH } = s.matDims;
-                    if (clamped < s.lastPainted) {
-                        // Seek para trás: rebuild total
-                        s.matCtx.clearRect(0, 0, texW, texH);
-                        s.matCtx.fillStyle = MDF_TOP; s.matCtx.fillRect(0, 0, texW, texH);
-                        for (let i = 0; i <= clamped; i++) {
-                            const diam = s.toolDiamByMove[i] ?? 6;
-                            paintMdfMove(s.matCtx, mvs[i], s.chapaW, s.chapaH, texW, texH, diam);
-                        }
-                        s.lastPainted = clamped;
-                        s.matTexture.needsUpdate = true;
-                        s.lastMdfTs = now;
-                    } else if (clamped > s.lastPainted) {
-                        // Incremental
-                        for (let i = s.lastPainted + 1; i <= clamped; i++) {
-                            const diam = s.toolDiamByMove[i] ?? 6;
-                            paintMdfMove(s.matCtx, mvs[i], s.chapaW, s.chapaH, texW, texH, diam);
-                        }
-                        s.lastPainted = clamped;
-                        s.matTexture.needsUpdate = true;
-                        s.lastMdfTs = now;
-                    }
-                }
+            // HUD (throttled)
+            const now2 = s.lastTick || 0;
+            if (!s.lastHud || now2 - s.lastHud > 60 || !s.playing) {
+                s.lastHud = now2;
+                s.setHud?.({ x: m?.x2 ?? 0, y: m?.y2 ?? 0, z: m?.z2 ?? 0, f: m?.feed ?? 0, t: m?.tEnd ?? 0 });
             }
 
-            // Notifica parent apenas quando muda
+            // reporta ao pai
             if (clamped !== s.lastReported) {
                 s.lastReported = clamped;
-                const m = clamped >= 0 ? mvs[clamped] : null;
                 s.onMoveChange?.(clamped, m?.lineIdx ?? -1, m?.tEnd ?? 0);
             }
-
-            // HUD throttled a 20fps
-            if (now - s.lastHudTs > 50 || !s.playing) {
-                s.lastHudTs = now;
-                const m = clamped >= 0 ? mvs[clamped] : null;
-                s.updateHud?.({
-                    x: m?.x2 ?? 0, y: m?.y2 ?? 0, z: m?.z2 ?? 0,
-                    f: m?.feed ?? 0, t: m?.tEnd ?? 0,
-                });
-            }
-            s.needsRender = true; // mudou segmentos/textura → pede 1 frame
+            s.needsRender = true;
         }
         s.renderAt = renderAt;
 
-        // ── RAF loop — animação baseada em tempo G-code ─────────────────────
-        // speed=1 → tempo real, speed=10 → 10× mais rápido, etc.
+        // ── RAF loop ──────────────────────────────────────────────────────────
         function tick(now) {
             s.rafId = requestAnimationFrame(tick);
-
             if (s.playing && s.moves.length > 0) {
-                const dt        = Math.min(now - s.lastTick, 200); // ms, cap anti-salto
-                s.simTime      += dt * s.speed / 1000;             // avança tempo G-code (s)
-                const totalTime = s.moves[s.moves.length - 1]?.tEnd ?? 0;
-
-                // Avança curMove até simTime atual
+                const dt = Math.min(now - s.lastTick, 200);
+                s.simTime += dt * s.speed / 1000;
                 let moved = false;
                 while (s.curMove < s.moves.length - 1 &&
                        (s.moves[s.curMove + 1]?.tStart ?? Infinity) <= s.simTime) {
-                    s.curMove++;
-                    moved = true;
+                    s.curMove++; moved = true;
                 }
-
                 if (moved) renderAt(s.curMove);
-
-                if (s.simTime >= totalTime && totalTime > 0) {
-                    s.simTime = totalTime;
-                    s.playing = false;
-                    s.onPlayEnd?.();
+                if (s.simTime >= s.totalTime && s.totalTime > 0) {
+                    s.simTime = s.totalTime; s.playing = false; s.onPlayEnd?.();
                 }
             }
-
             s.lastTick = now;
-            controls.update(); // integra damping; dispara 'change' → needsRender se mexeu
-            // Render sob demanda: só desenha quando há playback OU algo mudou.
-            // Antes renderizava 60fps continuamente mesmo parado — drenava GPU à toa.
             if (s.playing || s.needsRender) {
                 s.needsRender = false;
                 renderer.render(scene, camera);
             }
         }
-        s.needsRender = true; // primeiro frame
         s.lastTick = performance.now();
-        s.rafId    = requestAnimationFrame(tick);
+        s.rafId = requestAnimationFrame(tick);
 
         return () => {
             cancelAnimationFrame(s.rafId);
             ro.disconnect();
-            controls.dispose();
+            renderer.domElement.removeEventListener('mousedown', onDown);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            renderer.domElement.removeEventListener('wheel', onWheel);
+            renderer.domElement.removeEventListener('contextmenu', onCtx);
+            renderer.domElement.removeEventListener('dblclick', onDbl);
+            clearGroup(stockGroup); clearGroup(pathGroup); clearGroup(toolGroup);
             renderer.dispose();
-            if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
+            if (renderer.domElement.parentNode === el) el.removeChild(renderer.domElement);
         };
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    // ── Rebuild de cena — só quando parsed ou chapaStable mudam ─────────────
+    // ── Construção da geometria (quando muda parsed/chapa) ────────────────────
     useEffect(() => {
-        if (!s.renderer) return;
+        if (!s.scene) return;
+        const moves = parsed?.moves ?? [];
+        s.moves = moves;
+        s.totalTime = parsed?.totalTime ?? 0;
+        s.curMove = -1; s.simTime = 0; s.lastReported = -2;
+        s.segments = [];
+        clearGroup(s.stockGroup); clearGroup(s.pathGroup);
 
-        clearGroup(s.stockGroup);
-        clearGroup(s.pathGroup);
-        s.segments     = []; s.lineMats = [];
-        s.curMove      = -1; s.simTime  = 0;
-        s.lastPainted  = -1; s.lastReported = -1;
-        s.toolDiamByMove = [];
+        const cW = chapa?.comprimento ?? 2750;
+        const cH = chapa?.largura     ?? 1850;
+        const thick = chapa?.espessura ?? 18;
+        const cx = cW / 2, cy = cH / 2;
+        const span = Math.max(cW, cH) * 1.4;
+        s.bbox = { cx, cy, span };
 
-        const moves = s.moves;
-        if (!moves.length) { s.renderAt?.(-1); return; }
-
-        const cW    = chapaStable?.comprimento ?? 2750;
-        const cH    = chapaStable?.largura     ?? 1850;
-        const thick = chapaStable?.espessura   ?? 18;
-        s.chapaW = cW; s.chapaH = cH;
-
-        // Bounding box
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        for (const m of moves) {
-            minX = Math.min(minX, m.x1, m.x2); maxX = Math.max(maxX, m.x1, m.x2);
-            minY = Math.min(minY, m.y1, m.y2); maxY = Math.max(maxY, m.y1, m.y2);
-        }
-        const cx   = cW / 2, cy = cH / 2;
-        const span = Math.max(cW, cH, maxX - minX, maxY - minY) * 1.4;
-        s.bbox = { cx, cy, cz: -thick / 2, span };
-
-        // Pré-computa diâmetro por move
-        const evts = parsed?.events ?? [];
-        let curDiam = 6;
-        for (let i = 0; i < moves.length; i++) {
-            for (const ev of evts) {
-                if (ev.moveIdx === i && ev.type === 'tool') curDiam = getToolDiameter(ev.label);
-            }
-            s.toolDiamByMove[i] = curDiam;
-        }
-
-        // Canvas MDF
-        const texW = 1024, texH = Math.max(64, Math.round(1024 * cH / cW));
-        s.matDims = { texW, texH };
-        const matCanvas  = makeMdfCanvas(texW, texH);
-        const matCtx     = matCanvas.getContext('2d');
-        const matTexture = new THREE.CanvasTexture(matCanvas);
-        matTexture.generateMipmaps = true;
-        matTexture.minFilter = THREE.LinearMipmapLinearFilter;
-        matTexture.magFilter = THREE.LinearFilter;
-        Object.assign(s, { matCtx, matTexture });
-
-        // Chapa MDF — topo
-        const topMesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(cW, cH),
-            new THREE.MeshStandardMaterial({ map: matTexture, roughness: 0.82, metalness: 0 })
+        // ── Chapa (corpo) ─────────────────────────────────────────────────────
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(cW, cH, thick),
+            new THREE.MeshStandardMaterial({ color: MDF_TOP, roughness: 0.85, metalness: 0 })
         );
-        topMesh.position.set(cx, cy, 0.2);
-        s.stockGroup.add(topMesh);
-
-        // Chapa MDF — corpo
-        const sideMat = new THREE.MeshStandardMaterial({ color: MDF_SIDE, roughness: 0.92, metalness: 0 });
-        const bodyGeom = new THREE.BoxGeometry(cW, cH, thick);
-        const bodyMesh = new THREE.Mesh(bodyGeom, sideMat);
-        bodyMesh.position.set(cx, cy, -thick / 2);
-        s.stockGroup.add(bodyMesh);
-        const edges = new THREE.LineSegments(
-            new THREE.EdgesGeometry(bodyGeom),
-            new THREE.LineBasicMaterial({ color: 0xc8a470, transparent: true, opacity: 0.4 })
+        body.position.set(cx, cy, -thick / 2);
+        s.stockGroup.add(body);
+        const sideEdges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(body.geometry),
+            new THREE.LineBasicMaterial({ color: MDF_SIDE })
         );
-        edges.position.copy(bodyMesh.position);
-        s.stockGroup.add(edges);
+        sideEdges.position.copy(body.position);
+        s.stockGroup.add(sideEdges);
 
-        // ── Mesa de vácuo (contexto industrial) ──────────────────────────────
-        // Plano escuro sob a chapa + sombra de contato → "aterra" a peça visualmente.
-        const bedMargin = Math.max(cW, cH) * 0.18;
-        const bedW = cW + bedMargin * 2, bedH = cH + bedMargin * 2;
-        const bedMesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(bedW, bedH),
-            new THREE.MeshStandardMaterial({ color: 0x1b2129, roughness: 0.95, metalness: 0.1 })
+        // ── Mesa de vácuo + grade ─────────────────────────────────────────────
+        const bedMargin = Math.max(cW, cH) * 0.15;
+        const bed = new THREE.Mesh(
+            new THREE.PlaneGeometry(cW + bedMargin * 2, cH + bedMargin * 2),
+            new THREE.MeshStandardMaterial({ color: 0x161b22, roughness: 0.95 })
         );
-        bedMesh.position.set(cx, cy, -thick - 6);
-        s.stockGroup.add(bedMesh);
-        // Grade sutil da mesa (linhas a cada ~320mm) — referência de escala industrial
-        {
-            const gridStep = 320, gpts = [];
-            for (let gx = cx - bedW / 2; gx <= cx + bedW / 2 + 1; gx += gridStep) {
-                gpts.push(new THREE.Vector3(gx, cy - bedH / 2, -thick - 5.5), new THREE.Vector3(gx, cy + bedH / 2, -thick - 5.5));
-            }
-            for (let gy = cy - bedH / 2; gy <= cy + bedH / 2 + 1; gy += gridStep) {
-                gpts.push(new THREE.Vector3(cx - bedW / 2, gy, -thick - 5.5), new THREE.Vector3(cx + bedW / 2, gy, -thick - 5.5));
-            }
-            s.stockGroup.add(new THREE.LineSegments(
-                new THREE.BufferGeometry().setFromPoints(gpts),
-                new THREE.LineBasicMaterial({ color: 0x2e3a47, transparent: true, opacity: 0.5 })
-            ));
-        }
-        // Sombra de contato (gradiente radial) logo abaixo da chapa
-        const shadowMesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(cW * 1.18, cH * 1.18),
-            new THREE.MeshBasicMaterial({ map: makeContactShadowTexture(), transparent: true, depthWrite: false, opacity: 0.85 })
-        );
-        shadowMesh.position.set(cx, cy, -thick - 4);
-        s.stockGroup.add(shadowMesh);
-
-        // Refilo
-        const r = chapaStable?.refilo ?? 10;
-        if (r > 0) {
-            const pts = [[r, r], [cW-r, r], [cW-r, cH-r], [r, cH-r], [r, r]]
-                .map(([x, y]) => new THREE.Vector3(x, y, 0.5));
-            s.stockGroup.add(new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints(pts),
-                new THREE.LineBasicMaterial({ color: 0x507090, transparent: true, opacity: 0.5 })
-            ));
-        }
-
-        // Eixos
-        const ax = Math.min(80, cW * 0.06);
-        [[ax,0,0,0xef4444],[0,ax,0,0x22c55e],[0,0,ax,0x3b82f6]].forEach(([x,y,z,c]) =>
-            s.stockGroup.add(new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(x,y,z)]),
-                new THREE.LineBasicMaterial({ color: c })
-            ))
-        );
+        bed.position.set(cx, cy, -thick - 6);
+        s.stockGroup.add(bed);
+        const grid = new THREE.GridHelper(Math.max(cW, cH) * 1.3, Math.round(Math.max(cW, cH) / 250), 0x2e3a47, 0x222a33);
+        grid.rotation.x = Math.PI / 2;
+        grid.position.set(cx, cy, -thick - 5.5);
+        s.stockGroup.add(grid);
 
         // ── Peças nestadas como painéis coloridos (item 1) ───────────────────
-        // Mostra "as partes" que vão sair da chapa. Semi-transparente para não
-        // esconder o toolpath. Cor distinta por peça; folga = kerf entre painéis.
-        const PIECE_PALETTE = [0x4a90d9, 0x50b888, 0xe0a13c, 0xc56bd6, 0xe07a5f, 0x5bc0be, 0xd98cb3, 0x8a8fd0, 0x6ab04c, 0xeb8f34];
-        const _pcs = chapaStable?.pecas || [];
-        const _kerf2 = (chapaStable?.kerf ?? 4) / 2;
-        _pcs.forEach((p, i) => {
-            const pw = p.w, ph = p.h;
-            if (!(pw > 0 && ph > 0)) return;
+        const pcs = chapa?.pecas ?? [];
+        const kerf2 = (chapa?.kerf ?? 4) / 2;
+        pcs.forEach((p, i) => {
+            if (!(p.w > 0 && p.h > 0)) return;
             const col = PIECE_PALETTE[i % PIECE_PALETTE.length];
-            const w2 = Math.max(2, pw - _kerf2), h2 = Math.max(2, ph - _kerf2);
+            const w2 = Math.max(2, p.w - kerf2), h2 = Math.max(2, p.h - kerf2);
             const panel = new THREE.Mesh(
                 new THREE.BoxGeometry(w2, h2, 2),
-                new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0, transparent: true, opacity: 0.45 })
+                new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, transparent: true, opacity: 0.4 })
             );
-            panel.position.set(p.x + pw / 2, p.y + ph / 2, 1.6); // logo acima do topo da chapa
+            panel.position.set(p.x + p.w / 2, p.y + p.h / 2, 1.4);
             s.stockGroup.add(panel);
             const ol = new THREE.LineSegments(
                 new THREE.EdgesGeometry(panel.geometry),
-                new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.85 })
+                new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.8 })
             );
             ol.position.copy(panel.position);
             s.stockGroup.add(ol);
         });
 
-        // Segmentos de toolpath
-        const vpW   = s.renderer?.domElement.clientWidth  || 800;
-        const vpH   = s.renderer?.domElement.clientHeight || 600;
-        const vpRes = new THREE.Vector2(vpW, vpH);
+        // ── Sobras/retalhos (contorno verde tracejado) ───────────────────────
+        (chapa?.retalhos ?? []).forEach(r => {
+            if (!(r.w > 20 && r.h > 20)) return;
+            const pts = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]]
+                .map(([x, y]) => new THREE.Vector3(x, y, 0.6));
+            const ln = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints(pts),
+                new THREE.LineDashedMaterial({ color: 0x3fb950, dashSize: 30, gapSize: 18, transparent: true, opacity: 0.7 })
+            );
+            ln.computeLineDistances();
+            s.stockGroup.add(ln);
+        });
 
+        // ── Eixos ─────────────────────────────────────────────────────────────
+        const ax = Math.min(120, cW * 0.08);
+        [[ax, 0, 0, 0xff5555], [0, ax, 0, 0x55ff55], [0, 0, ax, 0x5599ff]].forEach(([x, y, z, c]) =>
+            s.stockGroup.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(x, y, z)]),
+                new THREE.LineBasicMaterial({ color: c })
+            ))
+        );
+
+        // ── Toolpath (uma THREE.Line por move — leve) ─────────────────────────
         for (const m of moves) {
-            const isRapid   = m.type === 'G0';
-            const catColor  = getOpCat(m.op).color;
-            const colorHex  = parseInt(catColor.replace('#', ''), 16);
-            const pendColor = isRapid ? 0xe44444 : colorHex;
-            const execColor = isRapid ? 0x996666 : colorHex;
+            const isRapid  = m.type === 'G0';
+            const isCut    = !isRapid && Math.min(m.z1, m.z2) <= 0;
+            let base, done;
+            if (isRapid)    { base = 0xf0883e; done = 0xffaa55; }
+            else if (isCut) { const c = getOpCat(m.op); base = parseInt(c.color.replace('#', ''), 16); done = 0x79c0ff; }
+            else            { base = 0x56d364; done = 0x7ee787; }
 
-            let line, mat;
-            if (isRapid) {
-                mat = new THREE.LineDashedMaterial({
-                    color: pendColor, transparent: true, opacity: 0,
-                    dashSize: 10, gapSize: 7,
-                });
-                line = new THREE.Line(
-                    new THREE.BufferGeometry().setFromPoints([
-                        new THREE.Vector3(m.x1, m.y1, m.z1),
-                        new THREE.Vector3(m.x2, m.y2, m.z2),
-                    ]),
-                    mat
-                );
-                line.computeLineDistances();
-            } else {
-                const geom = new LineGeometry();
-                geom.setPositions([m.x1, m.y1, m.z1, m.x2, m.y2, m.z2]);
-                mat = new LineMaterial({
-                    color: pendColor, linewidth: 1.8,
-                    transparent: true, opacity: 0.35,
-                    resolution: vpRes.clone(),
-                });
-                line = new Line2(geom, mat);
-                s.lineMats.push(mat);
-            }
+            const geom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(m.x1, m.y1, m.z1),
+                new THREE.Vector3(m.x2, m.y2, m.z2),
+            ]);
+            const mat = isRapid
+                ? new THREE.LineDashedMaterial({ color: base, dashSize: 14, gapSize: 9, transparent: true, opacity: 0.4 })
+                : new THREE.LineBasicMaterial({ color: base, transparent: true, opacity: 0.4 });
+            const line = new THREE.Line(geom, mat);
+            if (isRapid) line.computeLineDistances();
             s.pathGroup.add(line);
-            s.segments.push({ line, mat, isRapid, pendColor, execColor, done: false });
+            s.segments.push({ line, mat, isRapid, baseColor: base, doneColor: done, done: false });
         }
 
-        // Câmera inicial
-        s.controls.minDistance = span * 0.12;
-        s.controls.maxDistance = span * 8;
-        s.controls.target.set(cx, cy, 0);
-        s.camera.position.set(cx + span * 0.7, cy - span * 0.9, span * 0.75);
-        s.camera.up.set(0, 0, 1); s.camera.lookAt(cx, cy, 0); s.controls.update();
-
+        // ── Câmera inicial ────────────────────────────────────────────────────
+        s.orbit.target.set(cx, cy, 0);
+        s.orbit.distance = span * 1.5;
+        s.orbit.apply();
         s.renderAt?.(-1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parsed, chapaStable]);
+    }, [chapaKey, parsed]);
 
     // ── API imperativa ────────────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
-        reset: () => {
-            s.curMove = -1; s.simTime = 0; s.lastPainted = -1;
-            s.renderAt?.(-1);
-        },
+        reset: () => { s.curMove = -1; s.simTime = 0; s.renderAt?.(-1); },
         seekTo: (idx) => {
             const i = Math.max(-1, Math.min(s.moves.length - 1, idx));
-            s.curMove = i;
-            s.simTime = i >= 0 ? (s.moves[i]?.tStart ?? 0) : 0;
-            s.renderAt?.(i);
+            s.curMove = i; s.simTime = i >= 0 ? (s.moves[i]?.tStart ?? 0) : 0; s.renderAt?.(i);
         },
         seekToTime: (t) => {
             if (!s.moves.length) return;
-            let i = 0;
-            while (i < s.moves.length - 1 && t > s.moves[i].tEnd) i++;
+            let i = 0; while (i < s.moves.length - 1 && t > s.moves[i].tEnd) i++;
             s.curMove = i; s.simTime = t; s.renderAt?.(i);
         },
         getTotalMoves:  () => s.moves.length,
@@ -563,85 +407,54 @@ export const Sim3D = forwardRef(function Sim3D(
         getCurrentTime: () => s.curMove >= 0 ? (s.moves[s.curMove]?.tEnd ?? 0) : 0,
     }));
 
-    // ── Preset de câmera ──────────────────────────────────────────────────────
-    const setView = (name) => {
-        const { camera: cam, controls: ctrl, bbox } = s;
-        if (!cam || !bbox) return;
-        const { cx, cy, span } = bbox;
-        const views = {
-            top:   [cx, cy,          span * 1.4],
-            front: [cx, cy - span * 1.3, span * 0.2],
-            side:  [cx + span * 1.3, cy,  span * 0.2],
-            iso:   [cx + span * 0.7, cy - span * 0.9, span * 0.75],
-        };
-        ctrl.target.set(cx, cy, 0);
-        cam.position.set(...(views[name] ?? views.iso));
-        cam.up.set(0, 0, 1); cam.lookAt(cx, cy, 0); ctrl.update();
-        setActiveView(name);
-    };
-
-    // ── Render JSX ────────────────────────────────────────────────────────────
+    // ── Render ──────────────────────────────────────────────────────────────
     const mono = '"JetBrains Mono",monospace';
-    const hudPanel = {
+    const panel = {
         position: 'absolute', pointerEvents: 'none',
-        background: 'rgba(10,15,25,0.90)', backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8,
-        fontFamily: mono,
+        background: 'rgba(22,27,34,0.85)', backdropFilter: 'blur(8px)',
+        border: '1px solid #30363d', borderRadius: 6, fontFamily: mono,
     };
+    const VIEWS = [['iso', 'ISO'], ['top', 'TOPO'], ['front', 'FRENTE'], ['side', 'LADO']];
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', background: '#0c1018' }}>
+        <div style={{ position: 'relative', width: '100%', height: '100%', background: '#0d1117' }}>
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 
-            {/* HUD — posição da ferramenta */}
-            <div style={{ ...hudPanel, top: 10, left: 10, padding: '8px 12px', minWidth: 130 }}>
-                <div style={{ fontSize: 9, color: '#546270', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>Posição</div>
-                {[['X', hud.x, '#ef4444'], ['Y', hud.y, '#22c55e'], ['Z', hud.z, '#3b82f6']].map(([a, v, c]) => (
-                    <div key={a} style={{ display: 'flex', gap: 8, lineHeight: 1.75 }}>
+            {/* Posição da ferramenta */}
+            <div style={{ ...panel, top: 10, left: 10, padding: '8px 12px' }}>
+                {[['X', hud.x, '#ff5555'], ['Y', hud.y, '#55ff55'], ['Z', hud.z, '#5599ff'], ['F', hud.f, '#8b949e']].map(([a, v, c]) => (
+                    <div key={a} style={{ display: 'flex', gap: 10, lineHeight: 1.7 }}>
                         <span style={{ color: c, fontWeight: 700, minWidth: 12, fontSize: 10 }}>{a}</span>
-                        <span style={{ color: '#79c0ff', minWidth: 70, textAlign: 'right', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(2)}</span>
+                        <span style={{ color: '#79c0ff', minWidth: 70, textAlign: 'right', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                            {a === 'F' ? Math.round(v) : v.toFixed(2)}
+                        </span>
                     </div>
                 ))}
-                {hud.f > 0 && (
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 5, paddingTop: 5, fontSize: 10, color: '#79c0ff' }}>
-                        F {Math.round(hud.f)} <span style={{ fontSize: 9, color: '#546270' }}>mm/min</span>
-                    </div>
-                )}
-                {s.totalTime > 0 && (
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 5, paddingTop: 5, fontSize: 10, color: '#79c0ff', whiteSpace: 'nowrap' }}>
-                        {fmtTime(hud.t)} / {fmtTime(s.totalTime)}
-                    </div>
-                )}
-            </div>
-
-            {/* Controles de câmera */}
-            <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-                    {[['iso','ISO'],['top','TOPO'],['front','FRENTE'],['side','LADO']].map(([id, lb]) => (
-                        <button key={id} onClick={() => setView(id)} style={{
-                            padding: '5px 6px', fontSize: 9, fontWeight: 700, cursor: 'pointer', borderRadius: 5,
-                            border:      activeView === id ? '1px solid #4d8cf6' : '1px solid rgba(255,255,255,0.12)',
-                            background:  activeView === id ? 'rgba(77,140,246,0.25)' : 'rgba(10,15,25,0.85)',
-                            color:       activeView === id ? '#79c0ff' : '#7890a8',
-                            fontFamily: mono,
-                        }}>{lb}</button>
-                    ))}
-                </div>
-                <div style={{ fontSize: 9, color: '#3d4852', textAlign: 'center', fontFamily: mono }}>
-                    2×clique: encaixar
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 5, paddingTop: 5, fontSize: 10, color: '#79c0ff' }}>
+                    {fmtTime(hud.t)}
                 </div>
             </div>
 
-            {/* Empty state */}
-            {s.moves.length === 0 && (
-                <div style={{
-                    position: 'absolute', inset: 0, pointerEvents: 'none',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#546270', fontSize: 14, fontWeight: 600,
-                }}>
-                    Nenhum G-code carregado
-                </div>
-            )}
+            {/* Presets de câmera */}
+            <div style={{ position: 'absolute', top: 10, right: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                {VIEWS.map(([id, label]) => (
+                    <button key={id} onClick={() => s.orbit?.setView(id)}
+                        style={{
+                            background: activeView === id ? '#1f6feb' : 'rgba(22,27,34,0.85)',
+                            backdropFilter: 'blur(8px)', color: '#e6edf3',
+                            border: `1px solid ${activeView === id ? '#58a6ff' : '#30363d'}`,
+                            borderRadius: 6, padding: '5px 10px', fontSize: 10, fontWeight: 700,
+                            cursor: 'pointer', fontFamily: mono,
+                        }}>
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Dica */}
+            <div style={{ position: 'absolute', bottom: 10, right: 12, fontSize: 9, color: '#3d4852', fontFamily: mono, pointerEvents: 'none' }}>
+                arrastar: girar · shift/direito: mover · scroll: zoom · 2× clique: ajustar
+            </div>
         </div>
     );
 });
