@@ -69,6 +69,43 @@ export default function ModoOperador({ notify, onBack }) {
         return () => { if (cronometroRef.current) clearInterval(cronometroRef.current); };
     }, [cronometroAtivo]);
 
+    // A3 — Persiste a sessão (item/cronômetro/pausas) em localStorage. Tablet de
+    // chão de fábrica recarrega/trava o tempo todo; sem isto a sessão era perdida.
+    useEffect(() => {
+        try {
+            if (itemAtual) {
+                localStorage.setItem('cnc_operador_sessao', JSON.stringify({
+                    itemId: itemAtual.id, cronometro, cronometroAtivo, pausas,
+                }));
+            } else {
+                localStorage.removeItem('cnc_operador_sessao');
+            }
+        } catch { /* localStorage indisponível */ }
+    }, [itemAtual, cronometro, cronometroAtivo, pausas]);
+
+    // Restaura a sessão salva assim que a fila carrega (uma única vez)
+    const restauradoRef = useRef(false);
+    useEffect(() => {
+        if (restauradoRef.current || itemAtual || !fila.length) return;
+        restauradoRef.current = true;
+        try {
+            const raw = localStorage.getItem('cnc_operador_sessao');
+            if (!raw) return;
+            const sess = JSON.parse(raw);
+            const item = fila.find(f => f.id === sess.itemId && f.status !== 'concluido');
+            if (!item) { localStorage.removeItem('cnc_operador_sessao'); return; }
+            setItemAtual(item);
+            setCronometro(sess.cronometro || 0);
+            setCronometroAtivo(!!sess.cronometroAtivo);
+            // revive as datas das pausas (JSON serializa Date como string)
+            setPausas((sess.pausas || []).map(p => ({
+                ...p,
+                inicio: p.inicio ? new Date(p.inicio) : null,
+                fim: p.fim ? new Date(p.fim) : null,
+            })));
+        } catch { /* ignora sessão corrompida */ }
+    }, [fila, itemAtual]);
+
     // Keyboard shortcuts
     useEffect(() => {
         const handler = (e) => {
