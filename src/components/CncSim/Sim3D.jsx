@@ -462,6 +462,31 @@ export const Sim3D = forwardRef(function Sim3D(
             ))
         );
 
+        // ── Peças nestadas como painéis coloridos (item 1) ───────────────────
+        // Mostra "as partes" que vão sair da chapa. Semi-transparente para não
+        // esconder o toolpath. Cor distinta por peça; folga = kerf entre painéis.
+        const PIECE_PALETTE = [0x4a90d9, 0x50b888, 0xe0a13c, 0xc56bd6, 0xe07a5f, 0x5bc0be, 0xd98cb3, 0x8a8fd0, 0x6ab04c, 0xeb8f34];
+        const _pcs = chapaStable?.pecas || [];
+        const _kerf2 = (chapaStable?.kerf ?? 4) / 2;
+        _pcs.forEach((p, i) => {
+            const pw = p.w, ph = p.h;
+            if (!(pw > 0 && ph > 0)) return;
+            const col = PIECE_PALETTE[i % PIECE_PALETTE.length];
+            const w2 = Math.max(2, pw - _kerf2), h2 = Math.max(2, ph - _kerf2);
+            const panel = new THREE.Mesh(
+                new THREE.BoxGeometry(w2, h2, 2),
+                new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0, transparent: true, opacity: 0.45 })
+            );
+            panel.position.set(p.x + pw / 2, p.y + ph / 2, 1.6); // logo acima do topo da chapa
+            s.stockGroup.add(panel);
+            const ol = new THREE.LineSegments(
+                new THREE.EdgesGeometry(panel.geometry),
+                new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.85 })
+            );
+            ol.position.copy(panel.position);
+            s.stockGroup.add(ol);
+        });
+
         // Segmentos de toolpath
         const vpW   = s.renderer?.domElement.clientWidth  || 800;
         const vpH   = s.renderer?.domElement.clientHeight || 600;
