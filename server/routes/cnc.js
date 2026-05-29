@@ -2928,6 +2928,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
             // FASE 2: Portfolio multi-pass (uses per-material groupSplitDir)
             const isDirectional = groupSplitDir !== 'auto';
+            const isLargeBatch = pecasRestantes.length > 100; // movido pra antes do uso — corrige TDZ que quebrava /otimizar-multi (cross-order)
             const dirsToTry = isLargeBatch && isDirectional ? [groupSplitDir, 'auto'] : [groupSplitDir];
             for (const dir of dirsToTry) {
                 for (const bt of binTypesToTry) {
@@ -3046,7 +3047,7 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             }
 
             // FASE 3: R&R (iterações escalonadas pelo tamanho do lote) (skip if already optimal)
-            const isLargeBatch = pecasRestantes.length > 100;
+            // isLargeBatch já declarado acima (antes da FASE 2)
             const rrIter = isLargeBatch
                 ? Math.max(3000, Math.min(8000, pecasRestantes.length * 15))
                 : Math.max(800, Math.min(2000, pecasRestantes.length * 20));
