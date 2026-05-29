@@ -96,7 +96,7 @@ export default function ModoOperador({ notify, onBack }) {
 
             if ((e.code === 'KeyN') && !itemAtual) {
                 e.preventDefault();
-                const pendentes = fila.filter(f => f.status === 'pendente' || f.status === 'na_fila');
+                const pendentes = fila.filter(f => f.status === 'pendente' || f.status === 'na_fila' || f.status === 'aguardando');
                 if (pendentes.length > 0) {
                     iniciarItem(pendentes[0]);
                 }
@@ -126,8 +126,8 @@ export default function ModoOperador({ notify, onBack }) {
             setFila(data || []);
             const total = data.length;
             const conc = data.filter(d => d.status === 'concluido').length;
-            const emAndamento = data.filter(d => d.status === 'produzindo').length;
-            const pendentes = data.filter(d => d.status === 'pendente' || d.status === 'na_fila').length;
+            const emAndamento = data.filter(d => d.status === 'produzindo' || d.status === 'em_producao').length;
+            const pendentes = data.filter(d => d.status === 'pendente' || d.status === 'na_fila' || d.status === 'aguardando').length;
             setStats({ total, concluidos: conc, emAndamento, pendentes });
             setLoading(false);
         } catch (err) {
@@ -221,16 +221,16 @@ export default function ModoOperador({ notify, onBack }) {
 
     const statusColor = (s) => {
         if (s === 'concluido') return 'var(--success)';
-        if (s === 'produzindo') return 'var(--warning)';
+        if (s === 'produzindo' || s === 'em_producao') return 'var(--warning)';
         if (s === 'erro') return 'var(--danger)';
         return 'var(--muted)';
     };
 
     const statusLabel = (s) => {
         if (s === 'concluido') return 'Concluido';
-        if (s === 'produzindo') return 'Em Producao';
+        if (s === 'produzindo' || s === 'em_producao') return 'Em Producao';
         if (s === 'erro') return 'Erro';
-        if (s === 'na_fila') return 'Na Fila';
+        if (s === 'na_fila' || s === 'aguardando') return 'Na Fila';
         return 'Pendente';
     };
 

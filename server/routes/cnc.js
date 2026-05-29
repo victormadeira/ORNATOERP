@@ -13234,7 +13234,11 @@ router.post('/fila-producao', requireAuth, (req, res) => {
 
 // PUT atualizar status na fila
 router.put('/fila-producao/:id', requireAuth, (req, res) => {
-    const { status, operador, prioridade, ordem } = req.body;
+    const { status: statusRaw, operador, prioridade, ordem, maquina_id } = req.body;
+    // Normaliza o vocabulário do ModoOperador → canônico. Sem isto, "produzindo"
+    // não disparava inicio_em (tempo real) nem aparecia no Kanban/dashboards.
+    const STATUS_MAP = { produzindo: 'em_producao', na_fila: 'aguardando', pendente: 'aguardando' };
+    const status = statusRaw != null ? (STATUS_MAP[statusRaw] || statusRaw) : statusRaw;
     const item = db.prepare('SELECT * FROM cnc_fila_producao WHERE id = ?').get(req.params.id);
     if (!item) return res.status(404).json({ error: 'Item não encontrado' });
     if (status === 'em_producao' && !item.inicio_em) {
@@ -13318,6 +13322,7 @@ router.put('/fila-producao/:id', requireAuth, (req, res) => {
         if (operador !== undefined) { sets.push('operador=?'); vals.push(operador); }
         if (prioridade !== undefined) { sets.push('prioridade=?'); vals.push(prioridade); }
         if (ordem !== undefined) { sets.push('ordem=?'); vals.push(ordem); }
+        if (maquina_id !== undefined) { sets.push('maquina_id=?'); vals.push(maquina_id); } // A2: atribuição de máquina agora persiste
         if (sets.length) {
             vals.push(req.params.id);
             db.prepare(`UPDATE cnc_fila_producao SET ${sets.join(',')} WHERE id=?`).run(...vals);
