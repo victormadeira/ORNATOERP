@@ -2646,17 +2646,21 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
 
             // Resolver qual chapa essa peça vai usar (cacheado por material|esp)
             const _ck = `${p.material_code || ''}|${esp}`;
-            let chapa = _chapaCacheM.get(_ck);
-            if (chapa === undefined) {
-                chapa = _stMatM.get(p.material_code);
-                if (!chapa) chapa = _stEspRealM.get(esp, esp);
+            let r = _chapaCacheM.get(_ck);
+            if (r === undefined) {
+                let chapa = _stMatM.get(p.material_code);
+                let exact = !!chapa;
+                if (!chapa) chapa = _stEspRealM.get(esp, esp); // só p/ DIMENSÕES (ignora cor)
                 if (!chapa) chapa = _stEspNomM.get(esp);
                 if (!chapa) chapa = _stFallbackM.get();
-                _chapaCacheM.set(_ck, chapa || null);
+                r = { chapa: chapa || null, exact };
+                _chapaCacheM.set(_ck, r);
             }
-
-            const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
-            if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
+            const chapa = r.chapa;
+            // CRÍTICO: agrupa pela COR da própria peça — nunca mistura cores na mesma chapa
+            const groupMat = r.exact ? chapa.material_code : (p.material_code || (chapa ? chapa.material_code : `esp${esp}`));
+            const chapaKey = `${groupMat}__${esp}`;
+            if (!groups[chapaKey]) groups[chapaKey] = { material_code: groupMat, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
             groups[chapaKey].pieces.push(p);
         }
 
@@ -3245,9 +3249,10 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
             for (let bi = 0; bi < bestBins.length; bi++) {
                 const bin = bestBins[bi];
                 const chapaIdx = globalChapaIdx++;
+                const _matExatoM = chapa.material_code === group.material_code;
                 const chapaInfo = {
-                    idx: chapaIdx, material: chapa.nome,
-                    material_code: chapa.material_code || group.material_code,
+                    idx: chapaIdx, material: _matExatoM ? chapa.nome : group.material_code,
+                    material_code: group.material_code,
                     espessura_real: chapa.espessura_real || group.espessura,
                     comprimento: chapa.comprimento, largura: chapa.largura,
                     refilo, kerf, preco: chapa.preco || 0, veio: chapaVeio,
