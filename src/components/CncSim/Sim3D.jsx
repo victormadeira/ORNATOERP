@@ -51,6 +51,21 @@ function makeMdfCanvas(w, h) {
     return c;
 }
 
+// Sombra de contato fake (gradiente radial) — aterra a chapa na mesa sem
+// custo de shadow-map dinâmico. Funciona pra qualquer tamanho de chapa.
+function makeContactShadowTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(128, 128, 20, 128, 128, 128);
+    g.addColorStop(0, 'rgba(0,0,0,0.55)');
+    g.addColorStop(0.6, 'rgba(0,0,0,0.28)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+    return new THREE.CanvasTexture(c);
+}
+
 function paintMdfMove(ctx, m, cW, cH, texW, texH, toolDiam) {
     if (m.type === 'G0') return false;
     const depth = Math.max(0, -Math.min(m.z1, m.z2));
@@ -131,10 +146,13 @@ export const Sim3D = forwardRef(function Sim3D(
         const scene  = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200000);
         camera.up.set(0, 0, 1);
-        scene.add(new THREE.AmbientLight(0x203040, 0.9));
-        const sun = new THREE.DirectionalLight(0xfff8f0, 1.2);
+        // Iluminação: hemisfério (céu claro / mesa escura) dá sombreamento natural
+        // sem lavar as cores semânticas do toolpath. Sol quente + preenchimento frio.
+        scene.add(new THREE.HemisphereLight(0xaec4dc, 0x14181f, 0.7));
+        scene.add(new THREE.AmbientLight(0x203040, 0.45));
+        const sun = new THREE.DirectionalLight(0xfff4e0, 1.35);
         sun.position.set(800, 600, 2000); scene.add(sun);
-        const fill = new THREE.DirectionalLight(0x4080c0, 0.35);
+        const fill = new THREE.DirectionalLight(0x4080c0, 0.30);
         fill.position.set(-600, -800, 400); scene.add(fill);
 
         // Controls
@@ -374,6 +392,38 @@ export const Sim3D = forwardRef(function Sim3D(
         );
         edges.position.copy(bodyMesh.position);
         s.stockGroup.add(edges);
+
+        // ── Mesa de vácuo (contexto industrial) ──────────────────────────────
+        // Plano escuro sob a chapa + sombra de contato → "aterra" a peça visualmente.
+        const bedMargin = Math.max(cW, cH) * 0.18;
+        const bedW = cW + bedMargin * 2, bedH = cH + bedMargin * 2;
+        const bedMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(bedW, bedH),
+            new THREE.MeshStandardMaterial({ color: 0x1b2129, roughness: 0.95, metalness: 0.1 })
+        );
+        bedMesh.position.set(cx, cy, -thick - 6);
+        s.stockGroup.add(bedMesh);
+        // Grade sutil da mesa (linhas a cada ~320mm) — referência de escala industrial
+        {
+            const gridStep = 320, gpts = [];
+            for (let gx = cx - bedW / 2; gx <= cx + bedW / 2 + 1; gx += gridStep) {
+                gpts.push(new THREE.Vector3(gx, cy - bedH / 2, -thick - 5.5), new THREE.Vector3(gx, cy + bedH / 2, -thick - 5.5));
+            }
+            for (let gy = cy - bedH / 2; gy <= cy + bedH / 2 + 1; gy += gridStep) {
+                gpts.push(new THREE.Vector3(cx - bedW / 2, gy, -thick - 5.5), new THREE.Vector3(cx + bedW / 2, gy, -thick - 5.5));
+            }
+            s.stockGroup.add(new THREE.LineSegments(
+                new THREE.BufferGeometry().setFromPoints(gpts),
+                new THREE.LineBasicMaterial({ color: 0x2e3a47, transparent: true, opacity: 0.5 })
+            ));
+        }
+        // Sombra de contato (gradiente radial) logo abaixo da chapa
+        const shadowMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(cW * 1.18, cH * 1.18),
+            new THREE.MeshBasicMaterial({ map: makeContactShadowTexture(), transparent: true, depthWrite: false, opacity: 0.85 })
+        );
+        shadowMesh.position.set(cx, cy, -thick - 4);
+        s.stockGroup.add(shadowMesh);
 
         // Refilo
         const r = chapaStable?.refilo ?? 10;
