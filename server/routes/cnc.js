@@ -1941,7 +1941,16 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
             const kerfOverride = body.kerf != null ? Number(body.kerf) : null;
             const modoRaw = body.modo != null ? body.modo : (config.usar_guilhotina !== 0 ? 'guilhotina' : 'maxrects');
             const binType = modoRaw === 'maxrects' ? 'maxrects' : modoRaw === 'shelf' ? 'shelf' : 'guillotine';
-            const splitDir = body.direcao_corte === 'horizontal' ? 'horizontal' : body.direcao_corte === 'vertical' ? 'vertical' : 'auto';
+            let splitDir = body.direcao_corte === 'horizontal' ? 'horizontal' : body.direcao_corte === 'vertical' ? 'vertical' : 'auto';
+            // YIELD: em modo router (maxrects/shelf) a direção do split é só uma
+            // restrição de BUSCA — não existe corte de guilhotina que a force. Travar
+            // em horizontal/vertical reduz o aproveitamento (metaheurísticos ficam
+            // presos a uma direção). 'auto' deixa o packer explorar livremente o
+            // melhor encaixe. Guilhotina mantém a direção (é restrição física da serra).
+            if (binType !== 'guillotine' && splitDir !== 'auto') {
+                console.log(`  [CNC] Modo router — ignorando direcao_corte=${splitDir}, usando 'auto' para maximizar yield`);
+                splitDir = 'auto';
+            }
             const useRetalhos = body.usar_retalhos != null ? !!body.usar_retalhos : (config.usar_retalhos !== 0);
             const considerarSobra = body.considerar_sobra != null ? !!body.considerar_sobra : (config.considerar_sobra !== 0);
             const sobraMinW = body.sobra_min_largura != null ? Number(body.sobra_min_largura) : (config.sobra_min_largura || 300);
@@ -2561,7 +2570,9 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
         const permitirRotacao = bodyConfig.permitir_rotacao != null ? !!bodyConfig.permitir_rotacao : null;
         const refiloOverride = bodyConfig.refilo != null ? Number(bodyConfig.refilo) : null;
         const direcaoCorteRaw = bodyConfig.direcao_corte || 'misto';
-        const splitDir = direcaoCorteRaw === 'horizontal' ? 'horizontal' : direcaoCorteRaw === 'vertical' ? 'vertical' : 'auto';
+        let splitDir = direcaoCorteRaw === 'horizontal' ? 'horizontal' : direcaoCorteRaw === 'vertical' ? 'vertical' : 'auto';
+        // YIELD (router): direção de split é só restrição de busca, não corte físico → 'auto' maximiza
+        if (binType !== 'guillotine' && splitDir !== 'auto') splitDir = 'auto';
 
         // Classificação de peças
         const limiarPequena = bodyConfig.limiar_pequena != null ? Number(bodyConfig.limiar_pequena) : 400;
