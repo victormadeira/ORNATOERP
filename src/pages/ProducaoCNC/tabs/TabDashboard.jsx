@@ -30,6 +30,7 @@ export function TabDashboard({ notify }) {
     const [custos, setCustos] = useState(null); // { resumo, por_material }
     const [producao, setProducao] = useState(null);
     const [aprendizado, setAprendizado] = useState(null);
+    const [mensal, setMensal] = useState(null); // série mensal (/stats/producao)
     const [loading, setLoading] = useState(true);
 
     const [dataWarning, setDataWarning] = useState(false);
@@ -37,7 +38,7 @@ export function TabDashboard({ notify }) {
     const load = () => {
         setLoading(true);
         setDataWarning(false);
-        const erros = { stats: false, materiais: false, eficiencia: false, custos: false, producao: false, aprendizado: false };
+        const erros = { stats: false, materiais: false, eficiencia: false, custos: false, producao: false, aprendizado: false, mensal: false };
         Promise.all([
             api.get('/cnc/dashboard/stats').catch(() => { erros.stats = true; return null; }),
             api.get('/cnc/dashboard/materiais').catch(() => { erros.materiais = true; return []; }),
@@ -51,13 +52,15 @@ export function TabDashboard({ notify }) {
                 erros.aprendizado = true;
                 return { resumo: {}, por_maquina: [], insights: ['Conclua chapas pela fila para alimentar o aprendizado operacional.'], recentes: [] };
             }),
-        ]).then(([s, m, e, c, p, a]) => {
+            api.get('/cnc/stats/producao?meses=6').catch(() => { erros.mensal = true; return null; }),
+        ]).then(([s, m, e, c, p, a, mn]) => {
             setStats(s);
             setMateriais(Array.isArray(m) ? m : []);
             setEficiencia(Array.isArray(e) ? e : []);
             setCustos(c);
             setProducao(p);
             setAprendizado(a);
+            setMensal(mn);
             // Avisar se alguma API falhou silenciosamente
             if (Object.values(erros).some(Boolean)) setDataWarning(true);
         }).finally(() => setLoading(false));
@@ -431,6 +434,28 @@ export function TabDashboard({ notify }) {
                 </div>
             )}
 
+            {/* ── Tendência Mensal (visão do dono) ── */}
+            {mensal?.series?.length > 0 && (
+                <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <SectionHeader
+                        icon={BarChart3}
+                        title={`Tendência Mensal — últimos ${mensal.series.length} meses`}
+                        accent="var(--primary)"
+                    />
+                    <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                            <MiniCell label="Chapas no período" value={mensal.totais?.chapas || 0} strong />
+                            <MiniCell label="Peças produzidas" value={mensal.totais?.pecas || 0} strong />
+                            <MiniCell label="Material (R$)" value={(mensal.totais?.custo || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} strong />
+                            <MiniCell label="Aproveit. médio" value={`${mensal.totais?.aproveitamento_medio || 0}%`} tone={aprovColor(mensal.totais?.aproveitamento_medio || 0)} strong />
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                            <MonthlyTrend series={mensal.series} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Ranking de materiais ── */}
             {materiais.length > 0 && (
                 <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -703,6 +728,58 @@ function EfficiencyChart({ days }) {
                     </g>
                 );
             })()}
+        </svg>
+    );
+}
+
+// ═══ Tendência mensal — barras de aproveitamento por mês ═══
+const _MESES_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function fmtPeriodo(periodo) {
+    // 'YYYY-MM' → 'mai/26'
+    if (!periodo || periodo.length < 7) return periodo || '';
+    const ano = periodo.slice(2, 4);
+    const mes = parseInt(periodo.slice(5, 7), 10);
+    return `${_MESES_ABBR[mes - 1] || '?'}/${ano}`;
+}
+function MonthlyTrend({ series }) {
+    const data = series || [];
+    const step = 64;
+    const width = Math.max(data.length * step, 320);
+    const height = 220;
+    const barW = 38;
+    const baseY = 175;
+    const META = 80;
+    return (
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }} aria-label="Tendência mensal de aproveitamento">
+            {[0, 20, 40, 60, 100].map(v => {
+                const y = baseY - v * 1.6;
+                return (
+                    <Fragment key={v}>
+                        <line x1={32} y1={y} x2={width - 6} y2={y} stroke="var(--border)" strokeWidth={0.5} strokeDasharray={v > 0 ? '3 3' : '0'} />
+                        <text x={28} y={y + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">{v}%</text>
+                    </Fragment>
+                );
+            })}
+            {/* linha de meta */}
+            <line x1={32} y1={baseY - META * 1.6} x2={width - 6} y2={baseY - META * 1.6} stroke="var(--success, #16a34a)" strokeWidth={1} strokeDasharray="5 4" opacity={0.6} />
+            {data.map((d, i) => {
+                const val = Math.round(d.aproveitamento_medio || 0);
+                const barH = Math.max(2, val * 1.6);
+                const barY = baseY - barH;
+                const bx = 40 + i * step;
+                const color = aprovColor(val);
+                const custo = (d.custo_material || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+                return (
+                    <Fragment key={d.periodo || i}>
+                        <rect x={bx} y={barY} width={barW} height={barH} fill={color} rx={6} opacity={0.9}>
+                            <title>{`${fmtPeriodo(d.periodo)}: ${val}% aproveit. — ${d.chapas_cortadas || 0} chapas, ${d.pecas_produzidas || 0} peças, ${custo}`}</title>
+                        </rect>
+                        <text x={bx + barW / 2} y={barY - 7} textAnchor="middle" fontSize={11} fill={color} fontWeight={700}>{val}%</text>
+                        <text x={bx + barW / 2} y={193} textAnchor="middle" fontSize={10} fill="var(--text-secondary)" fontWeight={600}>{fmtPeriodo(d.periodo)}</text>
+                        <text x={bx + barW / 2} y={206} textAnchor="middle" fontSize={8} fill="var(--text-muted)">{d.chapas_cortadas || 0}ch</text>
+                    </Fragment>
+                );
+            })}
         </svg>
     );
 }
