@@ -5047,6 +5047,11 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
     const footer = resolvePostProcessorTemplate(footerRaw, tplCtxChapa);
     const zSeg = Math.max(5, maquina.z_seguro || 30); // mínimo 5mm de retração segura
     const velCorteMaq = Math.max(100, maquina.vel_corte || 4000); // F0 trava a CNC
+    // Avanços CONFIGURADOS (mm/min) — fonte primária do feed (decisão do usuário):
+    // corte = contorno, usinagem = furos/rasgos/pockets. Rápido (G0) NÃO entra
+    // (limitado pela CNC). Se a config não estiver setada, cai pra ferramenta/máquina.
+    const velContornoCfg = (cfg?.velocidade_corte > 0)   ? Math.max(100, cfg.velocidade_corte)   : 0;
+    const velUsinagemCfg = (cfg?.velocidade_usinagem > 0) ? Math.max(100, cfg.velocidade_usinagem) : 0;
     const profExtraMaq = maquina.profundidade_extra ?? 0.1;
     const dec = maquina.casas_decimais || 3;
     const cmt = maquina.comentario_prefixo || ';';
@@ -5654,7 +5659,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (reqWidth > 0 && effectiveTool && effectiveTool.diametro > reqWidth && !grooveMultiPass) {
                 alertas.push({ tipo: 'erro_critico', msg: `Fresa ${effectiveTool.nome} (Ø${effectiveTool.diametro}mm) > largura rasgo (${reqWidth}mm) na peça ${pDb.descricao}` });
             }
-            const velCorte = ovFeed ?? effectiveTool?.velocidade_corte ?? velCorteMaq;
+            // Usinagem interna (furos/rasgos/pockets/fresagens): avanço configurado primeiro
+            const velCorte = ovFeed ?? (velUsinagemCfg || effectiveTool?.velocidade_corte || velCorteMaq);
             const velEf = isPeq ? Math.round(velCorte * feedPct / 100) : velCorte;
             const effRpm = ovRpm ?? effectiveTool?.rpm ?? rpmDef;
             const effHoleDiam = ovDiam ?? Number(w.diameter || 0);
@@ -5779,7 +5785,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             const depthCont = needsOnion ? Math.max(0.1, depthTotal - onionEsp) : depthTotal;
             const doc = contTool.doc || null;
             const passes = calcularPassadas(depthCont, doc);
-            const velC = contTool.velocidade_corte || velCorteMaq;
+            const velC = velContornoCfg || contTool.velocidade_corte || velCorteMaq;
             const velRiskPct = highVacuumRisk ? Math.min(feedPct, 65) : 100;
             const velEf = (isPeq || highVacuumRisk) ? Math.round(velC * velRiskPct / 100) : velC;
 
@@ -5943,7 +5949,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 opType: 'contorno_sobra', fase: 2, prioridade: sTipo.prioridade, clsOrder: 9, tipoNome: 'Contorno Sobra',
                 toolCode: contTool.tool_code, toolCodigo: contTool.codigo, toolNome: contTool.nome,
                 toolRpm: contTool.rpm || rpmDef, toolDiam: contTool.diametro,
-                depthTotal, depthCont: depthTotal, passes, velCorte: contTool.velocidade_corte || velCorteMaq,
+                depthTotal, depthCont: depthTotal, passes, velCorte: velContornoCfg || contTool.velocidade_corte || velCorteMaq,
                 contornoPath: [BL, BR, TR, TL], // path completo para visualização SVG
                 contornoSegments, isOpenPath, edgesSkipped,
                 classificacao: 'normal', areaCm2: (ret.w * ret.h) / 100, isPequena: false,
@@ -7776,6 +7782,10 @@ function loadGcodeContext(req, loteId) {
         sobra_min_comprimento: cfgRow.sobra_min_comprimento || 600,
         contorno_tool_code: req.body.contorno_tool_code || '',
         otimizar_trocas_ferramenta: cfgRow.otimizar_trocas_ferramenta ?? 1,
+        // Avanços configurados (mm/min) — fonte de verdade do feed de corte e
+        // usinagem no G-code. Rápido (G0) NÃO entra: é limitado pela própria CNC.
+        velocidade_corte: cfgRow.velocidade_corte || 0,
+        velocidade_usinagem: cfgRow.velocidade_usinagem || 0,
     };
 
     const extensao = maquina.extensao_arquivo || '.nc';
