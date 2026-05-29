@@ -1981,31 +1981,46 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                 for (const a of aliases) aliasMap[a.material_code_importado] = a.chapa_id;
             } catch (e) { console.warn('[aliasMap2] falha ao carregar aliases:', e.message); }
 
+            const alertas = []; // avisos da otimização (ex.: materiais sem chapa cadastrada)
             const groups = {};
-            // Statements preparados UMA vez (eram recriados por peça) + cache de
-            // resolução por material|esp — peças do mesmo material resolvem igual.
+            // Statements preparados UMA vez + cache de resolução por material|esp.
             const _stMat = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1');
             const _stId = db.prepare('SELECT * FROM cnc_chapas WHERE id = ? AND ativo = 1');
             const _stEspReal = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1');
             const _stEspNom = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1');
             const _stFallback = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1');
             const _chapaCache = new Map();
+            const _semChapa = new Set(); // materiais (cores) sem chapa cadastrada
             for (const p of pecas) {
                 let esp = p.espessura || 0;
                 if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
                 const _ck = `${p.material_code || ''}|${esp}`;
-                let chapa = _chapaCache.get(_ck);
-                if (chapa === undefined) {
-                    chapa = _stMat.get(p.material_code);
-                    if (!chapa && aliasMap[p.material_code]) chapa = _stId.get(aliasMap[p.material_code]);
-                    if (!chapa) chapa = _stEspReal.get(esp, esp);
+                let r = _chapaCache.get(_ck);
+                if (r === undefined) {
+                    let chapa = _stMat.get(p.material_code);
+                    let exact = !!chapa; // match exato por material_code (mesma cor)
+                    if (!chapa && aliasMap[p.material_code]) { chapa = _stId.get(aliasMap[p.material_code]); exact = !!chapa; }
+                    if (!chapa) chapa = _stEspReal.get(esp, esp);   // só p/ DIMENSÕES (ignora cor)
                     if (!chapa) chapa = _stEspNom.get(esp);
                     if (!chapa) chapa = _stFallback.get();
-                    _chapaCache.set(_ck, chapa || null);
+                    r = { chapa: chapa || null, exact };
+                    _chapaCache.set(_ck, r);
                 }
-                const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
-                if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
+                const chapa = r.chapa;
+                // CRÍTICO: agrupa pela COR/material da PRÓPRIA peça — nunca mistura
+                // cores na mesma chapa. Só usa o material_code da chapa quando o
+                // match foi EXATO (ou alias intencional). Sem chapa exata, a chapa
+                // resolvida serve apenas para as DIMENSÕES do nesting.
+                const groupMat = r.exact ? chapa.material_code : (p.material_code || (chapa ? chapa.material_code : `esp${esp}`));
+                if (!r.exact && p.material_code) _semChapa.add(p.material_code);
+                const chapaKey = `${groupMat}__${esp}`;
+                if (!groups[chapaKey]) groups[chapaKey] = { material_code: groupMat, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
                 groups[chapaKey].pieces.push(p);
+            }
+            if (_semChapa.size) {
+                const msg = `Materiais sem chapa cadastrada (usando dimensões por espessura, mas separados por cor): ${[..._semChapa].join(', ')}`;
+                console.warn(`[CNC] ${msg}`);
+                alertas.push({ tipo: 'aviso', msg });
             }
 
             // Reset posições
@@ -2425,7 +2440,10 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                 for (let bi = 0; bi < bestBins.length; bi++) {
                     const bin = bestBins[bi];
                     const chapaIdx = globalChapaIdx++;
-                    const chapaInfo = { idx: chapaIdx, material: chapa.nome, material_code: chapa.material_code || group.material_code,
+                    // Rótulo pela COR/material do GRUPO (não da chapa branca resolvida por espessura).
+                    // Só usa o nome bonito da chapa quando o material bate (match exato).
+                    const _matExato = chapa.material_code === group.material_code;
+                    const chapaInfo = { idx: chapaIdx, material: _matExato ? chapa.nome : group.material_code, material_code: group.material_code,
                         espessura_real: chapa.espessura_real || group.espessura, comprimento: chapa.comprimento, largura: chapa.largura,
                         refilo, kerf, preco: chapa.preco || 0, veio: chapaVeio, direcao_corte: direcaoCorteRaw,
                         aproveitamento: Math.round(bin.occupancy() * 100) / 100,
@@ -2524,6 +2542,7 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                 total_combinacoes_testadas: totalCombinacoes, modo: binType,
                 motor: 'javascript_industrial', plano,
                 qualidade: body.qualidade || 'balanceado',
+                alertas,
                 estrategia_resumo: Object.values(plano.materiais || {}).map(m => m.estrategia).filter(Boolean).join(', '),
             });
         }
