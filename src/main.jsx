@@ -205,3 +205,33 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator &&
         }
     });
 }
+
+// Auto-recuperação de "chunk stale" após deploy.
+// Quando o app está aberto desde antes de um deploy, o JS em memória referencia
+// hashes de chunk antigos. Ao navegar para uma rota lazy (ex.: ProducaoFabrica),
+// o import dinâmico tenta o hash velho → 404 → "Failed to fetch dynamically
+// imported module". O Vite dispara 'vite:preloadError'; recarregamos UMA vez
+// para buscar o index.html novo com os hashes atuais (guard anti-loop de 15s).
+if (typeof window !== 'undefined') {
+    const _reloadOnStaleChunk = () => {
+        const KEY = '__stale_chunk_reload_ts';
+        const last = Number(sessionStorage.getItem(KEY) || 0);
+        if (Date.now() - last > 15000) {
+            sessionStorage.setItem(KEY, String(Date.now()));
+            window.location.reload();
+            return true;
+        }
+        return false;
+    };
+    window.addEventListener('vite:preloadError', (e) => {
+        e?.preventDefault?.();
+        _reloadOnStaleChunk();
+    });
+    // Rede de segurança: alguns navegadores reportam como unhandledrejection
+    window.addEventListener('unhandledrejection', (e) => {
+        const msg = String(e?.reason?.message || e?.reason || '');
+        if (/dynamically imported module|Importing a module script failed|ChunkLoadError|Failed to fetch/i.test(msg)) {
+            _reloadOnStaleChunk();
+        }
+    });
+}
