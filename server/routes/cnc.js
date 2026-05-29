@@ -4826,6 +4826,11 @@ function validateGeneratedGcode(gcodeText, ctx = {}) {
     let motionLines = 0;
     let cuttingMoves = 0;
     let spindleOn = false;
+    // A-1: envelope X/Y da máquina (curso). Aviso (não bloqueia) — TOL p/ offset de fresa.
+    const xMaxLim = Number(ctx.xMax) || 0;
+    const yMaxLim = Number(ctx.yMax) || 0;
+    const TOL_XY = 12;
+    let xWarned = false, yWarned = false;
 
     const add = (tipo, msg) => alertas.push({ tipo, msg });
 
@@ -4849,6 +4854,15 @@ function validateGeneratedGcode(gcodeText, ctx = {}) {
         const z = zMatch ? Number(zMatch[1]) : null;
         if (z != null && (z < minZ || z > maxZ)) {
             add('erro_critico', `Z fora do envelope seguro em ${ref}: Z${z.toFixed(3)}. Limite esperado ${minZ.toFixed(3)} a ${maxZ.toFixed(3)}.`);
+        }
+        // A-1: X/Y fora do curso da máquina (avisa uma vez por eixo)
+        if (xMaxLim > 0 && !xWarned) {
+            const xm = s.match(/\bX(-?\d+(?:\.\d+)?)\b/i);
+            if (xm) { const xv = Number(xm[1]); if (xv < -TOL_XY || xv > xMaxLim + TOL_XY) { add('aviso', `X fora do curso da máquina em ${ref}: X${xv.toFixed(1)} (área útil 0..${xMaxLim}mm). Confira posicionamento/limites.`); xWarned = true; } }
+        }
+        if (yMaxLim > 0 && !yWarned) {
+            const ym = s.match(/\bY(-?\d+(?:\.\d+)?)\b/i);
+            if (ym) { const yv = Number(ym[1]); if (yv < -TOL_XY || yv > yMaxLim + TOL_XY) { add('aviso', `Y fora do curso da máquina em ${ref}: Y${yv.toFixed(1)} (área útil 0..${yMaxLim}mm).`); yWarned = true; } }
         }
         if (g > 0) {
             cuttingMoves++;
@@ -7623,6 +7637,8 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         zSafe: zSafe(),
         totalOps,
         expectedCounts,
+        xMax: Number(maquina.x_max) || 0,
+        yMax: Number(maquina.y_max) || 0,
     }));
 
     // ─── Verificar desgaste de ferramenta antes de retornar ───
