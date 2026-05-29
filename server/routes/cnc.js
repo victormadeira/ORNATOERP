@@ -83,19 +83,60 @@ function updateProductionStats(loteId) {
         const custoMaterial = chapas.reduce((sum, ch) => sum + (ch.preco || 0), 0);
 
         const periodo = new Date().toISOString().slice(0, 7); // YYYY-MM
-        db.prepare(`
-            INSERT INTO cnc_production_stats (periodo, tipo_periodo, chapas_cortadas, pecas_produzidas,
-                metros_lineares, aproveitamento_medio, custo_material, lotes_count)
-            VALUES (?, 'mensal', ?, ?, ?, ?, ?, 1)
-            ON CONFLICT(periodo, tipo_periodo) DO UPDATE SET
-                chapas_cortadas = chapas_cortadas + excluded.chapas_cortadas,
-                pecas_produzidas = pecas_produzidas + excluded.pecas_produzidas,
-                metros_lineares = metros_lineares + excluded.metros_lineares,
-                aproveitamento_medio = (aproveitamento_medio * lotes_count + excluded.aproveitamento_medio) / (lotes_count + 1),
-                lotes_count = lotes_count + 1,
-                custo_material = custo_material + excluded.custo_material,
-                atualizado_em = CURRENT_TIMESTAMP
-        `).run(periodo, chapas.length, pecasCount, Math.round(metrosLineares * 100) / 100, Math.round(aprovMedio * 100) / 100, custoMaterial);
+
+        // Contribuição POR LOTE — evita dupla-contagem em re-otimização.
+        // Antes o agregado era incrementado a cada otimização do mesmo lote,
+        // inflando chapas/lotes_count/média. Agora cada lote contribui uma vez
+        // por período (UPSERT substitui) e o agregado é recalculado da soma.
+        db.exec(`CREATE TABLE IF NOT EXISTS cnc_production_stats_lote (
+            periodo TEXT NOT NULL,
+            lote_id INTEGER NOT NULL,
+            chapas INTEGER DEFAULT 0,
+            pecas INTEGER DEFAULT 0,
+            metros REAL DEFAULT 0,
+            aproveitamento REAL DEFAULT 0,
+            custo REAL DEFAULT 0,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (periodo, lote_id)
+        )`);
+
+        const recompute = db.transaction(() => {
+            db.prepare(`
+                INSERT INTO cnc_production_stats_lote (periodo, lote_id, chapas, pecas, metros, aproveitamento, custo)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(periodo, lote_id) DO UPDATE SET
+                    chapas = excluded.chapas,
+                    pecas = excluded.pecas,
+                    metros = excluded.metros,
+                    aproveitamento = excluded.aproveitamento,
+                    custo = excluded.custo,
+                    atualizado_em = CURRENT_TIMESTAMP
+            `).run(periodo, loteId, chapas.length, pecasCount,
+                Math.round(metrosLineares * 100) / 100, Math.round(aprovMedio * 100) / 100, custoMaterial);
+
+            const agg = db.prepare(`
+                SELECT COUNT(*) AS lotes, COALESCE(SUM(chapas),0) AS chapas,
+                       COALESCE(SUM(pecas),0) AS pecas, COALESCE(SUM(metros),0) AS metros,
+                       COALESCE(AVG(aproveitamento),0) AS aprov, COALESCE(SUM(custo),0) AS custo
+                FROM cnc_production_stats_lote WHERE periodo = ?
+            `).get(periodo);
+
+            db.prepare(`
+                INSERT INTO cnc_production_stats (periodo, tipo_periodo, chapas_cortadas, pecas_produzidas,
+                    metros_lineares, aproveitamento_medio, custo_material, lotes_count, atualizado_em)
+                VALUES (?, 'mensal', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(periodo, tipo_periodo) DO UPDATE SET
+                    chapas_cortadas = excluded.chapas_cortadas,
+                    pecas_produzidas = excluded.pecas_produzidas,
+                    metros_lineares = excluded.metros_lineares,
+                    aproveitamento_medio = excluded.aproveitamento_medio,
+                    custo_material = excluded.custo_material,
+                    lotes_count = excluded.lotes_count,
+                    atualizado_em = CURRENT_TIMESTAMP
+            `).run(periodo, agg.chapas, agg.pecas, Math.round(agg.metros * 100) / 100,
+                Math.round(agg.aprov * 100) / 100, agg.custo, agg.lotes);
+        });
+        recompute();
     } catch (e) {
         console.error('[CNC stats] Erro ao atualizar stats:', e.message);
     }
@@ -3405,7 +3446,22 @@ function rectsOverlap(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
+// ─── Mutex por lote: serializa read-modify-write do plano_json ───────
+// Sem isto, dois ajustes simultâneos no mesmo lote interleavam entre o
+// SELECT e o UPDATE → lost update (uma edição some). Serializa por loteId.
+const _planoQueues = new Map();
+function withPlanoLock(loteId, fn) {
+    const key = String(loteId);
+    const prev = _planoQueues.get(key) || Promise.resolve();
+    const run = prev.then(fn, fn);
+    const tail = run.catch(() => {});
+    _planoQueues.set(key, tail);
+    tail.then(() => { if (_planoQueues.get(key) === tail) _planoQueues.delete(key); });
+    return run;
+}
+
 router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
+    return withPlanoLock(req.params.loteId, async () => {
     try {
         const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
         if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
@@ -3879,15 +3935,21 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
 
                 try {
                     const pyResult = await callPython('optimize', payload);
-                    if (pyResult.chapas) {
-                        for (const ch of pyResult.chapas) {
-                            ch.material_code = matKey;
-                            newSheets.push(ch);
-                        }
+                    // Guarda contra perda silenciosa: callPython retorna null (serviço fora)
+                    // ou {ok:false} (timeout). Sem este check, .chapas indefinido pulava o
+                    // loop e a bandeja era zerada → peças destravadas sumiam do plano.
+                    if (!pyResult || !Array.isArray(pyResult.chapas)) {
+                        const msg = (pyResult && pyResult.error) || 'otimizador indisponível ou sem resultado';
+                        console.error(`[CNC] reoptimize_unlocked sem chapas para ${matKey}: ${msg}`);
+                        return res.status(502).json({ error: `Re-otimização do material ${matKey} falhou: ${msg}. Nenhuma alteração foi aplicada — o plano permanece intacto.` });
+                    }
+                    for (const ch of pyResult.chapas) {
+                        ch.material_code = matKey;
+                        newSheets.push(ch);
                     }
                 } catch (pyErr) {
                     console.error(`[CNC] reoptimize_unlocked falhou para ${matKey}:`, pyErr.message);
-                    return res.status(500).json({ error: `Erro ao reotimizar material ${matKey}: ${pyErr.message}` });
+                    return res.status(502).json({ error: `Erro ao reotimizar material ${matKey}: ${pyErr.message}. Nenhuma alteração foi aplicada.` });
                 }
             }
 
@@ -4019,8 +4081,9 @@ router.put('/plano/:loteId/ajustar', requireAuth, async (req, res) => {
         res.json({ ok: true, plano, aproveitamento: aprovMedio });
     } catch (err) {
         console.error('Erro ao ajustar plano:', err);
-        res.status(500).json({ error: 'Erro ao ajustar plano' });
+        if (!res.headersSent) res.status(500).json({ error: 'Erro ao ajustar plano' });
     }
+    }); // fim withPlanoLock
 });
 
 // ─── Versionamento de planos ─────────────────────────────────────────
@@ -12491,73 +12554,6 @@ router.get('/relatorio-materiais/:loteId', requireAuth, (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ═══════════════════════════════════════════════════════
-// PIECE LABELS (etiquetas)
-// ═══════════════════════════════════════════════════════
-
-// GET /etiquetas/:loteId — generate label data for pieces
-router.get('/etiquetas/:loteId', requireAuth, (req, res) => {
-    try {
-        const lote = db.prepare('SELECT * FROM cnc_lotes WHERE id = ? AND user_id = ?').get(req.params.loteId, req.user.id);
-        if (!lote) return res.status(404).json({ error: 'Lote não encontrado' });
-
-        const pecas = db.prepare('SELECT * FROM cnc_pecas WHERE lote_id = ? ORDER BY modulo_id, id').all(lote.id);
-        let plano = null;
-        try { plano = JSON.parse(lote.plano_json || 'null'); } catch (e) { console.warn('[etiquetas] plano_json inválido lote', lote.id, e.message); }
-
-        const labels = pecas.map((p, idx) => {
-            // Find which chapa this piece is on
-            let chapaInfo = null;
-            if (plano?.chapas) {
-                for (let ci = 0; ci < plano.chapas.length; ci++) {
-                    const ch = plano.chapas[ci];
-                    if (ch.pecas.some(pp => pp.pecaId === p.id)) {
-                        chapaInfo = { idx: ci + 1, material: ch.material };
-                        break;
-                    }
-                }
-            }
-
-            const bordas = [];
-            if (p.borda_frontal) bordas.push(`F:${p.borda_frontal}`);
-            if (p.borda_traseira) bordas.push(`T:${p.borda_traseira}`);
-            if (p.borda_dir) bordas.push(`D:${p.borda_dir}`);
-            if (p.borda_esq) bordas.push(`E:${p.borda_esq}`);
-
-            return {
-                id: p.id,
-                num: idx + 1,
-                descricao: p.descricao,
-                upmcode: p.upmcode || '',
-                modulo: p.modulo_desc || '',
-                ambiente: p.ambiente || p.modulo_desc || '',
-                material: p.material || '',
-                dimensoes: `${p.comprimento} x ${p.largura} x ${p.espessura}`,
-                bordas: bordas.join(' '),
-                quantidade: p.quantidade || 1,
-                chapa: chapaInfo,
-                lote_nome: lote.nome || '',
-                cliente: lote.cliente || '',
-                codigo_scan: p.persistent_id || p.upmcode || `P${p.id}`,
-                // QR rastreabilidade ponta a ponta
-                qr_data: JSON.stringify({
-                    t: 'peca',
-                    lid: lote.id,
-                    pid: p.id,
-                    cod: p.persistent_id || p.upmcode || `P${p.id}`,
-                    lote: lote.nome,
-                    cli: lote.cliente,
-                    mod: p.modulo_desc || '',
-                    desc: (p.descricao || '').slice(0, 40),
-                    dim: `${p.comprimento}x${p.largura}x${p.espessura}`,
-                    ch: chapaInfo?.idx || 0,
-                }),
-            };
-        });
-
-        res.json({ labels, lote: { id: lote.id, nome: lote.nome, cliente: lote.cliente } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
 
 // ═══════════════════════════════════════════════════════
 // REVIEW CHECKLIST (pre-corte)
