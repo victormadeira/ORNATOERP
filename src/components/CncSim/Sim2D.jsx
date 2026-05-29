@@ -62,6 +62,12 @@ const Sim2D = forwardRef(function Sim2D(
         panStart: null,
     });
 
+    // Chapa estável por valor — DEVE vir antes de `s.chapa = chapaStable`
+    // (acessar const em TDZ lança "Cannot access 'chapaStable' before initialization")
+    const chapaKey = `${chapa?.comprimento}|${chapa?.largura}|${chapa?.espessura}|${chapa?.refilo}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const chapaStable = useMemo(() => chapa, [chapaKey]);
+
     const s = $.current;
     s.playing      = playing || false;
     s.speed        = speed   || 1;
@@ -70,11 +76,6 @@ const Sim2D = forwardRef(function Sim2D(
     s.onMoveChange = onMoveChange;
     s.onPlayEnd    = onPlayEnd;
     s.chapa        = chapaStable;   // evita stale closure em draw()
-
-    // Chapa estável por valor
-    const chapaKey = `${chapa?.comprimento}|${chapa?.largura}|${chapa?.espessura}|${chapa?.refilo}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const chapaStable = useMemo(() => chapa, [chapaKey]);
 
     // ── Setup (UMA VEZ) ───────────────────────────────────────────────────────
     useEffect(() => {
