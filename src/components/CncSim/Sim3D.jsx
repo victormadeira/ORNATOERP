@@ -137,7 +137,7 @@ export const Sim3D = forwardRef(function Sim3D(
 
         // Renderer
         const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 2→1.5: ~44% menos pixels em telas retina
         renderer.setClearColor(BG);
         renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
         el.appendChild(renderer.domElement);
@@ -182,14 +182,20 @@ export const Sim3D = forwardRef(function Sim3D(
 
         Object.assign(s, { renderer, scene, camera, controls, stockGroup, pathGroup, toolGroup, segments: [], lineMats: [] });
 
-        // Resize observer
+        // Resize observer (debounced — evita rajada ao colapsar/arrastar painéis)
+        let _resizeT = null;
         const ro = new ResizeObserver(() => {
-            const w = el.clientWidth, h = el.clientHeight;
-            if (!w || !h) return;
-            renderer.setSize(w, h, false);
-            camera.aspect = w / h; camera.updateProjectionMatrix();
-            const res = new THREE.Vector2(w, h);
-            for (const mat of s.lineMats) mat.resolution.copy(res);
+            if (_resizeT) return;
+            _resizeT = setTimeout(() => {
+                _resizeT = null;
+                const w = el.clientWidth, h = el.clientHeight;
+                if (!w || !h) return;
+                renderer.setSize(w, h, false);
+                camera.aspect = w / h; camera.updateProjectionMatrix();
+                const res = new THREE.Vector2(w, h);
+                for (const mat of s.lineMats) mat.resolution.copy(res);
+                s.needsRender = true;
+            }, 120);
         });
         ro.observe(el);
 
@@ -200,7 +206,11 @@ export const Sim3D = forwardRef(function Sim3D(
             controls.target.set(bbox.cx, bbox.cy, 0);
             camera.position.set(bbox.cx + bbox.span * 0.7, bbox.cy - bbox.span * 0.9, bbox.span * 0.75);
             camera.up.set(0, 0, 1); camera.lookAt(bbox.cx, bbox.cy, 0); controls.update();
+            s.needsRender = true;
         });
+
+        // Render sob demanda: qualquer mudança de câmera (drag/zoom/damping) pede 1 frame
+        controls.addEventListener('change', () => { s.needsRender = true; });
 
         // ── renderAt: lê tudo de s, sem closures ─────────────────────────────
         function renderAt(idx) {
@@ -276,6 +286,7 @@ export const Sim3D = forwardRef(function Sim3D(
                     f: m?.feed ?? 0, t: m?.tEnd ?? 0,
                 });
             }
+            s.needsRender = true; // mudou segmentos/textura → pede 1 frame
         }
         s.renderAt = renderAt;
 
@@ -307,9 +318,15 @@ export const Sim3D = forwardRef(function Sim3D(
             }
 
             s.lastTick = now;
-            controls.update();
-            renderer.render(scene, camera);
+            controls.update(); // integra damping; dispara 'change' → needsRender se mexeu
+            // Render sob demanda: só desenha quando há playback OU algo mudou.
+            // Antes renderizava 60fps continuamente mesmo parado — drenava GPU à toa.
+            if (s.playing || s.needsRender) {
+                s.needsRender = false;
+                renderer.render(scene, camera);
+            }
         }
+        s.needsRender = true; // primeiro frame
         s.lastTick = performance.now();
         s.rafId    = requestAnimationFrame(tick);
 

@@ -188,7 +188,15 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
     const totalSimTime = parsedPreview.totalTime ?? 0;
 
     // ── Callback unificado (2D e 3D reportam aqui) ────────────────────────────
+    // Throttle (~12fps): durante o playback os sims chamam isto a cada move
+    // (30-60×/s). Sem throttle, cada chamada re-renderizava o PreCutWorkspace
+    // inteiro (viewer de G-code + timeline = milhares de nós) → travamento.
+    // Cliques manuais (step) são bem mais lentos que 80ms, então não são afetados.
+    const _lastMoveReport = useRef(0);
     const handleMoveChange = useCallback((moveIdx, lineIdx) => {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (now - _lastMoveReport.current < 80) return;
+        _lastMoveReport.current = now;
         setCurMove(moveIdx);
         setCurrentLineIdx(lineIdx ?? -1);
     }, []);
