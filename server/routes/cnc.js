@@ -6039,6 +6039,27 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
         if (otimizarTrocas && a.toolCode !== b.toolCode) return (a.toolCode || '').localeCompare(b.toolCode || '');
         return 0;
     });
+    // ── Lote B: validações de segurança (aditivas — alertas, não alteram corte) ──
+    // M-1: nº de ferramentas distintas vs capacidade do magazine da máquina
+    const _magCap = Number(maquina.capacidade_magazine) || 0;
+    if (_magCap > 0) {
+        const _tools = new Set(allOps.map(o => o.toolCode).filter(Boolean));
+        if (_tools.size > _magCap) {
+            alertas.push({ tipo: 'aviso', msg: `Job usa ${_tools.size} ferramentas distintas, mas o magazine comporta ${_magCap}. Haverá troca manual durante o corte.` });
+        }
+    }
+    // A-3: profundidade da operação vs comprimento útil da fresa (não enterrar o mandril)
+    const _toolLenAvisado = new Set();
+    for (const op of allOps) {
+        const t = op.toolCode ? toolMap[op.toolCode] : null;
+        const cu = Number(t?.comprimento_util) || 0;
+        const dt = Number(op.depthTotal) || 0;
+        if (cu > 0 && dt > cu && !_toolLenAvisado.has(op.toolCode)) {
+            _toolLenAvisado.add(op.toolCode);
+            alertas.push({ tipo: 'erro_critico', msg: `Profundidade ${dt.toFixed(1)}mm > comprimento útil da fresa ${t.nome || op.toolCode} (${cu}mm) — risco de enterrar o mandril. Use fresa mais longa.` });
+        }
+    }
+
     const rotaBaseMm = routeRapidDistance(allOps);
 
     const sortedOps = [];
@@ -6255,7 +6276,9 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
             if (curTool !== null) { emit(`${sOff}`); L.push(`${cmt} Spindle OFF`, ''); }
             const tl = toolMap[op.toolCode];
             if (tl) {
-                const tplCtxTool = { ...tplCtxChapa, toolCode: tl.codigo, rpm: tl.rpm || rpmDef, diametro: tl.diametro, toolNome: tl.nome };
+                // A-2: piso de segurança no RPM da ferramenta (rotação baixa demais queima fresa/material)
+                const _rpmSeg = Math.max(1000, tl.rpm || rpmDef);
+                const tplCtxTool = { ...tplCtxChapa, toolCode: tl.codigo, rpm: _rpmSeg, diametro: tl.diametro, toolNome: tl.nome };
                 // Troca: se o campo tem {t} ou {tool}, usa template completo; caso contrário prepend código (compat)
                 const trocaLine = trocaCmdRaw.includes('{t}') || trocaCmdRaw.includes('{tool}')
                     ? resolvePostProcessorTemplate(trocaCmdRaw, tplCtxTool)
@@ -6265,7 +6288,7 @@ function generateGcodeForChapa(chapa, chapaIdx, pecasDb, maquina, toolMap, usina
                 // Spindle ON: se o campo tem {rpm}, usa template; senão prepend S{rpm} (compat)
                 const sOnLine = sOnRaw.includes('{rpm}')
                     ? resolvePostProcessorTemplate(sOnRaw, tplCtxTool)
-                    : `S${tl.rpm || rpmDef} ${resolvePostProcessorTemplate(sOnRaw, tplCtxTool)}`;
+                    : `S${_rpmSeg} ${resolvePostProcessorTemplate(sOnRaw, tplCtxTool)}`;
                 emit(sOnLine);
                 L.push(`${cmt} Spindle ON`);
                 if (dwellSpindle > 0) emit(`G4 P${dwellSpindle.toFixed(1)}`);
