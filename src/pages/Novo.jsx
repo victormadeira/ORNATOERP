@@ -14,7 +14,7 @@ import {
     PanelTop, UtensilsCrossed, BedDouble, Bath, Shirt, Flame, WashingMachine, Armchair, PenTool, Briefcase,
     Square, Sofa, RectangleHorizontal, GlassWater, Shapes,
     GitBranch, Star, ArrowRight, ArrowUpDown, Tag, ArrowUp, ArrowDown, GripVertical, MapPin,
-    MoreHorizontal,
+    MoreHorizontal, Check,
 } from 'lucide-react';
 
 // ── Ícone por categoria de caixa ─────────────────────────────────────────────
@@ -614,7 +614,7 @@ function ComponenteInstancia({ ci, idx, caixaDims, mats, compDef, onUpdate, onRe
                                             Resetar
                                         </button>
                                     )}
-                                    <button onClick={() => setMatExp(false)} className="text-[9px] cursor-pointer" style={{ color: 'var(--text-muted)' }}>✕</button>
+                                    <button onClick={() => setMatExp(false)} className="cursor-pointer" style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><X size={11} /></button>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1348,6 +1348,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [portalValidadeAte, setPortalValidadeAte] = useState(editOrc?.portal_validade_ate || null);
     const [expandedAmb, setExpandedAmb] = useState(null);
     const [expandedItem, setExpandedItem] = useState(null);
+    const [batchDims, setBatchDims] = useState({}); // { [ambId]: { p, a, open } } — dims em lote (estado local, não recalcula)
     const [dragOverGrupo, setDragOverGrupo] = useState(null); // grupo_id being hovered during drag
     const [reportItemId, setReportItemId] = useState(null);
     const [advancedItemId, setAdvancedItemId] = useState(null); // item com painel avançado aberto
@@ -1947,6 +1948,20 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         const i = a.itens.find(x => x.id === itemId);
         if (i) fn(i);
     });
+
+    // Aplica P (profundidade) e/ou A (altura) a TODOS os módulos calculáveis do
+    // ambiente de uma vez — elimina ajuste item-a-item (maior ganho de velocidade).
+    // Respeita as dimensões aplicáveis de cada caixa (não força A/P onde não existe).
+    const aplicarDimsAmbiente = (ambId, { p, a: altura }) => {
+        upAmb(ambId, a => {
+            (a.itens || []).forEach(it => {
+                if (!it.dims || it.tipo === 'avulso' || it.tipo === 'especial') return;
+                const aplic = it.caixaDef?.dimsAplicaveis || ['L', 'A', 'P'];
+                if (p != null && p !== '' && aplic.includes('P')) it.dims.p = Number(p);
+                if (altura != null && altura !== '' && aplic.includes('A')) it.dims.a = Number(altura);
+            });
+        });
+    };
 
     const addComp = (ambId, itemId, compDef, opts = {}) => {
         upItem(ambId, itemId, item => {
@@ -2854,7 +2869,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             fontSize: 9, fontWeight: 800, color,
                                         }}>
-                                            {s.done ? '✓' : i + 1}
+                                            {s.done ? <Check size={11} strokeWidth={3} /> : i + 1}
                                         </div>
                                         <span style={{ fontSize: 11, fontWeight: isCurrent ? 700 : 500, color, whiteSpace: 'nowrap' }}>{s.label}</span>
                                     </button>
@@ -3708,6 +3723,46 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                                 fechar
                                                             </button>
                                                         )}
+                                                    </div>
+                                                );
+                                            })()}
+                                            {/* ── Dimensões padrão do ambiente (aplica P/A a todos os módulos de uma vez) ── */}
+                                            {!readOnly && (amb.itens || []).filter(i => i.tipo !== 'avulso' && i.tipo !== 'especial').length > 1 && (() => {
+                                                const bd = batchDims[amb.id] || {};
+                                                const nMods = (amb.itens || []).filter(i => i.tipo !== 'avulso' && i.tipo !== 'especial').length;
+                                                const setBd = (patch) => setBatchDims(prev => ({ ...prev, [amb.id]: { ...prev[amb.id], ...patch } }));
+                                                const vazio = (bd.p == null || bd.p === '') && (bd.a == null || bd.a === '');
+                                                if (!bd.open) {
+                                                    return (
+                                                        <div className="py-2 mb-1" style={{ borderBottom: '1px dashed var(--border)' }}>
+                                                            <button onClick={() => setBd({ open: true })}
+                                                                className="text-[10px] flex items-center gap-1.5 cursor-pointer opacity-60 hover:opacity-100 transition-all"
+                                                                style={{ color: 'var(--primary)' }}>
+                                                                <ArrowUpDown size={10} /> Dimensões padrão — aplicar a todos os {nMods} módulos
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div className="py-2 mb-1" style={{ borderBottom: '1px dashed var(--border)' }}>
+                                                        <div className="flex items-end gap-2 flex-wrap">
+                                                            <div>
+                                                                <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Profundidade (P)</label>
+                                                                <input type="number" value={bd.p ?? ''} onChange={e => setBd({ p: e.target.value })} placeholder="550" className={Z.inp} style={{ width: 84 }} />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[9px] mb-0.5 block" style={{ color: 'var(--text-muted)' }}>Altura (A)</label>
+                                                                <input type="number" value={bd.a ?? ''} onChange={e => setBd({ a: e.target.value })} placeholder="2200" className={Z.inp} style={{ width: 84 }} />
+                                                            </div>
+                                                            <button onClick={() => { aplicarDimsAmbiente(amb.id, { p: bd.p, a: bd.a }); setBd({ open: false, p: '', a: '' }); }}
+                                                                disabled={vazio}
+                                                                className="text-[10px] font-semibold px-3 rounded cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                                                                style={{ height: 30, background: 'var(--primary)', color: '#fff', border: 'none' }}>
+                                                                Aplicar aos {nMods}
+                                                            </button>
+                                                            <button onClick={() => setBd({ open: false })} className="text-[9px] cursor-pointer opacity-50 hover:opacity-100" style={{ color: 'var(--text-muted)' }}>cancelar</button>
+                                                        </div>
+                                                        <p className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>Preencha só o que quer mudar. Aplica apenas aos módulos que têm a dimensão.</p>
                                                     </div>
                                                 );
                                             })()}
@@ -5098,7 +5153,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="flex items-center gap-1.5" style={{ color: vencida ? 'var(--danger)' : 'var(--text-muted)' }}>
                                                 <CalendarDays size={11} />
-                                                <span>{vencida ? '⚠ VENCIDA em' : 'Vence em'}</span>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{vencida ? <><AlertTriangle size={10} /> VENCIDA em</> : 'Vence em'}</span>
                                                 <strong style={{ color: vencida ? 'var(--danger)' : 'var(--text-secondary)' }}>{fmtData(venceEm)}</strong>
                                                 {portalValidadeAte && <span className="text-[8px] px-1 py-0.5 rounded" style={{ background: 'rgba(19,121,240,0.1)', color: 'var(--primary)' }}>renovada</span>}
                                             </span>
@@ -5948,7 +6003,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                 // Passo 2: configurar antes de adicionar
                                                 const initVars = {};
                                                 (comp.vars || []).forEach(v => { if (v.default) initVars[v.id] = v.default; });
-                                                setPendingComp({ compDef: comp, qtd: 1, vars: initVars, matExtComp: '' });
+                                                // Frente externa do componente herda do material externo do item/ambiente por padrão
+                                                const targetAmb = ambientes.find(a => a.id === addCompModal.ambId);
+                                                const targetItem = (targetAmb?.itens || []).find(i => i.id === addCompModal.itemId);
+                                                const defaultMatExt = targetItem?.mats?.matExt || targetAmb?.matExt || '';
+                                                setPendingComp({ compDef: comp, qtd: 1, vars: initVars, matExtComp: defaultMatExt });
                                             }}
                                             className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-[var(--success-hover)]/40 hover:bg-[var(--bg-hover)] text-left w-full mb-1.5"
                                             style={{ borderColor: 'var(--border)' }}>
