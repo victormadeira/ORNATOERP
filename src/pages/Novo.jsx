@@ -124,6 +124,116 @@ function FormulaInput({ value, onChange, className, style, min, ...props }) {
     );
 }
 
+// ─── UpMobb (UPM) JSON helpers ───────────────────────────────────────────────
+// O JSON do UpMobb tem `model_entities` (módulos) → cada módulo tem `entities`
+// (peças com upmpiece:true) → cada peça referencia um `feedstockpanel` com
+// `upmmaterialcode` (ex: "MDF_15.5_BRANCO_TX") e dims de corte
+// (`upmcutwidth × upmcutlength`). Para orçamento, somamos a área de corte
+// por material code de cada módulo.
+function parseUPMJson(raw) {
+    const det = raw.details_project || {};
+    const ents = raw.model_entities || {};
+    const modules = [];
+    const matCodes = new Set();
+    const totalAreaPorMat = {}; // { matcode: m² total no projeto inteiro }
+    for (const k of Object.keys(ents)) {
+        const m = ents[k];
+        if (!m) continue;
+        const W = parseFloat(m.upmwidth) || 0;
+        const H = parseFloat(m.upmheight) || 0;
+        const D = parseFloat(m.upmdepth) || 0;
+        // Soma áreas de corte (m²) agrupadas por material code, por módulo
+        const areasPorMat = {}; // { matcode: m² }
+        const walk = (node) => {
+            if (!node) return;
+            if (node.upmfeedstockpanel && node.upmmaterialcode) {
+                const cw = parseFloat(node.upmcutwidth) || 0;
+                const cl = parseFloat(node.upmcutlength) || 0;
+                if (cw > 0 && cl > 0) {
+                    const a = (cw * cl) / 1_000_000;
+                    const code = node.upmmaterialcode;
+                    areasPorMat[code] = (areasPorMat[code] || 0) + a;
+                    matCodes.add(code);
+                }
+            }
+            if (node.entities) for (const sk of Object.keys(node.entities)) walk(node.entities[sk]);
+        };
+        walk(m);
+        // upmquantitypieceinmodule = nº de PEÇAS no módulo (não count de módulos).
+        // O walker já varre todas as peças, então NÃO multiplicar aqui.
+        // Cada entrada em model_entities é 1 módulo físico → qtd no orçamento = 1.
+        for (const [c, a] of Object.entries(areasPorMat)) {
+            totalAreaPorMat[c] = (totalAreaPorMat[c] || 0) + a;
+        }
+        modules.push({
+            id: m.upmmasterid,
+            code: m.upmcode || '',
+            descricao: m.upmdescription || 'Módulo',
+            dims: { l: W, a: H, p: D },
+            qtd: 1,
+            finish: m.upmfinish || '',
+            areasPorMat,
+        });
+    }
+    return {
+        details: {
+            cliente: det.client || '',
+            projeto: det.project || '',
+            vendedor: det.seller || '',
+            codigo: det.my_code || '',
+            material: det.type_material_panel || '',
+        },
+        modules,
+        matCodes: [...matCodes].sort(),
+        totalAreaPorMat,
+    };
+}
+
+// Sugere uma chapa da biblioteca para um matcode do JSON (ex: "MDF_15.5_BRANCO_TX")
+// Match por tokens normalizados — espessura ("15.5" → 15mm, "6.5" → 6mm) + cor.
+function suggestChapaForMatcode(matcode, chapas) {
+    if (!matcode || !chapas?.length) return '';
+    const norm = (s) => String(s || '').toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+    // UpMobb usa 15.5/25.5/6.5 etc (15mm + 0.5mm de revestimento por face).
+    // A espessura comercial real da chapa é o piso (Math.floor).
+    const m = matcode.match(/(\d+(?:\.\d+)?)/);
+    const espAlvo = m ? Math.floor(parseFloat(m[1])) : 0;
+    // Remove o número do matcode pra comparar só os tokens de cor/material
+    // Tokens do matcode (sem número), e remove tokens muito genéricos
+    const STOP = new Set(['mdf', 'mdp', 'compensado']);
+    const tok = (s) => norm(s.replace(/\d+(\.\d+)?/g, '').replace(/mm/g, '')).split(' ').filter(t => t && !STOP.has(t));
+    const matTokens = tok(matcode);
+    if (matTokens.length === 0) return '';
+    let best = null;
+    let bestScore = -1;
+    for (const c of chapas) {
+        const cEsp = Math.floor(parseFloat(c.esp || c.espessura || 0));
+        const espOk = espAlvo === 0 || cEsp === 0 || cEsp === espAlvo;
+        if (!espOk) continue;
+        const cTokens = tok(c.nome);
+        if (cTokens.length === 0) continue;
+        const matches = matTokens.filter(t => cTokens.some(ct => ct === t)).length;
+        // Jaccard-like: prefere overlap completo e penaliza tokens extras no nome da chapa
+        const union = new Set([...matTokens, ...cTokens]).size;
+        const score = matches / union;
+        if (score > bestScore && score >= 0.5) { bestScore = score; best = c; }
+    }
+    return best?.id || '';
+}
+
+// preco_m2 de uma chapa: usa preco_m2 direto, ou calcula via preco/(largura*altura)
+function chapaPrecoM2(chapa) {
+    if (!chapa) return 0;
+    if (chapa.preco_m2 > 0) return chapa.preco_m2;
+    const lm = (chapa.larg || chapa.largura || 0) / 1000;
+    const am = (chapa.alt || chapa.altura || 0) / 1000;
+    const area = lm * am;
+    if (area > 0 && chapa.preco > 0) return chapa.preco / area;
+    return 0;
+}
+
 // ── Componente: dropdown estilizado para puxadores ──────────────────────────
 function PuxadorSelect({ puxadores, value, onChange }) {
     const [open, setOpen] = useState(false);
@@ -1370,6 +1480,12 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [importJson, setImportJson] = useState('');
     const [importLoading, setImportLoading] = useState(false);
     const [importResult, setImportResult] = useState(null);
+    // UpMobb (UPM) import
+    const [showImportUPMModal, setShowImportUPMModal] = useState(false);
+    const [upmData, setUpmData] = useState(null);          // { details, modules[], finishes[], fileName }
+    const [upmMatMap, setUpmMatMap] = useState({});        // { finish: chapaId }
+    const [upmImporting, setUpmImporting] = useState(false);
+    const upmFileRef = useRef(null);
     const [novoConfirm, setNovoConfirm] = useState(null); // { msg, title?, onOk }
     // A: Dados do Projeto colapsável
     const [dadosExp, setDadosExp] = useState(!editOrc);
@@ -1697,6 +1813,105 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 150);
     };
+    // ── Import UpMobb (UPM) JSON ──────────────────────────────────────────────
+    const handleUPMFileSelect = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const raw = JSON.parse(e.target.result);
+                if (!raw.model_entities) throw new Error('JSON inválido: faltando model_entities');
+                const parsed = parseUPMJson(raw);
+                parsed.fileName = file.name;
+                setUpmData(parsed);
+                // Auto-sugere mapeamento por matcode (inclui espessura)
+                const initialMap = {};
+                for (const code of parsed.matCodes) {
+                    const suggested = suggestChapaForMatcode(code, chapasDB);
+                    if (suggested) initialMap[code] = suggested;
+                }
+                setUpmMatMap(initialMap);
+            } catch (err) {
+                notify('Erro ao ler JSON: ' + err.message, 'error');
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const cancelImportUPM = () => {
+        setShowImportUPMModal(false);
+        setUpmData(null);
+        setUpmMatMap({});
+        if (upmFileRef.current) upmFileRef.current.value = '';
+    };
+
+    const confirmImportUPM = () => {
+        if (!upmData) return;
+        // Bloqueia se algum material code não foi mapeado
+        const unmapped = upmData.matCodes.filter(c => !upmMatMap[c]);
+        if (unmapped.length > 0) {
+            notify(`Mapeie todos os materiais antes de importar (${unmapped.length} pendente${unmapped.length > 1 ? 's' : ''})`, 'error');
+            return;
+        }
+        setUpmImporting(true);
+        try {
+            const mkChapas = taxas.mk_chapas ?? 1.45;
+            // Pré-calcula preço/m² por material code
+            const precoPorMat = {};
+            for (const code of upmData.matCodes) {
+                const chapa = chapasDB.find(c => c.id === upmMatMap[code]);
+                precoPorMat[code] = chapaPrecoM2(chapa);
+            }
+            // Cria os itens avulsos a partir dos módulos
+            const itens = upmData.modules.map((m, idx) => {
+                let custoMat = 0;
+                for (const [code, area] of Object.entries(m.areasPorMat)) {
+                    custoMat += area * (precoPorMat[code] || 0);
+                }
+                // valor unitário (qtd multiplica no orçamento)
+                const valor = Math.round(custoMat * mkChapas * 100) / 100;
+                const dimsStr = [m.dims.l, m.dims.a, m.dims.p]
+                    .filter(d => d > 0)
+                    .map(d => Math.round(d))
+                    .join(' × ');
+                const finishStr = m.finish ? ` · ${m.finish}` : '';
+                return {
+                    id: uid(),
+                    tipo: 'avulso',
+                    nome: `${m.descricao}${m.code ? ` [${m.code}]` : ''}`,
+                    valor,
+                    qtd: m.qtd || 1,
+                    desc: `${dimsStr} mm${finishStr}`,
+                    grupo_id: '',
+                    ordem: idx,
+                };
+            });
+            const novoAmb = {
+                id: uid(),
+                nome: upmData.details.projeto || 'Casa Completa',
+                tipo: 'calculadora',
+                itens,
+                paineis: [],
+                itensEspeciais: [],
+            };
+            setAmbientes(prev => [...prev, novoAmb]);
+            // Auto-preenche projeto/cliente nome se ainda vazios
+            if (!projeto && upmData.details.projeto) setProjeto(upmData.details.projeto);
+            const totalPV = itens.reduce((s, i) => s + i.valor * i.qtd, 0);
+            notify(`${itens.length} módulo(s) importado(s) em "${novoAmb.nome}" — total: ${R$(totalPV)}`);
+            setExpandedAmb(novoAmb.id);
+            cancelImportUPM();
+            setTimeout(() => {
+                const el = document.getElementById(`amb-${novoAmb.id}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 150);
+        } catch (err) {
+            notify('Erro ao importar: ' + err.message, 'error');
+        } finally {
+            setUpmImporting(false);
+        }
+    };
+
     const removeAmb = id => {
         const amb = ambientes.find(a => a.id === id);
         const nItens = (amb?.itens?.length || 0) + (amb?.paineis?.length || 0) + (amb?.itensEspeciais?.length || 0);
@@ -1845,12 +2060,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
     const removeItem = (ambId, itemId) => upAmb(ambId, a => { a.itens = a.itens.filter(i => i.id !== itemId); });
     const copyItem = (ambId, itemId) => upAmb(ambId, a => {
-        const src = a.itens.find(i => i.id === itemId);
-        if (!src) return;
+        const idx = a.itens.findIndex(i => i.id === itemId);
+        if (idx < 0) return;
+        const src = a.itens[idx];
         const c = JSON.parse(JSON.stringify(src));
         c.id = uid();
         if (c.ripado) c.ripado = { ...c.ripado, id: uid() };
-        a.itens.push(c);
+        c.ordem = (src.ordem ?? 0) + 0.5; // aparece logo após o original
+        a.itens.splice(idx + 1, 0, c); // insere adjacente (não no fim)
     });
 
     const addItemAvulso = (ambId) => upAmb(ambId, a => {
@@ -3020,6 +3237,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     style={{ color: 'var(--info)' }}>
                                                     <Sparkles size={13} /> Importar JSON IA
                                                 </button>
+                                                <button onClick={() => { setShowImportUPMModal(true); setMoreActionsOpen(false); }}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-[var(--bg-hover)] cursor-pointer"
+                                                    style={{ color: 'var(--success)' }}>
+                                                    <Upload size={13} /> Importar JSON UpMobb
+                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -3202,7 +3424,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                                     style={{ color: reportItemId === item.id ? 'var(--primary)' : 'var(--text-muted)', opacity: reportItemId === item.id ? 1 : 0.35 }}>
                                                     <BarChart3 size={12} />
                                                 </button>
-                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-[var(--bg-hover)] opacity-0 group-hover/item:opacity-60 hover:!opacity-100 transition-opacity" title="Duplicar item" style={{ color: 'var(--text-muted)' }}><Copy size={12} /></button>}
+                                                {!readOnly && <button onClick={e => { e.stopPropagation(); copyItem(amb.id, item.id); }} className="p-1 rounded hover:bg-violet-500/10 text-violet-400/60 hover:text-violet-400 transition-colors cursor-pointer" title="Duplicar módulo (clona dims, material e componentes)"><Copy size={12} /></button>}
                                                 {!readOnly && <button onClick={e => { e.stopPropagation(); removeItem(amb.id, item.id); }} className="p-1 rounded hover:bg-red-500/10 opacity-0 group-hover/item:opacity-50 hover:!opacity-100 transition-opacity text-red-400 hover:text-red-400" title="Remover item"><Trash2 size={12} /></button>}
                                             </div>
                                         </div>
@@ -5610,6 +5832,108 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             )}
 
             {/* ── Modal: Tipo de Ambiente ── */}
+            {/* ─── Modal Importar JSON UpMobb (UPM) ───────────────────────── */}
+            {showImportUPMModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+                    onClick={cancelImportUPM}>
+                    <div className="rounded-xl shadow-2xl w-full mx-4 flex flex-col" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxWidth: 720, maxHeight: '90vh' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div className="p-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                <Upload size={16} style={{ color: 'var(--success)' }} /> Importar JSON UpMobb
+                            </h3>
+                            <button onClick={cancelImportUPM} className="p-1 rounded hover:bg-[var(--bg-hover)] cursor-pointer"><X size={16} /></button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1">
+                            {!upmData ? (
+                                <>
+                                    <p className="text-xs mb-4" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                                        Selecione o arquivo <code style={{ background: 'var(--bg-muted)', padding: '1px 5px', borderRadius: 4 }}>.json</code> exportado do UpMobb. Os módulos viram itens de orçamento (avulsos) com valor calculado por área × material × markup de chapas ({Math.round((taxas.mk_chapas ?? 1.45) * 100 - 100)}%).
+                                    </p>
+                                    <input ref={upmFileRef} type="file" accept=".json,application/json"
+                                        onChange={e => handleUPMFileSelect(e.target.files?.[0])}
+                                        style={{ display: 'none' }} />
+                                    <button onClick={() => upmFileRef.current?.click()}
+                                        className="w-full py-8 px-4 rounded-lg cursor-pointer flex flex-col items-center gap-2 transition-all"
+                                        style={{ border: '2px dashed var(--border)', background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                        <Upload size={28} />
+                                        <span className="text-sm font-medium">Clique para selecionar o JSON</span>
+                                        <span className="text-[10px]">UpMobb · UPM export</span>
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Resumo do projeto */}
+                                    <div className="rounded-lg p-3 mb-4" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <div className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Dados do projeto</div>
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs" style={{ color: 'var(--text-primary)' }}>
+                                            {upmData.details.cliente && <div><span style={{ color: 'var(--text-muted)' }}>Cliente: </span><strong>{upmData.details.cliente}</strong></div>}
+                                            {upmData.details.projeto && <div><span style={{ color: 'var(--text-muted)' }}>Projeto: </span><strong>{upmData.details.projeto}</strong></div>}
+                                            {upmData.details.vendedor && <div><span style={{ color: 'var(--text-muted)' }}>Vendedor: </span><strong>{upmData.details.vendedor}</strong></div>}
+                                            {upmData.details.codigo && <div><span style={{ color: 'var(--text-muted)' }}>Código: </span><strong>{upmData.details.codigo}</strong></div>}
+                                            <div><span style={{ color: 'var(--text-muted)' }}>Módulos: </span><strong>{upmData.modules.length}</strong></div>
+                                            <div><span style={{ color: 'var(--text-muted)' }}>Arquivo: </span><strong>{upmData.fileName}</strong></div>
+                                        </div>
+                                    </div>
+
+                                    {/* Mapeamento de material codes → chapas */}
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                                            Mapear materiais ({upmData.matCodes.length})
+                                        </div>
+                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                            {upmData.matCodes.filter(c => upmMatMap[c]).length}/{upmData.matCodes.length} mapeados
+                                        </div>
+                                    </div>
+                                    <div className="rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                                        {upmData.matCodes.map((code, i) => {
+                                            const matched = !!upmMatMap[code];
+                                            const areaM2 = upmData.totalAreaPorMat[code] || 0;
+                                            return (
+                                                <div key={code} className="flex items-center gap-3 p-2.5"
+                                                    style={{ borderBottom: i < upmData.matCodes.length - 1 ? '1px solid var(--border)' : 'none', background: matched ? 'transparent' : 'rgba(245,158,11,0.05)' }}>
+                                                    <div className="flex-shrink-0" style={{ width: 200 }}>
+                                                        <div className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>{code}</div>
+                                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{areaM2.toFixed(2)} m²</div>
+                                                    </div>
+                                                    <ArrowRight size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                                    <select
+                                                        value={upmMatMap[code] || ''}
+                                                        onChange={e => setUpmMatMap(prev => ({ ...prev, [code]: e.target.value }))}
+                                                        className={`${Z.inp} text-xs`}
+                                                        style={{ flex: 1 }}
+                                                    >
+                                                        <option value="">— escolha uma chapa —</option>
+                                                        {chapasDB.map(c => (
+                                                            <option key={c.id} value={c.id}>{c.nome} ({R$(c.preco)})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-[10px] mt-3" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                        Cada módulo vira um item avulso. Valor = área cortada × preço/m² × markup de chapas ({Math.round((taxas.mk_chapas ?? 1.45) * 100 - 100)}%). Ajuste item a item depois se precisar.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                        {upmData && (
+                            <div className="p-4 flex items-center justify-between gap-2 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+                                <button onClick={cancelImportUPM} className={`${Z.btn2} text-xs`}>Cancelar</button>
+                                <button onClick={confirmImportUPM}
+                                    disabled={upmImporting || upmData.matCodes.some(c => !upmMatMap[c])}
+                                    className={`${Z.btn} text-xs flex items-center gap-2`}
+                                    style={{ opacity: (upmImporting || upmData.matCodes.some(c => !upmMatMap[c])) ? 0.5 : 1 }}>
+                                    {upmImporting ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
+                                    Importar {upmData.modules.length} módulo(s)
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* ─── Modal Importar JSON IA ──────────────────────── */}
             {showImportModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
