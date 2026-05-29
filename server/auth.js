@@ -49,6 +49,13 @@ export function signToken(user) {
 /**
  * Retorna o empresa_id do usuário logado (1 se não definido — compatibilidade legada).
  * Uso: const { empresa_id } = tenantOf(req);
+ *
+ * ⚠️ ESTADO ATUAL: DEPLOYMENT SINGLE-TENANT (1 empresa, id=1).
+ * A infra de multi-tenant (tenantOf/requireSameTenant) existe mas NÃO é aplicada
+ * nas rotas de negócio (orcamentos, clientes, leads, etc. fazem queries globais).
+ * Enquanto houver só 1 empresa isso é inofensivo. Antes de criar uma 2ª empresa,
+ * é OBRIGATÓRIO aplicar empresa_id em todos os WHERE/INSERT dessas rotas — senão
+ * haverá vazamento de dados entre tenants. Não criar empresa nova sem essa migração.
  */
 export function tenantOf(req) {
     if (!req.user?.empresa_id) console.warn(`[tenantOf] req.user sem empresa_id (user ${req.user?.id}) — fallback para 1`);
