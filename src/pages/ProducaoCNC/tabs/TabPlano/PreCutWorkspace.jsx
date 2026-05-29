@@ -4,7 +4,7 @@
 // curSimTime e totalSimTime são DERIVADOS (não estado).
 // Sim2D e Sim3D usam a mesma API imperativa (ref).
 // ══════════════════════════════════════════════════════════════
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import {
     ArrowLeft, Download, Send, Play, Pause, RotateCcw, Cpu,
     AlertTriangle, CheckCircle2,
@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { Spinner } from '../../../../ui';
 import Sim2D from '../../../../components/CncSim/Sim2D.jsx';
-import { Sim3D } from '../../../../components/CncSim/Sim3D.jsx';
+// Sim3D puxa three.js (~957KB). Lazy: só baixa quando o operador abre o 3D.
+const Sim3D = lazy(() => import('../../../../components/CncSim/Sim3D.jsx').then(m => ({ default: m.Sim3D })));
 import { parseGcode as parseGcodeForSim, getOpCat, OP_CATS, buildOperations } from '../../../../components/CncSim/parseGcode.js';
 import { analyzeGcodeOperational, formatMeters, formatMinutes } from '../../shared/operationalMetrics.js';
 import { useCockpitFullscreen } from '../../shared/useCockpitFullscreen.js';
@@ -559,15 +560,17 @@ export function PreCutWorkspace({ data, loteAtual, onVoltar, notify }) {
                                         onPlayEnd={handlePlayEnd}
                                     />
                                 ) : (
-                                    <Sim3D
-                                        ref={simRef}
-                                        parsed={parsedPreview}
-                                        chapa={chapaData}
-                                        playing={simPlaying}
-                                        speed={simSpeed}
-                                        onMoveChange={handleMoveChange}
-                                        onPlayEnd={handlePlayEnd}
-                                    />
+                                    <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 13 }}>Carregando visualização 3D…</div>}>
+                                        <Sim3D
+                                            ref={simRef}
+                                            parsed={parsedPreview}
+                                            chapa={chapaData}
+                                            playing={simPlaying}
+                                            speed={simSpeed}
+                                            onMoveChange={handleMoveChange}
+                                            onPlayEnd={handlePlayEnd}
+                                        />
+                                    </Suspense>
                                 )
                             ) : (
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: C.muted, padding: 24 }}>

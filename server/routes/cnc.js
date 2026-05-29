@@ -1973,14 +1973,27 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
             } catch (e) { console.warn('[aliasMap2] falha ao carregar aliases:', e.message); }
 
             const groups = {};
+            // Statements preparados UMA vez (eram recriados por peça) + cache de
+            // resolução por material|esp — peças do mesmo material resolvem igual.
+            const _stMat = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1');
+            const _stId = db.prepare('SELECT * FROM cnc_chapas WHERE id = ? AND ativo = 1');
+            const _stEspReal = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1');
+            const _stEspNom = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1');
+            const _stFallback = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1');
+            const _chapaCache = new Map();
             for (const p of pecas) {
                 let esp = p.espessura || 0;
                 if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
-                let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(p.material_code);
-                if (!chapa && aliasMap[p.material_code]) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE id = ? AND ativo = 1').get(aliasMap[p.material_code]);
-                if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
-                if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1').get(esp);
-                if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
+                const _ck = `${p.material_code || ''}|${esp}`;
+                let chapa = _chapaCache.get(_ck);
+                if (chapa === undefined) {
+                    chapa = _stMat.get(p.material_code);
+                    if (!chapa && aliasMap[p.material_code]) chapa = _stId.get(aliasMap[p.material_code]);
+                    if (!chapa) chapa = _stEspReal.get(esp, esp);
+                    if (!chapa) chapa = _stEspNom.get(esp);
+                    if (!chapa) chapa = _stFallback.get();
+                    _chapaCache.set(_ck, chapa || null);
+                }
                 const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
                 if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };
                 groups[chapaKey].pieces.push(p);
@@ -2591,15 +2604,26 @@ router.post('/otimizar-multi', requireAuth, (req, res) => {
         // Garante que peças de materiais diferentes que usam a mesma chapa física
         // (ex: mdf15 + mdp15 → MDF_15.5_BRANCO_TX) sejam otimizadas juntas
         const groups = {};
+        // Statements preparados UMA vez + cache de resolução por material|esp
+        const _stMatM = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1');
+        const _stEspRealM = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1');
+        const _stEspNomM = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1');
+        const _stFallbackM = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1');
+        const _chapaCacheM = new Map();
         for (const p of allPecas) {
             let esp = p.espessura || 0;
             if (!esp && p.material_code) { const m = p.material_code.match(/_(\d+(?:\.\d+)?)_/); if (m) esp = parseFloat(m[1]); }
 
-            // Resolver qual chapa essa peça vai usar
-            let chapa = db.prepare('SELECT * FROM cnc_chapas WHERE material_code = ? AND ativo = 1').get(p.material_code);
-            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ABS(espessura_real - ?) <= 1.0 AND ativo = 1 ORDER BY ABS(espessura_real - ?) ASC LIMIT 1').get(esp, esp);
-            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE espessura_nominal = ? AND ativo = 1').get(esp);
-            if (!chapa) chapa = db.prepare('SELECT * FROM cnc_chapas WHERE ativo = 1 ORDER BY comprimento DESC LIMIT 1').get();
+            // Resolver qual chapa essa peça vai usar (cacheado por material|esp)
+            const _ck = `${p.material_code || ''}|${esp}`;
+            let chapa = _chapaCacheM.get(_ck);
+            if (chapa === undefined) {
+                chapa = _stMatM.get(p.material_code);
+                if (!chapa) chapa = _stEspRealM.get(esp, esp);
+                if (!chapa) chapa = _stEspNomM.get(esp);
+                if (!chapa) chapa = _stFallbackM.get();
+                _chapaCacheM.set(_ck, chapa || null);
+            }
 
             const chapaKey = chapa ? `${chapa.material_code}__${chapa.espessura_real}` : `fallback__${esp}`;
             if (!groups[chapaKey]) groups[chapaKey] = { material_code: chapa?.material_code || p.material_code, espessura: chapa?.espessura_real || esp, chapa_resolvida: chapa, pieces: [] };

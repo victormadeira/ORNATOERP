@@ -269,9 +269,8 @@ export const CncSim = forwardRef(function CncSim(
                         chapa={chapa}
                         playing={tab === '2d' ? playing : false}
                         speed={speed}
-                        curTime={curTime}
-                        totalTime={totalTime}
-                        onTimeChange={handle2DTimeChange}
+                        onMoveChange={onMoveChange}
+                        onPlayEnd={onPlayEnd}
                     />
                 </div>
 
