@@ -22,8 +22,10 @@ module.exports = {
     },
     {
       name: 'cnc-optimizer',
-      script: '/usr/bin/python3',
-      args: '-m uvicorn app.main:app --host 127.0.0.1 --port 8000',
+      // Usa o uvicorn do venv (tem as deps: fastapi, shapely, numpy, etc.)
+      // /usr/bin/python3 do sistema NÃO tem uvicorn instalado.
+      script: '/home/ornato/app/cnc_optimizer/venv/bin/uvicorn',
+      args: 'app.main:app --host 127.0.0.1 --port 8000',
       cwd: '/home/ornato/app/cnc_optimizer',
       interpreter: 'none',
       env: {
