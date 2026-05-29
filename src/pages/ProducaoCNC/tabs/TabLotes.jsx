@@ -132,6 +132,29 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
         else setSelectedLotes(new Set(lotes.map(l => l.id)));
     };
 
+    // Cross-order: otimiza vários lotes JUNTOS (peças do mesmo material/cor caem
+    // nas mesmas chapas → muito menos desperdício que otimizar pedido a pedido).
+    const [otimMulti, setOtimMulti] = useState(false);
+    const otimizarJuntos = async () => {
+        const ids = Array.from(selectedLotes);
+        if (ids.length < 2) { notify?.('Selecione 2 ou mais lotes para otimizar juntos.', 'warning'); return; }
+        setOtimMulti(true);
+        try {
+            const r = await api.post('/cnc/otimizar-multi', { loteIds: ids });
+            if (r?.ok) {
+                notify?.(`${ids.length} lotes otimizados juntos: ${r.total_chapas} chapas, ${r.aproveitamento}% de aproveitamento.`, 'success');
+                setSelectedLotes(new Set());
+                loadLotes();
+            } else {
+                notify?.(r?.error || 'Falha na otimização conjunta.', 'error');
+            }
+        } catch (err) {
+            notify?.('Erro na otimização conjunta: ' + (err.error || err.message || ''), 'error');
+        } finally {
+            setOtimMulti(false);
+        }
+    };
+
     // Prioridade label e cor
     const PRIORIDADE = {
         2: { label: 'Urgente', color: 'var(--danger)', bg: 'var(--danger-bg)', border: 'var(--danger-border)' },
@@ -221,6 +244,30 @@ export function TabLotes({ lotes, loadLotes, notify, abrirLote }) {
                         </button>
                     </div>
                 </SectionHeader>
+
+                {selectedLotes.size >= 2 && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                        padding: '10px 14px', margin: '0 0 10px', borderRadius: 10,
+                        background: 'var(--primary-bg, rgba(19,121,240,0.08))',
+                        border: '1px solid var(--primary-border, rgba(19,121,240,0.25))',
+                    }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {selectedLotes.size} lotes selecionados
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            Otimizar juntos agrupa as peças do mesmo material/cor nas mesmas chapas — menos desperdício que pedido a pedido.
+                        </span>
+                        <button
+                            onClick={otimizarJuntos}
+                            disabled={otimMulti}
+                            className="btn-primary btn-sm"
+                            style={{ marginLeft: 'auto', fontSize: 12, gap: 6, opacity: otimMulti ? 0.7 : 1 }}
+                        >
+                            {otimMulti ? 'Otimizando…' : `Otimizar ${selectedLotes.size} lotes juntos (cross-order)`}
+                        </button>
+                    </div>
+                )}
 
                 <div style={{ overflowX: 'auto' }}>
                     <table className="table-stagger" style={{ width: '100%', borderCollapse: 'collapse' }}>
