@@ -388,6 +388,23 @@ export default function App() {
 
     useEffect(() => { loadClis(); loadOrcs(); loadTaxas(); loadNotifs(); loadWaUnread(); loadEmpresa(); }, [loadClis, loadOrcs, loadTaxas, loadNotifs, loadWaUnread, loadEmpresa]);
 
+    // Security alert (admin) — poll a cada 60s pra detectar ataques
+    const [securityAlert, setSecurityAlert] = useState(false);
+    const [securityFalhas, setSecurityFalhas] = useState(0);
+    useEffect(() => {
+        if (user?.role !== 'admin') return;
+        let timer;
+        const tick = () => {
+            api.get('/auth/security-status').then(d => {
+                setSecurityAlert(!!d.ataque_em_andamento);
+                setSecurityFalhas(d.falhas_1h || 0);
+            }).catch(() => {});
+        };
+        tick();
+        timer = setInterval(tick, 60_000);
+        return () => clearInterval(timer);
+    }, [user]);
+
     // Onboarding: mostrar para gerentes na primeira vez
     useEffect(() => { if (user && shouldShowOnboarding(user)) setShowOnboarding(true); }, [user]);
 
@@ -803,6 +820,7 @@ export default function App() {
                     waUnread={waUnread} notifsRef={notifsRef} showNotifs={showNotifs} setShowNotifs={setShowNotifs}
                     notifs={notifs} notifBadgeColor={notifBadgeColor} markAllRead={markAllRead}
                     goToNotif={goToNotif} getNotifStyle={getNotifStyle}
+                    securityAlert={securityAlert} securityFalhas={securityFalhas}
                     dark={dark} setDark={setDark}
                     crumbSub={(() => {
                         if (pg === 'novo' && editOrc?.id) {
@@ -831,7 +849,10 @@ export default function App() {
                 )}
 
                 {/* Page content with transition */}
-                <div key={pageKey} className="min-h-full page-enter">
+                {/* minHeight desconta os 56px do Topbar (que ocupa fluxo dentro do <main>);
+                    com min-h-full (100%) o conteúdo ficava 56px mais alto que a viewport,
+                    estourando páginas de altura fixa como a Oficina. */}
+                <div key={pageKey} className="page-enter" style={{ minHeight: 'calc(100% - 56px)' }}>
                     <ErrorBoundary>
                         <Suspense fallback={<LazyFallback />}>
                             {renderPage()}
