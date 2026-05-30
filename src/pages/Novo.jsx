@@ -136,6 +136,7 @@ function parseUPMJson(raw) {
     const modules = [];
     const matCodes = new Set();
     const totalAreaPorMat = {}; // { matcode: m² total no projeto inteiro }
+    const ferragens = {}; // { code: { code, descricao, finish, qtd } } — acessórios/ferragens
     for (const k of Object.keys(ents)) {
         const m = ents[k];
         if (!m) continue;
@@ -155,6 +156,20 @@ function parseUPMJson(raw) {
                     areasPorMat[code] = (areasPorMat[code] || 0) + a;
                     matCodes.add(code);
                 }
+            }
+            // Ferragem/acessório: tem upmquantity e código, mas NÃO é peça/painel/borda
+            // NEM usinagem (CM_USI_*/MILLING/RAS = rebaixo/furação, são operações de
+            // produção, não ferragens). Ex de ferragem: CM_KIT_CANT, CM_KIT_MIN15,
+            // CM_KIT_UNIBLOCK, CM_PERFIL, CM_TUB, CM_VID, CM_KIT_PAR (parafuso).
+            else if (!node.upmpiece && !node.upmedge && node.upmcode
+                     && (parseFloat(node.upmquantity) || 0) > 0
+                     && !/USI|MILLING|_RAS\b/i.test(node.upmcode)) {
+                const code = node.upmcode;
+                const q = parseFloat(node.upmquantity) || 0;
+                // Classifica: parafuso/consumível vs ferragem "real" (pra UI agrupar/filtrar)
+                const tipo = /_PAR_|PARAFUSO|_PAR\b/i.test(code) ? 'consumivel' : 'ferragem';
+                if (!ferragens[code]) ferragens[code] = { code, descricao: node.upmdescription || '', finish: node.upmfinish || '', qtd: 0, tipo };
+                ferragens[code].qtd += q;
             }
             if (node.entities) for (const sk of Object.keys(node.entities)) walk(node.entities[sk]);
         };
@@ -186,6 +201,7 @@ function parseUPMJson(raw) {
         modules,
         matCodes: [...matCodes].sort(),
         totalAreaPorMat,
+        ferragens: Object.values(ferragens).sort((a, b) => b.qtd - a.qtd),
     };
 }
 
