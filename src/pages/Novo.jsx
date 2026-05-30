@@ -1498,8 +1498,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const [importResult, setImportResult] = useState(null);
     // UpMobb (UPM) import
     const [showImportUPMModal, setShowImportUPMModal] = useState(false);
-    const [upmData, setUpmData] = useState(null);          // { details, modules[], finishes[], fileName }
-    const [upmMatMap, setUpmMatMap] = useState({});        // { finish: chapaId }
+    const [upmData, setUpmData] = useState(null);          // { details, modules[], matCodes[], ferragens[], fileName }
+    const [upmMatMap, setUpmMatMap] = useState({});        // { matcode: chapaId } — preço do m²
+    const [upmMatSel, setUpmMatSel] = useState({});        // { matcode: bool } — contar este MDF?
+    const [upmFerrMap, setUpmFerrMap] = useState({});      // { ferrCode: ferragemDBId } — preço
+    const [upmFerrSel, setUpmFerrSel] = useState({});      // { ferrCode: bool } — contar esta ferragem?
+    const [upmAmbNome, setUpmAmbNome] = useState('');      // nome do ambiente criado
+    const [upmDescricao, setUpmDescricao] = useState('');  // descrição que o CLIENTE vê
     const [upmImporting, setUpmImporting] = useState(false);
     const upmFileRef = useRef(null);
     const [novoConfirm, setNovoConfirm] = useState(null); // { msg, title?, onOk }
@@ -1840,13 +1845,41 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                 const parsed = parseUPMJson(raw);
                 parsed.fileName = file.name;
                 setUpmData(parsed);
-                // Auto-sugere mapeamento por matcode (inclui espessura)
-                const initialMap = {};
+                // Auto-sugere chapa por matcode (inclui espessura) + seleciona todos
+                const initialMap = {}, initialSel = {};
                 for (const code of parsed.matCodes) {
                     const suggested = suggestChapaForMatcode(code, chapasDB);
                     if (suggested) initialMap[code] = suggested;
+                    // Engrossados (25.5/31/38.5) começam DESmarcados — costumam dup-contar
+                    initialSel[code] = !/_(2[0-9]|3[0-9])(\.\d+)?_/.test(code);
                 }
                 setUpmMatMap(initialMap);
+                setUpmMatSel(initialSel);
+                // Auto-mapeia ferragens por tokens do código → catálogo; seleciona todas
+                const fMap = {}, fSel = {};
+                const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+                for (const f of (parsed.ferragens || [])) {
+                    fSel[f.code] = f.tipo !== 'consumivel'; // consumível (parafuso) começa desmarcado
+                    const codeN = norm(f.code) + ' ' + norm(f.descricao);
+                    const hit = (ferragensDB || []).find(fd => {
+                        const n = norm(fd.nome);
+                        return (/cant/.test(codeN) && /cantoneira/.test(n)) ||
+                               (/min/.test(codeN) && /minifix/.test(n)) ||
+                               (/uniblock|pratel/.test(codeN) && /uniblock|pratel|suporte/.test(n)) ||
+                               (/parafuso|_par_/.test(codeN) && /parafuso/.test(n)) ||
+                               (/vid/.test(codeN) && /vidro/.test(n)) ||
+                               (/perfil/.test(codeN) && /perfil/.test(n)) ||
+                               (/tubo|_tub_/.test(codeN) && /tubo/.test(n));
+                    });
+                    if (hit) fMap[f.code] = hit.id;
+                }
+                setUpmFerrMap(fMap);
+                setUpmFerrSel(fSel);
+                // Cabeçalho + descrição sugerida (cliente edita)
+                setUpmAmbNome(parsed.details.projeto || 'Móveis Planejados');
+                const cores = [...new Set(parsed.matCodes.map(c => (c.match(/MDF_[\d.]+_(.+)/) || [])[1] || '').filter(Boolean))]
+                    .map(c => c.replace(/_/g, ' ').toLowerCase()).slice(0, 3);
+                setUpmDescricao(`Móveis planejados sob medida${cores.length ? ` em MDF ${cores.join(', ')}` : ''}, com ferragens e acessórios inclusos. Projeto ${parsed.details.projeto || ''}.`.trim());
             } catch (err) {
                 notify('Erro ao ler JSON: ' + err.message, 'error');
             }
@@ -1857,64 +1890,62 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     const cancelImportUPM = () => {
         setShowImportUPMModal(false);
         setUpmData(null);
-        setUpmMatMap({});
+        setUpmMatMap({}); setUpmMatSel({}); setUpmFerrMap({}); setUpmFerrSel({});
+        setUpmAmbNome(''); setUpmDescricao('');
         if (upmFileRef.current) upmFileRef.current.value = '';
     };
 
+    // Custo/total do import UPM com base no que está SELECIONADO (para preview e import)
+    const upmTotais = useMemo(() => {
+        if (!upmData) return { custoMdf: 0, custoFerr: 0, totalMdf: 0, totalFerr: 0, total: 0, m2: 0, nFerr: 0 };
+        const mkChapas = taxas.mk_chapas ?? 1.45;
+        const mkFerr = taxas.mk_ferragens ?? 1.15;
+        let custoMdf = 0, m2 = 0;
+        for (const code of upmData.matCodes) {
+            if (!upmMatSel[code]) continue;
+            const area = upmData.totalAreaPorMat[code] || 0; m2 += area;
+            const chapa = chapasDB.find(c => c.id === upmMatMap[code]);
+            custoMdf += area * chapaPrecoM2(chapa);
+        }
+        let custoFerr = 0, nFerr = 0;
+        for (const f of (upmData.ferragens || [])) {
+            if (!upmFerrSel[f.code]) continue;
+            nFerr++;
+            const fd = ferragensDB.find(x => x.id === upmFerrMap[f.code]);
+            if (fd) custoFerr += (f.qtd || 0) * (fd.preco || 0);
+        }
+        const totalMdf = custoMdf * mkChapas, totalFerr = custoFerr * mkFerr;
+        return { custoMdf, custoFerr, totalMdf, totalFerr, total: totalMdf + totalFerr, m2, nFerr };
+    }, [upmData, upmMatSel, upmMatMap, upmFerrSel, upmFerrMap, chapasDB, ferragensDB, taxas]);
+
     const confirmImportUPM = () => {
         if (!upmData) return;
-        // Bloqueia se algum material code não foi mapeado
-        const unmapped = upmData.matCodes.filter(c => !upmMatMap[c]);
+        // Só exige mapear os materiais SELECIONADOS
+        const selMats = upmData.matCodes.filter(c => upmMatSel[c]);
+        const unmapped = selMats.filter(c => !upmMatMap[c]);
         if (unmapped.length > 0) {
-            notify(`Mapeie todos os materiais antes de importar (${unmapped.length} pendente${unmapped.length > 1 ? 's' : ''})`, 'error');
+            notify(`Mapeie os materiais selecionados antes de importar (${unmapped.length} pendente${unmapped.length > 1 ? 's' : ''})`, 'error');
             return;
         }
         setUpmImporting(true);
         try {
-            const mkChapas = taxas.mk_chapas ?? 1.45;
-            // Pré-calcula preço/m² por material code
-            const precoPorMat = {};
-            for (const code of upmData.matCodes) {
-                const chapa = chapasDB.find(c => c.id === upmMatMap[code]);
-                precoPorMat[code] = chapaPrecoM2(chapa);
-            }
-            // Cria os itens avulsos a partir dos módulos
-            const itens = upmData.modules.map((m, idx) => {
-                let custoMat = 0;
-                for (const [code, area] of Object.entries(m.areasPorMat)) {
-                    custoMat += area * (precoPorMat[code] || 0);
-                }
-                // valor unitário (qtd multiplica no orçamento)
-                const valor = Math.round(custoMat * mkChapas * 100) / 100;
-                const dimsStr = [m.dims.l, m.dims.a, m.dims.p]
-                    .filter(d => d > 0)
-                    .map(d => Math.round(d))
-                    .join(' × ');
-                const finishStr = m.finish ? ` · ${m.finish}` : '';
-                return {
-                    id: uid(),
-                    tipo: 'avulso',
-                    nome: `${m.descricao}${m.code ? ` [${m.code}]` : ''}`,
-                    valor,
-                    qtd: m.qtd || 1,
-                    desc: `${dimsStr} mm${finishStr}`,
-                    grupo_id: '',
-                    ordem: idx,
-                };
-            });
+            const valor = Math.round(upmTotais.total * 100) / 100;
+            // 1 ambiente, 1 item avulso com a DESCRIÇÃO do cliente (não lista os módulos)
+            const nome = upmAmbNome || upmData.details.projeto || 'Móveis Planejados';
+            const item = {
+                id: uid(), tipo: 'avulso', nome,
+                valor, qtd: 1,
+                desc: upmDescricao || '',
+                grupo_id: '', ordem: 0,
+            };
             const novoAmb = {
-                id: uid(),
-                nome: upmData.details.projeto || 'Casa Completa',
-                tipo: 'calculadora',
-                itens,
-                paineis: [],
-                itensEspeciais: [],
+                id: uid(), nome, tipo: 'calculadora',
+                itens: [item], paineis: [], itensEspeciais: [],
+                descricao: upmDescricao || '',
             };
             setAmbientes(prev => [...prev, novoAmb]);
-            // Auto-preenche projeto/cliente nome se ainda vazios
             if (!projeto && upmData.details.projeto) setProjeto(upmData.details.projeto);
-            const totalPV = itens.reduce((s, i) => s + i.valor * i.qtd, 0);
-            notify(`${itens.length} módulo(s) importado(s) em "${novoAmb.nome}" — total: ${R$(totalPV)}`);
+            notify(`Importado em "${nome}": ${selMats.length} materiais (${upmTotais.m2.toFixed(1)}m²) + ${upmTotais.nFerr} ferragens — total ${R$(valor)}`);
             setExpandedAmb(novoAmb.id);
             cancelImportUPM();
             setTimeout(() => {
@@ -5892,58 +5923,104 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                         </div>
                                     </div>
 
-                                    {/* Mapeamento de material codes → chapas */}
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                                            Mapear materiais ({upmData.matCodes.length})
+                                    {/* Nome + descrição (cliente) */}
+                                    <div className="mb-3 grid grid-cols-1 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: 'var(--text-muted)' }}>Nome do ambiente</label>
+                                            <input value={upmAmbNome} onChange={e => setUpmAmbNome(e.target.value)} className={`${Z.inp} text-xs`} placeholder="Ex: Casa Completa" />
                                         </div>
-                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                            {upmData.matCodes.filter(c => upmMatMap[c]).length}/{upmData.matCodes.length} mapeados
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: 'var(--text-muted)' }}>Descrição (o CLIENTE vê isto — não a lista de módulos)</label>
+                                            <textarea value={upmDescricao} onChange={e => setUpmDescricao(e.target.value)} rows={2} className={`${Z.inp} text-xs`} style={{ resize: 'vertical', fontFamily: 'inherit' }} placeholder="Móveis planejados sob medida em MDF..." />
+                                        </div>
+                                    </div>
+
+                                    {/* Materiais (MDF) — seleção + chapa p/ preço */}
+                                    <div className="mb-1 flex items-center justify-between">
+                                        <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Materiais — MDF</div>
+                                        <div className="flex gap-3 text-[10px]">
+                                            <button onClick={() => setUpmMatSel(Object.fromEntries(upmData.matCodes.map(c => [c, true])))} className="cursor-pointer" style={{ color: 'var(--primary)' }}>todos</button>
+                                            <button onClick={() => setUpmMatSel({})} className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>nenhum</button>
                                         </div>
                                     </div>
                                     <div className="rounded-lg" style={{ border: '1px solid var(--border)' }}>
                                         {upmData.matCodes.map((code, i) => {
-                                            const matched = !!upmMatMap[code];
+                                            const sel = !!upmMatSel[code];
                                             const areaM2 = upmData.totalAreaPorMat[code] || 0;
+                                            const eng = /_(2[0-9]|3[0-9])(\.\d+)?_/.test(code);
                                             return (
-                                                <div key={code} className="flex items-center gap-3 p-2.5"
-                                                    style={{ borderBottom: i < upmData.matCodes.length - 1 ? '1px solid var(--border)' : 'none', background: matched ? 'transparent' : 'rgba(245,158,11,0.05)' }}>
-                                                    <div className="flex-shrink-0" style={{ width: 200 }}>
-                                                        <div className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>{code}</div>
+                                                <div key={code} className="flex items-center gap-2 p-2" style={{ borderBottom: i < upmData.matCodes.length - 1 ? '1px solid var(--border)' : 'none', opacity: sel ? 1 : 0.5 }}>
+                                                    <input type="checkbox" checked={sel} onChange={e => setUpmMatSel(p => ({ ...p, [code]: e.target.checked }))} style={{ cursor: 'pointer', flexShrink: 0 }} />
+                                                    <div className="flex-shrink-0" style={{ width: 185 }}>
+                                                        <div className="text-[11px] font-mono" style={{ color: 'var(--text-primary)' }}>{code}{eng && <span className="ml-1 text-[8px] px-1 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--warning)' }}>engrossado</span>}</div>
                                                         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{areaM2.toFixed(2)} m²</div>
                                                     </div>
-                                                    <ArrowRight size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                                                    <select
-                                                        value={upmMatMap[code] || ''}
-                                                        onChange={e => setUpmMatMap(prev => ({ ...prev, [code]: e.target.value }))}
-                                                        className={`${Z.inp} text-xs`}
-                                                        style={{ flex: 1 }}
-                                                    >
-                                                        <option value="">— escolha uma chapa —</option>
-                                                        {chapasDB.map(c => (
-                                                            <option key={c.id} value={c.id}>{c.nome} ({R$(c.preco)})</option>
-                                                        ))}
+                                                    <select value={upmMatMap[code] || ''} onChange={e => setUpmMatMap(p => ({ ...p, [code]: e.target.value }))} className={`${Z.inp} text-xs`} style={{ flex: 1 }} disabled={!sel}>
+                                                        <option value="">— chapa p/ preço —</option>
+                                                        {chapasDB.map(c => <option key={c.id} value={c.id}>{c.nome} ({R$(c.preco)})</option>)}
                                                     </select>
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                    <p className="text-[10px] mt-3" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                        Cada módulo vira um item avulso. Valor = área cortada × preço/m² × markup de chapas ({Math.round((taxas.mk_chapas ?? 1.45) * 100 - 100)}%). Ajuste item a item depois se precisar.
-                                    </p>
+
+                                    {/* Ferragens / acessórios — seleção + ferragem p/ preço */}
+                                    {(upmData.ferragens || []).length > 0 && (
+                                        <>
+                                            <div className="mb-1 mt-3 flex items-center justify-between">
+                                                <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Ferragens / acessórios ({upmData.ferragens.length})</div>
+                                                <div className="flex gap-3 text-[10px]">
+                                                    <button onClick={() => setUpmFerrSel(Object.fromEntries(upmData.ferragens.map(f => [f.code, true])))} className="cursor-pointer" style={{ color: 'var(--primary)' }}>todas</button>
+                                                    <button onClick={() => setUpmFerrSel({})} className="cursor-pointer" style={{ color: 'var(--text-muted)' }}>nenhuma</button>
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg" style={{ border: '1px solid var(--border)', maxHeight: 180, overflowY: 'auto' }}>
+                                                {upmData.ferragens.map((f, i) => {
+                                                    const sel = !!upmFerrSel[f.code];
+                                                    return (
+                                                        <div key={f.code} className="flex items-center gap-2 p-2" style={{ borderBottom: i < upmData.ferragens.length - 1 ? '1px solid var(--border)' : 'none', opacity: sel ? 1 : 0.5 }}>
+                                                            <input type="checkbox" checked={sel} onChange={e => setUpmFerrSel(p => ({ ...p, [f.code]: e.target.checked }))} style={{ cursor: 'pointer', flexShrink: 0 }} />
+                                                            <div className="flex-shrink-0" style={{ width: 185 }}>
+                                                                <div className="text-[11px]" style={{ color: 'var(--text-primary)' }}>{f.descricao || f.code} <span style={{ color: 'var(--text-muted)' }}>×{f.qtd}</span>{f.tipo === 'consumivel' && <span className="ml-1 text-[8px]" style={{ color: 'var(--text-muted)' }}>(consumível)</span>}</div>
+                                                                <div className="text-[9px] font-mono" style={{ color: 'var(--text-muted)' }}>{f.code}</div>
+                                                            </div>
+                                                            <select value={upmFerrMap[f.code] || ''} onChange={e => setUpmFerrMap(p => ({ ...p, [f.code]: e.target.value }))} className={`${Z.inp} text-xs`} style={{ flex: 1 }} disabled={!sel}>
+                                                                <option value="">— ferragem p/ preço —</option>
+                                                                {ferragensDB.map(fd => <option key={fd.id} value={fd.id}>{fd.nome} ({R$(fd.preco)})</option>)}
+                                                            </select>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* Total (preview) */}
+                                    <div className="mt-3 p-3 rounded-lg flex items-center justify-between" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                                        <div className="text-[10px]" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                            MDF {R$(upmTotais.totalMdf)} ({upmTotais.m2.toFixed(1)}m²) + Ferragens {R$(upmTotais.totalFerr)}<br />
+                                            <span style={{ opacity: 0.7 }}>markup incluso · vira 1 ambiente com a descrição acima</span>
+                                        </div>
+                                        <div className="text-base font-bold" style={{ color: 'var(--primary)' }}>{R$(upmTotais.total)}</div>
+                                    </div>
                                 </>
                             )}
                         </div>
                         {upmData && (
                             <div className="p-4 flex items-center justify-between gap-2 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
                                 <button onClick={cancelImportUPM} className={`${Z.btn2} text-xs`}>Cancelar</button>
-                                <button onClick={confirmImportUPM}
-                                    disabled={upmImporting || upmData.matCodes.some(c => !upmMatMap[c])}
-                                    className={`${Z.btn} text-xs flex items-center gap-2`}
-                                    style={{ opacity: (upmImporting || upmData.matCodes.some(c => !upmMatMap[c])) ? 0.5 : 1 }}>
-                                    {upmImporting ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
-                                    Importar {upmData.modules.length} módulo(s)
-                                </button>
+                                {(() => {
+                                    const selMats = upmData.matCodes.filter(c => upmMatSel[c]);
+                                    const bloqueado = upmImporting || selMats.length === 0 || selMats.some(c => !upmMatMap[c]);
+                                    return (
+                                        <button onClick={confirmImportUPM} disabled={bloqueado}
+                                            className={`${Z.btn} text-xs flex items-center gap-2`}
+                                            style={{ opacity: bloqueado ? 0.5 : 1 }}>
+                                            {upmImporting ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
+                                            Importar — {R$(upmTotais.total)}
+                                        </button>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>
