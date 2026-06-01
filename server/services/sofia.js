@@ -64,22 +64,41 @@ export function bairroPremium(bairro) {
 // GUARDRAILS — Detectar violações em respostas da Sofia
 // ═══════════════════════════════════════════════════════
 
-// Palavras/frases que a Sofia NUNCA pode dizer
-const PALAVRAS_PROIBIDAS = [
-    // Financeiras
+// ═══ PADRÕES DE PREÇO (blindagem) ═══
+// Qualquer um destes na SAÍDA da Sofia = bloqueio + escalação imediata pro humano.
+// Cobre R$ explícito, valor por extenso ("dez mil"), gíria ("8 contos") e verbos de preço.
+// Falso-positivo aqui é seguro: no pior caso a conversa vai pro humano (nunca vaza valor).
+const PADROES_PRECO = [
+    // R$ explícito
     /\br\$\s*\d/i,
-    /\d+\s*(mil|k)\s*(reais|r\$)/i,
+    /\d+\s*(?:mil|k)\s*(?:reais|r\$)/i,
+    // Valor com "mil" (dígitos): "10 mil", "15 mil", "200 mil", "10.000 mil"
+    /\b\d{1,3}(?:[.,]\d{3})*\s*mil\b/i,
+    // Valor por extenso: "dez mil", "vinte mil", "cinquenta mil"...
+    /\b(?:um|dois|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos)\s*mil\b/i,
+    // Gíria de dinheiro: "8 contos", "5 paus", "10 pila"
+    /\b\d+\s*(?:conto|contos|pau|paus|pila|pilas|prata|pratas)\b/i,
+    // Verbos de preço seguidos de número/R$: "custa 8", "sai por R$", "fica por 12 mil"
+    /\b(?:custa|custam|sai por|fica por|or[çc]ad[oa] em|or[çc]a em)\s*(?:uns?\s*)?(?:cerca de\s*)?r?\$?\s*\d/i,
+    // Aproximações de VALOR explícitas (exige token de dinheiro; não pega "em torno de 30 dias")
+    /\b(?:gira em torno|fica em torno|sai em torno)\s*de\s*(?:r?\$|\d+\s*mil|\d{4,})/i,
+    /\bna faixa d\w+\s*(?:de\s*)?(?:r?\$|\d+\s*mil|\d{4,})/i,
+    /a partir de\s*r?\$?\s*\d/i,
+    /\bem m[ée]dia\b/i,
+    /\bmais ou menos\s*r?\$/i,
+    // Termos comerciais que cheiram a preço/condição
     /\bpromo[çc][ãa]o\b/i,
     /\boferta\b/i,
     /\bdesconto\b/i,
-    /\bgratuito\b/i,
+    /\bgratuit[oa]s?\b/i,
     /\bgr[áa]tis\b/i,
-    /a partir de\s*r?\$?\s*\d/i,
-    /em m[ée]dia\b/i,
-    /gira em torno\b/i,
-    /mais ou menos\s*r?\$/i,
     /\bmais em conta\b/i,
     /\bmais barato\b/i,
+];
+
+// Palavras/frases que a Sofia NUNCA pode dizer
+const PALAVRAS_PROIBIDAS = [
+    ...PADROES_PRECO,
 
     // Compromisso
     /\bsem compromisso\b/i,
@@ -157,6 +176,17 @@ export function sanitizar(texto) {
     // Remove gírias
     for (const re of GIRIAS) out = out.replace(re, '');
     return out.replace(/\s+/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
+}
+
+/**
+ * Detecta QUALQUER indício de preço/valor no texto.
+ * Porta final anti-preço: se a saída da Sofia contém valor (mesmo após sanitizar),
+ * a mensagem NÃO vai pro cliente — escala pro humano. Vale também para a entrada
+ * (auditar perguntas de preço do cliente).
+ */
+export function contemPreco(texto) {
+    if (!texto) return false;
+    return PADROES_PRECO.some((re) => re.test(texto));
 }
 
 // ═══════════════════════════════════════════════════════
@@ -714,7 +744,7 @@ export function avaliarRedencao(texto, bloqueadoDesde) {
 export default {
     CIDADES_WHITELIST, CIDADES_BLACKLIST, BAIRROS_PREMIUM,
     cidadeDentroWhitelist, bairroPremium,
-    validarResposta, sanitizar,
+    validarResposta, sanitizar, contemPreco,
     extrairDossie,
     calcularScore, calcularIntencao, gerarTags,
     saudacaoAtual, podeEnviarFollowup, horarioHumanoAtivo,

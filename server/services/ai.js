@@ -1118,6 +1118,37 @@ function logarUso(provider, modelo, inputTokens, outputTokens, contexto = '', ca
     }
 }
 
+// ═══ Auditoria anti-preço ═══
+// Registra TODA vez que a porta final bloqueou um valor na saída da Sofia.
+// Dá prova auditável de que o sistema barra preço (tabela criada de forma lazy/idempotente).
+let _auditoriaPrecoPronta = false;
+function ensureAuditoriaPreco() {
+    if (_auditoriaPrecoPronta) return;
+    try {
+        db.exec(`CREATE TABLE IF NOT EXISTS ia_auditoria_preco (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversa_id INTEGER,
+            tipo TEXT DEFAULT 'saida_bloqueada',
+            trecho TEXT DEFAULT '',
+            violacoes TEXT DEFAULT '',
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        _auditoriaPrecoPronta = true;
+    } catch (e) {
+        console.error('[Sofia] não foi possível criar ia_auditoria_preco:', e.message);
+    }
+}
+function registrarAuditoriaPreco(conversaId, trecho, violacoes) {
+    try {
+        ensureAuditoriaPreco();
+        db.prepare(
+            'INSERT INTO ia_auditoria_preco (conversa_id, tipo, trecho, violacoes) VALUES (?, ?, ?, ?)'
+        ).run(conversaId || null, 'saida_bloqueada', String(trecho || '').slice(0, 600), (violacoes || []).join(', '));
+    } catch (e) {
+        console.error('[Sofia] auditoria de preço falhou:', e.message);
+    }
+}
+
 // ═══ Chamada unificada para IA (Anthropic ou OpenAI) ═══
 // systemPrompt: string completa OU { staticPart, dynamicPart } para prompt caching eficiente
 export async function callAI(messages, systemPrompt, options = {}) {
@@ -1650,14 +1681,18 @@ export async function processIncomingMessage(conversa, messageText) {
         if (!validacao.ok) {
             console.warn('[Sofia] Violações na resposta:', validacao.violations.join(', '));
             textoFinal = sofia.sanitizar(textoLimpo);
-            // Se ainda tem R$/valor explícito, escalar (grave)
-            if (/r\$\s*\d|\d+\s*mil\s*(reais|r\$)/i.test(textoFinal)) {
-                console.error('[Sofia] Resposta com valor em R$ — escalando para humano');
-                return {
-                    action: 'escalate',
-                    text: 'Um momento! Vou te transferir pro nosso consultor comercial pra dar sequência ao atendimento. ✨',
-                };
-            }
+        }
+        // ═══ PORTA FINAL ANTI-PREÇO (blindagem) ═══
+        // Qualquer indício de valor — R$, "dez mil", "fica por 8", gíria — NÃO sai pro cliente.
+        // Vale MESMO se a sanitização tiver "limpado" o texto: aqui é a última barreira.
+        // Bloqueia, registra em auditoria e entrega a conversa pro humano.
+        if (sofia.contemPreco(textoFinal)) {
+            console.error('[Sofia] PREÇO detectado na saída — bloqueado e escalado:', (validacao.violations || []).join(', '));
+            registrarAuditoriaPreco(conversa.id, textoLimpo, validacao.violations);
+            return {
+                action: 'escalate',
+                text: 'Vou te conectar agora com nosso consultor pra cuidar dos detalhes com você — só um instante. ✨',
+            };
         }
 
         // ═══ Salvar dossiê e score na conversa ═══
