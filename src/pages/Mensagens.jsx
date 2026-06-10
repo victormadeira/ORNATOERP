@@ -233,6 +233,13 @@ export default function Mensagens({ notify }) {
         obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
         return () => obs.disconnect();
     }, []);
+    // Papel de parede do chat = identidade da marca Ornato (a mesma da proposta)
+    const [marca, setMarca] = useState({ cp: '#1B2A4A', ca: '#C9A96E' });
+    useEffect(() => {
+        api.get('/config/empresa')
+            .then(d => setMarca({ cp: d?.proposta_cor_primaria || '#1B2A4A', ca: d?.proposta_cor_accent || '#C9A96E' }))
+            .catch(() => { /* mantém defaults da marca */ });
+    }, []);
     const [recording, setRecording] = useState(false);
     const [lightbox, setLightbox] = useState(null);
     const [showPanel, setShowPanel] = useState(() => {
@@ -982,9 +989,10 @@ export default function Mensagens({ notify }) {
 
                 {/* ═══ Painel Direito: Chat ═══ */}
                 <div style={{
-                    flex: 1, display: (isNarrow && !mobileShowChat) ? 'none' : 'flex', flexDirection: 'column',
+                    flex: 1, minWidth: 0, display: (isNarrow && !mobileShowChat) ? 'none' : 'flex', flexDirection: 'column',
                     background: 'var(--bg-body)',
                     borderLeft: '1px solid var(--border)',
+                    overflow: 'hidden', // sem minWidth:0 + overflow, o input estoura a largura no mobile (botão Enviar saía da tela)
                 }}>
                     {!activeConv ? (
                         // Nenhuma conversa selecionada — estilo WA Web splash
@@ -1186,11 +1194,11 @@ export default function Mensagens({ notify }) {
                                 style={{
                                     flex: 1, overflowY: 'auto', padding: '14px 5% 10px',
                                     display: 'flex', flexDirection: 'column', gap: 2,
-                                    // Papel de parede estilo WhatsApp sobre o fundo do TEMA DO SISTEMA:
-                                    // doodle neutro (branco/preto translúcido) funciona em qualquer cor de fundo
-                                    background: 'var(--bg-body)',
-                                    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><g fill='none' stroke='${appDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.055)'}' stroke-width='1.2'><circle cx='24' cy='28' r='7'/><path d='M120 18l8 8m0-8l-8 8'/><rect x='66' y='10' width='13' height='13' rx='3' transform='rotate(12 72 16)'/><path d='M22 92c4-6 12-6 16 0'/><circle cx='138' cy='66' r='5'/><path d='M84 64l10 4-4 10z'/><path d='M16 138l9 9m0-9l-9 9'/><rect x='108' y='118' width='12' height='12' rx='6'/><path d='M58 132c5-5 13-5 18 0'/><circle cx='148' cy='146' r='6'/><path d='M96 92h14M103 85v14'/></g></svg>`)}")`,
-                                    backgroundSize: '320px 320px',
+                                    // Papel de parede = IDENTIDADE ORNATO (a mesma da proposta):
+                                    // fundo grafite/navy da marca (cp) + monograma/doodle em cobre (ca) sutil.
+                                    background: marca.cp,
+                                    backgroundImage: `radial-gradient(circle at 50% -10%, rgba(255,255,255,0.06), transparent 55%), url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='170' height='170' viewBox='0 0 170 170'><g fill='none' stroke='${marca.ca}' stroke-width='1.3' opacity='0.12'><circle cx='26' cy='30' r='7'/><path d='M128 20l8 8m0-8l-8 8'/><rect x='70' y='12' width='13' height='13' rx='3' transform='rotate(12 76 18)'/><path d='M24 98c4-6 12-6 16 0'/><circle cx='146' cy='70' r='5'/><path d='M90 68l10 4-4 10z'/><path d='M18 146l9 9m0-9l-9 9'/><rect x='114' y='124' width='12' height='12' rx='6'/><path d='M62 140c5-5 13-5 18 0'/><circle cx='156' cy='154' r='6'/><path d='M102 98h14M109 91v14'/></g></svg>`)}")`,
+                                    backgroundSize: 'auto, 330px 330px',
                                 }}>
                                 {mensagens.length === 0 && (
                                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 32, margin: 'auto' }}>
@@ -1395,7 +1403,7 @@ export default function Mensagens({ notify }) {
                                 background: 'var(--bg-card)',
                             }}>
                                 {/* Toggle interno + sugerir (chips discretos) */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
                                     <button
                                         onClick={() => setInterno(false)}
                                         style={{
@@ -1486,7 +1494,7 @@ export default function Mensagens({ notify }) {
                                         }}
                                         rows={1}
                                         style={{
-                                            flex: 1, resize: 'none', fontSize: 14.5, lineHeight: 1.4,
+                                            flex: 1, minWidth: 0, resize: 'none', fontSize: 14.5, lineHeight: 1.4,
                                             border: 'none', outline: 'none',
                                             background: 'transparent', color: 'var(--text-primary)',
                                             padding: '8px 4px', fontFamily: 'inherit',
