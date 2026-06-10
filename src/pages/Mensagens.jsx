@@ -427,6 +427,15 @@ export default function Mensagens({ notify }) {
             setInterno(false);
             await loadMensagens(activeConv);
             loadConversas();
+            // Fallback: o status (enviando→enviado/falhou) chega por WS. Se o evento
+            // se perder, re-sincroniza em 18s (envio à Evolution tem timeout de 15s).
+            const convId = activeConv;
+            setTimeout(() => {
+                setMensagens(prev => {
+                    if (prev.some(m => m.status_envio === 'enviando')) loadMensagens(convId);
+                    return prev;
+                });
+            }, 18000);
         } catch (e) {
             notify?.(e.error || 'Erro ao enviar');
         } finally { setSending(false); }

@@ -362,18 +362,13 @@ router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), asy
     } catch (_) { /* silencioso */ }
 
     // ─── 3. Enviar via Evolution em background; marcar status ao resolver/falhar ───
-    const bcastStatus = req.app.locals.wsBroadcast;
+    const bc = (status, extra = {}) => {
+        try { db.prepare(`UPDATE chat_mensagens SET status_envio = ?${extra.wa_message_id ? ', wa_message_id = ?' : ''} WHERE id = ?`).run(...(extra.wa_message_id ? [status, extra.wa_message_id, msgId] : [status, msgId])); } catch (e) { console.error(`[WA enviar] UPDATE status falhou conv ${id}:`, e.message); }
+        try { req.app.locals.wsBroadcast?.('chat.message-status', { conversa_id: id, mensagem_id: msgId, status, ...extra }); } catch (_) { /* */ }
+    };
     evolution.sendText(dest, conteudo)
-        .then(result => {
-            const waId = result?.key?.id || '';
-            db.prepare("UPDATE chat_mensagens SET status_envio = 'enviado', wa_message_id = ? WHERE id = ?").run(waId, msgId);
-            try { bcastStatus?.('chat.message-status', { conversa_id: id, mensagem_id: msgId, wa_message_id: waId, status: 'enviado' }); } catch (_) { /* */ }
-        })
-        .catch(e => {
-            console.error(`[WA enviar] conv ${id}: falha na Evolution — ${e.message}`);
-            db.prepare("UPDATE chat_mensagens SET status_envio = 'falhou' WHERE id = ?").run(msgId);
-            try { bcastStatus?.('chat.message-status', { conversa_id: id, mensagem_id: msgId, status: 'falhou' }); } catch (_) { /* */ }
-        });
+        .then(result => { bc('enviado', { wa_message_id: result?.key?.id || '' }); })
+        .catch(e => { console.error(`[WA enviar] conv ${id}: falha na Evolution — ${e.message}`); bc('falhou'); });
 });
 
 // ═══════════════════════════════════════════════════════
