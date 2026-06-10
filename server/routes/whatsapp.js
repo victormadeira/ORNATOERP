@@ -725,6 +725,13 @@ router.post('/backfill', requireAuth, async (req, res) => {
             result = await backfillOneChat(chat_id, { limit: limit || 1000 });
         } else {
             result = await backfillFromEvolution({ perChatLimit: limit || 1000, onProgress: null });
+            // O backfill só alcança o que está no banco da Evolution (pós-pareamento).
+            // Se não inseriu nada, o histórico antigo exige re-parear com syncFullHistory.
+            if ((result.mensagens_inseridas || 0) === 0) {
+                result.dica = 'A Evolution só guarda mensagens trocadas DEPOIS do pareamento. '
+                    + 'Para puxar o histórico antigo do celular (~6 meses), ative o "histórico completo" '
+                    + '(re-pareamento: o WhatsApp pede pra escanear o QR de novo e despeja as conversas antigas).';
+            }
         }
         res.json(result);
     } catch (e) {

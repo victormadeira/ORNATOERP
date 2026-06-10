@@ -122,7 +122,7 @@ function Avatar({ src, name, size = 44, style = {} }) {
             <img
                 src={src} alt="" loading="lazy"
                 onError={() => setErro(true)}
-                style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', background: '#dfe5e7', ...style }}
+                style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', background: 'var(--bg-muted)', ...style }}
             />
         );
     }
@@ -188,13 +188,13 @@ function WaAudioPlayer({ src, accent = '#00a884' }) {
                         <div style={{ position: 'absolute', left: `calc(${prog * 100}% - 6px)`, top: -4, width: 12, height: 12, borderRadius: '50%', background: accent, boxShadow: '0 1px 2px rgba(0,0,0,0.25)' }} />
                     </div>
                 </div>
-                <div style={{ fontSize: 10.5, color: '#667781', marginTop: 1 }}>
+                <div style={{ fontSize: 10.5, color: 'var(--wa-meta)', marginTop: 1 }}>
                     {fmt(prog > 0 && audioRef.current ? audioRef.current.currentTime : dur)}
                 </div>
             </div>
             <button onClick={mudarVel} style={{
                 fontSize: 10.5, fontWeight: 700, padding: '3px 7px', borderRadius: 99, cursor: 'pointer',
-                background: 'rgba(0,0,0,0.08)', border: 'none', color: '#54656f', flexShrink: 0,
+                background: 'rgba(0,0,0,0.08)', border: 'none', color: 'var(--wa-meta)', flexShrink: 0,
             }}>
                 {vel}×
             </button>
@@ -218,6 +218,21 @@ export default function Mensagens({ notify }) {
     const [showVincular, setShowVincular] = useState(false);
     const [clientes, setClientes] = useState([]);
     const [mobileShowChat, setMobileShowChat] = useState(false);
+    // Layout WhatsApp Web: em tela larga a lista fica SEMPRE visível ao lado do chat;
+    // só em tela estreita o chat substitui a lista (padrão celular)
+    const [isNarrow, setIsNarrow] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1024 : false));
+    useEffect(() => {
+        const onResize = () => setIsNarrow(window.innerWidth < 1024);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+    // Tema acompanha o ERP (data-theme no <html>): claro e escuro oficiais do WhatsApp
+    const [appDark, setAppDark] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark');
+    useEffect(() => {
+        const obs = new MutationObserver(() => setAppDark(document.documentElement.getAttribute('data-theme') === 'dark'));
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        return () => obs.disconnect();
+    }, []);
     const [recording, setRecording] = useState(false);
     const [lightbox, setLightbox] = useState(null);
     const [showPanel, setShowPanel] = useState(() => {
@@ -552,7 +567,9 @@ export default function Mensagens({ notify }) {
             const r = await api.post('/whatsapp/backfill', { limit: 1000 });
             const msg = r.chats_processados === 0
                 ? `Nenhum chat encontrado no cache da Evolution. Use "Histórico completo (re-parear)" pra puxar tudo do celular.`
-                : `${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`;
+                : r.dica
+                    ? `${r.chats_processados} chats verificados, nada novo. ${r.dica}`
+                    : `${r.chats_processados} chats | ${r.mensagens_inseridas} mensagens importadas`;
             notify?.(msg);
             loadConversas();
             loadContadores();
@@ -665,15 +682,46 @@ export default function Mensagens({ notify }) {
     return (
         <div className={Z.pg} style={{
             padding: 0, maxWidth: '100%', height: 'calc(100vh - 64px)',
-            // ── Tema claro WhatsApp ── sobrescreve vars do tema escuro do ERP
-            '--bg-body':    '#efeae2',
-            '--bg-card':    '#ffffff',
-            '--bg-muted':   '#f0f2f5',
-            '--bg-hover':   '#f5f6f6',
-            '--border':     '#e9edef',
-            '--text-primary':   '#111b21',
-            '--text-secondary': '#3b4a54',
-            '--text-muted':     '#667781',
+            // ── Paleta WhatsApp oficial (Web) — acompanha o tema do ERP ──
+            ...(appDark ? {
+                '--bg-body':    '#0b141a',   // fundo do chat (wallpaper)
+                '--bg-card':    '#111b21',   // painéis e cabeçalhos
+                '--bg-muted':   '#202c33',   // barras, chips, input
+                '--bg-hover':   '#202c33',
+                '--border':     'rgba(134,150,160,0.15)',
+                '--text-primary':   '#e9edef',
+                '--text-secondary': '#d1d7db',
+                '--text-muted':     '#8696a0',
+                '--wa-bubble-in':   '#202c33',
+                '--wa-bubble-out':  '#005c4b',
+                '--wa-bubble-ia':   '#024f43',
+                '--wa-bubble-interno':      '#3b3522',
+                '--wa-bubble-interno-text': '#f5e8b8',
+                '--wa-bubble-text': '#e9edef',
+                '--wa-meta':        '#8696a0',
+                '--wa-row-active':  '#2a3942',
+                '--wa-doodle':      '#15212a',
+                '--wa-splash':      '#222e35',
+            } : {
+                '--bg-body':    '#efeae2',
+                '--bg-card':    '#ffffff',
+                '--bg-muted':   '#f0f2f5',
+                '--bg-hover':   '#f5f6f6',
+                '--border':     '#e9edef',
+                '--text-primary':   '#111b21',
+                '--text-secondary': '#3b4a54',
+                '--text-muted':     '#667781',
+                '--wa-bubble-in':   '#ffffff',
+                '--wa-bubble-out':  '#d9fdd3',
+                '--wa-bubble-ia':   '#e7f8ee',
+                '--wa-bubble-interno':      '#fff9c4',
+                '--wa-bubble-interno-text': '#5a4000',
+                '--wa-bubble-text': '#111b21',
+                '--wa-meta':        '#667781',
+                '--wa-row-active':  '#ffffff',
+                '--wa-doodle':      '#d6cfc2',
+                '--wa-splash':      '#f0f2f5',
+            }),
             '--primary':        '#00a884',
             '--primary-ring':   'rgba(0,168,132,0.15)',
             '--success':        '#00a884',
@@ -685,16 +733,16 @@ export default function Mensagens({ notify }) {
         }}>
             <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-                {/* ═══ Painel Esquerdo: Lista de Conversas ═══ */}
+                {/* ═══ Painel Esquerdo: Lista de Conversas (sempre visível em tela larga) ═══ */}
                 <div style={{
-                    width: 'clamp(300px, 30vw, 400px)', minWidth: 0, borderRight: '1px solid #e9edef',
-                    display: mobileShowChat ? 'none' : 'flex', flexDirection: 'column', background: '#f0f2f5',
+                    width: isNarrow ? '100%' : 'clamp(300px, 30vw, 400px)', minWidth: 0, borderRight: '1px solid var(--border)',
+                    display: (isNarrow && mobileShowChat) ? 'none' : 'flex', flexDirection: 'column', background: 'var(--bg-muted)',
                     flexShrink: 0,
                 }}
                     className="conv-list-panel"
                 >
                     {/* Sidebar Header — WhatsApp style */}
-                    <div style={{ background: '#f0f2f5', borderBottom: '1px solid #e9edef' }}>
+                    <div style={{ background: 'var(--bg-muted)', borderBottom: '1px solid var(--border)' }}>
                         {/* Row 1: avatar + title + action icons */}
                         <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, height: 60 }}>
                             <div style={{
@@ -705,7 +753,7 @@ export default function Mensagens({ notify }) {
                             }}>
                                 {initials(user?.nome || user?.email || '')}
                             </div>
-                            <span style={{ flex: 1, fontSize: 16, fontWeight: 600, color: '#111b21' }}>Ornato</span>
+                            <span style={{ flex: 1, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Ornato</span>
 
                             {/* IA status */}
                             {diag && (
@@ -730,7 +778,7 @@ export default function Mensagens({ notify }) {
                                 <button onClick={rodarBackfill} disabled={backfilling} title="Puxar histórico" style={{
                                     width: 34, height: 34, borderRadius: '50%', border: 'none', flexShrink: 0,
                                     background: 'transparent', cursor: backfilling ? 'wait' : 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#54656f',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)',
                                 }}>
                                     {backfilling ? <RefreshCw size={18} className="spin" /> : <History size={18} />}
                                 </button>
@@ -739,7 +787,7 @@ export default function Mensagens({ notify }) {
                             <button style={{
                                 width: 34, height: 34, borderRadius: '50%', border: 'none', flexShrink: 0,
                                 background: 'transparent', cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#54656f',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)',
                             }}>
                                 <MoreVertical size={18} />
                             </button>
@@ -749,16 +797,16 @@ export default function Mensagens({ notify }) {
                         <div style={{ padding: '0 12px 10px' }}>
                             <div style={{
                                 display: 'flex', alignItems: 'center', gap: 8,
-                                background: '#ffffff', borderRadius: 8, padding: '8px 12px',
+                                background: 'var(--bg-card)', borderRadius: 8, padding: '8px 12px',
                             }}>
-                                <Search size={16} style={{ color: '#54656f', flexShrink: 0 }} />
+                                <Search size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                                 <input
                                     placeholder="Pesquisar ou começar uma conversa"
                                     value={search}
                                     onChange={e => setSearch(e.target.value)}
                                     style={{
                                         flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                                        fontSize: 14, color: '#111b21', fontFamily: 'inherit',
+                                        fontSize: 14, color: 'var(--text-primary)', fontFamily: 'inherit',
                                     }}
                                 />
                             </div>
@@ -780,8 +828,8 @@ export default function Mensagens({ notify }) {
                                     <button key={t.v} onClick={() => setFiltroAba(t.v)} style={{
                                         flexShrink: 0, padding: '4px 14px', borderRadius: 20,
                                         border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                                        background: active ? '#00a884' : '#e9edef',
-                                        color: active ? '#ffffff' : '#3b4a54',
+                                        background: active ? '#00a884' : 'var(--bg-muted)',
+                                        color: active ? '#ffffff' : 'var(--text-secondary)',
                                         display: 'flex', alignItems: 'center', gap: 5,
                                         transition: 'background 0.15s',
                                     }}>
@@ -801,9 +849,9 @@ export default function Mensagens({ notify }) {
                                 onClick={() => setFiltroCategoria('')}
                                 style={{
                                     fontSize: 10, padding: '2px 8px', borderRadius: 99,
-                                    border: `1px solid ${!filtroCategoria ? '#00a884' : '#e9edef'}`,
-                                    background: !filtroCategoria ? '#e7faf4' : 'transparent',
-                                    color: !filtroCategoria ? '#00a884' : '#667781',
+                                    border: `1px solid ${!filtroCategoria ? '#00a884' : 'var(--border)'}`,
+                                    background: !filtroCategoria ? 'var(--success-bg)' : 'transparent',
+                                    color: !filtroCategoria ? '#00a884' : 'var(--text-muted)',
                                     cursor: 'pointer', fontWeight: 600,
                                 }}
                             >
@@ -815,9 +863,9 @@ export default function Mensagens({ notify }) {
                                     onClick={() => setFiltroCategoria(filtroCategoria === c.v ? '' : c.v)}
                                     style={{
                                         fontSize: 10, padding: '2px 8px', borderRadius: 99,
-                                        border: `1px solid ${filtroCategoria === c.v ? c.c : '#e9edef'}`,
+                                        border: `1px solid ${filtroCategoria === c.v ? c.c : 'var(--border)'}`,
                                         background: filtroCategoria === c.v ? c.c + '18' : 'transparent',
-                                        color: filtroCategoria === c.v ? c.c : '#667781',
+                                        color: filtroCategoria === c.v ? c.c : 'var(--text-muted)',
                                         cursor: 'pointer', fontWeight: 600,
                                     }}
                                 >
@@ -844,11 +892,11 @@ export default function Mensagens({ notify }) {
                                     onClick={() => selectConv(c)}
                                     style={{
                                         padding: '12px 16px', cursor: 'pointer',
-                                        borderBottom: '1px solid #e9edef',
-                                        background: isActive ? '#ffffff' : 'transparent',
+                                        borderBottom: '1px solid var(--border)',
+                                        background: isActive ? 'var(--wa-row-active)' : 'transparent',
                                         transition: 'background 0.1s',
                                     }}
-                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f5f6f6'; }}
+                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -860,7 +908,7 @@ export default function Mensagens({ notify }) {
                                                 position: 'absolute', bottom: 0, right: 0,
                                                 width: 13, height: 13, borderRadius: '50%',
                                                 background: sc.color,
-                                                border: '2px solid #f0f2f5',
+                                                border: '2px solid var(--bg-muted)',
                                             }} />
                                         </div>
 
@@ -869,13 +917,13 @@ export default function Mensagens({ notify }) {
                                             {/* Row 1: name + time */}
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
                                                 <span style={{
-                                                    fontSize: 15, fontWeight: 600, color: '#111b21',
+                                                    fontSize: 15, fontWeight: 600, color: 'var(--text-primary)',
                                                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                                     maxWidth: '70%',
                                                 }}>
                                                     {displayName}
                                                 </span>
-                                                <span style={{ fontSize: 11.5, color: c.nao_lidas > 0 ? '#00a884' : '#667781', flexShrink: 0 }}>
+                                                <span style={{ fontSize: 11.5, color: c.nao_lidas > 0 ? '#00a884' : 'var(--text-muted)', flexShrink: 0 }}>
                                                     {timeAgo(c.ultimo_msg_em || c.ultima_msg_em)}
                                                 </span>
                                             </div>
@@ -883,7 +931,7 @@ export default function Mensagens({ notify }) {
                                             {/* Row 2: preview + badge */}
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span style={{
-                                                    fontSize: 13, color: '#667781',
+                                                    fontSize: 13, color: 'var(--text-muted)',
                                                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                                     flex: 1, display: 'flex', alignItems: 'center', gap: 4,
                                                 }}>
@@ -913,8 +961,8 @@ export default function Mensagens({ notify }) {
                                                     {c.atribuido_nome ? (
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                                                            background: c.atribuido_user_id === user?.id ? '#e7faf4' : '#f0f2f5',
-                                                            color: c.atribuido_user_id === user?.id ? '#00a884' : '#667781',
+                                                            background: c.atribuido_user_id === user?.id ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                                            color: c.atribuido_user_id === user?.id ? '#00a884' : 'var(--text-muted)',
                                                             display: 'flex', alignItems: 'center', gap: 3,
                                                         }}>
                                                             <UserCheck size={8} />
@@ -923,7 +971,7 @@ export default function Mensagens({ notify }) {
                                                     ) : (
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                                                            background: '#fff8e6', color: '#f59e0b',
+                                                            background: 'rgba(245,158,11,0.14)', color: '#f59e0b',
                                                             display: 'flex', alignItems: 'center', gap: 3,
                                                         }}>
                                                             <Inbox size={8} /> Na fila
@@ -939,7 +987,7 @@ export default function Mensagens({ notify }) {
                                                         </span>
                                                     )}
                                                     {c.prioridade === 'urgente' && (
-                                                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600, background: '#fee2e2', color: '#ef4444' }}>
+                                                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600, background: 'rgba(239,68,68,0.16)', color: '#ef4444' }}>
                                                             Urgente
                                                         </span>
                                                     )}
@@ -955,33 +1003,33 @@ export default function Mensagens({ notify }) {
 
                 {/* ═══ Painel Direito: Chat ═══ */}
                 <div style={{
-                    flex: 1, display: 'flex', flexDirection: 'column',
-                    background: '#efeae2',
-                    borderLeft: '1px solid #e9edef',
+                    flex: 1, display: (isNarrow && !mobileShowChat) ? 'none' : 'flex', flexDirection: 'column',
+                    background: 'var(--bg-body)',
+                    borderLeft: '1px solid var(--border)',
                 }}>
                     {!activeConv ? (
                         // Nenhuma conversa selecionada — estilo WA Web splash
                         <div style={{
                             flex: 1, display: 'flex', flexDirection: 'column',
                             alignItems: 'center', justifyContent: 'center',
-                            gap: 14, color: '#667781', padding: 40,
-                            background: '#f0f2f5',
+                            gap: 14, color: 'var(--text-muted)', padding: 40,
+                            background: 'var(--wa-splash)',
                         }}>
                             <div style={{
                                 width: 128, height: 128, borderRadius: '50%',
-                                background: '#dfe5e7',
+                                background: 'var(--bg-muted)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 marginBottom: 8,
                             }}>
-                                <MessageCircle size={60} style={{ color: '#aebac1' }} />
+                                <MessageCircle size={60} style={{ color: 'var(--text-muted)' }} />
                             </div>
-                            <h3 style={{ fontSize: 22, fontWeight: 300, color: '#41525d', margin: 0, letterSpacing: -0.3 }}>
+                            <h3 style={{ fontSize: 22, fontWeight: 300, color: 'var(--text-secondary)', margin: 0, letterSpacing: -0.3 }}>
                                 Ornato — Atendimento WhatsApp
                             </h3>
-                            <p style={{ fontSize: 14, maxWidth: 360, textAlign: 'center', lineHeight: 1.6, margin: 0, color: '#667781' }}>
+                            <p style={{ fontSize: 14, maxWidth: 360, textAlign: 'center', lineHeight: 1.6, margin: 0, color: 'var(--text-muted)' }}>
                                 Selecione uma conversa para começar a atender
                             </p>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: '#aebac1', marginTop: 16 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-muted)', marginTop: 16 }}>
                                 <Lock size={11} /> Mensagens criptografadas de ponta a ponta
                             </div>
                         </div>
@@ -989,11 +1037,11 @@ export default function Mensagens({ notify }) {
                         <>
                             {/* Header do chat — compacto */}
                             <div style={{
-                                padding: '8px 16px', borderBottom: '1px solid #e9edef',
-                                background: '#ffffff', display: 'flex', alignItems: 'center', gap: 12,
+                                padding: '8px 16px', borderBottom: '1px solid var(--border)',
+                                background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 12,
                                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)', minHeight: 60,
                             }}>
-                                <button
+                                {isNarrow && <button
                                     onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
                                     aria-label="Voltar para lista de conversas"
                                     title="Voltar"
@@ -1006,7 +1054,7 @@ export default function Mensagens({ notify }) {
                                     }}
                                 >
                                     <ArrowLeft size={16} strokeWidth={2.4} />
-                                </button>
+                                </button>}
 
                                 {(() => {
                                     const hdrName = activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone || '';
@@ -1124,9 +1172,9 @@ export default function Mensagens({ notify }) {
                                 style={{
                                     flex: 1, overflowY: 'auto', padding: '14px 5% 10px',
                                     display: 'flex', flexDirection: 'column', gap: 2,
-                                    // Papel de parede estilo WhatsApp: base bege + doodle geométrico sutil
-                                    background: '#efeae2',
-                                    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><g fill='none' stroke='%23d6cfc2' stroke-width='1.2' opacity='0.55'><circle cx='24' cy='28' r='7'/><path d='M120 18l8 8m0-8l-8 8'/><rect x='66' y='10' width='13' height='13' rx='3' transform='rotate(12 72 16)'/><path d='M22 92c4-6 12-6 16 0'/><circle cx='138' cy='66' r='5'/><path d='M84 64l10 4-4 10z'/><path d='M16 138l9 9m0-9l-9 9'/><rect x='108' y='118' width='12' height='12' rx='6'/><path d='M58 132c5-5 13-5 18 0'/><circle cx='148' cy='146' r='6'/><path d='M96 92h14M103 85v14'/></g></svg>`)}")`,
+                                    // Papel de parede estilo WhatsApp: base + doodle geométrico sutil (claro/escuro)
+                                    background: 'var(--bg-body)',
+                                    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><g fill='none' stroke='${appDark ? '#15212a' : '#d6cfc2'}' stroke-width='1.2' opacity='0.85'><circle cx='24' cy='28' r='7'/><path d='M120 18l8 8m0-8l-8 8'/><rect x='66' y='10' width='13' height='13' rx='3' transform='rotate(12 72 16)'/><path d='M22 92c4-6 12-6 16 0'/><circle cx='138' cy='66' r='5'/><path d='M84 64l10 4-4 10z'/><path d='M16 138l9 9m0-9l-9 9'/><rect x='108' y='118' width='12' height='12' rx='6'/><path d='M58 132c5-5 13-5 18 0'/><circle cx='148' cy='146' r='6'/><path d='M96 92h14M103 85v14'/></g></svg>`)}")`,
                                     backgroundSize: '320px 320px',
                                 }}>
                                 {mensagens.length === 0 && (
@@ -1158,33 +1206,33 @@ export default function Mensagens({ notify }) {
                                         (next.interno === 1) === isInterno &&
                                         Math.abs(new Date((next.criado_em || '').endsWith('Z') ? next.criado_em : next.criado_em + 'Z') - new Date((m.criado_em || '').endsWith('Z') ? m.criado_em : m.criado_em + 'Z')) < 5 * 60 * 1000;
 
-                                    // Estilo de bolha — tema WhatsApp claro
+                                    // Estilo de bolha — paleta WhatsApp (claro/escuro via CSS vars)
                                     let bubbleBg, bubbleColor, align, indicator, metaColor;
                                     if (isEntrada) {
-                                        bubbleBg = '#ffffff';
-                                        bubbleColor = '#111b21';
+                                        bubbleBg = 'var(--wa-bubble-in)';
+                                        bubbleColor = 'var(--wa-bubble-text)';
                                         align = 'flex-start';
                                         indicator = null;
-                                        metaColor = '#667781';
+                                        metaColor = 'var(--wa-meta)';
                                     } else if (isInterno) {
-                                        bubbleBg = '#fff9c4';
-                                        bubbleColor = '#5a4000';
+                                        bubbleBg = 'var(--wa-bubble-interno)';
+                                        bubbleColor = 'var(--wa-bubble-interno-text)';
                                         align = 'flex-end';
                                         indicator = <Lock size={10} style={{ opacity: 0.7 }} />;
-                                        metaColor = 'rgba(90,64,0,0.55)';
+                                        metaColor = 'var(--wa-bubble-interno-text)';
                                     } else if (isIA) {
-                                        bubbleBg = '#e7f8ee';
-                                        bubbleColor = '#1a3c2e';
+                                        bubbleBg = 'var(--wa-bubble-ia)';
+                                        bubbleColor = 'var(--wa-bubble-text)';
                                         align = 'flex-end';
                                         indicator = <Bot size={10} style={{ color: '#00a884' }} />;
-                                        metaColor = '#667781';
+                                        metaColor = 'var(--wa-meta)';
                                     } else {
                                         // Mensagem enviada pelo atendente humano
-                                        bubbleBg = '#d9fdd3';
-                                        bubbleColor = '#111b21';
+                                        bubbleBg = 'var(--wa-bubble-out)';
+                                        bubbleColor = 'var(--wa-bubble-text)';
                                         align = 'flex-end';
                                         indicator = null;
-                                        metaColor = '#667781';
+                                        metaColor = 'var(--wa-meta)';
                                     }
 
                                     // Raio da bolha (com "tail" apenas na primeira/última do grupo)
@@ -1278,9 +1326,9 @@ export default function Mensagens({ notify }) {
                                                                 </div>
                                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                                     <div style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomeArq}</div>
-                                                                    {extArq && <div style={{ fontSize: 10.5, color: '#667781', marginTop: 1 }}>{extArq}</div>}
+                                                                    {extArq && <div style={{ fontSize: 10.5, color: 'var(--wa-meta)', marginTop: 1 }}>{extArq}</div>}
                                                                 </div>
-                                                                <Download size={17} style={{ flexShrink: 0, color: '#54656f' }} />
+                                                                <Download size={17} style={{ flexShrink: 0, color: 'var(--wa-meta)' }} />
                                                             </a>
                                                         );
                                                     })()}
@@ -1328,8 +1376,8 @@ export default function Mensagens({ notify }) {
 
                             {/* Área de input */}
                             <div style={{
-                                padding: '10px 16px 14px', borderTop: '1px solid #e9edef',
-                                background: '#ffffff',
+                                padding: '10px 16px 14px', borderTop: '1px solid var(--border)',
+                                background: 'var(--bg-card)',
                             }}>
                                 {/* Toggle interno + sugerir (chips discretos) */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -1380,8 +1428,8 @@ export default function Mensagens({ notify }) {
                                 {/* Input + Send — pill-style */}
                                 <div style={{
                                     display: 'flex', gap: 8, alignItems: 'center',
-                                    background: interno ? '#fef3c720' : '#f0f2f5',
-                                    border: `1px solid ${interno ? '#fbbf24' : '#e9edef'}`,
+                                    background: interno ? '#fef3c720' : 'var(--bg-muted)',
+                                    border: `1px solid ${interno ? '#fbbf24' : 'var(--border)'}`,
                                     borderRadius: 24,
                                     padding: '4px 4px 4px 6px',
                                     transition: 'border-color 0.15s',
@@ -1425,7 +1473,7 @@ export default function Mensagens({ notify }) {
                                         style={{
                                             flex: 1, resize: 'none', fontSize: 14.5, lineHeight: 1.4,
                                             border: 'none', outline: 'none',
-                                            background: 'transparent', color: '#111b21',
+                                            background: 'transparent', color: 'var(--text-primary)',
                                             padding: '8px 4px', fontFamily: 'inherit',
                                             maxHeight: 120, minHeight: 20,
                                         }}
