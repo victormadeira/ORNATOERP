@@ -418,6 +418,21 @@ export default function Mensagens({ notify }) {
         loadConversas();
     };
 
+    // ═══ Liga/desliga a Sofia (IA) NESTA conversa — interruptor direto ═══
+    // status='ia'  → Sofia responde sozinha (qualifica o lead)
+    // status='humano' → Sofia cala, atendimento humano assume
+    // O webhook respeita o status (webhook.js: só responde se status==='ia').
+    const setIAConversa = async (ligar) => {
+        if (!activeConv) return;
+        const next = ligar ? 'ia' : 'humano';
+        try {
+            await api.put(`/whatsapp/conversas/${activeConv}/status`, { status: next });
+            setActiveConvData(prev => prev ? { ...prev, status: next } : prev);
+            loadConversas();
+            notify?.(ligar ? 'Sofia ligada nesta conversa — ela volta a responder' : 'Sofia desligada — só atendimento humano nesta conversa');
+        } catch (e) { notify?.(e.error || 'Erro ao alternar a IA'); }
+    };
+
     // ═══ Pausar/retomar IA manualmente (anti-abuso) ═══
     const toggleIABloqueio = async () => {
         if (!activeConv) return;
@@ -1086,6 +1101,41 @@ export default function Mensagens({ notify }) {
                                         {activeConvData.abandonada ? <><Moon size={11} /> Abandonada</> : <><Zap size={11} /> N{activeConvData.escalacao_nivel}</>}
                                     </span>
                                 )}
+
+                                {/* ═══ Interruptor da Sofia (IA) NESTA conversa — sempre visível ═══ */}
+                                {(() => {
+                                    const iaOn = activeConvData?.status === 'ia';
+                                    const pausada = !!activeConvData?.ia_bloqueada;
+                                    return (
+                                        <button
+                                            onClick={() => setIAConversa(!iaOn)}
+                                            title={iaOn
+                                                ? 'Sofia está respondendo automaticamente nesta conversa.\nClique para DESLIGAR (atendimento humano assume).'
+                                                : 'Sofia NÃO responde nesta conversa.\nClique para LIGAR a IA (ela qualifica o lead).'}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0,
+                                                padding: '5px 11px 5px 9px', borderRadius: 99, cursor: 'pointer',
+                                                border: `1px solid ${iaOn ? 'var(--success-border)' : 'var(--border)'}`,
+                                                background: iaOn ? 'var(--success-bg)' : 'var(--bg-muted)',
+                                                color: iaOn ? 'var(--success)' : 'var(--text-muted)',
+                                                fontSize: 12.5, fontWeight: 700, transition: 'all .15s',
+                                            }}
+                                        >
+                                            <Bot size={15} />
+                                            <span>Sofia {iaOn ? (pausada ? 'pausada' : 'ligada') : 'desligada'}</span>
+                                            <span style={{
+                                                width: 32, height: 17, borderRadius: 99, position: 'relative', flexShrink: 0,
+                                                background: iaOn ? 'var(--success)' : 'var(--border)', transition: 'background .15s',
+                                            }}>
+                                                <span style={{
+                                                    position: 'absolute', top: 2, left: iaOn ? 17 : 2, width: 13, height: 13,
+                                                    borderRadius: '50%', background: '#fff', transition: 'left .15s',
+                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                                }} />
+                                            </span>
+                                        </button>
+                                    );
+                                })()}
 
                                 {/* Diagnóstico IA — compacto */}
                                 {diag && (() => {
