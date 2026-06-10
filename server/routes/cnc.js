@@ -2217,8 +2217,10 @@ router.post('/otimizar/:loteId', requireAuth, async (req, res) => {
                                 if (contourMap[pecaId]) {
                                     if (rect.rotated) {
                                         const contPtsR = contourMap[pecaId];
+                                        // Girar em torno do comprimento ORIGINAL da peça (eixo X do contorno),
+                                        // igual ao fluxo principal — realH inclui fita e deslocaria o contorno.
                                         const maxContX = Math.max(...contPtsR.map(v => v.x));
-                                        const compOrig = Math.max(pecas.find(pp => pp.id === pecaId)?.comprimento || 0, maxContX, rect.realH);
+                                        const compOrig = pecas.find(pp => pp.id === pecaId)?.comprimento || maxContX;
                                         retPecaM.contour = contPtsR.map(v => ({ x: Math.round(v.y * 10) / 10, y: Math.round((compOrig - v.x) * 10) / 10 }));
                                     } else {
                                         retPecaM.contour = contourMap[pecaId];

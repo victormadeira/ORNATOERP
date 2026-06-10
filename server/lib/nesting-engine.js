@@ -275,8 +275,13 @@ export class MaxRectsBin {
         return score;
     }
     _tryFit(free, pw, ph, heuristic) {
-        const w = pw + this.spacing, h = ph + this.spacing;
-        if (w > free.w || h > free.h) return null;
+        // Fence-post: kerf/spacing só é exigido ENTRE peças — na borda da chapa o corte é rente.
+        // (n peças ocupam n*w + (n-1)*gap; o SuperBox já usa (binW+gap)/(w+gap) — as classes esqueciam.)
+        const atRight = free.x + free.w >= this.binW - 0.5;
+        const atBottom = free.y + free.h >= this.binH - 0.5;
+        if (pw + (atRight ? 0 : this.spacing) > free.w || ph + (atBottom ? 0 : this.spacing) > free.h) return null;
+        // w/h "inflados" (peça+gap) clampados ao free rect: o gap além da borda é ar.
+        const w = Math.min(pw + this.spacing, free.w), h = Math.min(ph + this.spacing, free.h);
         let sc;
         // When direction is explicitly set, OVERRIDE heuristic with directional placement
         if (this.splitDir === 'horizontal') {
@@ -390,23 +395,30 @@ export class SkylineBin {
     }
     findBest(pw, ph, allowRotate, _heuristic) {
         const sp = this.spacing;
+        // Fence-post: gap só ENTRE peças — waste rect encostado na borda dispensa o gap final.
+        const needW = (wr, dim) => dim + (wr.x + wr.w >= this.binW - 0.5 ? 0 : sp);
+        const needH = (wr, dim) => dim + (wr.y + wr.h >= this.binH - 0.5 ? 0 : sp);
         for (let wi = 0; wi < this.wasteRects.length; wi++) {
             const wr = this.wasteRects[wi];
-            if (pw + sp <= wr.w && ph + sp <= wr.h) {
-                return { x: wr.x, y: wr.y, w: pw + sp, h: ph + sp, realW: pw, realH: ph, rotated: false, wasteIdx: wi, score: -(wr.w * wr.h) };
+            if (needW(wr, pw) <= wr.w && needH(wr, ph) <= wr.h) {
+                return { x: wr.x, y: wr.y, w: Math.min(pw + sp, wr.w), h: Math.min(ph + sp, wr.h), realW: pw, realH: ph, rotated: false, wasteIdx: wi, score: -(wr.w * wr.h) };
             }
-            if (allowRotate && ph + sp <= wr.w && pw + sp <= wr.h) {
-                return { x: wr.x, y: wr.y, w: ph + sp, h: pw + sp, realW: ph, realH: pw, rotated: true, wasteIdx: wi, score: -(wr.w * wr.h) };
+            if (allowRotate && needW(wr, ph) <= wr.w && needH(wr, pw) <= wr.h) {
+                return { x: wr.x, y: wr.y, w: Math.min(ph + sp, wr.w), h: Math.min(pw + sp, wr.h), realW: ph, realH: pw, rotated: true, wasteIdx: wi, score: -(wr.w * wr.h) };
             }
         }
         let bestY = Infinity, bestX = Infinity, bestIdx = -1, bestRot = false;
         const tryOrientation = (w, h, rot) => {
             for (let i = 0; i < this.skyline.length; i++) {
-                const y = this._fitCheck(i, w + sp, h + sp);
+                // Largura: gap lateral dispensado quando a peça fecha rente na borda direita.
+                // Altura: checa a altura REAL contra binH (gap vertical entra só no topY/skyline).
+                const x0 = this.skyline[i].x;
+                const effW = (x0 + w + sp > this.binW) ? w : w + sp;
+                const y = this._fitCheck(i, effW, h);
                 if (y >= 0) {
                     const topY = y + h + sp;
-                    if (topY < bestY || (topY === bestY && this.skyline[i].x < bestX)) {
-                        bestY = topY; bestX = this.skyline[i].x; bestIdx = i; bestRot = rot;
+                    if (topY < bestY || (topY === bestY && x0 < bestX)) {
+                        bestY = topY; bestX = x0; bestIdx = i; bestRot = rot;
                     }
                 }
             }
@@ -626,7 +638,9 @@ export class ShelfBin {
         for (let s = 0; s < this.shelves.length; s++) {
             const shelf = this.shelves[s];
             const freeW = this.binW - shelf.usedW;
-            if (pw + this.gap <= freeW && ph <= shelf.h) {
+            // Fence-post: o gap é cobrado APÓS a colocação (usedW += w + gap);
+            // aqui basta a peça caber — a última da prateleira pode fechar rente.
+            if (pw <= freeW && ph <= shelf.h) {
                 const waste = shelf.h - ph;
                 if (waste < bestScore) {
                     bestScore = waste;
@@ -635,7 +649,7 @@ export class ShelfBin {
                         realW: pw, realH: ph, rotated: false, score: waste };
                 }
             }
-            if (allowRotate && ph + this.gap <= freeW && pw <= shelf.h) {
+            if (allowRotate && ph <= freeW && pw <= shelf.h) {
                 const waste = shelf.h - pw;
                 if (waste < bestScore) {
                     bestScore = waste;
@@ -649,12 +663,12 @@ export class ShelfBin {
             ? this.shelves[this.shelves.length - 1].y + this.shelves[this.shelves.length - 1].h + this.gap
             : 0;
         if (!bestResult || bestScore > ph * 0.3) {
-            if (nextY + ph <= this.binH && pw + this.gap <= this.binW) {
+            if (nextY + ph <= this.binH && pw <= this.binW) {
                 bestResult = { shelfIdx: this.shelves.length, newShelf: true, shelfH: ph,
                     x: 0, y: nextY, w: pw, h: ph, realW: pw, realH: ph,
                     rotated: false, score: 0 };
             }
-            if (allowRotate && nextY + pw <= this.binH && ph + this.gap <= this.binW) {
+            if (allowRotate && nextY + pw <= this.binH && ph <= this.binW) {
                 if (!bestResult || pw < ph) {
                     bestResult = { shelfIdx: this.shelves.length, newShelf: true, shelfH: pw,
                         x: 0, y: nextY, w: ph, h: pw, realW: ph, realH: pw,
@@ -1334,7 +1348,11 @@ export function runNestingPass(pieces, binW, binH, spacing, heuristic = 'BSSF', 
                 rect.allowRotate = p.allowRotate;
                 const placed = newBin.placeRect(rect);
                 if (placed) { placed.pieceRef = p.ref; placed.allowRotate = p.allowRotate; }
-                newBin.push ? bins.push(newBin) : bins.push(newBin);
+                bins.push(newBin);
+            } else {
+                // Peça não coube nem em chapa vazia — NUNCA descartar em silêncio
+                // (o safety check da rota recupera, mas precisa ser visível no log)
+                console.warn(`  [Nesting] Peça ${p.ref?.pecaId ?? '?'} (${Math.round(p.w)}x${Math.round(p.h)}) não coube em chapa vazia ${binW}x${binH} — não alocada`);
             }
         }
     }
@@ -2941,7 +2959,8 @@ export function optimizeLastBin(bins, binW, binH, spacing, binType = 'guillotine
             for (const sortFn of sortStrategies) {
                 const sorted = [...allPieces].sort(sortFn);
                 // Try fill-first multi-heuristic
-                const ffBins = runFillFirst(sorted, binW, binH, 0, 'BSSF', binType, kerf, splitDir, true);
+                // spacing configurado (não 0): repack não pode violar a folga do plano
+                const ffBins = runFillFirst(sorted, binW, binH, spacing, 'BSSF', binType, kerf, splitDir, true);
                 if (ffBins.length <= targetBinCount && verifyNoOverlaps(ffBins)) {
                     for (const bin of ffBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
                     const sc = scoreResult(ffBins);
@@ -2952,7 +2971,7 @@ export function optimizeLastBin(bins, binW, binH, spacing, binType = 'guillotine
                 }
                 // Try nesting pass
                 for (const h of ALL_HEURISTICS) {
-                    const npBins = runNestingPass(sorted, binW, binH, 0, h, binType, kerf, splitDir);
+                    const npBins = runNestingPass(sorted, binW, binH, spacing, h, binType, kerf, splitDir);
                     if (npBins.length <= targetBinCount && verifyNoOverlaps(npBins)) {
                         for (const bin of npBins) compactBin(bin, binW, binH, kerf, spacing, splitDir);
                         const sc = scoreResult(npBins);
@@ -3133,7 +3152,8 @@ export function cascadeRemnants(bins, binW, binH, spacing, binType, kerf, splitD
         }
 
         // Se a chapa fraca tem >70% de ocupação, não vale tentar
-        if (minOcc > 0.70) break;
+        // (occupancy() retorna 0-100; comparar com 0.70 matava a fase inteira)
+        if (minOcc > 70) break;
 
         const weakPieces = extractPieces(currentBins[weakIdx]);
         if (weakPieces.length === 0) break;
@@ -3181,7 +3201,7 @@ export function cascadeRemnants(bins, binW, binH, spacing, binType, kerf, splitD
             // Eliminamos a chapa fraca completamente!
             currentBins = otherBins;
             improved = true;
-            console.log(`  [Cascade] Rodada ${round + 1}: eliminada chapa fraca (${Math.round(minOcc * 100)}% occ, ${weakPieces.length} peças redistribuídas)`);
+            console.log(`  [Cascade] Rodada ${round + 1}: eliminada chapa fraca (${Math.round(minOcc)}% occ, ${weakPieces.length} peças redistribuídas)`);
         } else if (placed.length > 0 && failed.length < weakPieces.length) {
             // Redistribuímos parcialmente — reconstruir chapa fraca com peças restantes
             const { bin: newWeak, failed: rebuildFailed } = rebuildBin(
