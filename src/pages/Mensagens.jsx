@@ -139,7 +139,7 @@ function Avatar({ src, name, size = 44, style = {} }) {
 }
 
 // Player de áudio estilo WhatsApp (play/pause + barra + tempo + velocidade)
-function WaAudioPlayer({ src, accent = '#00a884' }) {
+function WaAudioPlayer({ src, accent = 'var(--success)' }) {
     const audioRef = useRef(null);
     const [tocando, setTocando] = useState(false);
     const [prog, setProg] = useState(0);       // 0..1
@@ -682,54 +682,18 @@ export default function Mensagens({ notify }) {
     return (
         <div className={Z.pg} style={{
             padding: 0, maxWidth: '100%', height: 'calc(100vh - 64px)',
-            // ── Paleta WhatsApp oficial (Web) — acompanha o tema do ERP ──
-            ...(appDark ? {
-                '--bg-body':    '#0b141a',   // fundo do chat (wallpaper)
-                '--bg-card':    '#111b21',   // painéis e cabeçalhos
-                '--bg-muted':   '#202c33',   // barras, chips, input
-                '--bg-hover':   '#202c33',
-                '--border':     'rgba(134,150,160,0.15)',
-                '--text-primary':   '#e9edef',
-                '--text-secondary': '#d1d7db',
-                '--text-muted':     '#8696a0',
-                '--wa-bubble-in':   '#202c33',
-                '--wa-bubble-out':  '#005c4b',
-                '--wa-bubble-ia':   '#024f43',
-                '--wa-bubble-interno':      '#3b3522',
-                '--wa-bubble-interno-text': '#f5e8b8',
-                '--wa-bubble-text': '#e9edef',
-                '--wa-meta':        '#8696a0',
-                '--wa-row-active':  '#2a3942',
-                '--wa-doodle':      '#15212a',
-                '--wa-splash':      '#222e35',
-            } : {
-                '--bg-body':    '#efeae2',
-                '--bg-card':    '#ffffff',
-                '--bg-muted':   '#f0f2f5',
-                '--bg-hover':   '#f5f6f6',
-                '--border':     '#e9edef',
-                '--text-primary':   '#111b21',
-                '--text-secondary': '#3b4a54',
-                '--text-muted':     '#667781',
-                '--wa-bubble-in':   '#ffffff',
-                '--wa-bubble-out':  '#d9fdd3',
-                '--wa-bubble-ia':   '#e7f8ee',
-                '--wa-bubble-interno':      '#fff9c4',
-                '--wa-bubble-interno-text': '#5a4000',
-                '--wa-bubble-text': '#111b21',
-                '--wa-meta':        '#667781',
-                '--wa-row-active':  '#ffffff',
-                '--wa-doodle':      '#d6cfc2',
-                '--wa-splash':      '#f0f2f5',
-            }),
-            '--primary':        '#00a884',
-            '--primary-ring':   'rgba(0,168,132,0.15)',
-            '--success':        '#00a884',
-            '--success-bg':     'rgba(0,168,132,0.12)',
-            '--success-border': 'rgba(0,168,132,0.3)',
-            '--info':           '#1379F0',
-            '--info-bg':        'rgba(19,121,240,0.1)',
-            '--info-border':    'rgba(19,121,240,0.25)',
+            // ── Layout WhatsApp Web com as CORES DO SISTEMA ──
+            // Nada de paleta própria: tudo deriva das vars do tema do ERP
+            // (claro/escuro/cor primária configurável acompanham sozinhos).
+            '--wa-bubble-in':   'var(--bg-card)',
+            '--wa-bubble-out':  'color-mix(in srgb, var(--primary) 22%, var(--bg-card))',
+            '--wa-bubble-ia':   'color-mix(in srgb, var(--success) 16%, var(--bg-card))',
+            '--wa-bubble-interno':      'color-mix(in srgb, #f59e0b 14%, var(--bg-card))',
+            '--wa-bubble-interno-text': 'var(--text-primary)',
+            '--wa-bubble-text': 'var(--text-primary)',
+            '--wa-meta':        'var(--text-muted)',
+            '--wa-row-active':  'var(--bg-hover)',
+            '--wa-splash':      'var(--bg-muted)',
         }}>
             <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
@@ -828,7 +792,7 @@ export default function Mensagens({ notify }) {
                                     <button key={t.v} onClick={() => setFiltroAba(t.v)} style={{
                                         flexShrink: 0, padding: '4px 14px', borderRadius: 20,
                                         border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                                        background: active ? '#00a884' : 'var(--bg-muted)',
+                                        background: active ? 'var(--success)' : 'var(--bg-muted)',
                                         color: active ? '#ffffff' : 'var(--text-secondary)',
                                         display: 'flex', alignItems: 'center', gap: 5,
                                         transition: 'background 0.15s',
@@ -849,9 +813,9 @@ export default function Mensagens({ notify }) {
                                 onClick={() => setFiltroCategoria('')}
                                 style={{
                                     fontSize: 10, padding: '2px 8px', borderRadius: 99,
-                                    border: `1px solid ${!filtroCategoria ? '#00a884' : 'var(--border)'}`,
+                                    border: `1px solid ${!filtroCategoria ? 'var(--success)' : 'var(--border)'}`,
                                     background: !filtroCategoria ? 'var(--success-bg)' : 'transparent',
-                                    color: !filtroCategoria ? '#00a884' : 'var(--text-muted)',
+                                    color: !filtroCategoria ? 'var(--success)' : 'var(--text-muted)',
                                     cursor: 'pointer', fontWeight: 600,
                                 }}
                             >
@@ -923,7 +887,7 @@ export default function Mensagens({ notify }) {
                                                 }}>
                                                     {displayName}
                                                 </span>
-                                                <span style={{ fontSize: 11.5, color: c.nao_lidas > 0 ? '#00a884' : 'var(--text-muted)', flexShrink: 0 }}>
+                                                <span style={{ fontSize: 11.5, color: c.nao_lidas > 0 ? 'var(--success)' : 'var(--text-muted)', flexShrink: 0 }}>
                                                     {timeAgo(c.ultimo_msg_em || c.ultima_msg_em)}
                                                 </span>
                                             </div>
@@ -935,7 +899,7 @@ export default function Mensagens({ notify }) {
                                                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                                     flex: 1, display: 'flex', alignItems: 'center', gap: 4,
                                                 }}>
-                                                    {c.ultima_msg_remetente === 'ia' && <Bot size={11} style={{ flexShrink: 0, color: '#00a884' }} />}
+                                                    {c.ultima_msg_remetente === 'ia' && <Bot size={11} style={{ flexShrink: 0, color: 'var(--success)' }} />}
                                                     {c.ultima_msg_remetente === 'usuario' && <Check size={11} style={{ flexShrink: 0, color: '#8696a0' }} />}
                                                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {(c.ultima_msg || '').slice(0, 50)}
@@ -945,7 +909,7 @@ export default function Mensagens({ notify }) {
                                                     {c.nao_lidas > 0 && (
                                                         <span style={{
                                                             fontSize: 11, fontWeight: 700, color: '#fff',
-                                                            background: '#00a884', borderRadius: 99,
+                                                            background: 'var(--success)', borderRadius: 99,
                                                             minWidth: 18, height: 18,
                                                             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
                                                         }}>
@@ -962,7 +926,7 @@ export default function Mensagens({ notify }) {
                                                         <span style={{
                                                             fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
                                                             background: c.atribuido_user_id === user?.id ? 'var(--success-bg)' : 'var(--bg-muted)',
-                                                            color: c.atribuido_user_id === user?.id ? '#00a884' : 'var(--text-muted)',
+                                                            color: c.atribuido_user_id === user?.id ? 'var(--success)' : 'var(--text-muted)',
                                                             display: 'flex', alignItems: 'center', gap: 3,
                                                         }}>
                                                             <UserCheck size={8} />
@@ -1172,9 +1136,10 @@ export default function Mensagens({ notify }) {
                                 style={{
                                     flex: 1, overflowY: 'auto', padding: '14px 5% 10px',
                                     display: 'flex', flexDirection: 'column', gap: 2,
-                                    // Papel de parede estilo WhatsApp: base + doodle geométrico sutil (claro/escuro)
+                                    // Papel de parede estilo WhatsApp sobre o fundo do TEMA DO SISTEMA:
+                                    // doodle neutro (branco/preto translúcido) funciona em qualquer cor de fundo
                                     background: 'var(--bg-body)',
-                                    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><g fill='none' stroke='${appDark ? '#15212a' : '#d6cfc2'}' stroke-width='1.2' opacity='0.85'><circle cx='24' cy='28' r='7'/><path d='M120 18l8 8m0-8l-8 8'/><rect x='66' y='10' width='13' height='13' rx='3' transform='rotate(12 72 16)'/><path d='M22 92c4-6 12-6 16 0'/><circle cx='138' cy='66' r='5'/><path d='M84 64l10 4-4 10z'/><path d='M16 138l9 9m0-9l-9 9'/><rect x='108' y='118' width='12' height='12' rx='6'/><path d='M58 132c5-5 13-5 18 0'/><circle cx='148' cy='146' r='6'/><path d='M96 92h14M103 85v14'/></g></svg>`)}")`,
+                                    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><g fill='none' stroke='${appDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.055)'}' stroke-width='1.2'><circle cx='24' cy='28' r='7'/><path d='M120 18l8 8m0-8l-8 8'/><rect x='66' y='10' width='13' height='13' rx='3' transform='rotate(12 72 16)'/><path d='M22 92c4-6 12-6 16 0'/><circle cx='138' cy='66' r='5'/><path d='M84 64l10 4-4 10z'/><path d='M16 138l9 9m0-9l-9 9'/><rect x='108' y='118' width='12' height='12' rx='6'/><path d='M58 132c5-5 13-5 18 0'/><circle cx='148' cy='146' r='6'/><path d='M96 92h14M103 85v14'/></g></svg>`)}")`,
                                     backgroundSize: '320px 320px',
                                 }}>
                                 {mensagens.length === 0 && (
@@ -1224,7 +1189,7 @@ export default function Mensagens({ notify }) {
                                         bubbleBg = 'var(--wa-bubble-ia)';
                                         bubbleColor = 'var(--wa-bubble-text)';
                                         align = 'flex-end';
-                                        indicator = <Bot size={10} style={{ color: '#00a884' }} />;
+                                        indicator = <Bot size={10} style={{ color: 'var(--success)' }} />;
                                         metaColor = 'var(--wa-meta)';
                                     } else {
                                         // Mensagem enviada pelo atendente humano
