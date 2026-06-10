@@ -340,36 +340,40 @@ router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), asy
         ).run(id, req.user.id, req.user.id, 'auto-atribuição ao responder');
     }
 
+    // ─── 1. Salvar a mensagem JÁ com status 'enviando' ───
+    // Antes a rota fazia `await evolution.sendText()` ANTES de salvar/responder:
+    // se a instância Evolution caísse, o request pendurava e o botão "Enviar"
+    // ficava carregando indefinidamente. Agora salvamos e respondemos na hora;
+    // o envio vai pra Evolution em background e o status é atualizado depois.
+    const dest = conversa.wa_jid || conversa.wa_phone;
+    const r = db.prepare(`
+        INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, remetente_id, status_envio, criado_em)
+        VALUES (?, 'saida', ?, ?, 'usuario', ?, 'enviando', CURRENT_TIMESTAMP)
+    `).run(id, tipo || 'texto', conteudo, req.user.id);
+    const msgId = r.lastInsertRowid;
+    db.prepare('UPDATE chat_conversas SET ultimo_msg_em = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+    const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(msgId);
+
+    // ─── 2. Responder JÁ (não bloqueia o atendente esperando a Evolution) ───
+    res.json(msg);
     try {
-        // Enviar via Evolution API — usar wa_jid (remoteJid completo) se disponível
-        const dest = conversa.wa_jid || conversa.wa_phone;
-        const result = await evolution.sendText(dest, conteudo);
-        const waMessageId = result?.key?.id || '';
+        req.app.locals.wsBroadcast?.('chat.message', { conversa_id: id, mensagem_id: msgId, direcao: 'saida', tipo: tipo || 'texto', remetente: 'usuario' });
+        req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id });
+    } catch (_) { /* silencioso */ }
 
-        // Armazenar mensagem
-        const r = db.prepare(`
-            INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, remetente, remetente_id, criado_em)
-            VALUES (?, ?, 'saida', ?, ?, 'usuario', ?, CURRENT_TIMESTAMP)
-        `).run(id, waMessageId, tipo || 'texto', conteudo, req.user.id);
-
-        // Atualizar timestamp da conversa
-        db.prepare('UPDATE chat_conversas SET ultimo_msg_em = CURRENT_TIMESTAMP WHERE id = ?').run(id);
-
-        const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(r.lastInsertRowid);
-        try {
-            req.app.locals.wsBroadcast?.('chat.message', {
-                conversa_id: id,
-                mensagem_id: r.lastInsertRowid,
-                direcao: 'saida',
-                tipo: tipo || 'texto',
-                remetente: 'usuario',
-            });
-            req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id });
-        } catch (_) { /* silencioso */ }
-        res.json(msg);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    // ─── 3. Enviar via Evolution em background; marcar status ao resolver/falhar ───
+    const bcastStatus = req.app.locals.wsBroadcast;
+    evolution.sendText(dest, conteudo)
+        .then(result => {
+            const waId = result?.key?.id || '';
+            db.prepare("UPDATE chat_mensagens SET status_envio = 'enviado', wa_message_id = ? WHERE id = ?").run(waId, msgId);
+            try { bcastStatus?.('chat.message-status', { conversa_id: id, mensagem_id: msgId, wa_message_id: waId, status: 'enviado' }); } catch (_) { /* */ }
+        })
+        .catch(e => {
+            console.error(`[WA enviar] conv ${id}: falha na Evolution — ${e.message}`);
+            db.prepare("UPDATE chat_mensagens SET status_envio = 'falhou' WHERE id = ?").run(msgId);
+            try { bcastStatus?.('chat.message-status', { conversa_id: id, mensagem_id: msgId, status: 'falhou' }); } catch (_) { /* */ }
+        });
 });
 
 // ═══════════════════════════════════════════════════════

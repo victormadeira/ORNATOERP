@@ -9,7 +9,7 @@ import {
     Search, MoreVertical, ArrowLeft, Link2, RefreshCw, Check, CheckCheck,
     Paperclip, Mic, Square, Image, X, FileText, Download,
     UserPlus, UserCheck, Tag, Archive, Inbox, Users as UsersIcon,
-    AlertCircle, History, ChevronDown, Flag,
+    AlertCircle, History, ChevronDown, Flag, Clock,
     Pause, BellOff, Hourglass, Moon, Zap,
     Activity, Power, CheckCircle2, XCircle, AlertTriangle
 } from 'lucide-react';
@@ -233,12 +233,15 @@ export default function Mensagens({ notify }) {
         obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
         return () => obs.disconnect();
     }, []);
-    // Papel de parede do chat = identidade da marca Ornato (a mesma da proposta)
-    const [marca, setMarca] = useState({ cp: '#1B2A4A', ca: '#C9A96E' });
+    // Papel de parede do chat = logomarca d'água da Ornato (a mesma do sistema/proposta)
+    const [marca, setMarca] = useState({ wm: '', wmOp: 0.04 });
     useEffect(() => {
         api.get('/config/empresa')
-            .then(d => setMarca({ cp: d?.proposta_cor_primaria || '#1B2A4A', ca: d?.proposta_cor_accent || '#C9A96E' }))
-            .catch(() => { /* mantém defaults da marca */ });
+            .then(d => setMarca({
+                wm: d?.logo_watermark_path || d?.logo_watermark || '',
+                wmOp: d?.logo_watermark_opacity ?? 0.04,
+            }))
+            .catch(() => { /* sem watermark: fundo limpo */ });
     }, []);
     const [recording, setRecording] = useState(false);
     const [lightbox, setLightbox] = useState(null);
@@ -305,7 +308,15 @@ export default function Mensagens({ notify }) {
         try {
             const data = await api.get(`/whatsapp/conversas/${convId}/mensagens`);
             setMensagens(data);
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            // Rolar SÓ o container de mensagens (não scrollIntoView — ele rolava o
+            // <main> junto e cortava o topo da página). Vai direto ao fim.
+            setTimeout(() => {
+                const cont = messagesEndRef.current?.parentElement;
+                if (cont) cont.scrollTop = cont.scrollHeight;
+                // trava: o <main> nunca deve rolar nesta página (senão corta o topo)
+                const mainEl = messagesEndRef.current?.closest('main');
+                if (mainEl && mainEl.scrollTop !== 0) mainEl.scrollTop = 0;
+            }, 60);
         } catch { notify?.('Erro ao carregar mensagens'); }
     }, [notify]);
 
@@ -362,11 +373,15 @@ export default function Mensagens({ notify }) {
             loadConversas();
             loadContadores();
         } else if (msg.type === 'chat.message-status') {
-            // Atualiza status da mensagem diretamente no state — sem HTTP fetch
-            const { wa_message_id, status } = msg.data || {};
-            if (wa_message_id && status) {
+            // Atualiza status da mensagem diretamente no state — sem HTTP fetch.
+            // Casa por mensagem_id (envio em background: 'enviando'→'enviado'/'falhou',
+            // ainda sem wa_message_id) OU por wa_message_id (ACKs do WhatsApp).
+            const { wa_message_id, mensagem_id, status } = msg.data || {};
+            if (status && (wa_message_id || mensagem_id)) {
                 setMensagens(prev => prev.map(m =>
-                    m.wa_message_id === wa_message_id ? { ...m, status_envio: status } : m
+                    (mensagem_id && m.id === mensagem_id) || (wa_message_id && m.wa_message_id === wa_message_id)
+                        ? { ...m, status_envio: status, ...(wa_message_id ? { wa_message_id } : {}) }
+                        : m
                 ));
             }
         } else if (msg.type === 'whatsapp.connection') {
@@ -438,6 +453,15 @@ export default function Mensagens({ notify }) {
             loadConversas();
             notify?.(ligar ? 'Sofia ligada nesta conversa — ela volta a responder' : 'Sofia desligada — só atendimento humano nesta conversa');
         } catch (e) { notify?.(e.error || 'Erro ao alternar a IA'); }
+    };
+
+    // ═══ Reenviar mensagem que falhou ═══
+    const reenviar = async (m) => {
+        if (!activeConv || !m?.conteudo) return;
+        try {
+            await api.post(`/whatsapp/conversas/${activeConv}/enviar`, { conteudo: m.conteudo, tipo: m.tipo || 'texto' });
+            await loadMensagens(activeConv);
+        } catch (e) { notify?.(e.error || 'Erro ao reenviar'); }
     };
 
     // ═══ Pausar/retomar IA manualmente (anti-abuso) ═══
@@ -703,7 +727,8 @@ export default function Mensagens({ notify }) {
     // ═══ RENDER ═══
     return (
         <div className={Z.pg} style={{
-            padding: 0, maxWidth: '100%', height: 'calc(100vh - 64px)',
+            padding: 0, maxWidth: '100%', height: 'calc(100vh - 56px)', // Topbar = 56px (era 64, descasava e cortava o topo)
+            overflow: 'hidden',
             // ── Layout WhatsApp Web com as CORES DO SISTEMA ──
             // Nada de paleta própria: tudo deriva das vars do tema do ERP
             // (claro/escuro/cor primária configurável acompanham sozinhos).
@@ -989,11 +1014,21 @@ export default function Mensagens({ notify }) {
 
                 {/* ═══ Painel Direito: Chat ═══ */}
                 <div style={{
-                    flex: 1, minWidth: 0, display: (isNarrow && !mobileShowChat) ? 'none' : 'flex', flexDirection: 'column',
+                    flex: 1, minWidth: 0, position: 'relative', display: (isNarrow && !mobileShowChat) ? 'none' : 'flex', flexDirection: 'column',
                     background: 'var(--bg-body)',
                     borderLeft: '1px solid var(--border)',
                     overflow: 'hidden', // sem minWidth:0 + overflow, o input estoura a largura no mobile (botão Enviar saía da tela)
                 }}>
+                    {/* Marca d'água Ornato — logo centralizado, faded, fixo atrás das mensagens */}
+                    {marca.wm && (
+                        <div aria-hidden="true" style={{
+                            position: 'absolute', inset: 0, zIndex: -1,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            pointerEvents: 'none', opacity: marca.wmOp,
+                        }}>
+                            <img src={marca.wm} alt="" style={{ width: 'min(55%, 420px)', height: 'auto', objectFit: 'contain' }} />
+                        </div>
+                    )}
                     {!activeConv ? (
                         // Nenhuma conversa selecionada — estilo WA Web splash
                         <div style={{
@@ -1194,11 +1229,9 @@ export default function Mensagens({ notify }) {
                                 style={{
                                     flex: 1, overflowY: 'auto', padding: '14px 5% 10px',
                                     display: 'flex', flexDirection: 'column', gap: 2,
-                                    // Papel de parede = IDENTIDADE ORNATO (a mesma da proposta):
-                                    // fundo grafite/navy da marca (cp) + monograma/doodle em cobre (ca) sutil.
-                                    background: marca.cp,
-                                    backgroundImage: `radial-gradient(circle at 50% -10%, rgba(255,255,255,0.06), transparent 55%), url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='170' height='170' viewBox='0 0 170 170'><g fill='none' stroke='${marca.ca}' stroke-width='1.3' opacity='0.12'><circle cx='26' cy='30' r='7'/><path d='M128 20l8 8m0-8l-8 8'/><rect x='70' y='12' width='13' height='13' rx='3' transform='rotate(12 76 18)'/><path d='M24 98c4-6 12-6 16 0'/><circle cx='146' cy='70' r='5'/><path d='M90 68l10 4-4 10z'/><path d='M18 146l9 9m0-9l-9 9'/><rect x='114' y='124' width='12' height='12' rx='6'/><path d='M62 140c5-5 13-5 18 0'/><circle cx='156' cy='154' r='6'/><path d='M102 98h14M109 91v14'/></g></svg>`)}")`,
-                                    backgroundSize: 'auto, 330px 330px',
+                                    // Fundo na cor anterior (segue o tema) — a marca d'água Ornato
+                                    // fica numa camada atrás (z-index -1), por isso aqui é transparente.
+                                    background: 'transparent',
                                 }}>
                                 {mensagens.length === 0 && (
                                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 32, margin: 'auto' }}>
@@ -1373,18 +1406,26 @@ export default function Mensagens({ notify }) {
                                                     {showMeta && (
                                                         <div style={{
                                                             position: 'absolute', right: 10, bottom: 5,
-                                                            fontSize: 10, color: metaColor,
+                                                            fontSize: 10, color: m.status_envio === 'falhou' ? 'var(--danger)' : metaColor,
                                                             display: 'flex', alignItems: 'center', gap: 3,
-                                                            pointerEvents: 'none',
-                                                        }}>
+                                                            pointerEvents: m.status_envio === 'falhou' ? 'auto' : 'none',
+                                                            cursor: m.status_envio === 'falhou' ? 'pointer' : 'default',
+                                                        }}
+                                                        onClick={m.status_envio === 'falhou' ? () => reenviar(m) : undefined}
+                                                        title={m.status_envio === 'falhou' ? 'Falhou ao enviar — clique para reenviar' : (m.status_envio === 'enviando' ? 'Enviando...' : undefined)}
+                                                        >
                                                             {formatTime(m.criado_em)}
                                                             {m.direcao === 'saida' && !isInterno && (
                                                                 <>
-                                                                    {m.status_envio === 'lido'
-                                                                        ? <CheckCheck size={13} style={{ color: '#53bdeb' }} />
-                                                                        : m.status_envio === 'entregue'
-                                                                            ? <CheckCheck size={13} />
-                                                                            : <Check size={13} />}
+                                                                    {m.status_envio === 'falhou'
+                                                                        ? <AlertCircle size={12} />
+                                                                        : m.status_envio === 'enviando'
+                                                                            ? <Clock size={12} style={{ opacity: 0.7 }} />
+                                                                            : m.status_envio === 'lido'
+                                                                                ? <CheckCheck size={13} style={{ color: '#53bdeb' }} />
+                                                                                : m.status_envio === 'entregue'
+                                                                                    ? <CheckCheck size={13} />
+                                                                                    : <Check size={13} />}
                                                                 </>
                                                             )}
                                                         </div>
