@@ -8,6 +8,7 @@ import { requireAuth, requireConversaAccess, canSeeAll, isGerente } from '../aut
 import evolution from '../services/evolution.js';
 import ai from '../services/ai.js';
 import { backfillFromEvolution, backfillOneChat } from '../services/whatsapp_backfill.js';
+import waAvatar from '../services/wa_avatar.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
@@ -246,6 +247,9 @@ router.get('/conversas', requireAuth, (req, res) => {
     const totalRow = db.prepare(
         `SELECT COUNT(*) as total FROM chat_conversas cc ${whereSQL}`
     ).get(...params);
+
+    // Fotos de perfil: atualiza vencidas/ausentes em background (nunca bloqueia)
+    try { waAvatar.sweepStale(conversas); } catch (_) { /* silencioso */ }
 
     res.json({ conversas, total: totalRow.total, limit: pageLimit, offset: pageOffset });
 });
@@ -670,11 +674,11 @@ router.post('/conversas/:id/enviar-midia', requireAuth, upload.single('file'), r
         const result = await evoRes.json();
         const waMessageId = result?.key?.id || '';
 
-        // Armazenar mensagem
+        // Armazenar mensagem (media_nome = nome original — vira o rótulo do documento no chat)
         const r = db.prepare(`
-            INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, remetente_id, criado_em)
-            VALUES (?, ?, 'saida', ?, ?, ?, 'usuario', ?, CURRENT_TIMESTAMP)
-        `).run(id, waMessageId, tipo, caption || `[${tipo}]`, mediaUrl, req.user.id);
+            INSERT INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, media_nome, media_mime, remetente, remetente_id, criado_em)
+            VALUES (?, ?, 'saida', ?, ?, ?, ?, ?, 'usuario', ?, CURRENT_TIMESTAMP)
+        `).run(id, waMessageId, tipo, caption || `[${tipo}]`, mediaUrl, file.originalname || '', mime, req.user.id);
 
         db.prepare('UPDATE chat_conversas SET ultimo_msg_em = CURRENT_TIMESTAMP WHERE id = ?').run(id);
         const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(r.lastInsertRowid);

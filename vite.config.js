@@ -88,6 +88,11 @@ export default defineConfig({
                 target: 'http://localhost:3001',
                 changeOrigin: true,
             },
+            // Mídias do WhatsApp + avatares + fotos de expedição (paridade com produção/nginx)
+            '/uploads': {
+                target: 'http://localhost:3001',
+                changeOrigin: true,
+            },
         },
     },
 });

@@ -5,6 +5,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import db from '../db.js';
 import evolution from '../services/evolution.js';
+import waAvatar from '../services/wa_avatar.js';
 import ai from '../services/ai.js';
 import sofiaProspeccao from '../services/sofia_prospeccao.js';
 import { enqueue as iaRetryEnqueue } from '../services/ia_retry_queue.js';
@@ -217,6 +218,14 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
         : data.message?.stickerMessage ? 'sticker'
         : 'texto';
     const pushName = data.pushName || '';
+    // Nome de arquivo e mimetype reais (documento mostra o nome no chat, como no WhatsApp)
+    const docMsg = data.message?.documentMessage;
+    const mediaNome = docMsg?.fileName || '';
+    const mediaMime = docMsg?.mimetype
+        || data.message?.imageMessage?.mimetype
+        || data.message?.videoMessage?.mimetype
+        || data.message?.audioMessage?.mimetype
+        || '';
 
     // Ignorar mensagens de texto vazias (mas processar mídia sem caption)
     if (!messageContent && messageType === 'texto') return;
@@ -245,6 +254,8 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
 
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(result.lastInsertRowid);
         console.log(`[WH] Nova conversa #${conversa.id} | ${pushName} | ${phone} | jid=${finalJid}`);
+        // Foto de perfil do contato em background (não bloqueia o fluxo da mensagem)
+        waAvatar.refreshAvatar(conversa.id).catch(() => {});
     } else {
         // Atualizar conversa — preferir JID real (@s.whatsapp.net) se disponível
         const keepJid = (!finalJid.includes('@lid')) ? finalJid : (conversa.wa_jid && !conversa.wa_jid.includes('@lid') ? conversa.wa_jid : finalJid);
@@ -266,7 +277,7 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
 
     if (messageType !== 'texto' && msgId) {
         try {
-            mediaUrl = await downloadMedia(data.key, messageType);
+            mediaUrl = await downloadMedia(data.key, messageType, mediaNome, mediaMime);
         } catch (err) {
             console.error('[WH] Erro download mídia:', err.message);
         }
@@ -295,9 +306,9 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
     // ── 8. Salvar mensagem (com conteúdo enriquecido) ──
     // INSERT OR IGNORE — UNIQUE INDEX em wa_message_id garante dedup
     const insertResult = db.prepare(`
-        INSERT OR IGNORE INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, remetente, criado_em)
-        VALUES (?, ?, 'entrada', ?, ?, ?, 'cliente', CURRENT_TIMESTAMP)
-    `).run(conversa.id, msgId, messageType, enrichedContent || `[${messageType}]`, mediaUrl);
+        INSERT OR IGNORE INTO chat_mensagens (conversa_id, wa_message_id, direcao, tipo, conteudo, media_url, media_nome, media_mime, remetente, criado_em)
+        VALUES (?, ?, 'entrada', ?, ?, ?, ?, ?, 'cliente', CURRENT_TIMESTAMP)
+    `).run(conversa.id, msgId, messageType, enrichedContent || `[${messageType}]`, mediaUrl, mediaNome, mediaMime);
     if (insertResult.changes === 0) return; // race: outra request salvou essa msg primeiro
 
     console.log(`[WH] Msg salva | conv #${conversa.id} | ${messageType} | ${pushName}`);
@@ -408,7 +419,7 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
 }
 
 // ═══ Baixar mídia via Evolution API ═══
-async function downloadMedia(messageKey, messageType) {
+async function downloadMedia(messageKey, messageType, mediaNome = '', mediaMime = '') {
     const cfg = db.prepare(
         'SELECT wa_instance_url, wa_instance_name, wa_api_key FROM empresa_config WHERE id = 1'
     ).get();
@@ -428,7 +439,15 @@ async function downloadMedia(messageKey, messageType) {
     const data = await res.json();
     if (!data.base64) return '';
 
-    const ext = { imagem: 'jpg', video: 'mp4', audio: 'ogg', documento: 'pdf', sticker: 'webp' }[messageType] || 'bin';
+    // Extensão real: nome do arquivo > mimetype > fallback por tipo.
+    // Whitelist evita XSS stored (.html/.svg servidos como estático).
+    const EXT_OK = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'webm', 'ogg', 'mp3', 'm4a', 'opus', 'wav', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'zip', 'dxf', 'dwg', 'skp'];
+    const MIME_EXT = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a' };
+    let ext = '';
+    const nomeExt = (mediaNome.match(/\.([a-z0-9]{2,5})$/i) || [])[1]?.toLowerCase();
+    if (nomeExt && EXT_OK.includes(nomeExt)) ext = nomeExt;
+    else if (MIME_EXT[(mediaMime || '').split(';')[0]]) ext = MIME_EXT[(mediaMime || '').split(';')[0]];
+    else ext = { imagem: 'jpg', video: 'mp4', audio: 'ogg', documento: 'pdf', sticker: 'webp' }[messageType] || 'bin';
     const filename = `${messageKey.id}.${ext}`;
     const filepath = join(UPLOADS_DIR, filename);
 

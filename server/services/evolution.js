@@ -143,6 +143,28 @@ export async function getQRCode() {
     return { base64: b64, pairingCode: data.pairingCode || null, connected: false };
 }
 
+// ═══ Foto de perfil do contato ═══
+// Mesmo endpoint na v1.8.3 e v2: POST /chat/fetchProfilePictureUrl/{instance} { number }
+// Retorna a URL temporária do CDN do WhatsApp ('' se sem foto/privacidade).
+export async function fetchProfilePicUrl(phoneOrJid) {
+    const cfg = getConfig();
+    if (!isConfigured()) return '';
+    const number = String(phoneOrJid || '')
+        .replace('@s.whatsapp.net', '')
+        .replace('@lid', '');
+    if (!number) return '';
+    const url = `${cfg.wa_instance_url}/chat/fetchProfilePictureUrl/${cfg.wa_instance_name}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': cfg.wa_api_key },
+        body: JSON.stringify({ number }),
+        signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return '';
+    const data = await res.json().catch(() => ({}));
+    return data.profilePictureUrl || data.profilePicUrl || data.url || '';
+}
+
 // ═══ Enviar typing indicator (composing) ═══
 export async function sendPresence(phoneOrJid, presence = 'composing', delayMs = 2000) {
     const cfg = getConfig();
@@ -279,6 +301,6 @@ export function formatPhone(phone) {
 export default {
     sendText, sendMedia, getConnectionStatus, getQRCode,
     isConfigured, getWebhookToken, formatPhone,
-    sendPresence, baixarMidiaBase64,
+    sendPresence, baixarMidiaBase64, fetchProfilePicUrl,
     enableFullHistorySync, logoutInstance,
 };

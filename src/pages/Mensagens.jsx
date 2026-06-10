@@ -113,6 +113,95 @@ function avatarColor(name) {
     return palette[Math.abs(hash) % palette.length];
 }
 
+// Avatar com foto de perfil real do WhatsApp (fallback: iniciais coloridas)
+function Avatar({ src, name, size = 44, style = {} }) {
+    const [erro, setErro] = useState(false);
+    useEffect(() => { setErro(false); }, [src]);
+    if (src && !erro) {
+        return (
+            <img
+                src={src} alt="" loading="lazy"
+                onError={() => setErro(true)}
+                style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', background: '#dfe5e7', ...style }}
+            />
+        );
+    }
+    return (
+        <div style={{
+            width: size, height: size, borderRadius: '50%',
+            background: avatarColor(name),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: Math.round(size * 0.36), fontWeight: 700, flexShrink: 0, ...style,
+        }}>
+            {initials(name)}
+        </div>
+    );
+}
+
+// Player de áudio estilo WhatsApp (play/pause + barra + tempo + velocidade)
+function WaAudioPlayer({ src, accent = '#00a884' }) {
+    const audioRef = useRef(null);
+    const [tocando, setTocando] = useState(false);
+    const [prog, setProg] = useState(0);       // 0..1
+    const [dur, setDur] = useState(0);
+    const [vel, setVel] = useState(1);
+    const fmt = (s) => {
+        if (!isFinite(s) || s <= 0) return '0:00';
+        const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+        return `${m}:${String(ss).padStart(2, '0')}`;
+    };
+    const toggle = () => {
+        const a = audioRef.current; if (!a) return;
+        if (a.paused) { a.play(); } else { a.pause(); }
+    };
+    const seek = (e) => {
+        const a = audioRef.current; if (!a || !isFinite(a.duration)) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        a.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * a.duration;
+    };
+    const mudarVel = () => {
+        const prox = vel === 1 ? 1.5 : vel === 1.5 ? 2 : 1;
+        setVel(prox);
+        if (audioRef.current) audioRef.current.playbackRate = prox;
+    };
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 230, padding: '4px 2px' }}>
+            <audio
+                ref={audioRef} src={src} preload="metadata"
+                onPlay={() => setTocando(true)} onPause={() => setTocando(false)}
+                onEnded={() => { setTocando(false); setProg(0); }}
+                onTimeUpdate={e => setProg(e.target.duration ? e.target.currentTime / e.target.duration : 0)}
+                onLoadedMetadata={e => setDur(e.target.duration)}
+            />
+            <button onClick={toggle} style={{
+                width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+                {tocando
+                    ? <span style={{ display: 'flex', gap: 3 }}><span style={{ width: 3.5, height: 13, background: '#fff', borderRadius: 1 }} /><span style={{ width: 3.5, height: 13, background: '#fff', borderRadius: 1 }} /></span>
+                    : <span style={{ width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: '12px solid #fff', marginLeft: 3 }} />}
+            </button>
+            <div style={{ flex: 1, minWidth: 110 }}>
+                <div onClick={seek} style={{ height: 18, display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <div style={{ position: 'relative', height: 4, borderRadius: 99, background: 'rgba(0,0,0,0.14)', flex: 1 }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prog * 100}%`, borderRadius: 99, background: accent }} />
+                        <div style={{ position: 'absolute', left: `calc(${prog * 100}% - 6px)`, top: -4, width: 12, height: 12, borderRadius: '50%', background: accent, boxShadow: '0 1px 2px rgba(0,0,0,0.25)' }} />
+                    </div>
+                </div>
+                <div style={{ fontSize: 10.5, color: '#667781', marginTop: 1 }}>
+                    {fmt(prog > 0 && audioRef.current ? audioRef.current.currentTime : dur)}
+                </div>
+            </div>
+            <button onClick={mudarVel} style={{
+                fontSize: 10.5, fontWeight: 700, padding: '3px 7px', borderRadius: 99, cursor: 'pointer',
+                background: 'rgba(0,0,0,0.08)', border: 'none', color: '#54656f', flexShrink: 0,
+            }}>
+                {vel}×
+            </button>
+        </div>
+    );
+}
+
 export default function Mensagens({ notify }) {
     const { user } = useAuth();
     const isGerente = user?.role === 'admin' || user?.role === 'gerente';
@@ -749,7 +838,6 @@ export default function Mensagens({ notify }) {
                             const isActive = activeConv === c.id;
                             const sc = STATUS_COLORS[c.status] || STATUS_COLORS.humano;
                             const displayName = c.cliente_nome || c.wa_name || c.wa_phone;
-                            const avColor = avatarColor(displayName);
                             return (
                                 <div
                                     key={c.id}
@@ -764,16 +852,9 @@ export default function Mensagens({ notify }) {
                                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                        {/* Avatar */}
+                                        {/* Avatar — foto de perfil real do WhatsApp */}
                                         <div style={{ position: 'relative', flexShrink: 0 }}>
-                                            <div style={{
-                                                width: 49, height: 49, borderRadius: '50%',
-                                                background: avColor,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                color: '#fff', fontSize: 17, fontWeight: 700,
-                                            }}>
-                                                {initials(displayName)}
-                                            </div>
+                                            <Avatar src={c.wa_avatar} name={displayName} size={49} />
                                             {/* Status dot */}
                                             <span style={{
                                                 position: 'absolute', bottom: 0, right: 0,
@@ -929,17 +1010,11 @@ export default function Mensagens({ notify }) {
 
                                 {(() => {
                                     const hdrName = activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone || '';
-                                    const hdrColor = avatarColor(hdrName);
                                     return (
-                                        <div style={{
-                                            width: 42, height: 42, borderRadius: '50%',
-                                            background: `linear-gradient(135deg, ${hdrColor}, ${hdrColor}cc)`,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            color: '#fff', fontSize: 14, fontWeight: 700,
-                                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flexShrink: 0,
-                                        }}>
-                                            {initials(hdrName)}
-                                        </div>
+                                        <Avatar
+                                            src={activeConvData?.wa_avatar} name={hdrName} size={42}
+                                            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}
+                                        />
                                     );
                                 })()}
 
@@ -1049,7 +1124,10 @@ export default function Mensagens({ notify }) {
                                 style={{
                                     flex: 1, overflowY: 'auto', padding: '14px 5% 10px',
                                     display: 'flex', flexDirection: 'column', gap: 2,
+                                    // Papel de parede estilo WhatsApp: base bege + doodle geométrico sutil
                                     background: '#efeae2',
+                                    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><g fill='none' stroke='%23d6cfc2' stroke-width='1.2' opacity='0.55'><circle cx='24' cy='28' r='7'/><path d='M120 18l8 8m0-8l-8 8'/><rect x='66' y='10' width='13' height='13' rx='3' transform='rotate(12 72 16)'/><path d='M22 92c4-6 12-6 16 0'/><circle cx='138' cy='66' r='5'/><path d='M84 64l10 4-4 10z'/><path d='M16 138l9 9m0-9l-9 9'/><rect x='108' y='118' width='12' height='12' rx='6'/><path d='M58 132c5-5 13-5 18 0'/><circle cx='148' cy='146' r='6'/><path d='M96 92h14M103 85v14'/></g></svg>`)}")`,
+                                    backgroundSize: '320px 320px',
                                 }}>
                                 {mensagens.length === 0 && (
                                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 32, margin: 'auto' }}>
@@ -1185,16 +1263,27 @@ export default function Mensagens({ notify }) {
                                                         </video>
                                                     )}
                                                     {m.media_url && m.tipo === 'audio' && (
-                                                        <audio controls style={{ minWidth: 240, marginBottom: 4, display: 'block' }}>
-                                                            <source src={m.media_url} type="audio/ogg" />
-                                                        </audio>
+                                                        <div style={{ marginBottom: hasText ? 6 : 2 }}>
+                                                            <WaAudioPlayer src={m.media_url} />
+                                                        </div>
                                                     )}
-                                                    {m.media_url && m.tipo === 'documento' && (
-                                                        <a href={m.media_url} target="_blank" rel="noopener noreferrer"
-                                                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'rgba(0,0,0,0.08)', borderRadius: 6, marginBottom: hasText ? 6 : 0, color: 'inherit', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
-                                                            <FileText size={16} /> Documento
-                                                        </a>
-                                                    )}
+                                                    {m.media_url && m.tipo === 'documento' && (() => {
+                                                        const nomeArq = m.media_nome || (m.conteudo && !m.conteudo.startsWith('[') ? m.conteudo : '') || 'Documento';
+                                                        const extArq = (nomeArq.match(/\.([a-z0-9]{2,5})$/i) || [])[1]?.toUpperCase() || '';
+                                                        return (
+                                                            <a href={m.media_url} target="_blank" rel="noopener noreferrer" download={m.media_nome || undefined}
+                                                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(0,0,0,0.06)', borderRadius: 8, marginBottom: hasText ? 6 : 0, color: 'inherit', textDecoration: 'none', maxWidth: 320 }}>
+                                                                <div style={{ width: 38, height: 38, borderRadius: 8, background: 'rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                                    <FileText size={19} />
+                                                                </div>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomeArq}</div>
+                                                                    {extArq && <div style={{ fontSize: 10.5, color: '#667781', marginTop: 1 }}>{extArq}</div>}
+                                                                </div>
+                                                                <Download size={17} style={{ flexShrink: 0, color: '#54656f' }} />
+                                                            </a>
+                                                        );
+                                                    })()}
                                                     {/* Texto com espaço pra timestamp inline (estilo WA) */}
                                                     {hasText && (
                                                         <div style={{ fontSize: 14.5, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -1421,18 +1510,12 @@ export default function Mensagens({ notify }) {
                         <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
                             {(() => {
                                 const nome = activeConvData?.cliente_nome || activeConvData?.wa_name || activeConvData?.wa_phone || '';
-                                const ac = avatarColor(nome);
                                 return (
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 8 }}>
-                                        <div style={{
-                                            width: 72, height: 72, borderRadius: '50%',
-                                            background: `linear-gradient(135deg, ${ac}, ${ac}cc)`,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            color: '#fff', fontSize: 24, fontWeight: 700,
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                        }}>
-                                            {initials(nome)}
-                                        </div>
+                                        <Avatar
+                                            src={activeConvData?.wa_avatar} name={nome} size={72}
+                                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+                                        />
                                         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
                                             {nome}
                                         </div>
