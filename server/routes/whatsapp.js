@@ -579,6 +579,28 @@ router.put('/conversas/:id/ia-bloqueio', requireAuth, requireConversaAccess(db),
 });
 
 // ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/conversas/:id/reiniciar-ia
+// Reseta bloqueio + status + contexto — IA começa do zero sem ver msgs antigas
+// ═══════════════════════════════════════════════════════
+router.post('/conversas/:id/reiniciar-ia', requireAuth, requireConversaAccess(db), (req, res) => {
+    const id = req.conversa.id;
+    const agora = new Date().toISOString();
+    db.prepare(`
+        UPDATE chat_conversas
+        SET ia_bloqueada = 0,
+            ia_bloqueio_ate = NULL,
+            ia_bloqueio_motivo = '',
+            status = 'ia',
+            abandonada = 0,
+            ia_contexto_reset_em = ?
+        WHERE id = ?
+    `).run(agora, id);
+    const conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(id);
+    try { req.app.locals.wsBroadcast?.('chat.conversa-updated', { conversa_id: id }); } catch (_) { /* */ }
+    res.json(conversa);
+});
+
+// ═══════════════════════════════════════════════════════
 // PUT /api/whatsapp/conversas/:id/aguardando-cliente
 // Pausa escalação Sofia enquanto humano aguarda cliente ativamente
 // body: { aguardando: true|false }

@@ -486,6 +486,14 @@ export default function Mensagens({ notify }) {
         notify?.(isBloqueada ? 'IA retomada nesta conversa' : 'IA pausada por 24h');
     };
 
+    // ═══ Reiniciar IA — zera bloqueio, status e contexto ═══
+    const reiniciarIA = async () => {
+        if (!activeConv) return;
+        const r = await api.post(`/whatsapp/conversas/${activeConv}/reiniciar-ia`);
+        setActiveConvData(r);
+        notify?.('IA reiniciada — contexto anterior apagado');
+    };
+
     // ═══ Aguardando cliente (pausa escalação) ═══
     const toggleAguardandoCliente = async () => {
         if (!activeConv) return;
@@ -1880,6 +1888,20 @@ export default function Mensagens({ notify }) {
                                 }}
                             >
                                 {activeConvData?.ia_bloqueada ? <><BellOff size={12} /> IA pausada — retomar</> : <><Pause size={12} /> Pausar IA nesta conversa</>}
+                            </button>
+                            <button
+                                onClick={reiniciarIA}
+                                title="Apaga o contexto anterior e reinicia a IA do zero nesta conversa. Útil quando a IA trava ou precisa recomeçar."
+                                style={{
+                                    width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8, marginBottom: 6,
+                                    border: '1px solid var(--border)',
+                                    background: 'transparent',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer', fontWeight: 600,
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                }}
+                            >
+                                <RefreshCw size={12} /> Reiniciar IA (sem contexto)
                             </button>
                             {activeConvData?.status === 'humano' && (
                                 <button

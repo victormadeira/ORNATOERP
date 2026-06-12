@@ -783,6 +783,9 @@ const migrations = [
   "ALTER TABLE users ADD COLUMN empresa_id INTEGER DEFAULT 1",
   // users v5 — flag para indicar se o usuário pode criar empresas (super-admin)
   "ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0",
+  // token_version — invalidação global de JWT. Incrementa em troca de senha
+  // ou em "forçar logout em todos dispositivos" pelo admin.
+  "ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 1",
   // biblioteca v2 — preço da fita de borda por material (R$/m)
   "ALTER TABLE biblioteca ADD COLUMN fita_preco REAL DEFAULT 0",
   // empresa_config v2 — template do contrato
@@ -827,6 +830,11 @@ const migrations = [
   "ALTER TABLE empresa_config ADD COLUMN wa_api_key TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN wa_webhook_token TEXT DEFAULT ''",
   "ALTER TABLE empresa_config ADD COLUMN wa_owner_phone TEXT DEFAULT ''",
+  // ═══ WhatsApp provider (evolution | zapi) — permite alternar de provedor ═══
+  "ALTER TABLE empresa_config ADD COLUMN wa_provider TEXT DEFAULT 'evolution'",
+  "ALTER TABLE empresa_config ADD COLUMN zapi_instance_id TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN zapi_token TEXT DEFAULT ''",
+  "ALTER TABLE empresa_config ADD COLUMN zapi_client_token TEXT DEFAULT ''",
   // ═══ IA config ═══
   "ALTER TABLE empresa_config ADD COLUMN ia_provider TEXT DEFAULT 'anthropic'",
   "ALTER TABLE empresa_config ADD COLUMN ia_api_key TEXT DEFAULT ''",
@@ -2648,6 +2656,9 @@ const migrations = [
 
   // ═══ Empresa: WhatsApp dedicado (separado do telefone principal) ═══
   "ALTER TABLE empresa_config ADD COLUMN telefone_whatsapp TEXT DEFAULT ''",
+
+  // ═══ Sofia: reset de contexto — IA só vê mensagens após este timestamp ═══
+  "ALTER TABLE chat_conversas ADD COLUMN ia_contexto_reset_em DATETIME DEFAULT NULL",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══
@@ -2694,6 +2705,84 @@ db.exec(`
     proxima_tentativa TEXT NOT NULL,
     criado_em TEXT DEFAULT (datetime('now'))
   )
+`);
+
+// Log de tentativas de login — forensics + lockout por conta.
+// Toda chamada a /api/auth/login (sucesso ou falha) registra uma linha.
+// O lockout consulta esta tabela: 5 falhas em 15min pra mesma conta → bloqueia 30min.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email_tentado TEXT NOT NULL,
+    ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    sucesso INTEGER NOT NULL DEFAULT 0,
+    motivo TEXT DEFAULT '',
+    criado_em TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_login_attempts_email_time ON login_attempts(email_tentado, criado_em);
+  CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(criado_em);
+`);
+
+// Lockout manual / automático por conta — quando expira, o login passa de novo.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS account_lockouts (
+    email TEXT PRIMARY KEY,
+    locked_until TEXT NOT NULL,
+    motivo TEXT DEFAULT '',
+    criado_em TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+// Bloqueio de IP — defesa contra ataque distribuído tentando múltiplas contas.
+// Auto-criado pelo middleware quando IP acumula falhas; pode ser manual via admin.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ip_blocks (
+    ip TEXT PRIMARY KEY,
+    blocked_until TEXT NOT NULL,
+    motivo TEXT DEFAULT '',
+    falhas INTEGER DEFAULT 0,
+    criado_em TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+// Dispositivos conhecidos por usuário — fingerprint = sha256(user_id + ip + UA truncado).
+// Novo login com fingerprint inédito → cria linha + flag pra notificar.
+// O usuário vê a lista no perfil e pode revogar (incrementa token_version se for a sessão dele).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    fingerprint TEXT NOT NULL,
+    ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    primeiro_visto TEXT DEFAULT (datetime('now')),
+    ultimo_visto TEXT DEFAULT (datetime('now')),
+    vezes_visto INTEGER DEFAULT 1,
+    notificado INTEGER DEFAULT 0,
+    revogado INTEGER DEFAULT 0,
+    UNIQUE(user_id, fingerprint)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_devices_user ON user_devices(user_id, ultimo_visto);
+`);
+
+// Audit log expandido — qualquer operação sensível (DELETE de orcamento, projeto, etc.)
+// vai aqui. O audit do gestao-avancada continua valendo para mudanças em users.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS audit_security (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_nome TEXT DEFAULT '',
+    acao TEXT NOT NULL,
+    entidade TEXT NOT NULL,
+    entidade_id INTEGER,
+    ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    detalhes_json TEXT DEFAULT '{}',
+    criado_em TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_security_time ON audit_security(criado_em);
+  CREATE INDEX IF NOT EXISTS idx_audit_security_user ON audit_security(user_id, criado_em);
 `);
 for (const sql of migrations) {
   try { db.exec(sql); } catch (e) {
@@ -3311,7 +3400,7 @@ if (caixaCount.c === 0) {
     dimsAplicaveis: ['L'],
     vars: [
       { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-      { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+      { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
     ],
     varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
     pecas: [],
@@ -3362,6 +3451,41 @@ if (caixaCount.c === 0) {
 }
 
 // ═══════════════════════════════════════════════════════
+// MIGRATION — Limpa unidade duplicada nos labels de vars de componentes
+// Bug histórico: alguns vars tinham label tipo "Altura da Porta (mm)" + unit:'mm',
+// renderizando "(MM) (MM)" no drawer "Configure antes de adicionar".
+// ═══════════════════════════════════════════════════════
+{
+  try {
+    const compRows = db.prepare("SELECT id, json_data FROM modulos_custom WHERE tipo_item = 'componente'").all();
+    let updated = 0;
+    for (const row of compRows) {
+      try {
+        const data = JSON.parse(row.json_data);
+        if (!Array.isArray(data.vars)) continue;
+        let changed = false;
+        for (const v of data.vars) {
+          if (typeof v.label !== 'string' || !v.unit) continue;
+          // Remove " (mm)" / "(MM)" / "(un)" no fim do label quando bate com o unit
+          const trailing = new RegExp(`\\s*\\(\\s*${v.unit}\\s*\\)\\s*$`, 'i');
+          if (trailing.test(v.label)) {
+            v.label = v.label.replace(trailing, '').trim();
+            changed = true;
+          }
+        }
+        if (changed) {
+          db.prepare('UPDATE modulos_custom SET json_data = ? WHERE id = ?').run(JSON.stringify(data), row.id);
+          updated++;
+        }
+      } catch (_) { /* json inválido — ignora */ }
+    }
+    if (updated > 0) console.log(`[OK] ${updated} componente(s) com unidade duplicada no label normalizado(s)`);
+  } catch (e) {
+    console.warn('[migration vars-label]', e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // MIGRATION — Porta: adicionar Ap como variável configurável
 // ═══════════════════════════════════════════════════════
 {
@@ -3372,7 +3496,7 @@ if (caixaCount.c === 0) {
     if (!jaTemAp) {
       porta.vars = [
         ...(porta.vars || []),
-        { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+        { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
       ];
       // Garante que qtdFormula usa nPortas na contagem de dobradiças
       porta.sub_itens = (porta.sub_itens || []).map(si => {
@@ -3952,7 +4076,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -3969,7 +4093,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -3986,7 +4110,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4003,7 +4127,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4020,7 +4144,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4037,7 +4161,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 4, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2600, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2600, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4054,7 +4178,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 1, min: 1, max: 4, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 800, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 800, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4071,7 +4195,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4088,7 +4212,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4231,7 +4355,7 @@ if (caixaCount.c === 0) {
         coef: 0.10,
         dimsAplicaveis: ['L'],
         vars: [
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 900, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 900, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li', Ap: 'A' },
         pecas: [],
@@ -4249,7 +4373,7 @@ if (caixaCount.c === 0) {
         dimsAplicaveis: ['L'],
         vars: [
           { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-          { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+          { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
         ],
         varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
         pecas: [],
@@ -4266,8 +4390,8 @@ if (caixaCount.c === 0) {
         coef: 0.30,
         dimsAplicaveis: ['L','A'],
         vars: [
-          { id: 'Lc', label: 'Largura Cabeceira (mm)', default: 0, min: 500, max: 4000, unit: 'mm' },
-          { id: 'Ac', label: 'Altura Cabeceira (mm)', default: 0, min: 400, max: 1800, unit: 'mm' },
+          { id: 'Lc', label: 'Largura Cabeceira', default: 0, min: 500, max: 4000, unit: 'mm' },
+          { id: 'Ac', label: 'Altura Cabeceira', default: 0, min: 400, max: 1800, unit: 'mm' },
         ],
         varsDeriv: { Lc: 'L', Ac: 'A' },
         pecas: [
@@ -4355,7 +4479,7 @@ if (caixaCount.c === 0) {
           dimsAplicaveis: ['L'],
           vars: [
             { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 6, unit: 'un' },
-            { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 100, max: 2400, unit: 'mm' },
+            { id: 'Ap', label: 'Altura da Porta', default: 0, min: 100, max: 2400, unit: 'mm' },
           ],
           varsDeriv: { Lp: 'Li/nPortas', Ap: 'A' },
           pecas: [],
@@ -4371,8 +4495,8 @@ if (caixaCount.c === 0) {
           coef: 0.30,
           dimsAplicaveis: ['L','A'],
           vars: [
-            { id: 'Lc', label: 'Largura Cabeceira (mm)', default: 0, min: 500, max: 4000, unit: 'mm' },
-            { id: 'Ac', label: 'Altura Cabeceira (mm)', default: 0, min: 400, max: 1800, unit: 'mm' },
+            { id: 'Lc', label: 'Largura Cabeceira', default: 0, min: 500, max: 4000, unit: 'mm' },
+            { id: 'Ac', label: 'Altura Cabeceira', default: 0, min: 400, max: 1800, unit: 'mm' },
           ],
           varsDeriv: { Lc: 'L', Ac: 'A' },
           pecas: [
@@ -4536,7 +4660,7 @@ if (caixaCount.c === 0) {
           coef: 0.15,
           dimsAplicaveis: ['L'],
           vars: [
-            { id: 'Ag', label: 'Altura da Gaveta (mm)', default: 200, min: 100, max: 500, unit: 'mm' },
+            { id: 'Ag', label: 'Altura da Gaveta', default: 200, min: 100, max: 500, unit: 'mm' },
           ],
           varsDeriv: { Lg: 'Li', Ag: 'A', Pg: 'Pi' },
           pecas: [
@@ -4575,7 +4699,7 @@ if (caixaCount.c === 0) {
           dimsAplicaveis: ['L'],
           vars: [
             { id: 'nPortas', label: 'Número de Portas', default: 2, min: 1, max: 4, unit: 'un' },
-            { id: 'Ap', label: 'Altura da Porta (mm)', default: 0, min: 500, max: 2600, unit: 'mm' },
+            { id: 'Ap', label: 'Altura da Porta', default: 0, min: 500, max: 2600, unit: 'mm' },
           ],
           varsDeriv: { Lp: 'L/nPortas+30', Ap: 'A' },
           pecas: [
