@@ -786,4 +786,19 @@ router.post('/enable-full-history', requireAuth, async (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// POST /api/whatsapp/desconectar — desloga a instância (libera o QR p/ re-parear)
+// ═══════════════════════════════════════════════════════
+router.post('/desconectar', requireAuth, async (req, res) => {
+    if (!isGerente(req.user)) return res.status(403).json({ error: 'Apenas gerentes podem desconectar o WhatsApp' });
+    try {
+        console.log(`[whatsapp] Desconectando instância — user=${req.user?.id}`);
+        const result = await evolution.logoutInstance();
+        res.json({ ok: true, result, instrucoes: 'Desconectado. Clique em "Obter QR Code" e escaneie novamente para reconectar.' });
+    } catch (e) {
+        console.error('[whatsapp] desconectar FALHOU:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 export default router;
