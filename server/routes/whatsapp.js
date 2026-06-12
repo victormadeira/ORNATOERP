@@ -6,6 +6,7 @@ import multer from 'multer';
 import db from '../db.js';
 import { requireAuth, requireConversaAccess, canSeeAll, isGerente } from '../auth.js';
 import evolution from '../services/evolution.js';
+import zapi from '../services/zapi.js';
 import ai from '../services/ai.js';
 import { backfillFromEvolution, backfillOneChat } from '../services/whatsapp_backfill.js';
 import waAvatar from '../services/wa_avatar.js';
@@ -345,7 +346,11 @@ router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), asy
     // se a instância Evolution caísse, o request pendurava e o botão "Enviar"
     // ficava carregando indefinidamente. Agora salvamos e respondemos na hora;
     // o envio vai pra Evolution em background e o status é atualizado depois.
-    const dest = conversa.wa_jid || conversa.wa_phone;
+    // Provider ativo (evolution | zapi) — alterna via empresa_config.wa_provider
+    const waProvider = db.prepare('SELECT wa_provider FROM empresa_config WHERE id = 1').get()?.wa_provider || 'evolution';
+    const sender = waProvider === 'zapi' ? zapi : evolution;
+    // Z-API quer número puro; Evolution aceita o jid completo (@s.whatsapp.net / @lid)
+    const dest = waProvider === 'zapi' ? (conversa.wa_phone || conversa.wa_jid) : (conversa.wa_jid || conversa.wa_phone);
     const r = db.prepare(`
         INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, remetente_id, status_envio, criado_em)
         VALUES (?, 'saida', ?, ?, 'usuario', ?, 'enviando', CURRENT_TIMESTAMP)
@@ -366,9 +371,9 @@ router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), asy
         try { db.prepare(`UPDATE chat_mensagens SET status_envio = ?${extra.wa_message_id ? ', wa_message_id = ?' : ''} WHERE id = ?`).run(...(extra.wa_message_id ? [status, extra.wa_message_id, msgId] : [status, msgId])); } catch (e) { console.error(`[WA enviar] UPDATE status falhou conv ${id}:`, e.message); }
         try { req.app.locals.wsBroadcast?.('chat.message-status', { conversa_id: id, mensagem_id: msgId, status, ...extra }); } catch (_) { /* */ }
     };
-    evolution.sendText(dest, conteudo)
+    sender.sendText(dest, conteudo)
         .then(result => { bc('enviado', { wa_message_id: result?.key?.id || '' }); })
-        .catch(e => { console.error(`[WA enviar] conv ${id}: falha na Evolution — ${e.message}`); bc('falhou'); });
+        .catch(e => { console.error(`[WA enviar] conv ${id}: falha no envio (${waProvider}) — ${e.message}`); bc('falhou'); });
 });
 
 // ═══════════════════════════════════════════════════════
