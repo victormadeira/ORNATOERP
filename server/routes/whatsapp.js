@@ -358,6 +358,10 @@ router.post('/conversas/:id/enviar', requireAuth, requireConversaAccess(db), asy
     `).run(id, tipo || 'texto', conteudo, req.user.id);
     const msgId = r.lastInsertRowid;
     db.prepare('UPDATE chat_conversas SET ultimo_msg_em = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+    // Auto-assumir atendimento: humano respondendo → retira da IA pra ela não interferir
+    if (conversa.status === 'ia') {
+        db.prepare('UPDATE chat_conversas SET status = ? WHERE id = ?').run('humano', id);
+    }
     const msg = db.prepare('SELECT cm.*, u.nome as usuario_nome FROM chat_mensagens cm LEFT JOIN users u ON cm.remetente_id = u.id WHERE cm.id = ?').get(msgId);
 
     // ─── 2. Responder JÁ (não bloqueia o atendente esperando a Evolution) ───
