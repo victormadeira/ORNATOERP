@@ -7,6 +7,7 @@ import db from '../db.js';
 import { requireAuth, requireConversaAccess, canSeeAll, isGerente } from '../auth.js';
 import evolution from '../services/evolution.js';
 import zapi from '../services/zapi.js';
+import wa from '../services/wa.js';
 import ai from '../services/ai.js';
 import { backfillFromEvolution, backfillOneChat } from '../services/whatsapp_backfill.js';
 import waAvatar from '../services/wa_avatar.js';
@@ -62,7 +63,7 @@ const router = Router();
 // ═══════════════════════════════════════════════════════
 router.get('/status', requireAuth, async (req, res) => {
     try {
-        const status = await evolution.getConnectionStatus();
+        const status = await wa.getConnectionStatus();
         res.json(status);
     } catch (e) {
         res.json({ connected: false, error: e.message });
@@ -89,7 +90,7 @@ router.get('/diagnostico', requireAuth, async (req, res) => {
     let evolution_connected = false;
     if (wa_configurado) {
         try {
-            const st = await evolution.getConnectionStatus();
+            const st = await wa.getConnectionStatus();
             evolution_connected = !!st.connected;
             evolution_state = st.state || (st.connected ? 'open' : (st.reason || 'desconhecido'));
         } catch (e) {

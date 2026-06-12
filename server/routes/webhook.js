@@ -5,6 +5,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import db from '../db.js';
 import evolution from '../services/evolution.js';
+import wa from '../services/wa.js';
 import waAvatar from '../services/wa_avatar.js';
 import ai from '../services/ai.js';
 import sofiaProspeccao from '../services/sofia_prospeccao.js';
@@ -85,6 +86,86 @@ router.post('/whatsapp', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// POST /api/webhook/zapi — recebe eventos da Z-API
+// PÚBLICO — validado via webhook token na query string (?token=)
+// ═══════════════════════════════════════════════════════
+router.post('/zapi', async (req, res) => {
+    const expectedToken = evolution.getWebhookToken();
+    const receivedToken = (req.query.token || '').toString().trim();
+    if (!expectedToken) return res.status(503).json({ error: 'Webhook não configurado' });
+    const a = Buffer.from(receivedToken), b = Buffer.from(expectedToken);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        console.warn(`[SEC] /api/webhook/zapi — token inválido de ${req.ip}`);
+        return res.status(401).json({ error: 'Invalid webhook token' });
+    }
+    res.status(200).json({ ok: true });
+
+    try {
+        const z = req.body || {};
+        const type = z.type || '';
+
+        // Status de entrega (SENT/RECEIVED/READ)
+        if (type === 'MessageStatusCallback' || type === 'DeliveryCallback') {
+            await handleZapiStatus(z, req.app.locals.wsBroadcast);
+            return;
+        }
+        // Conexão
+        if (type === 'ConnectedCallback' || type === 'DisconnectedCallback') {
+            const connected = type === 'ConnectedCallback';
+            req.app.locals.wsBroadcast?.('whatsapp.connection', { connected, state: connected ? 'open' : 'close' });
+            return;
+        }
+        // Mensagem recebida — só entrada de clientes (ignora as nossas e grupos)
+        if (z.fromMe) return;
+        if (z.isGroup) return;
+        if (!z.phone || !z.messageId) return;
+
+        const data = {
+            key: { id: z.messageId, remoteJid: `${z.phone}@s.whatsapp.net`, fromMe: false },
+            pushName: z.senderName || z.chatName || '',
+            message: {},
+        };
+        let mediaUrlOverride = '';
+        if (z.text?.message != null) {
+            data.message.conversation = z.text.message;
+        } else if (z.image) {
+            data.message.imageMessage = { caption: z.image.caption || '', mimetype: z.image.mimeType || '' };
+            mediaUrlOverride = z.image.imageUrl || '';
+        } else if (z.audio) {
+            data.message.audioMessage = { mimetype: z.audio.mimeType || '' };
+            mediaUrlOverride = z.audio.audioUrl || '';
+        } else if (z.video) {
+            data.message.videoMessage = { caption: z.video.caption || '', mimetype: z.video.mimeType || '' };
+            mediaUrlOverride = z.video.videoUrl || '';
+        } else if (z.document) {
+            data.message.documentMessage = { fileName: z.document.fileName || '', mimetype: z.document.mimeType || '' };
+            mediaUrlOverride = z.document.documentUrl || '';
+        } else {
+            return; // tipo não suportado (sticker, location, contato, etc.)
+        }
+        console.log(`[ZAPI-WH] recebida de ${z.phone} | ${z.senderName || ''} | id=${z.messageId}`);
+        await handleIncomingMessage(data, req.app.locals.wsBroadcast, { mediaUrlOverride });
+    } catch (err) {
+        console.error('[ZAPI-WH] Erro:', err.message);
+    }
+});
+
+// Mapeia status de entrega da Z-API → status_envio das nossas mensagens
+async function handleZapiStatus(z, wsBroadcast = null) {
+    const map = { SENT: 'enviado', RECEIVED: 'entregue', DELIVERED: 'entregue', READ: 'lido', VIEWED: 'lido', PLAYED: 'lido' };
+    const status = map[String(z.status || '').toUpperCase()];
+    if (!status) return;
+    const ids = Array.isArray(z.ids) ? z.ids : (z.messageId ? [z.messageId] : []);
+    for (const wid of ids) {
+        const msg = db.prepare('SELECT id, conversa_id FROM chat_mensagens WHERE wa_message_id = ?').get(wid);
+        if (msg) {
+            db.prepare('UPDATE chat_mensagens SET status_envio = ? WHERE id = ?').run(status, msg.id);
+            try { wsBroadcast?.('chat.message-status', { conversa_id: msg.conversa_id, wa_message_id: wid, status }); } catch (_) { /* */ }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════
 // MESSAGES_SET — Lote de histórico que chega no pareamento
 // ═══════════════════════════════════════════════════════
 async function handleMessagesSet(data) {
@@ -157,7 +238,7 @@ async function handleMessagesSet(data) {
 // ═══════════════════════════════════════════════════════
 // PROCESSAR MENSAGEM RECEBIDA
 // ═══════════════════════════════════════════════════════
-async function handleIncomingMessage(data, wsBroadcast = null) {
+async function handleIncomingMessage(data, wsBroadcast = null, opts = {}) {
     if (!data?.key) return;
 
     const msgId = data.key.id;
@@ -276,29 +357,34 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
     let enrichedContent = messageContent;
 
     if (messageType !== 'texto' && msgId) {
-        try {
-            mediaUrl = await downloadMedia(data.key, messageType, mediaNome, mediaMime);
-        } catch (err) {
-            console.error('[WH] Erro download mídia:', err.message);
-        }
-
-        // Para áudio e imagem, a IA precisa entender — enriquecer o content
-        if ((messageType === 'audio' || messageType === 'imagem') && conversa.status === 'ia' || !conversa) {
+        if (opts.mediaUrlOverride) {
+            // Z-API já entrega a URL da mídia pronta — usar direto (sem download via Evolution)
+            mediaUrl = opts.mediaUrlOverride;
+        } else {
             try {
-                const base64 = await evolution.baixarMidiaBase64(data.key);
-                if (base64) {
-                    if (messageType === 'audio') {
-                        const transcricao = await ai.transcreverAudio(base64, 'audio/ogg');
-                        enrichedContent = `[áudio transcrito] ${transcricao}`;
-                        console.log(`[WH] Áudio transcrito (${transcricao.length} chars)`);
-                    } else if (messageType === 'imagem') {
-                        const desc = await ai.descreverImagem(base64, 'image/jpeg');
-                        enrichedContent = (messageContent ? `${messageContent}\n` : '') + `[imagem enviada — descrição: ${desc}]`;
-                        console.log(`[WH] Imagem descrita: ${desc.slice(0, 80)}`);
-                    }
-                }
+                mediaUrl = await downloadMedia(data.key, messageType, mediaNome, mediaMime);
             } catch (err) {
-                console.error(`[WH] Erro processar ${messageType}:`, err.message);
+                console.error('[WH] Erro download mídia:', err.message);
+            }
+
+            // Para áudio e imagem, a IA precisa entender — enriquecer o content
+            if ((messageType === 'audio' || messageType === 'imagem') && conversa.status === 'ia' || !conversa) {
+                try {
+                    const base64 = await evolution.baixarMidiaBase64(data.key);
+                    if (base64) {
+                        if (messageType === 'audio') {
+                            const transcricao = await ai.transcreverAudio(base64, 'audio/ogg');
+                            enrichedContent = `[áudio transcrito] ${transcricao}`;
+                            console.log(`[WH] Áudio transcrito (${transcricao.length} chars)`);
+                        } else if (messageType === 'imagem') {
+                            const desc = await ai.descreverImagem(base64, 'image/jpeg');
+                            enrichedContent = (messageContent ? `${messageContent}\n` : '') + `[imagem enviada — descrição: ${desc}]`;
+                            console.log(`[WH] Imagem descrita: ${desc.slice(0, 80)}`);
+                        }
+                    }
+                } catch (err) {
+                    console.error(`[WH] Erro processar ${messageType}:`, err.message);
+                }
             }
         }
     }
@@ -336,7 +422,7 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
         try {
             // Typing indicator antes de chamar a IA (~3s)
             const dest = conversa.wa_jid || remoteJid;
-            evolution.sendPresence(dest, 'composing', 3000).catch(() => { });
+            wa.sendPresence(dest, 'composing', 3000).catch(() => { });
 
             const result = await ai.processIncomingMessage(conversa, enrichedContent);
             if (!result) return;
@@ -354,7 +440,7 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
                 const part = parts[i];
                 if (i > 0) {
                     // Typing curto antes da próxima parte (~1.5s)
-                    evolution.sendPresence(dest, 'composing', 1500).catch(() => { });
+                    wa.sendPresence(dest, 'composing', 1500).catch(() => { });
                     await new Promise(r => setTimeout(r, 800));
                 }
                 // Salva no banco ANTES de tentar enviar — assim a resposta nunca se perde
@@ -364,7 +450,7 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
                     VALUES (?, 'saida', 'texto', ?, 'ia', 'pendente', CURRENT_TIMESTAMP)
                 `).run(conversa.id, part);
                 try {
-                    const evoResult = await evolution.sendText(dest, part);
+                    const evoResult = await wa.sendText(dest, part);
                     const waId = evoResult?.key?.id || '';
                     db.prepare(`UPDATE chat_mensagens SET status_envio = 'enviado', wa_message_id = ? WHERE id = ?`).run(waId, aiInsert.lastInsertRowid);
                 } catch (e) {
@@ -391,7 +477,7 @@ async function handleIncomingMessage(data, wsBroadcast = null) {
                     VALUES (?, 'saida', 'texto', ?, 'ia', 'pendente', CURRENT_TIMESTAMP)
                 `).run(conversa.id, fallback);
                 try {
-                    await evolution.sendText(dest, fallback);
+                    await wa.sendText(dest, fallback);
                     db.prepare(`UPDATE chat_mensagens SET status_envio = 'enviado' WHERE id = ?`).run(fbInsert.lastInsertRowid);
                 } catch (_) {
                     db.prepare(`UPDATE chat_mensagens SET status_envio = 'falhou' WHERE id = ?`).run(fbInsert.lastInsertRowid);
