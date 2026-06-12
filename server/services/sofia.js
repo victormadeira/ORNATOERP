@@ -134,6 +134,11 @@ const GIRIAS = [
     /\bshow\b/i,
     /\bmassa\b/i,
     /\bt[ôo] ligado\b/i,
+    /\boia\b/i,
+    /\bei\b/i,
+    /\bopa\b/i,
+    /\be ai\b/i,
+    /\be aí\b/i,
 ];
 
 /**
