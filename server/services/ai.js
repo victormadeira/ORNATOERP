@@ -1437,7 +1437,9 @@ export async function callAI(messages, systemPrompt, options = {}) {
             systemInstruction: geminiFullPrompt,
             generationConfig: {
                 temperature,
-                maxOutputTokens: maxTokens,
+                // Folga grande: modelos gemini-2.5/3.x gastam tokens com "thinking" interno,
+                // que come o orçamento e trunca o JSON. Resposta de qualificação é curta, então sobra.
+                maxOutputTokens: Math.max(maxTokens, 4096),
                 responseMimeType: 'application/json',
                 responseSchema,
             },
@@ -1457,16 +1459,24 @@ export async function callAI(messages, systemPrompt, options = {}) {
             // Remove markdown code fences que alguns modelos adicionam mesmo com responseMimeType=json
             const rawClean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
-            let resposta = raw;
+            let resposta = '';
             let dossieStr = '<dossie>{}</dossie>';
             try {
                 const parsed = JSON.parse(rawClean);
-                resposta = parsed.resposta || raw;
-                const dossieObj = parsed.dossie || {};
-                dossieStr = `<dossie>${JSON.stringify(dossieObj)}</dossie>`;
+                resposta = parsed.resposta || '';
+                dossieStr = `<dossie>${JSON.stringify(parsed.dossie || {})}</dossie>`;
             } catch (parseErr) {
-                console.warn('[Gemini] JSON.parse falhou, usando texto puro. Erro:', parseErr.message, '| Raw (200):', rawClean.slice(0, 200));
+                // NUNCA enviar JSON cru ao cliente. Tenta recuperar só o campo "resposta" do JSON truncado.
+                const m = rawClean.match(/"resposta"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                if (m) {
+                    resposta = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    console.warn('[Gemini] JSON truncado — resposta recuperada via regex.');
+                } else {
+                    console.error('[Gemini] JSON inválido e irrecuperável — propagando p/ retry. Raw(200):', rawClean.slice(0, 200));
+                    throw new Error('Gemini retornou JSON inválido');
+                }
             }
+            if (!resposta.trim()) throw new Error('Gemini retornou resposta vazia');
 
             const text = `${resposta}\n${dossieStr}`;
             const est = (str) => Math.ceil((str || '').length / 4);
