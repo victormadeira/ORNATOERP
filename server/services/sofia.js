@@ -26,6 +26,10 @@ export const BAIRROS_PREMIUM = [
     'renascença', 'renascenca', 'calhau', 'cohama', 'cohajap',
     'ponta d\'areia', 'ponta dareia', 'ponta de areia', 'araçagy',
     'aracagy', 'península', 'peninsula',
+    // ampliação — bairros nobres da Grande Ilha de São Luís
+    'ponta do farol', 'jardim renascença', 'jardim renascenca',
+    'são francisco', 'sao francisco', 'olho d\'água', 'olho dagua',
+    'jardim eldorado', 'quintas do calhau', 'parque shalom',
 ];
 
 // ═══ Normalização de texto ═══
