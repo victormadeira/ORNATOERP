@@ -146,7 +146,17 @@ router.post('/zapi', async (req, res) => {
         }
         // Extrair ctwa_clid do payload bruto ANTES do mapeamento (Z-API pode incluir referral)
         const { ctwaClid: zapiCtwaClid, sourceId: zapiSourceId } = extractCtwaClid(z);
-        if (zapiCtwaClid) console.log(`[MetaCAPI] ctwa_clid detectado no payload Z-API: ${zapiCtwaClid}`);
+        if (zapiCtwaClid) {
+            console.log(`[MetaCAPI] ctwa_clid detectado no payload Z-API: ${zapiCtwaClid}`);
+        } else {
+            // DEBUG TEMPORÁRIO (investigação de captura CTWA — remover depois): quando NÃO
+            // achamos o click ID, logamos a estrutura pra ver onde a Z-API o coloca.
+            const adFields = {};
+            for (const k of Object.keys(z || {})) {
+                if (/refer|ctwa|\bad\b|source|context|conversion|moment/i.test(k)) adFields[k] = z[k];
+            }
+            console.log(`[CTWA-DEBUG] sem ctwa_clid de ${z.phone} | keys=[${Object.keys(z || {}).join(',')}] | ad-ish=${JSON.stringify(adFields)}`);
+        }
         console.log(`[ZAPI-WH] recebida de ${z.phone} | ${z.senderName || ''} | id=${z.messageId}`);
         await handleIncomingMessage(data, req.app.locals.wsBroadcast, { mediaUrlOverride, ctwaClid: zapiCtwaClid, ctwaSourceId: zapiSourceId });
     } catch (err) {
