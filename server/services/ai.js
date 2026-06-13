@@ -1268,15 +1268,24 @@ export async function callAI(messages, systemPrompt, options = {}) {
     if (cfg.ia_provider === 'openai') {
         const modelo = cfg.ia_model || 'gpt-4o-mini';
         const openai = new OpenAI({ apiKey: cfg.ia_api_key });
-        const response = await openai.chat.completions.create({
+        // GPT-5+ são modelos de raciocínio: usam max_completion_tokens, NÃO aceitam
+        // temperature custom, e têm reasoning_effort. GPT-4 e anteriores usam o formato antigo.
+        const isGpt5 = /^gpt-5/.test(modelo);
+        const params = {
             model: modelo,
             messages: [
                 { role: 'system', content: systemDynamic ? `${systemStatic}\n\n${systemDynamic}` : systemStatic },
                 ...messages,
             ],
-            temperature,
-            max_tokens: maxTokens,
-        });
+        };
+        if (isGpt5) {
+            params.max_completion_tokens = Math.max(maxTokens, 4096); // raciocínio consome tokens
+            params.reasoning_effort = 'low'; // qualificação é simples → raciocínio baixo (mais barato/rápido)
+        } else {
+            params.max_tokens = maxTokens;
+            params.temperature = temperature;
+        }
+        const response = await openai.chat.completions.create(params);
         const usage = response.usage || {};
         logarUso('openai', modelo, usage.prompt_tokens || 0, usage.completion_tokens || 0, contexto);
         return response.choices[0]?.message?.content || '';
