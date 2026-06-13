@@ -19,17 +19,17 @@ const DIAS5 = 5 * 24 * 60 * 60 * 1000;
 function montarToque1(nome, ambiente) {
     const oi = nome ? `Oi, ${nome}!` : 'Oi!';
     if (ambiente) {
-        return `${oi} Sei que o dia corre 🤍 Quando puder, me conta um pouco mais sobre ${ambiente} que a gente continua de onde parou.`;
+        return `${oi} Voltando na nossa conversa sobre ${ambiente} — quer seguir com isso? Me diz como posso te ajudar.`;
     }
-    return `${oi} A gente começou a conversar e o dia deve ter puxado por aí 🤍 Quando puder, me conta qual projeto você tem em mente.`;
+    return `${oi} Voltando na nossa conversa. Me conta: qual ambiente você está pensando em fazer?`;
 }
 
 function montarToque2(nome, ambiente) {
     const oi = nome ? `Oi, ${nome}!` : 'Oi!';
     if (ambiente) {
-        return `${oi} Não quero te perder de vista 🤍 Se ainda fizer sentido pensar no seu ${ambiente}, é só me chamar que retomo na hora. Se não for o momento, fico por aqui pra quando precisar.`;
+        return `${oi} Vou deixar seu projeto de ${ambiente} registrado aqui. Quando quiser retomar, é só me mandar uma mensagem que a gente continua de onde parou.`;
     }
-    return `${oi} Passando só pra deixar a porta aberta 🤍 Quando quiser pensar no seu projeto de marcenaria sob medida, é só me chamar que a gente continua.`;
+    return `${oi} Vou deixar registrado aqui. Quando quiser retomar seu projeto, é só me chamar que a gente segue.`;
 }
 
 export async function processarFollowups() {
