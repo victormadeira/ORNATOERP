@@ -348,6 +348,13 @@ export function calcularScore(dossie = {}, opts = {}) {
         score -= 10; detalhes.push('prazo_distante:-10');
     }
 
+    // Prazo de compra (qualificador decisivo — separa curioso de comprador)
+    const pc = String(dossie.prazo_compra || '').toLowerCase();
+    if (pc === 'ate_30d' || pc === '1_2_meses') { score += 15; detalhes.push('compra_curto_prazo:+15'); }
+    else if (pc === '3_6_meses') { score += 5; detalhes.push('compra_medio_prazo:+5'); }
+    else if (pc === 'acima_6_meses') { score -= 5; detalhes.push('compra_longo_prazo:-5'); }
+    else if (pc === 'pesquisando') { score -= 12; detalhes.push('apenas_pesquisando:-12'); }
+
     // ═══ INTENÇÃO (via mensagens do cliente OU campo emitido pela IA) ═══
     const intencao = calcularIntencao(opts.mensagensCliente || []);
     const intencaoDaIA = Number(dossie.intencao_score || 0);
@@ -449,6 +456,13 @@ export function gerarTags(dossie = {}, score = 0) {
     if (dossie.escopo_viavel === false) tags.push('escopo_pequeno_rejeitado');
 
     if (Number(dossie.perguntas_preco || 0) >= 2) tags.push('pressao_preco');
+
+    // Separação curioso × comprador pelo prazo de compra
+    const pc = String(dossie.prazo_compra || '').toLowerCase();
+    if (pc === 'ate_30d' || pc === '1_2_meses') tags.push('compra_curto_prazo');
+    else if (pc === '3_6_meses') tags.push('compra_medio_prazo');
+    else if (pc === 'acima_6_meses') tags.push('planejando');
+    else if (pc === 'pesquisando') tags.push('so_pesquisando');
 
     if (dossie.tipo_imovel === 'comercial') tags.push('comercial');
 
