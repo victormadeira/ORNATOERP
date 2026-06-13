@@ -408,6 +408,13 @@ async function handleIncomingMessage(data, wsBroadcast = null, opts = {}) {
         }
     }
 
+    // PDF/documento: a IA SÓ deve SABER que chegou — NUNCA ler o conteúdo (PDF inteiro = token caro).
+    // Marcador leve só com o nome do arquivo; vale pra qualquer provider (Z-API e Evolution).
+    if (messageType === 'documento') {
+        enrichedContent = (messageContent ? `${messageContent}\n` : '')
+            + `[O cliente enviou um arquivo de projeto (${mediaNome || 'PDF'}). Apenas confirme que recebeu e registre — NÃO leia nem analise o conteúdo; o consultor humano cuida disso.]`;
+    }
+
     // ── 8. Salvar mensagem (com conteúdo enriquecido) ──
     // INSERT OR IGNORE — UNIQUE INDEX em wa_message_id garante dedup
     const insertResult = db.prepare(`
