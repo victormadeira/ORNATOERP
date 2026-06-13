@@ -2667,6 +2667,12 @@ const migrations = [
   // Timestamp da 1ª vez que o evento LeadQualificado foi enviado para Meta CAPI
   // NULL = ainda não enviado; preenchido evita reenvio em qualificações subsequentes
   "ALTER TABLE chat_conversas ADD COLUMN meta_capi_qual_em DATETIME DEFAULT NULL",
+
+  // ═══ Sofia Follow-up: cadência "rápido + 1 reforço" ═══
+  // 0 = nenhum toque enviado; 1 = toque de ~3h enviado; 2 = toque de ~24h enviado.
+  // Reseta pra 0 quando o cliente responde (no webhook).
+  "ALTER TABLE chat_conversas ADD COLUMN followup_etapa INTEGER DEFAULT 0",
+  "ALTER TABLE chat_conversas ADD COLUMN followup_em DATETIME DEFAULT NULL",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══

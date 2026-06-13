@@ -1,106 +1,99 @@
 // ═══════════════════════════════════════════════════════
-// SOFIA FOLLOW-UP — Mensagem única 24h após cliente sumir
-// Respeita janela 9h-18h Seg-Sáb (nunca domingo)
+// SOFIA FOLLOW-UP — Cadência "rápido + 1 reforço"
+// Toque 1: ~3h após o cliente sumir (recupera quem só se distraiu)
+// Toque 2: ~24h após sumir (último puxão, sem insistir mais)
+//
+// REGRA DE OURO: só PUXA assunto em horário comercial (9h-18h Seg-Sáb).
+// Responder mensagens que chegam é 24/7 — isso é tratado no webhook, não aqui.
 // ═══════════════════════════════════════════════════════
 
 import db from '../db.js';
-import evolution from './evolution.js';
+import wa from './wa.js';
 import sofia from './sofia.js';
 
-// Idempotência: checa se já foi enviado follow-up após o último silêncio do cliente
-// Considera qualquer mensagem de saída da IA enviada depois da última entrada do cliente
-function jaReceberauFollowup(conversaId) {
-    const row = db.prepare(`
-        SELECT 1 FROM chat_mensagens
-        WHERE conversa_id = ?
-          AND remetente = 'ia'
-          AND direcao = 'saida'
-          AND criado_em > (
-              SELECT MAX(criado_em) FROM chat_mensagens
-              WHERE conversa_id = ? AND direcao = 'entrada'
-          )
-          AND criado_em > datetime('now', '-7 days')
-        LIMIT 1
-    `).get(conversaId, conversaId);
-    return !!row;
+const H3 = 3 * 60 * 60 * 1000;
+const H24 = 24 * 60 * 60 * 1000;
+const DIAS5 = 5 * 24 * 60 * 60 * 1000;
+
+// ── Copy dos toques (sem bajulação, máx 1 emoji, voz da Sofia) ──
+function montarToque1(nome, ambiente) {
+    const oi = nome ? `Oi, ${nome}!` : 'Oi!';
+    if (ambiente) {
+        return `${oi} Sei que o dia corre 🤍 Quando puder, me conta um pouco mais sobre ${ambiente} que a gente continua de onde parou.`;
+    }
+    return `${oi} A gente começou a conversar e o dia deve ter puxado por aí 🤍 Quando puder, me conta qual projeto você tem em mente.`;
+}
+
+function montarToque2(nome, ambiente) {
+    const oi = nome ? `Oi, ${nome}!` : 'Oi!';
+    if (ambiente) {
+        return `${oi} Não quero te perder de vista 🤍 Se ainda fizer sentido pensar no seu ${ambiente}, é só me chamar que retomo na hora. Se não for o momento, fico por aqui pra quando precisar.`;
+    }
+    return `${oi} Passando só pra deixar a porta aberta 🤍 Quando quiser pensar no seu projeto de marcenaria sob medida, é só me chamar que a gente continua.`;
 }
 
 export async function processarFollowups() {
-    // Só roda dentro da janela permitida
+    // Só PUXA assunto dentro do horário comercial (9h-18h Seg-Sáb, nunca domingo)
     if (!sofia.podeEnviarFollowup()) return;
 
-    // Conversas em modo IA, com última mensagem do cliente há 24-48h, sem resposta do cliente depois
     const candidatas = db.prepare(`
         SELECT cc.*,
                (SELECT criado_em FROM chat_mensagens WHERE conversa_id = cc.id AND direcao = 'entrada' ORDER BY criado_em DESC LIMIT 1) as ultima_entrada,
-               (SELECT criado_em FROM chat_mensagens WHERE conversa_id = cc.id AND direcao = 'saida' ORDER BY criado_em DESC LIMIT 1) as ultima_saida,
-               (SELECT conteudo FROM chat_mensagens WHERE conversa_id = cc.id AND direcao = 'saida' ORDER BY criado_em DESC LIMIT 1) as ultima_saida_texto
+               (SELECT criado_em FROM chat_mensagens WHERE conversa_id = cc.id AND direcao = 'saida' ORDER BY criado_em DESC LIMIT 1) as ultima_saida
         FROM chat_conversas cc
-        WHERE cc.status = 'ia'
+        WHERE cc.status = 'ia' AND cc.ia_bloqueada = 0
     `).all();
 
     const agora = Date.now();
-    const H24 = 24 * 60 * 60 * 1000;
-    const H48 = 48 * 60 * 60 * 1000;
-
     let enviados = 0;
 
     for (const c of candidatas) {
-        // Nunca enviou mensagem saída? Não é candidata (não houve conversa ainda)
-        if (!c.ultima_saida) continue;
-        if (!c.ultima_entrada) continue;
-        // Última mensagem foi da IA (cliente sumiu após nossa resposta)
+        // Precisa ter conversado: o cliente mandou algo e a Sofia respondeu por último
+        if (!c.ultima_saida || !c.ultima_entrada) continue;
         if (new Date(c.ultima_saida).getTime() <= new Date(c.ultima_entrada).getTime()) continue;
 
-        const idade = agora - new Date(c.ultima_saida).getTime();
-        if (idade < H24 || idade > H48) continue;
+        // Tempo de silêncio do cliente (desde a última mensagem DELE)
+        const silencioMs = agora - new Date(c.ultima_entrada).getTime();
+        // Nunca perseguir conversas antigas — evita enxurrada em convos esquecidas
+        if (silencioMs > DIAS5) continue;
 
-        if (jaReceberauFollowup(c.id)) continue;
+        const etapa = Number(c.followup_etapa || 0);
+        let toque = 0;
+        if (etapa === 0 && silencioMs >= H3) toque = 1;       // 1º toque ~3h
+        else if (etapa === 1 && silencioMs >= H24) toque = 2;  // 2º toque ~24h
+        else continue;
 
-        // Precisa ter JID válido pra envio
         const dest = c.wa_jid || c.wa_phone;
         if (!dest || dest.includes('@lid')) continue;
 
-        // Texto personalizado usando dossiê
         const leadDados = JSON.parse(c.lead_dados || '{}');
         const nome = leadDados.nome?.split(' ')[0] || (c.wa_name ? c.wa_name.split(' ')[0] : '');
         const ambientes = Array.isArray(leadDados.ambientes) ? leadDados.ambientes : [];
-        const ambiente = ambientes[0] || '';
+        const ambiente = (ambientes[0] || '').toString().replace(/_/g, ' ');
 
-        let msg;
-        if (ambiente && nome) {
-            msg = `Oi, ${nome}! 😊 Você passou por aqui pesquisando sobre ${ambiente.toLowerCase()} sob medida — avançou no projeto ou ainda tá na fase de pesquisa?`;
-        } else if (ambiente) {
-            msg = `Oi! 😊 Você passou por aqui pesquisando sobre ${ambiente.toLowerCase()} sob medida — avançou no projeto ou ainda tá na fase de pesquisa?`;
-        } else if (nome) {
-            msg = `Oi, ${nome}! 😊 Você esteve aqui no Studio Ornato outro dia — avançou no que estava planejando ou ainda tá pesquisando?`;
-        } else {
-            msg = `Oi! 😊 Você entrou em contato com o Studio Ornato esses dias — avançou no projeto ou ainda tá na fase de pesquisa?`;
-        }
+        const msg = toque === 1 ? montarToque1(nome, ambiente) : montarToque2(nome, ambiente);
 
         try {
-            await evolution.sendText(dest, msg);
+            await wa.sendText(dest, msg);
             db.prepare(`
-                INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
-                VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
+                INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, status_envio, criado_em)
+                VALUES (?, 'saida', 'texto', ?, 'ia', 'enviado', CURRENT_TIMESTAMP)
             `).run(c.id, msg);
+            db.prepare('UPDATE chat_conversas SET followup_etapa = ?, followup_em = CURRENT_TIMESTAMP WHERE id = ?')
+              .run(toque, c.id);
             enviados++;
-            console.log(`[SofiaFollowup] Enviado para conv #${c.id} (${nome || c.wa_phone})`);
+            console.log(`[SofiaFollowup] toque ${toque} → conv #${c.id} (${nome || c.wa_phone})`);
         } catch (e) {
-            console.error(`[SofiaFollowup] Erro enviar conv ${c.id}:`, e.message);
+            console.error(`[SofiaFollowup] erro conv ${c.id}:`, e.message);
         }
     }
 
     if (enviados > 0) console.log(`[SofiaFollowup] Total: ${enviados} follow-up(s) enviado(s)`);
 }
 
-// ═══ Inicia loop de verificação a cada 30 minutos ═══
+// ═══ Loop de verificação a cada 15 minutos ═══
 export function iniciarSofiaFollowup() {
-    // Primeira execução em 60s
-    setTimeout(processarFollowups, 60 * 1000);
-    // Repete a cada 30 min
-    setInterval(processarFollowups, 30 * 60 * 1000);
-    console.log('  [OK] Sofia Follow-up ativado (janela 9h-18h Seg-Sáb, loop 30min)');
+    setTimeout(processarFollowups, 60 * 1000);       // 1ª execução em 60s
+    setInterval(processarFollowups, 15 * 60 * 1000); // a cada 15 min
+    console.log('  [OK] Sofia Follow-up ativado (toques ~3h e ~24h, só puxa em horário comercial, loop 15min)');
 }
-
-export default { processarFollowups, iniciarSofiaFollowup };

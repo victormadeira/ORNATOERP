@@ -344,8 +344,9 @@ async function handleIncomingMessage(data, wsBroadcast = null, opts = {}) {
     } else {
         // Atualizar conversa — preferir JID real (@s.whatsapp.net) se disponível
         const keepJid = (!finalJid.includes('@lid')) ? finalJid : (conversa.wa_jid && !conversa.wa_jid.includes('@lid') ? conversa.wa_jid : finalJid);
+        // Cliente respondeu → reseta a cadência de follow-up (recomeça do zero se sumir de novo)
         db.prepare(
-            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = ? WHERE id = ?'
+            'UPDATE chat_conversas SET nao_lidas = nao_lidas + 1, ultimo_msg_em = CURRENT_TIMESTAMP, wa_name = COALESCE(NULLIF(?, \'\'), wa_name), wa_jid = ?, followup_etapa = 0 WHERE id = ?'
         ).run(pushName, keepJid, conversa.id);
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(conversa.id);
     }
