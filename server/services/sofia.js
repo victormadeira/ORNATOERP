@@ -728,8 +728,12 @@ export function verificarRateLimit(timestampsEntrada = []) {
     return { ok: true, motivo: null };
 }
 
-// Limite de tokens/dia por conversa (entrada + saída combinados)
-export const BUDGET_TOKENS_CONVERSA_DIA = 30000;
+// Limite de tokens/dia por conversa (entrada + saída combinados).
+// Calibrado pro Gemini, que reenvia o prompt (~14k) a cada mensagem SEM cache:
+// ~15k/msg → 400k cobre uma conversa longa (~25 msgs) sem bloquear lead legítimo.
+// Abuso/flood é barrado antes pelo rate-limit + flood detection; isto é só o teto final.
+// (No Flash, 400k de input ≈ US$0,12 — teto barato.)
+export const BUDGET_TOKENS_CONVERSA_DIA = 400000;
 
 // ═══════════════════════════════════════════════════════
 // REDENÇÃO — cliente bloqueado pode se redimir
