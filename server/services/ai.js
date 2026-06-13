@@ -1420,64 +1420,15 @@ export async function callAI(messages, systemPrompt, options = {}) {
         const modelo = cfg.ia_model || 'gemini-2.5-flash';
         const genAI = new GoogleGenerativeAI(cfg.ia_api_key);
 
-        // responseSchema força o Gemini a estruturar a saída em JSON.
-        // O dossiê PRECISA ter os campos descritos — senão o Gemini devolve {} vazio
-        // e o funil (score/tags/handoff/CAPI) fica cego. Campos opcionais: ele só
-        // preenche o que descobriu nesta mensagem.
-        const responseSchema = {
-            type: 'object',
-            properties: {
-                resposta: { type: 'string' },
-                dossie: {
-                    type: 'object',
-                    properties: {
-                        nome: { type: 'string' },
-                        cidade: { type: 'string' },
-                        bairro: { type: 'string' },
-                        dentro_whitelist: { type: 'boolean' },
-                        tipo_imovel: { type: 'string' },
-                        status_obra: { type: 'string' },
-                        ambientes: { type: 'array', items: { type: 'string' } },
-                        quantidade_ambientes: { type: 'number' },
-                        casa_completa: { type: 'boolean' },
-                        escopo_viavel: { type: 'boolean' },
-                        tem_projeto_arquiteto: { type: 'boolean' },
-                        tem_medidas: { type: 'boolean' },
-                        consultoria_apresentada: { type: 'boolean' },
-                        prazo_compra: { type: 'string' },
-                        prazo_dias: { type: 'number' },
-                        urgencia: { type: 'string' },
-                        estilo: { type: 'string' },
-                        nivel_personalizacao: { type: 'string' },
-                        origem_lead: { type: 'string' },
-                        perguntas_preco: { type: 'number' },
-                        temperatura_lead: { type: 'string' },
-                        pronto_para_handoff: { type: 'boolean' },
-                        tipo_handoff: { type: 'string' },
-                        motivo_handoff: { type: 'string' },
-                        proxima_acao_recomendada: { type: 'string' },
-                        ia_deve_silenciar: { type: 'boolean' },
-                        red_flags: { type: 'array', items: { type: 'string' } },
-                        resumo_projeto: { type: 'string' },
-                        principais_desejos: { type: 'array', items: { type: 'string' } },
-                        observacoes: { type: 'string' },
-                    },
-                },
-            },
-            required: ['resposta', 'dossie'],
-        };
-
         const geminiFullPrompt = systemDynamic ? `${systemStatic}\n\n${systemDynamic}` : systemStatic;
         const geminiModel = genAI.getGenerativeModel({
             model: modelo,
             systemInstruction: geminiFullPrompt,
             generationConfig: {
                 temperature,
-                // Folga grande: modelos gemini-2.5/3.x gastam tokens com "thinking" interno,
-                // que come o orçamento e trunca o JSON. Resposta de qualificação é curta, então sobra.
-                maxOutputTokens: Math.max(maxTokens, 4096),
-                responseMimeType: 'application/json',
-                responseSchema,
+                // O SDK 0.21 não controla o "thinking" dos modelos gemini-2.5/3.x — eles gastam
+                // tokens pensando. Budget alto evita truncar o texto + bloco <dossie>.
+                maxOutputTokens: Math.max(maxTokens, 8192),
             },
         });
         const history = messages.slice(0, -1).map(m => ({
@@ -1489,32 +1440,17 @@ export async function callAI(messages, systemPrompt, options = {}) {
         try {
             const chat = geminiModel.startChat({ history });
             const result = await chat.sendMessage(lastMsg?.content || '');
-            const raw = result.response.text();
-
-            // Parsear o JSON estruturado e reconstruir no formato esperado pelo sistema
-            // Remove markdown code fences que alguns modelos adicionam mesmo com responseMimeType=json
-            const rawClean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-
-            let resposta = '';
-            let dossieStr = '<dossie>{}</dossie>';
-            try {
-                const parsed = JSON.parse(rawClean);
-                resposta = parsed.resposta || '';
-                dossieStr = `<dossie>${JSON.stringify(parsed.dossie || {})}</dossie>`;
-            } catch (parseErr) {
-                // NUNCA enviar JSON cru ao cliente. Tenta recuperar só o campo "resposta" do JSON truncado.
-                const m = rawClean.match(/"resposta"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-                if (m) {
-                    resposta = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                    console.warn('[Gemini] JSON truncado — resposta recuperada via regex.');
-                } else {
-                    console.error('[Gemini] JSON inválido e irrecuperável — propagando p/ retry. Raw(200):', rawClean.slice(0, 200));
-                    throw new Error('Gemini retornou JSON inválido');
-                }
+            // Modo nativo: o Gemini responde texto + bloco <dossie>{...}</dossie>, igual ao
+            // Anthropic. O extrairDossie (no chamador) separa o texto do cliente do dossiê.
+            let text = (result.response.text() || '')
+                .replace(/^```(?:\w+)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+            // TRAVA ANTI-VAZAMENTO: se truncou no meio do dossiê (abriu <dossie> e não fechou),
+            // corta a partir do <dossie> — NUNCA manda JSON quebrado pro cliente.
+            const openIdx = text.indexOf('<dossie>');
+            if (openIdx !== -1 && !text.includes('</dossie>')) {
+                text = text.slice(0, openIdx).trim();
             }
-            if (!resposta.trim()) throw new Error('Gemini retornou resposta vazia');
-
-            const text = `${resposta}\n${dossieStr}`;
+            if (!text.trim()) throw new Error('Gemini retornou resposta vazia');
             const est = (str) => Math.ceil((str || '').length / 4);
             logarUso('gemini', modelo, messages.reduce((a, m) => a + est(m.content), 0) + est(geminiFullPrompt), est(text), contexto);
             return text;
