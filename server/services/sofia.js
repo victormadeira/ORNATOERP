@@ -224,6 +224,16 @@ export function extrairDossie(respostaBruta) {
         }
     }
 
+    // ═══ TRAVA ANTI-VAZAMENTO (universal, qualquer modelo) ═══
+    // Se sobrou QUALQUER fragmento de <dossie> (ex: truncado sem fechar, ou bloco
+    // mal-formado que a regex não pegou), corta a partir dele. O cliente NUNCA pode
+    // ver JSON/dossiê. Vale pra Anthropic, OpenAI e Gemini.
+    const dangling = textoLimpo.search(/<\s*dossie/i);
+    if (dangling !== -1) {
+        console.warn('[Sofia] Fragmento de <dossie> removido do texto do cliente (anti-vazamento).');
+        textoLimpo = textoLimpo.slice(0, dangling).trim();
+    }
+
     return { textoLimpo, dossie };
 }
 
