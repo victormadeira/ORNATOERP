@@ -1285,10 +1285,32 @@ export async function callAI(messages, systemPrompt, options = {}) {
             params.max_tokens = maxTokens;
             params.temperature = temperature;
         }
-        const response = await openai.chat.completions.create(params);
-        const usage = response.usage || {};
-        logarUso('openai', modelo, usage.prompt_tokens || 0, usage.completion_tokens || 0, contexto);
-        return response.choices[0]?.message?.content || '';
+        try {
+            const response = await openai.chat.completions.create(params);
+            const usage = response.usage || {};
+            logarUso('openai', modelo, usage.prompt_tokens || 0, usage.completion_tokens || 0, contexto);
+            return response.choices[0]?.message?.content || '';
+        } catch (err) {
+            // Crédito acabou / quota / auth → fallback automático pro Haiku, pra não derrubar o lead.
+            const msg = err?.message || '';
+            const quotaIssue = /quota|insufficient|exceeded|429|401|billing/i.test(msg);
+            const fbKey = cfg.ia_api_key_anthropic;
+            if (quotaIssue && fbKey) {
+                console.warn(`[OpenAI] falhou (${msg.slice(0, 80)}) → fallback Haiku nesta chamada`);
+                const anthropicFb = new Anthropic({ apiKey: fbKey });
+                const fbResp = await anthropicFb.messages.create({
+                    model: 'claude-haiku-4-5-20251001',
+                    max_tokens: maxTokens,
+                    system: systemDynamic ? `${systemStatic}\n\n${systemDynamic}` : systemStatic,
+                    messages: messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+                    temperature,
+                });
+                const u = fbResp.usage || {};
+                logarUso('anthropic', 'claude-haiku-4-5-20251001', u.input_tokens || 0, u.output_tokens || 0, `${contexto}[fb-openai]`);
+                return fbResp.content[0]?.text || '';
+            }
+            throw err;
+        }
     }
 
     // Default: Anthropic
