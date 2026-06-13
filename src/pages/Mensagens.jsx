@@ -1696,6 +1696,49 @@ export default function Mensagens({ notify }) {
                             </div>
                         )}
 
+                        {/* Dossiê do Lead */}
+                        {(() => {
+                            const d = (() => { try { return JSON.parse(activeConvData?.lead_dados || '{}'); } catch { return {}; } })();
+                            const temDados = Object.keys(d).some(k => {
+                                const v = d[k];
+                                return v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0) && v !== 0;
+                            });
+                            if (!temDados) return null;
+                            const amb = Array.isArray(d.ambientes) && d.ambientes.length > 0
+                                ? d.ambientes.map(a => a.replace(/_/g, ' ')).join(', ')
+                                : null;
+                            const bool = v => v === true ? '✓ Sim' : v === false ? '✗ Não' : null;
+                            const rows = [
+                                d.nome && ['Nome', d.nome],
+                                (d.cidade || d.bairro) && ['Localização', [d.bairro, d.cidade].filter(Boolean).join(', ')],
+                                d.tipo_imovel && ['Imóvel', d.tipo_imovel === 'residencial' ? 'Residencial' : d.tipo_imovel === 'comercial' ? 'Comercial' : d.tipo_imovel],
+                                amb && ['Ambientes', amb],
+                                d.tem_projeto_arquiteto !== null && d.tem_projeto_arquiteto !== undefined && ['Projeto arq.', bool(d.tem_projeto_arquiteto)],
+                                d.urgencia && ['Urgência', d.urgencia === 'alta' ? '🔴 Alta' : d.urgencia === 'media' ? '🟡 Média' : '🟢 Baixa'],
+                                d.prazo_dias > 0 && ['Prazo', `${d.prazo_dias} dias`],
+                                d.origem_lead && ['Origem', d.origem_lead.replace(/_/g, ' ')],
+                                d.dentro_whitelist !== null && d.dentro_whitelist !== undefined && ['Área atendida', bool(d.dentro_whitelist)],
+                                d.escopo_viavel !== null && d.escopo_viavel !== undefined && ['Escopo viável', bool(d.escopo_viavel)],
+                                Array.isArray(d.red_flags) && d.red_flags.length > 0 && ['⚠ Red flags', d.red_flags.join(', ')],
+                            ].filter(Boolean);
+                            if (rows.length === 0) return null;
+                            return (
+                                <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 }}>
+                                        Dossiê Sofia
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        {rows.map(([label, val]) => (
+                                            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                                                <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{label}</span>
+                                                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right', wordBreak: 'break-word' }}>{val}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {/* Status da conversa */}
                         <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>
