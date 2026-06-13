@@ -10,6 +10,7 @@ import waAvatar from '../services/wa_avatar.js';
 import ai from '../services/ai.js';
 import sofiaProspeccao from '../services/sofia_prospeccao.js';
 import { enqueue as iaRetryEnqueue } from '../services/ia_retry_queue.js';
+import { extractCtwaClid } from '../services/meta-capi.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads', 'whatsapp');
@@ -143,8 +144,11 @@ router.post('/zapi', async (req, res) => {
         } else {
             return; // tipo não suportado (sticker, location, contato, etc.)
         }
+        // Extrair ctwa_clid do payload bruto ANTES do mapeamento (Z-API pode incluir referral)
+        const { ctwaClid: zapiCtwaClid, sourceId: zapiSourceId } = extractCtwaClid(z);
+        if (zapiCtwaClid) console.log(`[MetaCAPI] ctwa_clid detectado no payload Z-API: ${zapiCtwaClid}`);
         console.log(`[ZAPI-WH] recebida de ${z.phone} | ${z.senderName || ''} | id=${z.messageId}`);
-        await handleIncomingMessage(data, req.app.locals.wsBroadcast, { mediaUrlOverride });
+        await handleIncomingMessage(data, req.app.locals.wsBroadcast, { mediaUrlOverride, ctwaClid: zapiCtwaClid, ctwaSourceId: zapiSourceId });
     } catch (err) {
         console.error('[ZAPI-WH] Erro:', err.message);
     }
@@ -346,7 +350,21 @@ async function handleIncomingMessage(data, wsBroadcast = null, opts = {}) {
         conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(conversa.id);
     }
 
-    // ── 6. Verificar duplicata no banco (fallback do dedup em memória) ──
+    // ── 6a. Capturar ctwa_clid (só na 1ª mensagem — não sobrescrever se já tem) ──
+    if (!conversa.ctwa_clid) {
+        // Prioridade: opts (Z-API raw payload já processado) → Evolution (extrai do data)
+        const { ctwaClid, sourceId } = (opts.ctwaClid)
+            ? { ctwaClid: opts.ctwaClid, sourceId: opts.ctwaSourceId }
+            : extractCtwaClid(data);
+        if (ctwaClid) {
+            db.prepare('UPDATE chat_conversas SET ctwa_clid = ?, ctwa_source_id = ?, ctwa_em = CURRENT_TIMESTAMP WHERE id = ?')
+                .run(ctwaClid, sourceId || null, conversa.id);
+            conversa = { ...conversa, ctwa_clid: ctwaClid, ctwa_source_id: sourceId || null };
+            console.log(`[MetaCAPI] ctwa_clid capturado: ${ctwaClid} | conv #${conversa.id}`);
+        }
+    }
+
+    // ── 6b. Verificar duplicata no banco (fallback do dedup em memória) ──
     if (msgId) {
         const exists = db.prepare('SELECT id FROM chat_mensagens WHERE wa_message_id = ?').get(msgId);
         if (exists) return;

@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import db from '../db.js';
 import sofia from './sofia.js';
+import { sendQualifiedLead } from './meta-capi.js';
 
 // ═══════════════════════════════════════════════════════
 // SERVIÇO DE IA — Abstração Anthropic / OpenAI
@@ -1892,7 +1893,21 @@ export async function processIncomingMessage(conversa, messageText) {
             });
         }
 
-        console.log(`[Sofia] conv=${conversa.id} score=${score} (${classificacao}) qual=${qualificacao} tags=${tags.join(',')}`);
+        // ═══ Meta CAPI — disparar LeadQualificado (somente na 1ª qualificação) ═══
+        if (qualificacao === 'qualificado' && !conversa.meta_capi_qual_em) {
+            const leadType = dossieFinal.tipo_imovel === 'comercial' ? 'b2b' : 'b2c';
+            // fire-and-forget — não bloqueia resposta ao lead
+            sendQualifiedLead({
+                ctwaClid: conversa.ctwa_clid || undefined,
+                phone: conversa.wa_phone,
+                leadType,
+                value: dossieFinal.budget_estimado || undefined,
+            }).catch(err => console.error('[AI] MetaCAPI erro:', err.message));
+            db.prepare('UPDATE chat_conversas SET meta_capi_qual_em = CURRENT_TIMESTAMP WHERE id = ?').run(conversa.id);
+        }
+
+        console.log(`[Sofia] conv=${conversa.id} score=${score} (${classificacao}) qual=${qualificacao} tags=${tags.join(',')}`
+            + (conversa.ctwa_clid ? ` ctwa=${conversa.ctwa_clid.slice(0, 12)}...` : ''));
 
         // ═══ Decisão final: escalar ou responder ═══
         if (dossieFinal.pronto_para_handoff || qualificacao === 'escalar') {

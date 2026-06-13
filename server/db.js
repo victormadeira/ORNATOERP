@@ -2659,6 +2659,14 @@ const migrations = [
 
   // ═══ Sofia: reset de contexto — IA só vê mensagens após este timestamp ═══
   "ALTER TABLE chat_conversas ADD COLUMN ia_contexto_reset_em DATETIME DEFAULT NULL",
+
+  // ═══ Meta CTWA: atribuição de anúncios Click-to-WhatsApp ═══
+  "ALTER TABLE chat_conversas ADD COLUMN ctwa_clid TEXT DEFAULT NULL",
+  "ALTER TABLE chat_conversas ADD COLUMN ctwa_source_id TEXT DEFAULT NULL",
+  "ALTER TABLE chat_conversas ADD COLUMN ctwa_em DATETIME DEFAULT NULL",
+  // Timestamp da 1ª vez que o evento LeadQualificado foi enviado para Meta CAPI
+  // NULL = ainda não enviado; preenchido evita reenvio em qualificações subsequentes
+  "ALTER TABLE chat_conversas ADD COLUMN meta_capi_qual_em DATETIME DEFAULT NULL",
 ];
 
 // ═══ Multi-Tenant: tabela de empresas ═══
