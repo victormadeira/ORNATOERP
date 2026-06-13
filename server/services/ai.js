@@ -1769,9 +1769,14 @@ export async function processIncomingMessage(conversa, messageText) {
     `).all(...(resetEm ? [conversa.id, resetEm] : [conversa.id])).reverse();
 
     // Contexto extra: info do cliente + tratamento detectado + saudação atual + horário humano
+    const primeiroContato = !recentMsgs.some(m => m.direcao === 'saida');
     let contextoExtra = '';
     contextoExtra += `\n\n═══ CONTEXTO DESTA CONVERSA ═══`;
-    contextoExtra += `\nSaudação apropriada AGORA: ${sofia.saudacaoAtual()}`;
+    if (primeiroContato) {
+        contextoExtra += `\nPrimeiro contato — saudação de abertura: ${sofia.saudacaoAtual()} (use UMA vez no início)`;
+    } else {
+        contextoExtra += `\nConversa em andamento — NÃO use saudação de horário (bom dia/tarde/noite) nesta mensagem`;
+    }
     contextoExtra += `\nHorário humano ativo agora: ${sofia.horarioHumanoAtivo() ? 'Sim (humanos podem retornar em seguida)' : 'Não (humanos retornam no próximo horário útil: Seg-Sex 7h30-17h30)'}`;
 
     const tratamento = sofia.detectarTratamento(messageText);
