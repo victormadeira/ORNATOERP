@@ -1421,12 +1421,48 @@ export async function callAI(messages, systemPrompt, options = {}) {
         const genAI = new GoogleGenerativeAI(cfg.ia_api_key);
 
         // responseSchema força o Gemini a estruturar a saída em JSON.
-        // Sem isso o modelo ignora a instrução <dossie> e retorna só texto.
+        // O dossiê PRECISA ter os campos descritos — senão o Gemini devolve {} vazio
+        // e o funil (score/tags/handoff/CAPI) fica cego. Campos opcionais: ele só
+        // preenche o que descobriu nesta mensagem.
         const responseSchema = {
             type: 'object',
             properties: {
                 resposta: { type: 'string' },
-                dossie: { type: 'object' },
+                dossie: {
+                    type: 'object',
+                    properties: {
+                        nome: { type: 'string' },
+                        cidade: { type: 'string' },
+                        bairro: { type: 'string' },
+                        dentro_whitelist: { type: 'boolean' },
+                        tipo_imovel: { type: 'string' },
+                        status_obra: { type: 'string' },
+                        ambientes: { type: 'array', items: { type: 'string' } },
+                        quantidade_ambientes: { type: 'number' },
+                        casa_completa: { type: 'boolean' },
+                        escopo_viavel: { type: 'boolean' },
+                        tem_projeto_arquiteto: { type: 'boolean' },
+                        tem_medidas: { type: 'boolean' },
+                        consultoria_apresentada: { type: 'boolean' },
+                        prazo_compra: { type: 'string' },
+                        prazo_dias: { type: 'number' },
+                        urgencia: { type: 'string' },
+                        estilo: { type: 'string' },
+                        nivel_personalizacao: { type: 'string' },
+                        origem_lead: { type: 'string' },
+                        perguntas_preco: { type: 'number' },
+                        temperatura_lead: { type: 'string' },
+                        pronto_para_handoff: { type: 'boolean' },
+                        tipo_handoff: { type: 'string' },
+                        motivo_handoff: { type: 'string' },
+                        proxima_acao_recomendada: { type: 'string' },
+                        ia_deve_silenciar: { type: 'boolean' },
+                        red_flags: { type: 'array', items: { type: 'string' } },
+                        resumo_projeto: { type: 'string' },
+                        principais_desejos: { type: 'array', items: { type: 'string' } },
+                        observacoes: { type: 'string' },
+                    },
+                },
             },
             required: ['resposta', 'dossie'],
         };
