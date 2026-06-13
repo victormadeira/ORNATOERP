@@ -751,8 +751,8 @@ PARTE 1 — Texto visível ao cliente:
 
 PARTE 2 — Dossiê JSON (logo após o texto, sem linha em branco):
 <dossie>{"campos": "preenchidos"}</dossie>
-Preencha apenas os campos que foram mencionados/confirmados pelo cliente nesta mensagem.
-Campos não mencionados: omita (não envie null, não envie campos vazios).
+Emita CADA dado NA MESMA mensagem em que o cliente revela (ambiente, cidade, bairro, prazo, projeto) — NUNCA deixe pra registrar depois. Campos ainda não mencionados: omita (não envie null nem vazio). O sistema acumula entre as mensagens.
+⚠️ DOSSIÊ COMPLETO NO HANDOFF (CRÍTICO): quando for encaminhar (pronto_para_handoff=true), emita o dossiê COMPLETO no <dossie> — TODOS os dados coletados na conversa inteira (nome, ambientes, quantidade_ambientes, cidade, bairro, prazo_compra, tem_projeto_arquiteto, temperatura_lead, etc.), não só os desta mensagem. O consultor precisa receber tudo de uma vez, então repita os campos já conhecidos no handoff.
 Se NADA foi coletado nesta mensagem: envie dossie vazio: <dossie>{}</dossie>
 NUNCA invente dados que o cliente não disse.
 
