@@ -1708,17 +1708,23 @@ export default function Mensagens({ notify }) {
                                 ? d.ambientes.map(a => a.replace(/_/g, ' ')).join(', ')
                                 : null;
                             const bool = v => v === true ? '✓ Sim' : v === false ? '✗ Não' : null;
+                            const tempLabel = t => t === 'muito_quente' ? '🔥 Muito quente' : t === 'quente' ? '🟠 Quente' : t === 'morno' ? '🟡 Morno' : t === 'frio' ? '🔵 Frio' : null;
+                            const desejos = Array.isArray(d.principais_desejos) && d.principais_desejos.length > 0
+                                ? d.principais_desejos.map(s => s.replace(/_/g, ' ')).join(', ') : null;
                             const rows = [
                                 d.nome && ['Nome', d.nome],
                                 (d.cidade || d.bairro) && ['Localização', [d.bairro, d.cidade].filter(Boolean).join(', ')],
                                 d.tipo_imovel && ['Imóvel', d.tipo_imovel === 'residencial' ? 'Residencial' : d.tipo_imovel === 'comercial' ? 'Comercial' : d.tipo_imovel],
                                 amb && ['Ambientes', amb],
+                                d.temperatura_lead && tempLabel(d.temperatura_lead) && ['Temperatura', tempLabel(d.temperatura_lead)],
                                 d.tem_projeto_arquiteto !== null && d.tem_projeto_arquiteto !== undefined && ['Projeto arq.', bool(d.tem_projeto_arquiteto)],
                                 d.urgencia && ['Urgência', d.urgencia === 'alta' ? '🔴 Alta' : d.urgencia === 'media' ? '🟡 Média' : '🟢 Baixa'],
                                 d.prazo_dias > 0 && ['Prazo', `${d.prazo_dias} dias`],
                                 d.origem_lead && ['Origem', d.origem_lead.replace(/_/g, ' ')],
                                 d.dentro_whitelist !== null && d.dentro_whitelist !== undefined && ['Área atendida', bool(d.dentro_whitelist)],
                                 d.escopo_viavel !== null && d.escopo_viavel !== undefined && ['Escopo viável', bool(d.escopo_viavel)],
+                                desejos && ['Desejos', desejos],
+                                d.resumo_projeto && ['Resumo', d.resumo_projeto],
                                 Array.isArray(d.red_flags) && d.red_flags.length > 0 && ['⚠ Red flags', d.red_flags.join(', ')],
                             ].filter(Boolean);
                             if (rows.length === 0) return null;
