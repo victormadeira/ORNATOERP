@@ -301,6 +301,9 @@ export function calcularScore(dossie = {}, opts = {}) {
     const qtdAmbientes = Number(dossie.quantidade_ambientes || (Array.isArray(dossie.ambientes) ? dossie.ambientes.length : 0));
     const ambs = (dossie.ambientes || []).map(a => String(a).toLowerCase());
     const casaCompleta = indicaCasaCompleta(dossie);
+    // Lead com substância real: tem projeto, múltiplos ambientes ou casa completa.
+    // Usado para decidir se pergunta de preço é "pressão" (lead frio) ou "sinal de compra" (lead sério).
+    const leadQualificado = dossie.tem_projeto_arquiteto === true || qtdAmbientes >= 2 || casaCompleta;
 
     // Escopo (projeto residencial) — ambientes de maior ticket pontuam mais
     if (casaCompleta || qtdAmbientes >= 4 || ambs.some(a => /completo|residencia|apartamento\s*inteiro|casa\s*inteira/.test(a))) {
@@ -354,11 +357,16 @@ export function calcularScore(dossie = {}, opts = {}) {
         detalhes.push(`intencao:+${intencaoFinal}`);
     }
 
-    // Perguntas de preço (red flag) — decai 50% se houver intenção >= 15 (cliente virou a chave)
+    // Perguntas de preço:
+    // - Lead SEM substância (frio): perguntar preço repetido é pressão → penaliza.
+    // - Lead QUALIFICADO (projeto/múltiplos ambientes/casa completa): perguntar preço é
+    //   SINAL DE COMPRA, não red flag. NÃO penaliza — quem está comprando quer saber o valor.
     const pp = Number(dossie.perguntas_preco || 0);
-    if (pp >= 2) {
+    if (pp >= 2 && !leadQualificado) {
         const penal = intencaoFinal >= 15 ? -7 : -15;
         score += penal; detalhes.push(`pressao_preco:${penal}`);
+    } else if (pp >= 2) {
+        detalhes.push('pergunta_preco:sinal_compra(sem_penalidade)');
     }
 
     // Red flags em geral
@@ -395,6 +403,19 @@ export function calcularScore(dossie = {}, opts = {}) {
             if (score < 40) { score = 40; detalhes.push('override:intencao_alta+local=40'); }
         } else if (intencaoFinal >= 20 && casaCompleta) {
             if (score < 45) { score = 45; detalhes.push('override:intencao_alta+casa_completa=45'); }
+        }
+
+        // ═══ PISO POR TEMPERATURA/HANDOFF ═══
+        // A IA tem o contexto completo da conversa. Se ela classificou o lead como quente
+        // E há substância real (leadQualificado), o score acompanha — não deixa um lead
+        // pronto pra fechar aparecer como "morno" pro comercial.
+        const temp = String(dossie.temperatura_lead || '').toLowerCase();
+        if (leadQualificado) {
+            if (temp === 'muito_quente' && score < 80) { score = 80; detalhes.push('override:temp_muito_quente=80'); }
+            else if (temp === 'quente' && score < 60) { score = 60; detalhes.push('override:temp_quente=60'); }
+        }
+        if (dossie.pronto_para_handoff === true && dossie.tipo_handoff === 'qualificado' && score < 70) {
+            score = 70; detalhes.push('override:handoff_qualificado=70');
         }
     }
 
