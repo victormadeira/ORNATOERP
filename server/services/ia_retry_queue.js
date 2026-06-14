@@ -80,21 +80,28 @@ async function processEntry(entry) {
             return;
         }
 
-        // Importar evolution dinamicamente para evitar circular deps
-        const { default: evolution } = await import('./evolution.js');
-        const dest = entry.wa_jid;
+        // Escalação: se a IA decidiu encaminhar, muda status pra humano (igual ao webhook)
+        if (result.action === 'escalate') {
+            db.prepare(`UPDATE chat_conversas SET status='humano', handoff_em=COALESCE(handoff_em,CURRENT_TIMESTAMP), escalacao_nivel=0, abandonada=0 WHERE id=?`).run(entry.conversa_id);
+        }
+
+        // Envia pelo PROVIDER ATIVO (zapi/evolution) — antes usava evolution fixo (falhava no ZAPI)
+        const { default: wa } = await import('./wa.js');
+        const dest = conversa.wa_jid || conversa.wa_phone || entry.wa_jid;
         const parts = result.text.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
 
         for (let i = 0; i < parts.length; i++) {
             if (i > 0) await new Promise(r => setTimeout(r, 800));
+            const ins = db.prepare(`
+                INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, status_envio, criado_em)
+                VALUES (?, 'saida', 'texto', ?, 'ia', 'pendente', CURRENT_TIMESTAMP)
+            `).run(entry.conversa_id, parts[i]);
             try {
-                await evolution.sendText(dest, parts[i]);
-                db.prepare(`
-                    INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, criado_em)
-                    VALUES (?, 'saida', 'texto', ?, 'ia', CURRENT_TIMESTAMP)
-                `).run(entry.conversa_id, parts[i]);
+                const sent = await wa.sendText(dest, parts[i]);
+                db.prepare(`UPDATE chat_mensagens SET status_envio='enviado', wa_message_id=? WHERE id=?`).run(sent?.key?.id || '', ins.lastInsertRowid);
             } catch (sendErr) {
                 console.error(`[RetryQueue] Falha ao enviar parte para ${dest}:`, sendErr.message);
+                db.prepare(`UPDATE chat_mensagens SET status_envio='falhou' WHERE id=?`).run(ins.lastInsertRowid);
                 break;
             }
         }

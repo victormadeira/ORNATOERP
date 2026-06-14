@@ -10,6 +10,7 @@
 import db from '../db.js';
 import wa from './wa.js';
 import sofia from './sofia.js';
+import { enqueue } from './ia_retry_queue.js';
 
 const H3 = 3 * 60 * 60 * 1000;
 const H24 = 24 * 60 * 60 * 1000;
@@ -89,6 +90,28 @@ export async function processarFollowups() {
     }
 
     if (enviados > 0) console.log(`[SofiaFollowup] Total: ${enviados} follow-up(s) enviado(s)`);
+
+    // ═══ RECUPERAÇÃO: leads que ficaram SEM RESPOSTA (cliente falou por último) ═══
+    // Ex: mensagem chegou com a IA fora do ar, rate-limit que expirou, ou erro de envio.
+    // Reprocessa via retry queue (que responde de verdade, no provider ativo). Gated por
+    // horário comercial (mesma janela do follow-up — não responde de madrugada).
+    let recuperados = 0;
+    for (const c of candidatas) {
+        if (!c.ultima_entrada) continue;
+        // só se o CLIENTE falou por último (sem resposta da IA)
+        if (c.ultima_saida && new Date(c.ultima_saida).getTime() >= new Date(c.ultima_entrada).getTime()) continue;
+        const idadeMs = agora - new Date(c.ultima_entrada).getTime();
+        if (idadeMs < 15 * 60 * 1000) continue; // recente — pode estar no debounce/processando
+        if (idadeMs > DIAS5) continue;          // antigo demais
+        const naFila = db.prepare('SELECT 1 FROM ia_retry_queue WHERE conversa_id = ?').get(c.id);
+        if (naFila) continue;                   // já está pra reprocessar
+        const ult = db.prepare(`SELECT id, conteudo FROM chat_mensagens WHERE conversa_id = ? AND direcao = 'entrada' ORDER BY id DESC LIMIT 1`).get(c.id);
+        if (!ult || !ult.conteudo) continue;
+        enqueue(c, ult.conteudo, ult.id);
+        recuperados++;
+        console.log(`[Recuperação] lead sem resposta conv #${c.id} (${c.wa_name || c.wa_phone}) → reprocessando`);
+    }
+    if (recuperados > 0) console.log(`[Recuperação] ${recuperados} lead(s) sem resposta re-enfileirado(s)`);
 }
 
 // ═══ Loop de verificação a cada 15 minutos ═══
