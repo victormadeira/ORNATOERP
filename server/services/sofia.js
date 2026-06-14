@@ -722,15 +722,23 @@ export function detectarFlood(recentMsgs = []) {
  */
 export function verificarRateLimit(timestampsEntrada = []) {
     const agora = Date.now();
-    const ts = timestampsEntrada.map(t => (t instanceof Date ? t.getTime() : new Date(t).getTime()));
+    const ts = timestampsEntrada.map(t => (t instanceof Date ? t.getTime() : new Date(t).getTime())).sort((a, b) => a - b);
 
-    // Limites ajustados: 25 msgs/15min (era 15) e cooldown reduzido para 15min (era 30)
-    const ultimas15min = ts.filter(t => agora - t < 15 * 60 * 1000).length;
+    // COLAPSA RAJADAS: mensagens disparadas juntas (ex: álbum de 20 fotos, textos picotados)
+    // contam como UM evento. Lead engajado mandando referências NÃO é flood. Só conta como
+    // evento novo se passaram >15s da anterior.
+    const eventos = [];
+    for (const t of ts) {
+        if (eventos.length === 0 || t - eventos[eventos.length - 1] > 15000) eventos.push(t);
+    }
+
+    // Limites por EVENTOS (não por mensagem bruta): 25/15min, 80/24h.
+    const ultimas15min = eventos.filter(t => agora - t < 15 * 60 * 1000).length;
     if (ultimas15min > 25) {
         return { ok: false, motivo: 'rate_limit_15min', minutosCooldown: 15 };
     }
 
-    const ultimas24h = ts.filter(t => agora - t < 24 * 60 * 60 * 1000).length;
+    const ultimas24h = eventos.filter(t => agora - t < 24 * 60 * 60 * 1000).length;
     if (ultimas24h > 80) {
         return { ok: false, motivo: 'rate_limit_24h', minutosCooldown: 60 * 6 };
     }
