@@ -22,6 +22,11 @@ const router = Router();
 // Evolution v1.8 envia messages.upsert 2-4x para a mesma mensagem
 // (1x com @s.whatsapp.net, 1x com @lid, cada uma duplicada)
 // Usar Set em memória para filtrar por wa_message_id
+// Tempo de espera antes da IA responder — junta rajadas (textos picotados, álbum de
+// fotos) numa resposta só. Se chegar msg nova nesse meio, a espera "reinicia" (a msg
+// mais nova é quem responde a rajada toda).
+const DEBOUNCE_RESPOSTA_MS = 7000;
+
 const _processedIds = new Set();
 function alreadyProcessed(msgId) {
     if (!msgId) return false;
@@ -442,15 +447,34 @@ async function handleIncomingMessage(data, wsBroadcast = null, opts = {}) {
         wsBroadcast?.('chat.conversa-updated', { conversa_id: conversa.id });
     } catch (_) { /* silencioso */ }
 
-    // ── 9. Resposta automática da IA (se ativo) ──
+    // ── 9. Resposta automática da IA (debounce — junta rajadas de mensagens/fotos) ──
     const msgReferenciaId = insertResult.lastInsertRowid; // ID da msg do cliente — usado pela retry queue
     if (conversa.status === 'ia' && enrichedContent) {
         try {
+            // DEBOUNCE: espera o cliente terminar a rajada (textos picotados, álbum de fotos)
+            // antes de responder. Se chegar msg mais nova nesse meio, ESTA desiste — a mais
+            // nova responde por todas. Evita 1 resposta por mensagem e corta custo.
+            await new Promise(r => setTimeout(r, DEBOUNCE_RESPOSTA_MS));
+            const maisNova = db.prepare("SELECT MAX(id) AS m FROM chat_mensagens WHERE conversa_id = ? AND direcao = 'entrada'").get(conversa.id)?.m;
+            if (maisNova !== msgReferenciaId) return; // chegou outra depois — ela responde a rajada toda
+
+            // Re-checa o estado (pode ter sido pausada/escalada/bloqueada nesse meio)
+            conversa = db.prepare('SELECT * FROM chat_conversas WHERE id = ?').get(conversa.id);
+            if (!conversa || conversa.status !== 'ia') return;
+
+            // Junta TUDO que o cliente mandou desde a última resposta (a rajada inteira)
+            const ultSaida = db.prepare("SELECT MAX(criado_em) AS t FROM chat_mensagens WHERE conversa_id = ? AND direcao = 'saida'").get(conversa.id)?.t;
+            const pendentes = db.prepare(
+                "SELECT conteudo FROM chat_mensagens WHERE conversa_id = ? AND direcao = 'entrada' AND interno = 0"
+                + (ultSaida ? " AND criado_em > ?" : "") + " ORDER BY id"
+            ).all(...(ultSaida ? [conversa.id, ultSaida] : [conversa.id]));
+            const combinado = pendentes.map(p => p.conteudo).filter(Boolean).join('\n').trim() || enrichedContent;
+
             // Typing indicator antes de chamar a IA (~3s)
             const dest = conversa.wa_jid || remoteJid;
             wa.sendPresence(dest, 'composing', 3000).catch(() => { });
 
-            const result = await ai.processIncomingMessage(conversa, enrichedContent);
+            const result = await ai.processIncomingMessage(conversa, combinado);
             if (!result) return;
 
             // Dividir resposta em mensagens separadas (quebra dupla = nova mensagem)
