@@ -36,11 +36,12 @@ function sha256(value) {
  */
 export function getCapiConfig() {
     try {
-        const emp = db.prepare('SELECT fb_pixel_id, fb_access_token FROM empresa_config WHERE id = 1').get();
+        const emp = db.prepare('SELECT fb_pixel_id, fb_access_token, fb_page_id FROM empresa_config WHERE id = 1').get();
         if (!emp?.fb_pixel_id?.trim() || !emp?.fb_access_token?.trim()) return null;
         return {
             pixelId:     emp.fb_pixel_id.trim(),
             accessToken: emp.fb_access_token.trim(),
+            pageId:      emp.fb_page_id?.trim() || '',
         };
     } catch (_) {
         return null;
@@ -231,13 +232,20 @@ export async function sendQualifiedLead({ ctwaClid, phone, leadType, value } = {
     }
 
     const normalizedPhone = normalizePhone(phone);
-    if (!ctwaClid && !normalizedPhone) {
-        console.warn('[MetaCAPI] LeadQualificado sem ctwaClid nem phone — ignorado');
-        return { ok: false, error: 'missing_identifiers' };
+    // Evento CTWA business_messaging do WhatsApp EXIGE page_id + ctwa_clid no user_data.
+    // Telefone sozinho NÃO basta (Meta: "ctwa_clid ausente"). Sem clid = lead não-CTWA
+    // (orgânico): não há o que atribuir ao anúncio, então ignora sem erro/spam de 400.
+    if (!ctwaClid) {
+        console.warn('[MetaCAPI] LeadQualificado sem ctwa_clid (lead não-CTWA) — ignorado');
+        return { ok: false, error: 'no_ctwa_clid' };
+    }
+    if (!cfg.pageId) {
+        console.warn('[MetaCAPI] fb_page_id não configurado — evento CTWA seria recusado pelo Meta; ignorado');
+        return { ok: false, error: 'no_page_id' };
     }
 
-    const userData = {};
-    if (ctwaClid) userData.ctwa_clid = ctwaClid;
+    // page_id + ctwa_clid são obrigatórios; phone (hash) entra como sinal extra de match.
+    const userData = { page_id: cfg.pageId, ctwa_clid: ctwaClid };
     if (normalizedPhone) userData.ph = [sha256Hex(normalizedPhone)];
 
     const customData = { lead_type: leadType || 'b2c', currency: 'BRL' };

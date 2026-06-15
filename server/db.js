@@ -2575,6 +2575,9 @@ const migrations = [
   // ═══ Meta/Facebook app secret (para validar HMAC-SHA256 de webhooks Lead Ads) ═══
   "ALTER TABLE empresa_config ADD COLUMN fb_app_secret TEXT DEFAULT ''",
 
+  // ═══ Meta/Facebook Page ID (obrigatório no user_data de eventos CTWA business_messaging) ═══
+  "ALTER TABLE empresa_config ADD COLUMN fb_page_id TEXT DEFAULT ''",
+
   // ═══ Prazo de entrega padrão (usado em /api/orcamentos/importar e prompt da IA) ═══
   "ALTER TABLE empresa_config ADD COLUMN prazo_padrao TEXT DEFAULT '45 dias úteis'",
 
