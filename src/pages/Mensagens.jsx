@@ -28,10 +28,12 @@ const STATUS_COLORS = {
 const LEAD_LABELS = {
     novo: 'Novo', em_qualificacao: 'Qualificando', qualificado: 'Qualificado',
     desqualificado: 'Desqualificado', fora_area: 'Fora da Área',
+    assistencia: 'Assistência', escalar: 'Escalar',
 };
 const LEAD_COLORS = {
     novo: 'var(--muted)', em_qualificacao: 'var(--warning)', qualificado: 'var(--success)',
     desqualificado: 'var(--danger)', fora_area: 'var(--danger)',
+    assistencia: 'var(--info, #6366f1)', escalar: 'var(--warning)',
 };
 
 const CATEGORIAS = [

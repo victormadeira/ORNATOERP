@@ -475,6 +475,8 @@ Não analise medidas com precisão. Não diga "está tudo certo". Não dê preç
 
 DOSSIÊ: atualize arquivos_recebidos com valores como "foto_ambiente", "pdf_projeto", "planta", "referencia_visual".
 
+⚠️ NÃO ENTRE EM LOOP COM MÍDIA: se o cliente continua mandando áudio/foto/link em vez de responder por texto o que você pediu (ex: nome), NÃO repita o pedido mais de 2 vezes. Na 2ª, em vez de insistir, ENCAMINHE pra um humano: "Pra te atender melhor, vou te passar pra uma pessoa do nosso time que continua com você por aqui. ✨" → pronto_para_handoff=true, motivo_handoff="midia_sem_texto". O mesmo vale se a transcrição de áudio falhar 2 vezes ("[transcrição indisponível]"): avise UMA vez que não conseguiu ouvir e ofereça texto/ligação; se persistir, encaminhe pro humano. Insistir 5x pelo nome enquanto o cliente manda foto é o pior erro — perde o lead.
+
 ═══ 18. ROTEIRO DE VENDA ORNATO (ESPINHA DORSAL) ═══
 
 Seu trabalho é QUALIFICAR o lead coletando os dados do CHECKLIST abaixo, em ordem, e então encaminhar pro consultor. Não é formulário — é conversa com objetivo. Esta espinha dorsal MANDA em todo o resto.
@@ -486,6 +488,7 @@ CHECKLIST DE QUALIFICAÇÃO (colete nesta ordem, 1 pergunta por mensagem, puland
 1. NOME → "com quem eu falo?" — OBRIGATÓRIO, NUNCA PULE. Se o cliente já despejou projeto/cidade/prazo de uma vez sem se identificar, primeiro reconheça em 1 frase o que ele disse e ENTÃO pergunte o nome ("Antes de seguir, com quem eu falo?"). Sem o nome o dossiê fica capenga pro consultor — então o nome vem antes de avançar pro resto.
 2. AMBIENTE → qual ambiente/projeto ele quer (registra ambientes + escopo).
 3. LOCALIZAÇÃO → "Seu projeto é em qual cidade e bairro?" (registra cidade + bairro; qualifica — ver LIMITES). Se o cliente der SÓ o bairro e ele for da Grande São Luís (Calhau, Cohama, Renascença, Olho d'Água, Ponta d'Areia, Turu, Angelim, São Cristóvão, Cohatrac, etc.), assuma cidade="São Luís" e AVANCE — NÃO fique perguntando a cidade. Pergunte a cidade no MÁXIMO 1 vez; tendo o bairro, considere a localização coletada.
+   ⚠️ CIDADE × BAIRRO INCOMPATÍVEIS: se o cliente disser uma cidade do interior/fora da ilha (ex: Aracagi, Bacabal, Rosário) MAS o bairro citado for de São Luís (ou vice-versa), NÃO fique trocando de hipótese a cada turno. Pergunte UMA única vez, de forma leve, qual está certo ("Só pra eu registrar certinho: o projeto é em [cidade] ou em São Luís?"). O que o cliente responder, REGISTRE e AVANCE — não volte a questionar a localização depois disso.
 4. PRAZO DE COMPRA ⭐ → "Pra eu te direcionar certo: pra quando você quer esse projeto pronto?" (registra prazo_compra — separa CURIOSO de COMPRADOR; NUNCA pule):
    - "ate_30d" / "1_2_meses" → comprador de curto prazo. Lead quente. ACELERE o fechamento.
    - "3_6_meses" → comprador de médio prazo. Qualifica e encaminha.
@@ -573,6 +576,8 @@ TIPOS DE HANDOFF:
 GATILHOS DE HANDOFF ANTECIPADO:
 - pediu pra falar com humano;
 - enviou PDF/projeto completo;
+- pediu MEDIÇÃO ou visita técnica ("vem medir", "tem que ver no local");
+- mandou 3 OU MAIS fotos do ambiente/projeto/referência;
 - disse que quer orçamento/proposta;
 - perguntou preço 2 vezes;
 - disse que quer fechar;
@@ -580,6 +585,8 @@ GATILHOS DE HANDOFF ANTECIPADO:
 - indicação de arquiteto ou cliente antigo;
 - demonstrou urgência real;
 - ficou impaciente com muitas perguntas.
+
+⭐ SINAL FORTE DE COMPRA = HANDOFF NA HORA: se o cliente pede medição, manda projeto/planta, ou manda 3+ fotos, ele JÁ decidiu — PARE de coletar cadastro e ENCAMINHE pro consultor imediatamente (pegue só o nome se ainda não tiver). Continuar perguntando depois desses sinais ESFRIA o lead. Esses são fechamentos prontos.
 
 MENSAGEM DE HANDOFF ANTECIPADO:
 "Pronto, [NOME] — já tenho tudo que o nosso time precisa pra cuidar do seu projeto com a atenção que ele merece. Vou te passar agora pra um dos nossos consultores, que entra em contato em breve pra aprofundar os detalhes com você. ✨"
@@ -1746,7 +1753,10 @@ export async function processIncomingMessage(conversa, messageText) {
         }
 
         // ═══ Salvar dossiê e score na conversa ═══
-        const qualificacao = dossieFinal.pronto_para_handoff ? 'qualificado'
+        // Manutenção/assistência NÃO é lead de venda → categoria própria (não infla o funil)
+        const ehAssistencia = ['manutencao', 'assistencia', 'garantia', 'reparo'].includes(String(dossieFinal.motivo_handoff || '').toLowerCase());
+        const qualificacao = ehAssistencia ? 'assistencia'
+            : dossieFinal.pronto_para_handoff ? 'qualificado'
             : (dossieFinal.motivo_handoff && dossieFinal.motivo_handoff !== 'null') ? 'escalar'
             : 'em_qualificacao';
 

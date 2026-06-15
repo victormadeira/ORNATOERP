@@ -482,6 +482,11 @@ export function gerarTags(dossie = {}, score = 0) {
 
     if (dossie.decisor === 'casal') tags.push('decisor_casal');
 
+    // Motivo do handoff — separa assistência/loop de mídia de lead de venda
+    const mh = String(dossie.motivo_handoff || '').toLowerCase();
+    if (['manutencao', 'assistencia', 'garantia', 'reparo'].includes(mh)) tags.push('assistencia');
+    else if (mh === 'midia_sem_texto') tags.push('midia_sem_texto');
+
     return tags;
 }
 

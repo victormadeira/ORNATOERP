@@ -449,6 +449,27 @@ async function handleIncomingMessage(data, wsBroadcast = null, opts = {}) {
 
     // ── 9. Resposta automática da IA (debounce — junta rajadas de mensagens/fotos) ──
     const msgReferenciaId = insertResult.lastInsertRowid; // ID da msg do cliente — usado pela retry queue
+
+    // ── 8.9 GUARD @lid: contato chegou como ID de dispositivo vinculado (sem número real).
+    // O envio automático (ZAPI/Evolution) SEMPRE falha nesse caso. Não adianta acionar a IA
+    // (gasta token e a resposta não sai). Tira do fluxo da IA, marca pra atendimento manual
+    // e deixa UMA nota interna — sem repetir a cada mensagem nem ficar em loop.
+    const destEfetivo = conversa.wa_jid || remoteJid || '';
+    if (conversa.status === 'ia' && destEfetivo.includes('@lid')) {
+        const NOTA_LID = '⚠️ Contato chegou como @lid (ID de dispositivo vinculado, sem número real). O envio automático falha — responda MANUALMENTE pelo WhatsApp do aparelho.';
+        const jaTemNota = db.prepare("SELECT 1 FROM chat_mensagens WHERE conversa_id = ? AND interno = 1 AND conteudo LIKE '%@lid (ID de dispositivo%' LIMIT 1").get(conversa.id);
+        db.prepare("UPDATE chat_conversas SET status = 'humano', abandonada = 0 WHERE id = ?").run(conversa.id);
+        if (!jaTemNota) {
+            db.prepare(`
+                INSERT INTO chat_mensagens (conversa_id, direcao, tipo, conteudo, remetente, status_envio, interno, criado_em)
+                VALUES (?, 'saida', 'texto', ?, 'sistema', 'enviado', 1, CURRENT_TIMESTAMP)
+            `).run(conversa.id, NOTA_LID);
+            console.log(`[WH] Conversa #${conversa.id} é @lid — fora do fluxo da IA, marcada p/ atendimento manual.`);
+        }
+        try { wsBroadcast?.('chat.conversa-updated', { conversa_id: conversa.id }); } catch (_) { /* silencioso */ }
+        return;
+    }
+
     if (conversa.status === 'ia' && enrichedContent) {
         try {
             // DEBOUNCE: espera o cliente terminar a rajada (textos picotados, álbum de fotos)
