@@ -1084,7 +1084,7 @@ export function buildSystemPromptParts(customInstructions = '') {
         ? cfgFull.ia_system_prompt_full
         : SOFIA_TRAINING;
     staticPart += `\n\n═══ DADOS DA EMPRESA ═══`;
-    staticPart += `\nNome: ${empresa?.nome || 'Studio Ornato'}`;
+    staticPart += `\nNome: Ornato (use SEMPRE "Ornato" ao falar com o cliente — nunca "Studio Ornato")`;
     staticPart += `\nTelefone: ${empresa?.telefone || ''}`;
     staticPart += `\nEmail: ${empresa?.email || ''}`;
     staticPart += `\nSite: ${empresa?.site || ''}`;
