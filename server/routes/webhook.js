@@ -25,7 +25,7 @@ const router = Router();
 // Tempo de espera antes da IA responder — junta rajadas (textos picotados, álbum de
 // fotos) numa resposta só. Se chegar msg nova nesse meio, a espera "reinicia" (a msg
 // mais nova é quem responde a rajada toda).
-const DEBOUNCE_RESPOSTA_MS = 7000;
+const DEBOUNCE_RESPOSTA_MS = 12000; // 12s — janela larga o bastante p/ pausas de digitação (evita split de rajada)
 
 const _processedIds = new Set();
 function alreadyProcessed(msgId) {
