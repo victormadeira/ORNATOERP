@@ -212,6 +212,17 @@ router.get('/conversas', requireAuth, (req, res) => {
         params.push(u.id);
     } else if (filtro === 'nao_atribuidas') {
         where.push('cc.atribuido_user_id IS NULL');
+    } else if (filtro === 'nao_respondidas') {
+        // cliente falou por último (sem resposta nossa) — precisa de atenção
+        where.push("cc.arquivada = 0 AND (SELECT direcao FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY id DESC LIMIT 1) = 'entrada'");
+    } else if (filtro === 'respondidas') {
+        // nós/IA falamos por último — aguardando o cliente
+        where.push("cc.arquivada = 0 AND (SELECT direcao FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY id DESC LIMIT 1) = 'saida'");
+    } else if (filtro === 'com_ia') {
+        where.push("cc.arquivada = 0 AND cc.status = 'ia'");
+    } else if (filtro === 'qualificadas') {
+        // IA qualificou e/ou fez handoff
+        where.push("cc.arquivada = 0 AND (cc.lead_qualificacao = 'qualificado' OR cc.handoff_em IS NOT NULL)");
     } else if (filtro === 'arquivadas') {
         where.push('cc.arquivada = 1');
     } else {
@@ -275,6 +286,10 @@ router.get('/conversas/contadores', requireAuth, (req, res) => {
     res.json({
         minhas:           count('arquivada = 0 AND atribuido_user_id = ?', [userId]),
         nao_atribuidas:   count('arquivada = 0 AND atribuido_user_id IS NULL'),
+        nao_respondidas:  count("arquivada = 0 AND (SELECT direcao FROM chat_mensagens WHERE conversa_id = chat_conversas.id ORDER BY id DESC LIMIT 1) = 'entrada'"),
+        respondidas:      count("arquivada = 0 AND (SELECT direcao FROM chat_mensagens WHERE conversa_id = chat_conversas.id ORDER BY id DESC LIMIT 1) = 'saida'"),
+        com_ia:           count("arquivada = 0 AND status = 'ia'"),
+        qualificadas:     count("arquivada = 0 AND (lead_qualificacao = 'qualificado' OR handoff_em IS NOT NULL)"),
         todas:            count('arquivada = 0'),
         arquivadas:       count('arquivada = 1'),
     });

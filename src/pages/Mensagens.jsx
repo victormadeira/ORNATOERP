@@ -253,7 +253,7 @@ export default function Mensagens({ notify }) {
     // ─── Inbox: filtros, atribuição, categoria ───
     const [filtroAba, setFiltroAba] = useState(() => localStorage.getItem('mens_filtro') || 'minhas');
     const [filtroCategoria, setFiltroCategoria] = useState('');
-    const [contadores, setContadores] = useState({ minhas: 0, nao_atribuidas: 0, todas: 0, arquivadas: 0 });
+    const [contadores, setContadores] = useState({ minhas: 0, nao_atribuidas: 0, nao_respondidas: 0, respondidas: 0, com_ia: 0, qualificadas: 0, todas: 0, arquivadas: 0 });
     const [usuarios, setUsuarios] = useState([]);
     const [showAssignMenu, setShowAssignMenu] = useState(false);
     const [showCategoriaMenu, setShowCategoriaMenu] = useState(false);
@@ -846,6 +846,10 @@ export default function Mensagens({ notify }) {
                             overflowX: 'auto', scrollbarWidth: 'none',
                         }}>
                             {[
+                                { v: 'nao_respondidas', l: 'Não respondidas', c: contadores.nao_respondidas, alerta: true },
+                                { v: 'com_ia', l: 'Com IA', c: contadores.com_ia },
+                                { v: 'qualificadas', l: 'Qualificados', c: contadores.qualificadas },
+                                { v: 'respondidas', l: 'Respondidas', c: contadores.respondidas },
                                 { v: 'minhas', l: 'Minhas', c: contadores.minhas },
                                 { v: 'nao_atribuidas', l: 'Fila', c: contadores.nao_atribuidas },
                                 ...(isGerente ? [{ v: 'todas', l: 'Todas', c: contadores.todas }] : []),
@@ -863,7 +867,9 @@ export default function Mensagens({ notify }) {
                                     }}>
                                         {t.l}
                                         {t.c > 0 && <span style={{
-                                            fontSize: 11, background: active ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.1)',
+                                            fontSize: 11,
+                                            background: t.alerta && !active ? 'var(--danger)' : (active ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.1)'),
+                                            color: t.alerta && !active ? '#fff' : 'inherit',
                                             borderRadius: 10, padding: '0 5px', lineHeight: '18px',
                                         }}>{t.c}</span>}
                                     </button>
