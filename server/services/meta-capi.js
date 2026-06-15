@@ -245,7 +245,9 @@ export async function sendQualifiedLead({ ctwaClid, phone, leadType, value } = {
 
     const eventPayload = {
         data: [{
-            event_name: 'LeadQualificado',
+            // Meta SÓ aceita nomes de evento padrão em action_source=business_messaging
+            // (ex.: Purchase, LeadSubmitted). Nome custom ("LeadQualificado") = HTTP 400.
+            event_name: 'LeadSubmitted',
             event_time: Math.floor(Date.now() / 1000),
             action_source: 'business_messaging',
             messaging_channel: 'whatsapp',
