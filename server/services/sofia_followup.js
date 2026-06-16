@@ -68,7 +68,10 @@ export async function processarFollowups() {
         if (!dest || dest.includes('@lid')) continue;
 
         const leadDados = JSON.parse(c.lead_dados || '{}');
-        const nome = leadDados.nome?.split(' ')[0] || (c.wa_name ? c.wa_name.split(' ')[0] : '');
+        // NUNCA usar o nome do perfil do WhatsApp (wa_name) — costuma ser lixo ("desativado",
+        // nome de loja, emoji). Só usa nome que o CLIENTE realmente disse (está no dossiê).
+        // Sem isso, montarToque cai no "Oi!" genérico.
+        const nome = leadDados.nome?.split(' ')[0] || '';
         const ambientes = Array.isArray(leadDados.ambientes) ? leadDados.ambientes : [];
         const ambiente = (ambientes[0] || '').toString().replace(/_/g, ' ');
 
