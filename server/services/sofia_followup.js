@@ -16,6 +16,16 @@ const H3 = 3 * 60 * 60 * 1000;
 const H24 = 24 * 60 * 60 * 1000;
 const DIAS5 = 5 * 24 * 60 * 60 * 1000;
 
+// Normaliza timestamp pra UTC (defensivo): CURRENT_TIMESTAMP do SQLite vem "2026-06-15 14:30:00"
+// (sem fuso) e seria lido como LOCAL se o servidor nao fosse UTC. Append 'Z' garante UTC sempre,
+// alinhando com os timestamps ISO importados. Servidor atual e UTC, mas isso blinda contra mudanca.
+function ts(s) {
+    if (!s) return 0;
+    const str = /[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : String(s).replace(' ', 'T') + 'Z';
+    const t = new Date(str).getTime();
+    return isNaN(t) ? 0 : t;
+}
+
 // ── Copy dos toques (sem bajulação, máx 1 emoji, voz da Sofia) ──
 function montarToque1(nome, ambiente) {
     const oi = nome ? `Oi, ${nome}!` : 'Oi!';
@@ -51,10 +61,10 @@ export async function processarFollowups() {
     for (const c of candidatas) {
         // Precisa ter conversado: o cliente mandou algo e a Sofia respondeu por último
         if (!c.ultima_saida || !c.ultima_entrada) continue;
-        if (new Date(c.ultima_saida).getTime() <= new Date(c.ultima_entrada).getTime()) continue;
+        if (ts(c.ultima_saida) <= ts(c.ultima_entrada)) continue;
 
         // Tempo de silêncio do cliente (desde a última mensagem DELE)
-        const silencioMs = agora - new Date(c.ultima_entrada).getTime();
+        const silencioMs = agora - ts(c.ultima_entrada);
         // Nunca perseguir conversas antigas — evita enxurrada em convos esquecidas
         if (silencioMs > DIAS5) continue;
 
@@ -102,8 +112,8 @@ export async function processarFollowups() {
     for (const c of candidatas) {
         if (!c.ultima_entrada) continue;
         // só se o CLIENTE falou por último (sem resposta da IA)
-        if (c.ultima_saida && new Date(c.ultima_saida).getTime() >= new Date(c.ultima_entrada).getTime()) continue;
-        const idadeMs = agora - new Date(c.ultima_entrada).getTime();
+        if (c.ultima_saida && ts(c.ultima_saida) >= ts(c.ultima_entrada)) continue;
+        const idadeMs = agora - ts(c.ultima_entrada);
         if (idadeMs < 15 * 60 * 1000) continue; // recente — pode estar no debounce/processando
         if (idadeMs > DIAS5) continue;          // antigo demais
         const naFila = db.prepare('SELECT 1 FROM ia_retry_queue WHERE conversa_id = ?').get(c.id);

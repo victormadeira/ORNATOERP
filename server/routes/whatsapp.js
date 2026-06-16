@@ -247,12 +247,17 @@ router.get('/conversas', requireAuth, (req, res) => {
                ua.nome as atribuido_nome, ua.role as atribuido_role,
                (SELECT conteudo FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY criado_em DESC LIMIT 1) as ultima_msg,
                (SELECT remetente FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY criado_em DESC LIMIT 1) as ultima_msg_remetente,
-               (SELECT criado_em FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY criado_em DESC LIMIT 1) as ultima_msg_em
+               (SELECT criado_em FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY criado_em DESC LIMIT 1) as ultima_msg_em,
+               (SELECT direcao FROM chat_mensagens WHERE conversa_id = cc.id ORDER BY id DESC LIMIT 1) as ultima_direcao
         FROM chat_conversas cc
         LEFT JOIN clientes c ON cc.cliente_id = c.id
         LEFT JOIN users ua ON cc.atribuido_user_id = ua.id
         ${whereSQL}
-        ORDER BY cc.ultimo_msg_em DESC
+        ORDER BY
+          CASE WHEN ultima_direcao = 'entrada' THEN 0 ELSE 1 END,
+          CASE cc.lead_qualificacao WHEN 'qualificado' THEN 0 WHEN 'escalar' THEN 1 WHEN 'em_qualificacao' THEN 2 WHEN 'novo' THEN 3 ELSE 4 END,
+          cc.lead_score DESC,
+          cc.ultimo_msg_em DESC
         LIMIT ? OFFSET ?
     `).all(...params, pageLimit, pageOffset);
 

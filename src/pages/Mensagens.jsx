@@ -922,6 +922,10 @@ export default function Mensagens({ notify }) {
                             const isActive = activeConv === c.id;
                             const sc = STATUS_COLORS[c.status] || STATUS_COLORS.humano;
                             const displayName = c.cliente_nome || c.wa_name || c.wa_phone;
+                            const esperando = c.ultima_direcao === 'entrada' || c.ultima_msg_remetente === 'cliente';
+                            const isQuente = esperando && (c.lead_qualificacao === 'qualificado' || c.lead_qualificacao === 'escalar');
+                            const qualBadge = ['qualificado', 'escalar', 'assistencia'].includes(c.lead_qualificacao) ? c.lead_qualificacao : null;
+                            const baseBg = isActive ? 'var(--wa-row-active)' : (isQuente ? 'color-mix(in srgb, #f59e0b 10%, transparent)' : 'transparent');
                             return (
                                 <div
                                     key={c.id}
@@ -929,11 +933,11 @@ export default function Mensagens({ notify }) {
                                     style={{
                                         padding: '12px 16px', cursor: 'pointer',
                                         borderBottom: '1px solid var(--border)',
-                                        background: isActive ? 'var(--wa-row-active)' : 'transparent',
+                                        background: baseBg,
                                         transition: 'background 0.1s',
                                     }}
                                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = baseBg; }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                         {/* Avatar — foto de perfil real do WhatsApp */}
@@ -990,6 +994,31 @@ export default function Mensagens({ notify }) {
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* Row 2.5: qualificação quente + SLA (cliente esperando) */}
+                                            {(qualBadge || esperando) && (
+                                                <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                                                    {isQuente && (
+                                                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 700, background: 'rgba(245,158,11,0.18)', color: '#f59e0b' }}>
+                                                            🔥 Quente
+                                                        </span>
+                                                    )}
+                                                    {qualBadge && LEAD_LABELS[qualBadge] && (
+                                                        <span style={{
+                                                            fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
+                                                            background: `color-mix(in srgb, ${LEAD_COLORS[qualBadge] || 'var(--muted)'} 16%, transparent)`,
+                                                            color: LEAD_COLORS[qualBadge] || 'var(--muted)',
+                                                        }}>
+                                                            {LEAD_LABELS[qualBadge]}
+                                                        </span>
+                                                    )}
+                                                    {esperando && (
+                                                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600, background: 'var(--bg-muted)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                            <Clock size={8} /> esperando {timeAgo(c.ultima_msg_em || c.ultimo_msg_em)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             {/* Row 3: attribution + category tags (only if set) */}
                                             {(c.atribuido_nome || c.categoria || c.prioridade === 'urgente' || c.prioridade === 'alta') && (
