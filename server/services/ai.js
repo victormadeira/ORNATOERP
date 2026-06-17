@@ -1326,7 +1326,13 @@ export async function callAI(messages, systemPrompt, options = {}) {
         try {
             const response = await openai.chat.completions.create(params);
             const usage = response.usage || {};
-            logarUso('openai', modelo, usage.prompt_tokens || 0, usage.completion_tokens || 0, contexto);
+            // OpenAI auto-cacheia o prefixo estável do prompt (≥1024 tokens). prompt_tokens é o TOTAL;
+            // os cacheados vêm em prompt_tokens_details.cached_tokens e custam ~10%. Logamos o input
+            // NÃO-cacheado como input_tokens e os cacheados como cache_read pra o custo bater com a fatura
+            // (antes logávamos prompt_tokens cheio → superestimava o custo quando havia cache hit).
+            const cachedIn = usage.prompt_tokens_details?.cached_tokens || 0;
+            const inUncached = Math.max(0, (usage.prompt_tokens || 0) - cachedIn);
+            logarUso('openai', modelo, inUncached, usage.completion_tokens || 0, contexto, 0, cachedIn);
             return response.choices[0]?.message?.content || '';
         } catch (err) {
             // Crédito acabou / quota / auth → fallback automático pro Haiku, pra não derrubar o lead.

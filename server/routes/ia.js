@@ -821,7 +821,23 @@ router.get('/uso', requireAuth, (req, res) => {
             ORDER BY custo_usd DESC
         `).all();
 
-        res.json({ total, hoje, mes, porDia, recentes, porModelo });
+        // Agrupado por PROVEDOR — consolida o gasto da OpenAI / Anthropic / Gemini
+        const porProvider = db.prepare(`
+            SELECT
+                provider,
+                COUNT(*) as chamadas,
+                COALESCE(SUM(input_tokens), 0) as input_tokens,
+                COALESCE(SUM(output_tokens), 0) as output_tokens,
+                COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+                COALESCE(SUM(custo_usd), 0) as custo_usd,
+                COALESCE(SUM(CASE WHEN strftime('%Y-%m', criado_em) = strftime('%Y-%m', 'now', 'localtime') THEN custo_usd ELSE 0 END), 0) as custo_usd_mes,
+                COALESCE(SUM(CASE WHEN date(criado_em) = date('now', 'localtime') THEN custo_usd ELSE 0 END), 0) as custo_usd_hoje
+            FROM ia_uso_log
+            GROUP BY provider
+            ORDER BY custo_usd DESC
+        `).all();
+
+        res.json({ total, hoje, mes, porDia, recentes, porModelo, porProvider });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
