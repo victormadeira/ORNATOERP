@@ -832,7 +832,9 @@ NUNCA invente dados que o cliente não disse.
 
   "resumo_projeto": null,
   "principais_desejos": [],
-  "observacoes": null
+  "observacoes": null,
+
+  "resumo_conversa": null
 }
 
 ═══ 28. REGRAS DO DOSSIÊ ═══
@@ -889,6 +891,13 @@ MOTIVO DE HANDOFF:
 
 PRÓXIMA AÇÃO RECOMENDADA:
 "ligar" | "whatsapp" | "pedir_pdf" | "pedir_fotos" | "avaliar_viabilidade" | "explicar_consultoria" | "enviar_para_comercial" | "descartar" | null
+
+RESUMO DA CONVERSA (anti-repetição — SEMPRE atualize):
+- Emita "resumo_conversa" em TODA mensagem: 1 a 3 frases curtas em português que capturem o ESTADO da conversa, não o projeto.
+- Inclua: (a) o que já foi conversado/perguntado, (b) o que o cliente já respondeu/decidiu, (c) qual é o próximo passo que VOCÊ vai dar.
+- Reescreva o resumo INTEIRO a cada mensagem incorporando a novidade — é um resumo rolante, não um histórico que cresce. Mantenha curto.
+- Antes de perguntar qualquer coisa, confira o resumo + os dados já coletados: se a informação já está lá, NÃO pergunte de novo — avance para o próximo passo. Nunca repita uma pergunta que o cliente já respondeu nem reapresente algo que você já apresentou.
+- Exemplo: "Cliente quer cozinha + closet em São Luís, já tem projeto da arquiteta e vai mandar o PDF. Consultoria ainda não apresentada. Próximo: receber o PDF e então explicar a consultoria."
 
 ═══ 29. EXEMPLOS DE RESPOSTA ═══
 
@@ -1142,6 +1151,8 @@ const PRECOS_MTOK = {
     'claude-opus-4':               { in: 15.00, out: 75.00, cache_write: 18.75, cache_read: 1.50 },
     'claude-3-haiku-20240307':     { in: 0.25, out: 1.25, cache_write: 0.30, cache_read: 0.03 },
     // OpenAI
+    'gpt-5.4':                     { in: 2.50, out: 15.00, cache_read: 0.25 },   // cache de input ~10% (auto)
+    'gpt-5.4-mini':                { in: 0.75, out: 4.50,  cache_read: 0.075 },
     'gpt-4o-mini':                 { in: 0.15, out: 0.60 },
     'gpt-4o':                      { in: 2.50, out: 10.00 },
     'gpt-4-turbo':                 { in: 10.00, out: 30.00 },
@@ -1680,13 +1691,15 @@ export async function processIncomingMessage(conversa, messageText) {
         }, conversa.cliente_id || null, adminUser?.id || 1);
     }
 
-    // Últimas 20 mensagens para contexto (respeitando reset de contexto se houver)
+    // Últimas 10 mensagens para contexto (respeitando reset de contexto se houver).
+    // Janela curta de propósito: o `resumo_conversa` do dossiê carrega o contexto antigo
+    // (anti-loop), então não precisamos arrastar 20 msgs e inflar o custo de input.
     const resetEm = conversa.ia_contexto_reset_em || null;
     const recentMsgs = db.prepare(`
         SELECT direcao, remetente, conteudo FROM chat_mensagens
         WHERE conversa_id = ? AND interno = 0
           ${resetEm ? "AND criado_em >= ?" : ""}
-        ORDER BY criado_em DESC LIMIT 20
+        ORDER BY criado_em DESC LIMIT 10
     `).all(...(resetEm ? [conversa.id, resetEm] : [conversa.id])).reverse();
 
     // Contexto extra: info do cliente + tratamento detectado + saudação atual + horário humano
@@ -1706,6 +1719,10 @@ export async function processIncomingMessage(conversa, messageText) {
 
     // Dossiê acumulado da conversa
     const dossieAcum = JSON.parse(conversa.lead_dados || '{}');
+    // Resumo rolante primeiro (anti-loop): estado da conversa + próximo passo, bem visível.
+    if (dossieAcum.resumo_conversa) {
+        contextoExtra += `\n\n═══ RESUMO DA CONVERSA ATÉ AQUI (continue daqui — NÃO repita o que já foi feito) ═══\n${dossieAcum.resumo_conversa}`;
+    }
     if (Object.keys(dossieAcum).length > 0) {
         contextoExtra += `\n\n═══ DADOS JÁ COLETADOS NESTA CONVERSA (não pergunte de novo) ═══\n${JSON.stringify(dossieAcum, null, 2)}`;
     }

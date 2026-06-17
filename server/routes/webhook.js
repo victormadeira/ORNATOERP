@@ -391,23 +391,35 @@ async function handleIncomingMessage(data, wsBroadcast = null, opts = {}) {
                 console.error('[WH] Erro download mídia:', err.message);
             }
 
-            // Para áudio e imagem, a IA precisa entender — enriquecer o content
-            if ((messageType === 'audio' || messageType === 'imagem') && conversa.status === 'ia' || !conversa) {
+            // ÁUDIO: SEMPRE transcrever — inclusive depois do handoff pro humano. O consultor
+            // lê a transcrição direto no painel e a IA entende o conteúdo. Whisper é barato.
+            if (messageType === 'audio') {
                 try {
                     const base64 = await evolution.baixarMidiaBase64(data.key);
                     if (base64) {
-                        if (messageType === 'audio') {
-                            const transcricao = await ai.transcreverAudio(base64, 'audio/ogg');
-                            enrichedContent = `[áudio transcrito] ${transcricao}`;
-                            console.log(`[WH] Áudio transcrito (${transcricao.length} chars)`);
-                        } else if (messageType === 'imagem') {
-                            const desc = await ai.descreverImagem(base64, 'image/jpeg');
-                            enrichedContent = (messageContent ? `${messageContent}\n` : '') + `[imagem enviada — descrição: ${desc}]`;
-                            console.log(`[WH] Imagem descrita: ${desc.slice(0, 80)}`);
-                        }
+                        const transcricao = await ai.transcreverAudio(base64, 'audio/ogg');
+                        // Sucesso → prefixo 🎤 (NÃO pode começar com "[", senão o front esconde o texto).
+                        // Falha (retorna "[...]") → mantém o marcador pra IA tratar (seção LOOP COM MÍDIA).
+                        enrichedContent = (transcricao && !transcricao.startsWith('['))
+                            ? `🎤 ${transcricao}`
+                            : transcricao;
+                        console.log(`[WH] Áudio transcrito (${(transcricao || '').length} chars)`);
                     }
                 } catch (err) {
-                    console.error(`[WH] Erro processar ${messageType}:`, err.message);
+                    console.error('[WH] Erro transcrever áudio:', err.message);
+                }
+            }
+            // IMAGEM: descrever só quando a IA vai responder (vision custa mais; o humano vê a foto no painel).
+            else if (messageType === 'imagem' && (conversa.status === 'ia' || !conversa)) {
+                try {
+                    const base64 = await evolution.baixarMidiaBase64(data.key);
+                    if (base64) {
+                        const desc = await ai.descreverImagem(base64, 'image/jpeg');
+                        enrichedContent = (messageContent ? `${messageContent}\n` : '') + `[imagem enviada — descrição: ${desc}]`;
+                        console.log(`[WH] Imagem descrita: ${desc.slice(0, 80)}`);
+                    }
+                } catch (err) {
+                    console.error('[WH] Erro descrever imagem:', err.message);
                 }
             }
         }
