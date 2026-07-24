@@ -438,6 +438,18 @@ export function calcularScore(dossie = {}, opts = {}) {
         if (dossie.pronto_para_handoff === true && dossie.tipo_handoff === 'qualificado' && score < 70) {
             score = 70; detalhes.push('override:handoff_qualificado=70');
         }
+
+        // ═══ PISO POR PROJETO RECEBIDO ═══
+        // Cliente que MANDA o PDF do projeto é o perfil ideal (decidido, já investiu em
+        // arquiteto). Antes, se ele não respondia as perguntas do roteiro, valia 0 — o
+        // score enterrava justamente o melhor lead (caso Diego/ITORAX, sc0 com projeto
+        // executivo completo). Projeto na mão = piso alto, independente do questionário.
+        const arqs = Array.isArray(dossie.arquivos_recebidos) ? dossie.arquivos_recebidos : [];
+        const mandouProjeto = arqs.some(a => /pdf|projeto|planta/i.test(String(a)))
+            || (dossie.tem_projeto_arquiteto === true && dossie.tem_medidas === true);
+        if (mandouProjeto && score < 75) {
+            score = 75; detalhes.push('override:projeto_recebido=75');
+        }
     }
 
     let classificacao = 'frio';
