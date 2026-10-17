@@ -309,7 +309,7 @@ function resolveMat(alias, mats) {
 // VAR_ORDER estendido com variáveis de componentes
 const VAR_ORDER_V2 = ["nPortas", "Lg", "Pg", "Lpr", "Ppr", "Ldv", "Pdv", "Lp", "Ap", "Li", "Ai", "Pi", "ag", "L", "A", "P"];
 
-function rCalcV2(expr, d) {
+function rCalcV2(expr, d, onError = null) {
     try {
         let e = String(expr);
         // Substituir primeiro as vars da ordem predefinida (prioridade e ordem correta)
@@ -325,14 +325,25 @@ function rCalcV2(expr, d) {
         for (const k of extraKeys) {
             e = e.replace(new RegExp(`\\b${k}\\b`, 'g'), String(d[k] ?? 0));
         }
-        if (!SAFE_EXPR.test(e)) return 0;
+        if (!SAFE_EXPR.test(e)) throw new Error('Fórmula inválida ou variável não resolvida');
         const r = Function('"use strict";return(' + e + ')')();
-        return Number.isFinite(r) ? r : 0;
-    } catch (_) { return 0; }
+        if (!Number.isFinite(r)) throw new Error('Resultado não finito');
+        return r;
+    } catch (_) { onError?.(); return 0; }
 }
 
 export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null, globalPadroes = {}) {
     globalPadroes = globalPadroes ?? {};
+    const errors = [], warnings = [];
+    const issue = (code, message) => errors.push({ code, message });
+    const formulaError = label => () => issue('formula_invalid', `Fórmula inválida em ${label}.`);
+    const positivePrice = (value, label, included = false) => {
+        if (!Number.isFinite(value) || value < 0 || (value === 0 && !included)) {
+            issue('price_invalid', `Cadastre um preço válido para ${label}.`);
+            return 0;
+        }
+        return value;
+    };
     const chapasDB = bib?.chapas || DB_CHAPAS;
     // Mescla ferragens do banco com fallback embutido (evita perder ferragens quando banco tem dados parciais)
     const bibFerr = bib?.ferragens || [];
@@ -363,7 +374,7 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     const addChapa = (matId, am) => {
         if (!matId) return;
         const m = chapasDB.find(c => c.id === matId);
-        if (!m) return;
+        if (!m) { issue('material_missing', `Material ${matId} não encontrado na biblioteca.`); return; }
         if (!chapas[matId]) chapas[matId] = { mat: m, area: 0 };
         chapas[matId].area += am;
     };
@@ -371,20 +382,24 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     const addAcabamento = (matId, am) => {
         if (!matId) return;
         const ac = acabDB.find(x => x.id === matId);
-        const precoAcab = ac?.preco_m2 || ac?.preco || 0;
-        if (ac && precoAcab > 0) {
-            custo += am * precoAcab;
-        }
+        if (!ac) { issue('finish_missing', `Acabamento ${matId} não encontrado na biblioteca.`); return; }
+        const included = ac.un === 'incluso' || ac.unidade === 'incluso' || ac.incluso === true;
+        const precoAcab = positivePrice(ac.preco_m2 > 0 ? ac.preco_m2 : (ac.preco ?? ac.preco_m2), ac.nome || matId, included);
+        custo += am * precoAcab;
     };
 
     const addPeca = (nome, tipo, matId, calcExpr, qtd, fitaCfg, D_ctx, isAcab = false) => {
         const resolvedMat = matId;
-        const amm = rCalcV2(calcExpr, D_ctx);
+        if (!Number.isInteger(qtd) || qtd <= 0) { issue('quantity_invalid', `Quantidade inválida em ${nome}.`); return; }
+        const amm = rCalcV2(calcExpr, D_ctx, formulaError(nome));
         const am = (amm / 1e6) * qtd;
-        if (am <= 0) return;
+        if (am <= 0) { issue('piece_area_invalid', `A peça ${nome} precisa ter área positiva.`); return; }
         const { w, h } = parseDimsFromExpr(calcExpr, D_ctx);
+        if (w <= 0 || h <= 0) {
+            warnings.push({ code: 'piece_dimensions_unresolved', message: `A área de ${nome} foi calculada, mas suas duas dimensões não foram resolvidas.` });
+        }
         const f = cFita(fitaCfg, w, h) * qtd;
-        const nBordas = fitaCfg?.length || 0;
+        const nBordas = fitaCfg?.includes('all') ? 4 : new Set(fitaCfg || []).size;
         const perimetro = 2 * (w + h); // mm
         pecas.push({ nome, tipo, matId: resolvedMat, area: am, fita: f, w, h, perimetro, nBordas, qtd: qtd || 1 });
         area += am;
@@ -405,8 +420,8 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     // ── 1. Peças da caixa ──────────────────────────────────
     (caixaDef.pecas || []).forEach(p => {
         const matId = resolveMat(p.mat, mats);
-        if (!matId) return;
-        addPeca(p.nome, 'caixa', matId, p.calc, p.qtd || 1, p.fita || [], D);
+        if (!matId) { issue('material_missing', `Selecione o material de ${p.nome || 'uma peça da caixa'}.`); return; }
+        addPeca(p.nome, 'caixa', matId, p.calc, p.qtd ?? 1, p.fita || [], D);
         // Custo de sangria para peças curvas (MDF sangrado / kerf bending)
         if (p.curva?.ativa && p.curva.raio > 0 && p.curva.custoSangria > 0) {
             const { w } = parseDimsFromExpr(p.calc, D); // comprimento do arco (1ª dimensão, mm)
@@ -423,7 +438,7 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
             if (!matId) return;
             // isAcabExt calculado por peça — cada tamponamento pode usar material diferente
             const isAcabPeca = !chapasDB.find(c => c.id === matId);
-            addPeca(p.nome || `Tamp. ${p.face}`, 'tamponamento', matId, p.calc, p.qtd || 1, p.fita || [], D, isAcabPeca);
+            addPeca(p.nome || `Tamp. ${p.face}`, 'tamponamento', matId, p.calc, p.qtd ?? 1, p.fita || [], D, isAcabPeca);
         });
     }
 
@@ -431,9 +446,9 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     (caixaDef.sub_itens || []).forEach(si => {
         if (si.defaultOn === false) return;
         const fe = ferragensDB.find(f => f.id === si.ferrId);
-        if (!fe) return;
+        if (!fe) { issue('hardware_missing', `Ferragem ${si.ferrId} não encontrada.`); return; }
         const qtdUnit = si.qtdFormula
-            ? Math.ceil(Math.max(1, rCalcV2(si.qtdFormula, D)))
+            ? Math.ceil(Math.max(1, rCalcV2(si.qtdFormula, D, formulaError(si.nome))))
             : 1;
         ferrList.push({ ...fe, qtd: qtdUnit, orig: `${caixaDef.nome || 'Módulo'} / ${si.nome}` });
     });
@@ -448,7 +463,8 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
             // Overrides de material por instância ('' = herda da caixa)
             matIntInst = '', matExtInst = '',
         } = ci;
-        if (!compDef) return;
+        if (!compDef) { issue('component_missing', 'Componente sem receita.'); return; }
+        if (!Number.isInteger(cQtd) || cQtd <= 0) { issue('quantity_invalid', `Quantidade inválida em ${compDef.nome || 'componente'}.`); return; }
 
         // Contexto do componente = vars da caixa + derivados + vars próprias
         const cD = { ...D };
@@ -470,7 +486,7 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
             const userVal = cVars[v.id];
             if (userVal !== undefined) {
                 cD[v.id] = userVal;
-            } else if (v.default) {
+            } else if (v.default !== undefined) {
                 cD[v.id] = v.default;
             }
         });
@@ -481,7 +497,7 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         Object.entries(compDef.varsDeriv || {}).forEach(([k, formula]) => {
             const userVal = cVars[k];
             if (userVal === undefined || userVal === 0) {
-                cD[k] = rCalcV2(formula, cD);
+                cD[k] = rCalcV2(formula, cD, formulaError(`${compDef.nome || 'componente'} / ${k}`));
             }
         });
 
@@ -497,8 +513,8 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         // Peças do componente
         (compDef.pecas || []).forEach(p => {
             const matId = resolveMat(p.mat, compMats);
-            if (!matId) return;
-            addPeca(`${compLabel} — ${p.nome}`, 'componente', matId, p.calc, (p.qtd || 1) * cQtd, p.fita || [], cD);
+            if (!matId) { issue('material_missing', `Selecione o material de ${compLabel} — ${p.nome || 'peça'}.`); return; }
+            addPeca(`${compLabel} — ${p.nome}`, 'componente', matId, p.calc, (p.qtd ?? 1) * cQtd, p.fita || [], cD);
         });
 
         // Frente externa
@@ -506,13 +522,16 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         // Fallback robusto: se a calc usa "Lp" (= área de UMA porta) e nPortas está no contexto,
         // multiplica automaticamente por nPortas — cobre snapshots antigos sem qtdFormula.
         const fe = compDef.frente_externa;
+        if (fe?.ativa && !matExtComp && !(compDef.pecas || []).length) {
+            issue('front_material_missing', `Selecione o material da frente de ${compLabel}.`);
+        }
         if (fe?.ativa && matExtComp) {
             const feMatId = resolveMat(fe.mat, compMats);
             if (feMatId) {
                 const isAcab = !chapasDB.find(c => c.id === feMatId);
                 let feQtdUnit;
                 if (fe.qtdFormula) {
-                    feQtdUnit = Math.round(Math.max(1, rCalcV2(fe.qtdFormula, cD)));
+                    feQtdUnit = Math.round(Math.max(1, rCalcV2(fe.qtdFormula, cD, formulaError(`${compLabel} / quantidade da frente`))));
                 } else if (cD.nPortas > 0 && (fe.calc || '').includes('Lp')) {
                     // Fallback: Lp = Li/nPortas → calc dá área de 1 porta → precisa × nPortas
                     feQtdUnit = Math.round(Math.max(1, cD.nPortas));
@@ -540,11 +559,12 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
                     }
                 }
             }
-            const fe = ferragensDB.find(f => f.id === effFerrId) || ferragensDB.find(f => f.id === si.ferrId);
-            if (!fe) return;
+            // Uma escolha explícita inválida não pode trocar silenciosamente a ferragem.
+            const fe = ferragensDB.find(f => f.id === effFerrId);
+            if (!fe) { issue('hardware_missing', `Ferragem ${effFerrId} não encontrada em ${compLabel}.`); return; }
             // qtdFormula: ex "1", "Ap<=1600?2:3", "Li/1000"
             const qtdUnit = si.qtdFormula
-                ? Math.ceil(Math.max(1, rCalcV2(si.qtdFormula, cD)))
+                ? Math.ceil(Math.max(1, rCalcV2(si.qtdFormula, cD, formulaError(`${compLabel} / ${si.nome}`))))
                 : 1;
             ferrList.push({ ...fe, qtd: qtdUnit * cQtd, orig: `${compLabel} / ${si.nome}` });
         });
@@ -555,10 +575,12 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     Object.values(chapas).forEach(c => {
         const areaChapa = (c.mat.larg * c.mat.alt) / 1e6;
         const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
+        if (!(c.mat.larg > 0) || !(c.mat.alt > 0) || !Number.isFinite(areaChapa)) issue('sheet_dimensions_invalid', `Dimensões de chapa inválidas para ${c.mat.nome}.`);
+        if (!Number.isFinite(perda) || perda < 0 || perda >= 100) issue('waste_invalid', `Perda de chapa inválida para ${c.mat.nome}.`);
         const areaUtil = areaChapa * (1 - perda / 100);
-        c.frac = areaUtil > 0 ? c.area / areaUtil : 1;
+        c.frac = areaUtil > 0 && Number.isFinite(areaUtil) ? c.area / areaUtil : 0;
         c.n = Math.ceil(c.frac);
-        const cc = c.frac * c.mat.preco; // proporcional
+        const cc = c.frac * positivePrice(c.mat.preco, c.mat.nome); // proporcional
         custoChapas += cc;
         custo += cc;
     });
@@ -567,23 +589,26 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
     const custoFita = Object.keys(fitaByMat).length > 0
         ? Object.values(fitaByMat).reduce((s, v) => s + v.metros * v.preco, 0)
         : fita * fitaPrecoDefault;
+    if (fita > 0 && fitasDB[0] && !(fitasDB[0].preco > 0) && Object.keys(fitaByMat).some(matId => !(chapasDB.find(c => c.id === matId)?.fita_preco > 0))) {
+        issue('edge_price_invalid', 'Cadastre um preço válido para a fita de borda.');
+    }
     custo += custoFita;
 
     // Custo de ferragens
     let custoFerragens = 0;
-    ferrList.forEach(f => { const fc = f.preco * f.qtd; custoFerragens += fc; custo += fc; });
+    ferrList.forEach(f => { const fc = positivePrice(f.preco, f.nome || f.id) * f.qtd; custoFerragens += fc; custo += fc; });
 
     // Custo de acabamentos (já adicionado ao custo em addAcabamento)
     // Calcular valor isolado para breakdown
     const custoAcabamentos = custo - custoChapas - custoFita - custoFerragens;
 
     // ── Fase 1+2: Métricas para custo-hora e consumíveis ──
-    const nPecas = pecas.length;
+    const nPecas = pecas.reduce((sum, p) => sum + (p.qtd || 1), 0);
     const nFerragens = ferrList.reduce((s, f) => s + (f.qtd || 0), 0);
     const nCaixas = 1; // cada item é 1 caixa
-    const nJuncoes = Math.max(2, pecas.filter(p => ['caixa', 'componente', 'tamponamento'].includes(p.tipo)).length); // minifix por junção
+    const nJuncoes = Math.max(2, pecas.filter(p => ['caixa', 'componente', 'tamponamento'].includes(p.tipo)).reduce((sum, p) => sum + (p.qtd ?? 1), 0)); // heurística por peça física
 
-    return { pecas, chapas, fita, fitaByMat, ferrList, custo, area, custoChapas, custoFita, custoFerragens, custoAcabamentos, nPecas, nFerragens, nCaixas, nJuncoes };
+    return { pecas, chapas, fita, fitaByMat, ferrList, custo, area, custoChapas, custoFita, custoFerragens, custoAcabamentos, nPecas, nFerragens, nCaixas, nJuncoes, valid: errors.length === 0, errors, warnings };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -887,7 +912,7 @@ function _bestCut(chapaL, chapaW, ripaComp, ripaLarg) {
 function _calcPrecoM2Item(item) {
     if (item.largura > 0 && item.altura > 0 && item.preco > 0) {
         const area = (item.largura * item.altura) / 1e6;
-        const util = area * (1 - (item.perda_pct || 15) / 100);
+        const util = area * (1 - (item.perda_pct ?? 15) / 100);
         return util > 0 ? item.preco / util : 0;
     }
     return item.preco_m2 || item.preco || 0;
@@ -954,7 +979,7 @@ export function calcPainelRipado(cfg, bib = []) {
     let custoSubstrato = 0;
     if (matSub) {
         const pm2 = _calcPrecoM2Item(matSub);
-        custoSubstrato = pm2 > 0 ? areaSubstrato * pm2 : Math.ceil(areaSubstrato / ((matSub.largura * matSub.altura / 1e6) * (1 - (matSub.perda_pct || 15) / 100) || 1)) * (matSub.preco || 0);
+        custoSubstrato = pm2 > 0 ? areaSubstrato * pm2 : Math.ceil(areaSubstrato / ((matSub.largura * matSub.altura / 1e6) * (1 - (matSub.perda_pct ?? 15) / 100) || 1)) * (matSub.preco || 0);
     }
     const fitaPrecoSub = matSub?.fita_preco > 0 ? matSub.fita_preco : fitaPrecoDefault;
 

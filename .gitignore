@@ -78,3 +78,5 @@ ornato-plugin/biblioteca/migration_mapping.json
 
 # Backups locais pre-migração (gerados, não commitar)
 ornato-plugin/wps_working/backups_pre_*/
+# Isolated quick quote preview output
+dist-quick-quote/

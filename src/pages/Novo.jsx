@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { Z, Ic, Modal, SearchableSelect, PageHeader, ConfirmModal } from '../ui';
-import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, precoVendaV2, calcCustoHora, calcConsumiveis, estimarCorteReal, LOCKED_COLS, compareVersions } from '../engine';
+import { uid, R$, N, DB_CHAPAS, DB_ACABAMENTOS, DB_FERRAGENS, DB_FITAS, FERR_GROUPS, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, LOCKED_COLS, compareVersions } from '../engine';
+import { applyQuoteDiscount, buildQuoteLibrary, calculateQuote, resolveItemMats } from '../quoteCalculator';
 import api from '../api';
 import { buildRelatorioHtml } from './RelatorioMateriais';
 import { buildPropostaHtml } from './PropostaHtml';
@@ -47,20 +48,6 @@ const MAT_ALIAS = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function matLabel(id, chapas) {
     return chapas.find(c => c.id === id)?.nome || id || '—';
-}
-
-/** Resolve materiais efetivos de um item, herdando do ambiente se não customizado */
-function resolveItemMats(item, amb) {
-    if (item._matCustom) return item.mats; // item explicitamente customizado
-    // Ambiente só tem material se matInt foi definido (campo não existe em orçamentos antigos)
-    if (!amb?.matInt) return item.mats;
-    return {
-        matInt: amb.matInt,
-        matExt: amb.matExt ?? item.mats?.matExt ?? '',
-        // matFundo e matExtComp são per-item — o ambiente nunca os sobrescreve
-        matFundo: item.mats?.matFundo ?? '',
-        matExtComp: item.mats?.matExtComp ?? '',
-    };
 }
 
 // ── Componente: input com suporte a fórmulas matemáticas (Estilo A) ─────────
@@ -1554,11 +1541,11 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     const def = caixas.find(c => c.db_id === item.caixaId);
                     if (def) { updated = { ...updated, caixaDef: JSON.parse(JSON.stringify(def)) }; changed = true; }
                 }
-                // Hidratar compDef em cada componente — sempre re-fetcha do catálogo atual
-                // (guard antigo `if (ci.compDef) return ci` impedia atualizar snapshots obsoletos)
+                // Preencher receitas ausentes; preservar a composição salva no orçamento.
+                // Os presets rápidos podem conter adaptações da receita do catálogo.
                 if (updated.componentes?.length > 0) {
                     const comps = updated.componentes.map(ci => {
-                        if (!ci.compId) return ci; // sem ID não dá para buscar
+                        if (ci.compDef || !ci.compId) return ci;
                         const cd = componentesCat.find(c => c.db_id === ci.compId);
                         if (cd) { changed = true; return { ...ci, compDef: JSON.parse(JSON.stringify(cd)) }; }
                         return ci; // componente não está mais no catálogo — mantém snapshot antigo
@@ -1571,41 +1558,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         // if (changed) console.log('[Hidratação] caixaDef/compDef injetados do catálogo');
     }, [caixas, componentesCat]);
 
-    const bib = useMemo(() => {
-        if (bibItems.length === 0) return null;
-        const chapas = bibItems.filter(i => i.tipo === 'material' && i.unidade === 'chapa').map(i => ({
-            id: i.cod || `bib_${i.id}`, nome: i.nome, esp: i.espessura, larg: i.largura,
-            alt: i.altura, preco: i.preco, perda_pct: i.perda_pct || 15, fita_preco: i.fita_preco || 0,
-            uso_count: i.uso_count || 0,
-        }));
-        const ferragens = bibItems.filter(i => i.tipo === 'ferragem' || i.tipo === 'acessorio').map(i => ({
-            id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco, un: i.unidade, categoria: i.categoria || '',
-            uso_count: i.uso_count || 0,
-        }));
-        const acabamentos = bibItems.filter(i => i.tipo === 'acabamento').map(i => ({
-            id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco || i.preco_m2, un: 'm²',
-            uso_count: i.uso_count || 0,
-        }));
-        const fitas = bibItems.filter(i => i.tipo === 'material' && i.unidade === 'm' && i.nome.toLowerCase().includes('fita')).map(i => ({
-            id: i.cod || `bib_${i.id}`, nome: i.nome, preco: i.preco,
-        }));
-        // Top 5 chapas mais usadas
-        const topChapas = [...chapas].sort((a, b) => (b.uso_count || 0) - (a.uso_count || 0)).filter(c => c.uso_count > 0).slice(0, 5);
-        const topAcab = [...acabamentos].sort((a, b) => (b.uso_count || 0) - (a.uso_count || 0)).filter(c => c.uso_count > 0).slice(0, 5);
-        // Mescla ferragens do banco com fallback embutido (garante que ferragens referenciadas por componentes existam)
-        const mergedFerragens = ferragens.length > 0
-            ? [...ferragens, ...DB_FERRAGENS.filter(df => !ferragens.find(bf => bf.id === df.id))]
-            : DB_FERRAGENS;
-        return {
-            chapas: chapas.length > 0 ? chapas : DB_CHAPAS,
-            ferragens: mergedFerragens,
-            acabamentos: acabamentos.length > 0 ? acabamentos : DB_ACABAMENTOS,
-            fitas: fitas.length > 0 ? fitas : DB_FITAS,
-            topChapas,
-            topAcab,
-            raw: bibItems,
-        };
-    }, [bibItems]);
+    const bib = useMemo(() => buildQuoteLibrary(bibItems), [bibItems]);
 
     const chapasDB = bib?.chapas || DB_CHAPAS;
     const acabDB = bib?.acabamentos || DB_ACABAMENTOS;
@@ -2323,333 +2276,10 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     });
 
     // ── Totais ───────────────────────────────────────────────────────────────
-    const tot = useMemo(() => {
-        let cm = 0, at = 0, ft = 0, manualTotal = 0;
-        // ── Engine v2: custos separados por categoria ──
-        let totChapas = 0, totFita = 0, totFerragens = 0, totAcabamentos = 0, totAcessorios = 0, totEspeciais = 0;
-        const ca = {}, fa = {}, ambTotals = [];
-        const itemCostList = []; // { ambId, custoItem, coef, ajuste }
-        ambientes.forEach(amb => {
-            let ambCm = 0;
-            // ── Ambiente Manual: valor = preco de venda direto (sem markup) ──
-            if (amb.tipo === 'manual') {
-                (amb.linhas || []).forEach(ln => {
-                    if (ln.tipo === 'bloco') {
-                        ambCm += Number(ln.valor) || 0;
-                    } else {
-                        // compatibilidade com linhas antigas (descricao/qtd/valorUnit)
-                        ambCm += (ln.qtd || 0) * (ln.valorUnit || 0);
-                    }
-                });
-                manualTotal += ambCm;
-                ambTotals.push({ id: amb.id, custo: ambCm, manual: true });
-                return;
-            }
-            let ambCP = 0;
-            let ambAvulso = 0;
-            amb.itens.forEach(item => {
-                // Item avulso: valor = PV direto, bypass engine
-                if (item.tipo === 'avulso') {
-                    const avValor = (Number(item.valor) || 0) * (item.qtd || 1);
-                    manualTotal += avValor;
-                    ambCm += avValor;
-                    ambAvulso += avValor;
-                    return;
-                }
-                try {
-                    const res = calcItemV2(item.caixaDef, item.dims, resolveItemMats(item, amb), item.componentes.map(ci => ({
-                        compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
-                        matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
-                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
-                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
-                    })), bib, padroes);
-                    const coef = item.caixaDef?.coef || 0;
-                    const qtd = item.qtd || 1;
-                    // Custos brutos (sem coef)
-                    const cChapas = (res.custoChapas || 0) * qtd;
-                    const cFita = (res.custoFita || 0) * qtd;
-                    const cFerr = (res.custoFerragens || 0) * qtd;
-                    const cAcab = (res.custoAcabamentos || 0) * qtd;
-                    const itemCusto = cChapas + cFita + cFerr + cAcab;
-                    cm += itemCusto; ambCm += itemCusto;
-                    // Acumular custos COM coef individual por categoria (para precoVendaV2)
-                    totChapas += cChapas * (1 + coef);
-                    totFita += cFita * (1 + coef);
-                    totAcabamentos += cAcab * (1 + coef);
-                    totFerragens += cFerr; // ferragens sem coef
-                    at += res.area * qtd;
-                    ft += res.fita * qtd;
-                    // CP individual com markups (consistente com precoVendaV2)
-                    const mk = { chapas: taxas.mk_chapas ?? 1.45, fita: taxas.mk_fita ?? 1.45, acabamentos: taxas.mk_acabamentos ?? 1.30, ferragens: taxas.mk_ferragens ?? 1.15, mdo: taxas.mk_mdo ?? 0.80 };
-                    const _ca = cChapas * (1 + coef);
-                    const _fa = cFita * (1 + coef);
-                    const _aa = cAcab * (1 + coef);
-                    const itemCP = _ca * mk.chapas + _fa * mk.fita + _aa * mk.acabamentos + cFerr * mk.ferragens + (_ca + _fa + _aa) * mk.mdo;
-                    ambCP += itemCP;
-                    itemCostList.push({ itemId: item.id, ambId: amb.id, custoItem: itemCusto, itemCP, coef, ajuste: item.ajuste || null });
-                    Object.entries(res.chapas).forEach(([id, c]) => {
-                        if (!ca[id]) ca[id] = { mat: c.mat, area: 0, n: 0, frac: 0 };
-                        ca[id].area += c.area * qtd;
-                        const perda = c.mat.perda_pct != null ? c.mat.perda_pct : 15;
-                        const areaUtil = ((c.mat.larg * c.mat.alt) / 1e6) * (1 - perda / 100);
-                        ca[id].frac = areaUtil > 0 ? ca[id].area / areaUtil : 1;
-                        ca[id].n = Math.ceil(ca[id].frac); // chapas inteiras reais
-                    });
-                    res.ferrList.forEach(f => {
-                        if (!fa[f.id]) fa[f.id] = { ...f, qtd: 0 };
-                        fa[f.id].qtd += f.qtd * qtd;
-                    });
-                } catch (_) { }
-                // ── Ripado dentro do módulo ──
-                if (item.ripado) {
-                    try {
-                        const ripCfg = { ...item.ripado, L: item.dims?.l || 0, A: item.dims?.a || 0 };
-                        const ripRes = calcPainelRipado(ripCfg, bibItems);
-                        if (ripRes) {
-                            const rCoef = item.ripado.coefDificuldade ?? 1.3;
-                            const rQtd = item.qtd || 1;
-                            const ripCustoMat = ripRes.custoMaterial * rCoef * rQtd;
-                            const ripCustoRaw = ripRes.custoMaterial * rQtd; // sem coef — para cm (custo material bruto)
-                            const ripChapas = (ripRes.custoChapas || 0) * rCoef * rQtd;
-                            const ripFita = (ripRes.custoFita || 0) * rCoef * rQtd;
-                            totChapas += ripChapas;
-                            totFita += ripFita;
-                            cm += ripCustoRaw; ambCm += ripCustoRaw;
-                            const mkC = taxas.mk_chapas ?? 1.45;
-                            const mkF = taxas.mk_fita ?? 1.45;
-                            const mkMdo = taxas.mk_mdo ?? 0.80;
-                            const ripCP = ripChapas * mkC + ripFita * mkF + ripCustoMat * mkMdo;
-                            ambCP += ripCP;
-                            // Atualizar entry existente do módulo ou criar nova
-                            const existing = itemCostList.find(e => e.itemId === item.id && e.ambId === amb.id);
-                            if (existing) {
-                                existing.custoItem += ripCustoMat;
-                                existing.itemCP += ripCP;
-                            } else {
-                                itemCostList.push({ itemId: item.id, ambId: amb.id, custoItem: ripCustoMat, itemCP: ripCP, coef: 0, ajuste: item.ajuste || null });
-                            }
-                        }
-                    } catch (_) { }
-                }
-            });
-            // ── Painéis ripados (custo vai pra chapas + fita, com coef dificuldade) ──
-            (amb.paineis || []).forEach(painel => {
-                try {
-                    const res = calcPainelRipado(painel, bibItems);
-                    if (res) {
-                        const pCoef = painel.coefDificuldade ?? (painel.tipo === 'muxarabi' ? 1.5 : 1.3);
-                        const qtdP = painel.qtd || 1;
-                        const custoComCoef = res.custoMaterial * pCoef * qtdP;
-                        const custoRaw = res.custoMaterial * qtdP; // sem coef — para cm (custo material bruto)
-                        const chapasCoef = (res.custoChapas || 0) * pCoef * qtdP;
-                        const fitaCoef = (res.custoFita || 0) * pCoef * qtdP;
-                        totChapas += chapasCoef;
-                        totFita += fitaCoef;
-                        cm += custoRaw; ambCm += custoRaw;
-                        // CP: chapas × mk_chapas + fita × mk_fita + mdo
-                        const mkC = taxas.mk_chapas ?? 1.45;
-                        const mkF = taxas.mk_fita ?? 1.45;
-                        const mkMdo = taxas.mk_mdo ?? 0.80;
-                        const painelCP = chapasCoef * mkC + fitaCoef * mkF + custoComCoef * mkMdo;
-                        ambCP += painelCP;
-                        itemCostList.push({ itemId: painel.id, ambId: amb.id, custoItem: custoComCoef, itemCP: painelCP, coef: 0, ajuste: null });
-                    }
-                } catch (_) { }
-            });
-            // ── Itens Especiais (espelho, estofado, alumínio, vidro, outro) ──
-            (amb.itensEspeciais || []).forEach(ie => {
-                try {
-                    const res = calcItemEspecial(ie, bibItems);
-                    if (res.custo > 0) {
-                        const mkEsp = taxas.mk_ferragens ?? 1.15;
-                        cm += res.custo; ambCm += res.custo;
-                        // Itens especiais = comprados prontos → categoria ferragens (sem coef dificuldade)
-                        totFerragens += res.custo;
-                        totEspeciais += res.custo;
-                        const ieCP = res.custo * mkEsp;
-                        ambCP += ieCP;
-                        itemCostList.push({ itemId: ie.id, ambId: amb.id, custoItem: res.custo, itemCP: ieCP, coef: 0, ajuste: null });
-                    }
-                } catch (_) { }
-            });
-            ambTotals.push({ id: amb.id, custo: ambCm, cp: ambCP, avulso: ambAvulso });
-        });
-
-        // ── Métricas acumuladas para custo-hora e consumíveis ──
-        let totNPecas = 0, totNFerragens = 0, totNCaixas = 0, totNJuncoes = 0, totNModulos = 0;
-        let totNPortas = 0, totNGavetas = 0, totNPrateleiras = 0;
-        const pecasDetalhe = []; // { perimetro (mm), nBordas, fita (m), qtd }
-        ambientes.forEach(amb => {
-            if (amb.tipo === 'manual') return;
-            (amb.itens || []).forEach(item => {
-                if (item.tipo === 'avulso') return;
-                const qtd = item.qtd || 1;
-                try {
-                    const res = calcItemV2(item.caixaDef, item.dims, resolveItemMats(item, amb), item.componentes.map(ci => ({
-                        compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
-                        matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
-                        dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
-                        matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
-                    })), bib, padroes);
-                    totNPecas += (res.nPecas || 0) * qtd;
-                    totNFerragens += (res.nFerragens || 0) * qtd;
-                    totNCaixas += (res.nCaixas || 0) * qtd;
-                    totNJuncoes += (res.nJuncoes || 0) * qtd;
-                    totNModulos += qtd;
-                    // Coletar dimensões de cada peça para cálculo preciso CNC + fita
-                    res.pecas.forEach(p => {
-                        pecasDetalhe.push({ perimetro: p.perimetro || 0, nBordas: p.nBordas || 0, fita: p.fita || 0, qtd });
-                    });
-                    // Contar portas, gavetas, prateleiras por categoria de ferragem
-                    res.ferrList.forEach(f => {
-                        const cat = (f.categoria || '').toLowerCase();
-                        if (cat.includes('dobradiça') || cat.includes('dobradica')) totNPortas += (f.qtd || 0) * qtd;
-                        else if (cat.includes('corrediça') || cat.includes('corredica')) totNGavetas += (f.qtd || 0) * qtd;
-                    });
-                    (item.componentes || []).forEach(ci => {
-                        const nome = (ci.compDef?.nome || '').toLowerCase();
-                        if (nome.includes('prateleira') || nome.includes('shelf')) {
-                            totNPrateleiras += (ci.qtd || 1) * qtd;
-                        }
-                    });
-                    if (item.ripado) {
-                        try {
-                            const ripCfg = { ...item.ripado, L: item.dims?.l || 0, A: item.dims?.a || 0 };
-                            const ripRes = calcPainelRipado(ripCfg, bibItems);
-                            if (ripRes) {
-                                totNPecas += (ripRes.nV || 0) + (ripRes.nH || 0) + (ripRes.temSubstrato ? 1 : 0);
-                                totNModulos += 1;
-                            }
-                        } catch (_) {}
-                    }
-                } catch (_) { }
-            });
-            (amb.paineis || []).forEach(painel => {
-                try {
-                    const res = calcPainelRipado(painel, bibItems);
-                    if (res) {
-                        totNPecas += (res.nV || 0) + (res.nH || 0) + (res.temSubstrato ? 1 : 0);
-                        totNModulos += (painel.qtd || 1);
-                    }
-                } catch (_) {}
-            });
-        });
-
-        // ── Fase 1: Custo-hora real (se ativo) ──
-        let custoHoraResult = null;
-        if (taxas.custo_hora_ativo) {
-            const coefMedio = totNModulos > 0
-                ? ambientes.reduce((s, amb) => {
-                    if (amb.tipo === 'manual') return s;
-                    return s + (amb.itens || []).reduce((s2, it) => s2 + (it.caixaDef?.coef || 0) * (it.qtd || 1), 0);
-                }, 0) / totNModulos
-                : 0;
-            custoHoraResult = calcCustoHora(
-                {
-                    pecasDetalhe,
-                    nChapas: Object.values(ca).reduce((s, c) => s + (c.n || 0), 0),
-                    nFerragens: totNFerragens, nCaixas: totNCaixas,
-                    areaAcab: at * 0.6, nModulos: totNModulos,
-                    nPortas: totNPortas, nGavetas: totNGavetas, nPrateleiras: totNPrateleiras,
-                },
-                taxas,
-                coefMedio,
-            );
-        }
-
-        // ── Fase 2: Consumíveis (se ativo) ──
-        let consumiveisResult = null;
-        let totConsumiveis = 0;
-        if (taxas.consumiveis_ativo) {
-            // areaColagem = ~10% da área total (juntas de colagem, não toda a superfície)
-            // nPontosParafuso = ~2 por caixa (fundo, trilho) + 1 por ferragem pesada
-            const areaColagem = at * 0.12;
-            const nPontosParafuso = totNCaixas * 2 + Math.ceil(totNFerragens * 0.3);
-            // areaAcab = faces externas (~60% da área total para acabamento/lixa)
-            const areaAcab = at * 0.6;
-            consumiveisResult = calcConsumiveis(
-                { areaColagem, nJuncoes: totNJuncoes, nPontosParafuso, areaAcab, nModulos: totNModulos },
-                taxas,
-            );
-            totConsumiveis = consumiveisResult.custoConsumiveis || 0;
-        }
-
-        // ── Engine v2: precoVendaV2 com markups por categoria ──
-        // totChapas/totFita/totAcabamentos já incluem coef individual de cada item.
-        // Passa coef=0 para precoVendaV2 (coef já embutido nos totais).
-        const pvResult = precoVendaV2(
-            { chapas: totChapas, fita: totFita, acabamentos: totAcabamentos, ferragens: totFerragens, acessorios: totAcessorios, consumiveis: totConsumiveis },
-            0,
-            taxas,
-            custoHoraResult,
-        );
-        const pv = pvResult.valor;
-        const cp = pvResult.cp || 0;
-        const custoMdo = pvResult.mdo || 0;
-
-        // Total CP individual (soma dos CPs por item) — usado para proporção de PV
-        const totalItemCP = itemCostList.reduce((s, i) => s + (i.itemCP || 0), 0)
-            + ambTotals.filter(a => a.manual).reduce((s, a) => s + a.custo, 0);
-
-        // Calcular ajustes por módulo (proporcional ao CP do item)
-        let totalAjustes = 0;
-        itemCostList.forEach(({ itemCP, ajuste }) => {
-            if (!ajuste || !ajuste.valor) return;
-            const precoBase = totalItemCP > 0 ? (itemCP / totalItemCP) * pv : 0;
-            const ajR = ajuste.tipo === 'R' ? ajuste.valor : precoBase * (ajuste.valor / 100);
-            totalAjustes += ajR;
-        });
-
-        const pvFinal = pv + totalAjustes + manualTotal;
-
-        // Economia de chapas: diferença entre arredondamento individual vs global
-        const chapasInteiras = Object.values(ca).reduce((s, c) => s + c.n, 0);
-        const chapasFrac = Object.values(ca).reduce((s, c) => s + (c.frac || 0), 0);
-        const chapasEconomia = Object.values(ca).reduce((s, c) => s + (c.n - (c.frac || 0)) * c.mat.preco, 0);
-
-        // cmCalculado = custo material apenas dos itens calculados (exclui avulso/manual)
-        // Nota: cm nunca inclui manualTotal (acumulados separadamente), então = cm
-        const cmCalculado = cm;
-
-        return {
-            cm, cmCalculado, at, ft, ca, fa, pv, cp,
-            pvErro: pvResult.erro, pvMsg: pvResult.msg,
-            custoMdo, totChapas, totFita, totFerragens, totAcabamentos, totAcessorios, totEspeciais,
-            ambTotals, totalAjustes, pvFinal, manualTotal, totalItemCP, itemCostList,
-            breakdown: pvResult.breakdown,
-            custoReal: pvResult.custoReal || 0,
-            pisoMinimo: pvResult.pisoMinimo || 0,
-            cb: cp, // compatibilidade
-            chapasInteiras, chapasFrac, chapasEconomia,
-            // Fase 3: estimativa de corte real
-            corteReal: (() => {
-                // Coletar peças individuais para FFD
-                const allPecas = [];
-                ambientes.forEach(amb => {
-                    if (amb.tipo === 'manual') return;
-                    (amb.itens || []).forEach(item => {
-                        if (item.tipo === 'avulso') return;
-                        try {
-                            const res = calcItemV2(item.caixaDef, item.dims, resolveItemMats(item, amb), item.componentes.map(ci => ({
-                                compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
-                                matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
-                                dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
-                                matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
-                            })), bib, padroes);
-                            const qtd = item.qtd || 1;
-                            for (let q = 0; q < qtd; q++) {
-                                res.pecas.forEach(p => allPecas.push({ matId: p.matId, area: p.area }));
-                            }
-                        } catch (_) {}
-                    });
-                });
-                return estimarCorteReal(ca, allPecas);
-            })(),
-            // Fase 1+2: métricas para exibição
-            custoHoraResult, consumiveisResult, totConsumiveis,
-            totNPecas, totNFerragens, totNCaixas, totNModulos, totNPortas, totNGavetas, totNPrateleiras,
-        };
-    }, [ambientes, taxas, bib, padroes]);
+    const tot = useMemo(
+        () => calculateQuote({ ambientes, taxas, bib, padroes, bibItems }),
+        [ambientes, taxas, bib, padroes, bibItems]
+    );
 
     // ── Sugestão automática de prazo de execução ────────────────────────────
     const sugestaoPrazo = useMemo(() => {
@@ -2667,19 +2297,32 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     // pvBase: quando pvManual está definido, ele é a fonte da verdade do PV
     // (o engine back-calcula lucro% com arredondamento, o que gera pequena divergência)
     const pvBase = pvManual !== null ? pvManual : tot.pvFinal;
-    const descontoR = (() => {
-        const v = pagamento.desconto.valor || 0;
-        if (!v) return 0;
-        return pagamento.desconto.tipo === '%'
-            ? pvBase * (v / 100)
-            : Math.min(v, pvBase);
-    })();
-    const pvComDesconto = Math.max(0, pvBase - descontoR);
+    const discountedQuote = applyQuoteDiscount(pvBase, pagamento.desconto);
+    const { descontoR, pvComDesconto } = discountedQuote;
     const somaBlocos = pagamento.blocos.reduce((s, b) => s + (Number(b.percentual) || 0), 0);
+
+    const validarCalculoParaSaida = () => {
+        if (tot.valid && discountedQuote.valid) return true;
+        const erros = [...(tot.errors || []), ...(discountedQuote.errors || [])].map(error => error.message).filter(Boolean);
+        notify('Revise o cálculo: ' + (erros.join('; ') || 'o orçamento contém valores inválidos.'));
+        return false;
+    };
+
+    const abrirProposta = async () => {
+        if (!validarCalculoParaSaida()) return;
+        if (pagamento.blocos.length === 0) {
+            notify('Defina as condições de pagamento antes de gerar a proposta');
+            return;
+        }
+        if (!empresa) {
+            try { const emp = await api.get('/config/empresa'); setEmpresa(emp); } catch { }
+        }
+        setPropostaModal(true);
+    };
 
     // ── Sync proposta HTML: regenera e envia para o portal a cada save ─────
     const syncPropostaHtml = useCallback(async () => {
-        if (!editOrc?.id || !viewsData?.token) return;
+        if (!editOrc?.id || !viewsData?.token || !tot.valid || !discountedQuote.valid) return;
         try {
             let emp = empresa;
             if (!emp) { emp = await api.get('/config/empresa'); setEmpresa(emp); }
@@ -2693,7 +2336,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             });
             await api.put('/portal/update-html', { orc_id: editOrc.id, html_proposta: html, nivel });
         } catch (_) { /* silencioso — sync é best-effort */ }
-    }, [editOrc?.id, viewsData?.token, viewsData?.nivel, empresa, cid, clis, numero, projeto, obs, arquitetaNome, ambientes, tot, localTaxas, pagamento, pvComDesconto, bib, padroes, prazoEntrega, enderecoObra, validadeProposta]);
+    }, [editOrc?.id, viewsData?.token, viewsData?.nivel, empresa, cid, clis, numero, projeto, obs, arquitetaNome, ambientes, tot, localTaxas, pagamento, pvComDesconto, bib, padroes, prazoEntrega, enderecoObra, validadeProposta, discountedQuote.valid]);
 
     // ── buildSavePayload: monta o objeto de dados para salvar ──
     const buildSavePayload = () => {
@@ -2735,6 +2378,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setSaveStatus('dirty');
 
         if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+        if (!tot.valid || !discountedQuote.valid) return;
 
         autosaveTimerRef.current = setTimeout(async () => {
             if (!isMountedRef.current) return;
@@ -2757,7 +2401,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         }, 5000);
 
         return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
-    }, [cid, projeto, numero, validadeDias, ambientes, obs, arquitetaNome, padroes, pagamento, localTaxas, prazoEntrega, prazoExecucao, enderecoObra, tot.cm, pvComDesconto, syncPropostaHtml]);
+    }, [cid, projeto, numero, validadeDias, ambientes, obs, arquitetaNome, padroes, pagamento, localTaxas, prazoEntrega, prazoExecucao, enderecoObra, tot.cm, tot.valid, pvComDesconto, discountedQuote.valid, syncPropostaHtml]);
 
     // ── beforeunload: avisar se houver alterações não salvas ──
     useEffect(() => {
@@ -2794,12 +2438,13 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
     }, [moreActionsOpen]);
 
     const salvar = async () => {
-        if (isSaving) return; // guard contra duplo-clique
-        if (!cid) { notify('Selecione um cliente'); return; }
+        if (isSaving) return false; // guard contra duplo-clique
+        if (!cid) { notify('Selecione um cliente'); return false; }
+        if (!validarCalculoParaSaida()) return false;
         if (ambientes.every(a => {
             if (a.tipo === 'manual') return (a.linhas || []).length === 0;
             return a.itens.length === 0 && (a.paineis || []).length === 0 && (a.itensEspeciais || []).length === 0;
-        })) { notify('Adicione pelo menos um item'); return; }
+        })) { notify('Adicione pelo menos um item'); return false; }
         setIsSaving(true);
         try {
             const data = buildSavePayload();
@@ -2816,7 +2461,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
             syncPropostaHtml();
             // Para orçamentos novos, navegar para o ID criado para habilitar autosave e link público
             if (isNew && result?.id) nav('novo', result);
-        } catch (ex) { notify(ex.error || 'Erro ao salvar'); }
+            return true;
+        } catch (ex) { notify(ex.error || 'Erro ao salvar'); return false; }
         finally { setIsSaving(false); }
     };
 
@@ -2841,7 +2487,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         setCriandoVersao(true);
         try {
             // Salvar estado atual antes de criar versão
-            await salvar();
+            if (!(await salvar())) return;
             const novaVersao = await api.post(`/orcamentos/${editOrc.id}/nova-versao`, { motivo });
             notify(`Revisão ${novaVersao.versao} criada!`);
             setShowVersaoModal(false);
@@ -2880,6 +2526,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
         try {
             const erros = [];
             if (!cid) erros.push('Cliente não selecionado');
+            if (!tot.valid) erros.push(...tot.errors.map(error => error.message));
+            if (!discountedQuote.valid) erros.push(...discountedQuote.errors.map(error => error.message));
             if (!ambientes || ambientes.length === 0 || ambientes.every(a => {
                 if (a.tipo === 'manual') return (a.linhas || []).length === 0;
                 return (a.itens || []).length === 0 && (a.paineis || []).length === 0 && (a.itensEspeciais || []).length === 0;
@@ -2933,6 +2581,14 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
 
     return (
         <div className={Z.pg}>
+            {(tot.errors.length > 0 || !discountedQuote.valid) && (
+                <div role="status" className="mb-4 rounded-xl px-4 py-3" style={{ border: '1px solid #d4a68e', background: '#fff8f3', color: '#7b4128' }}>
+                    <strong>Revise os dados do orçamento antes de salvar ou aprovar</strong>
+                    <ul className="mt-2 list-disc pl-5 text-sm">
+                        {[...new Set([...tot.errors, ...discountedQuote.errors].map(error => error.message))].map(message => <li key={message}>{message}</li>)}
+                    </ul>
+                </div>
+            )}
             {/* ── Banner aditivo (referência ao pai) ── */}
             {isAditivo && (orcFull?.parent_info || editOrc?.parent_info) && (
                 <div className="mb-4 px-4 py-3 rounded-xl" style={{ background: 'var(--primary-alpha, rgba(19,121,240,0.08))', border: '1px solid var(--primary-ring, rgba(19,121,240,0.2))' }}>
@@ -3106,7 +2762,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                     { id: 'ambientes', label: 'Ambientes', done: ambientes.length > 0 },
                     { id: 'itens',     label: 'Itens',     done: totalItens > 0 },
                     { id: 'pagamento', label: 'Pagamento', done: pagamento.blocos.length > 0 && Math.abs(somaBlocos - 100) < 0.5 },
-                    { id: 'proposta',  label: 'Proposta',  done: !!editOrc?.id, action: editOrc?.id ? () => setPropostaModal(true) : null },
+                    { id: 'proposta',  label: 'Proposta',  done: !!editOrc?.id, action: editOrc?.id ? abrirProposta : null },
                 ];
                 const firstPending = STEPS.findIndex(s => !s.done);
                 return (
@@ -5060,17 +4716,9 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                     )}
                                 </>
                             )}
+                            <button onClick={abrirProposta} className={`${Z.btn2} w-full py-2 text-xs`}><FileText size={13} /> Gerar Proposta</button>
                             <button onClick={async () => {
-                                if (pagamento.blocos.length === 0) {
-                                    notify('Defina as condições de pagamento antes de gerar a proposta');
-                                    return;
-                                }
-                                if (!empresa) {
-                                    try { const emp = await api.get('/config/empresa'); setEmpresa(emp); } catch { }
-                                }
-                                setPropostaModal(true);
-                            }} className={`${Z.btn2} w-full py-2 text-xs`}><FileText size={13} /> Gerar Proposta</button>
-                            <button onClick={async () => {
+                                if (!validarCalculoParaSaida()) return;
                                 if (pagamento.blocos.length === 0) {
                                     notify('Defina as condições de pagamento antes de gerar o contrato');
                                     return;
@@ -5103,6 +4751,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 } catch (ex) { notify(ex.detail || ex.error || 'Erro ao gerar contrato'); }
                             }} className={`${Z.btn2} w-full py-2 text-xs`}><FileSignature size={13} /> Gerar Contrato (PDF)</button>
                             <button onClick={async () => {
+                                if (!validarCalculoParaSaida()) return;
                                 if (!editOrc?.id) { notify('Salve o orçamento antes de enviar para assinatura'); return; }
                                 if (pagamento.blocos.length === 0) { notify('Defina as condições de pagamento antes de gerar o contrato'); return; }
                                 try {
@@ -5191,6 +4840,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 }
                             </button>
                             <button onClick={async () => {
+                                if (!validarCalculoParaSaida()) return;
                                 try {
                                     let emp = empresa;
                                     if (!emp) { emp = await api.get('/config/empresa'); setEmpresa(emp); }
@@ -5480,6 +5130,7 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                         </div>
                     ) : (
                         <button onClick={async () => {
+                            if (!validarCalculoParaSaida()) return;
                             try {
                                 const res = await api.post('/portal/generate', { orc_id: editOrc.id });
                                 setViewsData(v => ({ ...(v || {}), token: res.token, total: 0, new_visits: 0 }));
@@ -5842,6 +5493,8 @@ export default function Novo({ clis, taxas: globalTaxas, editOrc, nav, reload, n
                                 { id: 'detalhado', label: 'Valor por Item', desc: 'Mostra o valor individual de cada item' },
                             ].map(opt => (
                                 <button key={opt.id} onClick={async () => {
+                                    if (!validarCalculoParaSaida()) return;
+                                    if (pagamento.blocos.length === 0) { notify('Defina as condições de pagamento antes de gerar a proposta'); return; }
                                     setPropostaModal(false);
                                     try {
                                         notify('Gerando Proposta...');
