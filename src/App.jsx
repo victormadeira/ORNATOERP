@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useAuth } from './auth';
 import api from './api';
+import { erpQuickQuoteAdapter } from './quickQuoteAdapter';
 import { Ic, Z, Skeleton } from './ui';
 import { applyPrimaryColor } from './theme';
 import { reportError } from './lib/errorReporter';
@@ -16,6 +17,7 @@ const Cli = lazy(() => import('./pages/Cli'));
 const Cat = lazy(() => import('./pages/Cat'));
 const Orcs = lazy(() => import('./pages/Orcs'));
 const Novo = lazy(() => import('./pages/Novo'));
+const OrcamentoRapido = lazy(() => import('./pages/OrcamentoRapido'));
 const OrcImport = lazy(() => import('./pages/OrcImport'));
 const Kb = lazy(() => import('./pages/Kb'));
 const Cfg = lazy(() => import('./pages/Cfg'));
@@ -133,7 +135,7 @@ class ErrorBoundary extends Component {
 export default function App() {
     const { user, loading, logout, isAdmin, isGerente, updateUser } = useAuth();
     // ── Roteamento com History API ──────────────────────────────────────────
-    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','plugin_releases','plugin_telemetry','plugin_errors','library_manager','shop_profiles','ponto','funil','errors','oficina','oficina_tv'];
+    const VALID_PAGES = ['dash','cli','cat','catalogo_itens','orcs','novo','orcamento-rapido','kb','proj','estoque','financeiro','whatsapp','assistente','relatorios','industrializacao','cnc','producao_fabrica','expedicao','cfg','users','plano_corte','compras','gestao','producao_tv','produtividade','plugin_download','plugin_releases','plugin_telemetry','plugin_errors','library_manager','shop_profiles','ponto','funil','errors','oficina','oficina_tv'];
     // Páginas aposentadas — redirecionam para o destino atual
     const LEGACY_REDIRECTS = { digital_twin: 'cnc', app: 'dash' };
     const [pg, setPg] = useState(() => {
@@ -580,6 +582,7 @@ export default function App() {
         { id: "cat", lb: "Biblioteca", ic: Ic.Box },
         { id: "catalogo_itens", lb: "Engenharia de Modulos", ic: Ic.Package },
         { id: "orcs", lb: "Orcamentos", ic: Ic.File },
+        { id: "orcamento-rapido", lb: "Orçamento rápido", ic: Ic.File },
         { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
         { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
         { id: "estoque", lb: "Gestao de Recursos", ic: Ic.Warehouse },
@@ -601,6 +604,7 @@ export default function App() {
     const userPerms = (() => { try { return user?.permissions ? JSON.parse(user.permissions) : null; } catch { return null; } })();
     const isVendedor = user?.role === 'vendedor';
     const canSee = (id) => {
+        if (id === 'orcamento-rapido') id = 'orcs';
         if (isAdmin) return true;
         if (isVendedor && id === 'financeiro') return false;
         return !userPerms || userPerms.length === 0 || userPerms.includes(id);
@@ -614,6 +618,7 @@ export default function App() {
             { id: "funil", lb: "Funil de Leads", ic: Ic.Target },
             { id: "cli", lb: "Clientes", ic: Ic.Usr },
             { id: "orcs", lb: "Orçamentos", ic: Ic.File },
+            { id: "orcamento-rapido", lb: "Orçamento rápido", ic: Ic.File },
             { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
         ]},
         { id: 'producao', label: 'Produção', icon: Ic.Factory, items: [
@@ -663,6 +668,7 @@ export default function App() {
         { id: "proj", lb: "Projetos", ic: Ic.Briefcase },
         { id: "cli", lb: "Clientes", ic: Ic.Usr },
         { id: "orcs", lb: "Orçamentos", ic: Ic.File },
+        { id: "orcamento-rapido", lb: "Orçamento rápido", ic: Ic.File },
         { id: "funil", lb: "Funil de Leads", ic: Ic.Target },
         { id: "kb", lb: "Pipeline CRM", ic: Ic.Kb },
         { id: "whatsapp", lb: "WhatsApp", ic: Ic.WhatsApp },
@@ -716,6 +722,7 @@ export default function App() {
             case "cli": return <Cli clis={clis} reload={loadClis} notify={notify} nav={nav} />;
             case "cat": return <Cat notify={notify} />;
             case "orcs": return <Orcs orcs={orcs} nav={nav} reload={loadOrcs} notify={notify} />;
+            case "orcamento-rapido": return canSee('orcs') ? <OrcamentoRapido adapter={erpQuickQuoteAdapter} onOpenEditor={orc => { loadOrcs(); nav('novo', orc); }} onBack={() => { loadOrcs(); nav('orcs'); }} notify={notify} /> : <div className="p-6">Você não tem acesso aos orçamentos.</div>;
             case "novo": return <Novo clis={clis} taxas={taxas} editOrc={editOrc} nav={nav} reload={reload} notify={notify} />;
             case "orc-import": return <OrcImport clis={clis} nav={nav} reload={loadOrcs} notify={notify} />;
             case "kb": return <Kb orcs={orcs} reload={loadOrcs} notify={notify} nav={nav} />;

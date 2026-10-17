@@ -3,6 +3,7 @@ import db from '../db.js';
 import { requireAuth, canSeeAll } from '../auth.js';
 import { randomBytes } from 'crypto';
 import { buildMateriaisOrcados } from './estoque.js';
+import { valorFinalOrcamento } from '../lib/orcamento-values.js';
 import { createNotification, logActivity } from '../services/notificacoes.js';
 import { sendCAPIEvent } from '../services/meta-capi.js';
 import { dispatchOutbound } from '../services/webhook_outbound.js';
@@ -1054,11 +1055,7 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                     try {
                         const data = JSON.parse(orc.mods_json || '{}');
                         const pagamento = data.pagamento || { desconto: { tipo: '%', valor: 0 }, blocos: [] };
-                        const desconto = pagamento.desconto?.valor || 0;
-                        const valorBase = orc.valor_venda || 0;
-                        const valorFinal = pagamento.desconto?.tipo === '%'
-                            ? valorBase * (1 - desconto / 100)
-                            : Math.max(0, valorBase - desconto);
+                        const valorFinal = valorFinalOrcamento(orc);
 
                         if (pagamento.blocos && pagamento.blocos.length > 0 && valorFinal > 0) {
                             const stmtCR = db.prepare(`
@@ -1146,11 +1143,7 @@ router.put('/:id/kanban', requireAuth, (req, res) => {
                 try {
                     const data = JSON.parse(orc.mods_json || '{}');
                     const pagamento = data.pagamento || { desconto: { tipo: '%', valor: 0 }, blocos: [] };
-                    const desconto = pagamento.desconto?.valor || 0;
-                    const valorBaseOrc = orc.valor_venda || 0;
-                    const valorFinal = pagamento.desconto?.tipo === '%'
-                        ? valorBaseOrc * (1 - desconto / 100)
-                        : Math.max(0, valorBaseOrc - desconto);
+                    const valorFinal = valorFinalOrcamento(orc);
 
                     if (pagamento.blocos && pagamento.blocos.length > 0 && valorFinal > 0) {
                         const stmtCR = db.prepare(`

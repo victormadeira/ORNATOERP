@@ -286,8 +286,11 @@ export default function Orcs({ orcs, nav, reload, notify }) {
                 <button onClick={() => nav("orc-import")} className="btn-secondary btn-sm" title="Importar orçamento de JSON gerado por IA">
                     <Upload size={13} /> Importar via IA
                 </button>
-                <button onClick={() => nav("novo", null)} className="btn-primary">
+                <button onClick={() => nav("novo", null)} className="btn-secondary">
                     <Ic.Plus /> Novo Orçamento
+                </button>
+                <button onClick={() => nav("orcamento-rapido")} className="btn-primary" style={{ background: '#171717', color: '#fff' }}>
+                    <Zap size={15} /> Orçamento rápido
                 </button>
             </PageHeader>
 
