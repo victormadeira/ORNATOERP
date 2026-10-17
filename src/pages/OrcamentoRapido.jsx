@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Check, ChevronDown, Copy, Loader2, Plus, RotateCcw, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Check, ChevronDown, Loader2, Plus, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { applyQuoteDiscount, buildQuoteLibrary, calculateQuote } from '../quoteCalculator';
-import { buildQuickExtra, buildQuickItem, createQuickKitchenExample, listQuickPresets, rebuildQuickItem } from '../quickQuote';
-import { addCatalogComponent, addLooseHardware, createCatalogBoxItem, normalizeHardwareUnit, updateCatalogItem } from '../quoteComposition';
+import { buildQuickExtra, buildQuickItem, listQuickPresets, rebuildQuickItem } from '../quickQuote';
+import { createCatalogBoxItem, normalizeHardwareUnit, updateCatalogItem } from '../quoteComposition';
+import { getQuickItemControls, setQuickItemCount, setQuickItemHandle, setQuickItemFrontMaterial } from '../quickQuoteActions';
 import QuoteCompositionEditor from './QuoteCompositionEditor';
-import QuoteCatalogBrowser from './QuoteCatalogBrowser';
+import QuickFurnitureCard from './QuickFurnitureCard';
+import QuickFurniturePicker from './QuickFurniturePicker';
 import './OrcamentoRapido.css';
 
 const money = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
@@ -74,6 +76,8 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     const [undo, setUndo] = useState(null);
     const [extra, setExtra] = useState({ tipo: 'lateral', l: 550, a: 720, qtd: 1, matId: '' });
     const [extraError, setExtraError] = useState('');
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [scrollTarget, setScrollTarget] = useState('');
     const savedFingerprint = useRef('');
     const savingRef = useRef(false);
     const isDemo = adapter?.mode === 'demo';
@@ -101,7 +105,8 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
             setActiveRoomId(next.ambientes[0].id);
             const firstItem = next.ambientes[0].itens?.find(item => item.quick?.group !== 'extras');
             setSelectedItemId(firstItem?.id || '');
-            setExpandedItem(firstItem?.id || null);
+            setExpandedItem(null);
+            setPickerOpen(false);
             setCompositionErrors({});
             setMaterialUpdateErrors([]);
             setRowInputs({});
@@ -112,9 +117,19 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
         return () => { active = false; };
     }, [adapter, loadAttempt]);
 
+    useEffect(() => {
+        if (!scrollTarget) return;
+        const frame = requestAnimationFrame(() => {
+            document.getElementById(`oq-furniture-${scrollTarget}`)?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+            setScrollTarget('');
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [scrollTarget]);
+
     const catalog = useMemo(() => ({ caixas: setup?.caixas || [], componentes: setup?.componentes || [] }), [setup]);
     const presets = useMemo(() => listQuickPresets(catalog), [catalog]);
     const sheetOptions = useMemo(() => materialChoices(setup?.bibItems || []), [setup]);
+    const frontOptions = useMemo(() => [...sheetOptions, ...(setup?.bibItems || []).filter(item => item.tipo === 'acabamento').map(item => ({ id: item.cod || `bib_${item.id}`, nome: item.nome, preco: number(item.preco_m2 ?? item.preco) }))], [sheetOptions, setup]);
     const hardwareOptions = useMemo(() => (setup?.bibItems || []).filter((item) => item.tipo === 'ferragem' || item.tipo === 'acessorio').map((item) => ({ id: item.cod || `bib_${item.id}`, nome: item.nome, unidade: item.unidade || 'un', categoria: cleanText(item.categoria) })), [setup]);
     const bib = useMemo(() => buildQuoteLibrary(setup?.bibItems || []), [setup]);
     const totals = useMemo(() => {
@@ -124,7 +139,6 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     const discount = useMemo(() => applyQuoteDiscount(number(totals.pvFinal), draft.pagamento?.desconto || { tipo: '%', valor: 0 }), [totals.pvFinal, draft.pagamento]);
     const activeRoom = draft.ambientes.find((room) => room.id === activeRoomId) || draft.ambientes[0];
     const allItems = draft.ambientes.flatMap((room) => room.itens || []);
-    const selectedItem = activeRoom.itens?.find(item => item.id === selectedItemId) || activeRoom.itens?.find(item => item.quick?.group !== 'extras');
     const compositionItem = activeRoom.itens?.find(item => item.id === expandedItem && item.quick?.group !== 'extras');
     const furnitureCount = allItems.filter((item) => item.quick?.group !== 'extras').reduce((sum, item) => sum + number(item.qtd || 1), 0);
     const calculationErrors = [...materialUpdateErrors, ...Object.values(compositionErrors).flat(), ...(totals.errors || []).map((error) => typeof error === 'string' ? error : error.message), ...(discount.errors || []).map((error) => typeof error === 'string' ? error : error.message), ...Object.values(rowErrors).flat()].filter(Boolean);
@@ -152,8 +166,8 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     }, [expandedItem]);
     const selectItem = id => {
         setSelectedItemId(id);
-        setExpandedItem(id || null);
-        if (expandedItem !== id) setCompositionErrors({});
+        setPickerOpen(false);
+        setScrollTarget(id);
     };
     const replaceCompositionItem = item => {
         const previous = activeRoom.itens.find(entry => entry.id === item.id);
@@ -170,35 +184,11 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
             selectItem(item.id);
         } catch (error) { setActionError(errorMessages(error).join(' ')); }
     };
-    const addComponentToSelected = compDef => {
-        if (!selectedItem) { setActionError('Selecione uma caixa ou móvel para adicionar o componente.'); return; }
-        try {
-            const matFrente = selectedItem.composition?.matFrente || selectedItem.componentes?.find(ci => ci.matExtComp)?.matExtComp || materials.matFrente;
-            replaceCompositionItem(addCatalogComponent(selectedItem, compDef, { qtd: 1, matExtComp: matFrente }));
-            selectItem(selectedItem.id);
-        } catch (error) { setActionError(errorMessages(error).join(' ')); }
-    };
-    const addHardwareToSelected = hardware => {
-        if (!selectedItem) { setActionError('Selecione uma caixa ou móvel para adicionar a ferragem.'); return; }
-        try {
-            replaceCompositionItem(addLooseHardware(selectedItem, hardware, { quantity: 1 }));
-            selectItem(selectedItem.id);
-        } catch (error) { setActionError(errorMessages(error).join(' ')); }
-    };
-
-
     const addItem = (preset) => {
         try {
             const item = buildQuickItem(preset, preset.defaultDims, materials, { ordem: activeRoom.itens?.length || 0 });
             changeRoom(activeRoom.id, (room) => ({ ...room, itens: [...(room.itens || []), item] }));
             selectItem(item.id);
-        } catch (error) { setActionError(errorMessages(error).join(' ')); }
-    };
-
-    const addExample = () => {
-        try {
-            const example = createQuickKitchenExample(catalog, materials);
-            changeRoom(activeRoom.id, (room) => ({ ...room, itens: [...(room.itens || []), ...(example.itens || [])] }));
         } catch (error) { setActionError(errorMessages(error).join(' ')); }
     };
 
@@ -230,10 +220,16 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
             const ambientes = draft.ambientes.map(room => ({
                 ...room, matInt: nextMaterials.matInt, matExt: '',
                 itens: (room.itens || []).map(item => {
-                    if (item.quick?.group === 'extras' || item._matCustom) return item;
+                    if (item.quick?.group === 'extras') return item;
+                    if (item._matCustom) {
+                        return field === 'matFrente' && item.composition?.frontCustom === false
+                            ? updateCatalogItem(item, { materials: { matFrente: nextMaterials.matFrente } })
+                            : item;
+                    }
+                    const itemMaterials = { ...nextMaterials, ...(item.composition?.frontCustom ? { matFrente: item.composition.matFrente } : {}) };
                     return item.composition?.mode === 'catalog'
-                        ? updateCatalogItem(item, { materials: nextMaterials })
-                        : rebuildQuickItem(item, { materials: nextMaterials });
+                        ? updateCatalogItem(item, { materials: itemMaterials })
+                        : rebuildQuickItem(item, { materials: itemMaterials });
                 }),
             }));
             changeDraft({ ambientes, materials: nextMaterials });
@@ -259,11 +255,14 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
         copy.id = uid();
         copy.componentes = (copy.componentes || []).map((component) => ({ ...component, id: uid() }));
         changeRoom(activeRoom.id, (room) => ({ ...room, itens: [...room.itens, copy] }));
+        selectItem(copy.id);
     };
 
     const restoreItem = () => {
         if (!undo) return;
         changeRoom(undo.roomId, (room) => { const itens = [...room.itens]; itens.splice(undo.index, 0, undo.item); return { ...room, itens }; });
+        setActiveRoomId(undo.roomId);
+        selectItem(undo.item.id);
         setUndo(null);
     };
 
@@ -274,6 +273,7 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
         setExpandedItem(null);
         setSelectedItemId('');
         setCompositionErrors({});
+        setPickerOpen(false);
     };
 
     const addExtra = () => {
@@ -281,8 +281,23 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
             const item = buildQuickExtra({ tipo: extra.tipo, dims: { l: Number(extra.l), a: Number(extra.a) }, qtd: Number(extra.qtd), matId: extra.matId || materials.matFrente, ordem: activeRoom.itens?.length || 0 });
             changeRoom(activeRoom.id, (room) => ({ ...room, itens: [...(room.itens || []), item] }));
             setExtraError('');
+            selectItem(item.id);
         } catch (error) { setExtraError(errorMessages(error).join(' ')); }
     };
+
+    const closeComposition = useCallback(() => { setExpandedItem(null); setCompositionErrors({}); }, []);
+    const customizeItem = item => {
+        setSelectedItemId(item.id);
+        setExpandedItem(item.id);
+        setCompositionErrors({});
+    };
+    const applyQuickChange = (item, operation) => {
+        try { replaceCompositionItem(operation(item)); }
+        catch (error) { setActionError(`${itemLabel(item)}: ${errorMessages(error).join(' ')}`); }
+    };
+    const controlsById = useMemo(() => Object.fromEntries((activeRoom.itens || []).map(item => [item.id,
+        getQuickItemControls(item, catalog, setup?.bibItems || [], draft.padroes),
+    ])), [activeRoom.itens, catalog, setup?.bibItems, draft.padroes]);
 
     const save = async (openEditor = false) => {
         if (savingRef.current || saving) return;
@@ -325,78 +340,81 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     if (loadError) return <div className="orcamento-rapido"><div className="oq-loading"><h1>Não foi possível abrir os cadastros</h1><p>{loadError}</p><button type="button" className="oq-button oq-button-dark" onClick={() => setLoadAttempt((value) => value + 1)}>Tentar novamente</button>{onBack && <button type="button" className="oq-button oq-button-plain" onClick={onBack}>Voltar aos orçamentos</button>}</div></div>;
 
     return <div className="orcamento-rapido">
-        {isDemo && <div className="oq-demo-banner"><span className="oq-demo-tag">DEMONSTRAÇÃO</span><span>Materiais e valores ilustrativos. Os dados são salvos somente neste navegador.</span></div>}
-        <header className="oq-page-header">
-            <div>{onBack && <button type="button" className="oq-back" onClick={onBack} disabled={saving}><ArrowLeft size={15} /> Orçamentos</button>}<div className="oq-title-row"><h1>Orçamento rápido</h1><span className="oq-version">COMPOSIÇÃO LIVRE</span></div><p>Caixas, componentes, puxadores e acessórios do catálogo, no mesmo orçamento.</p></div>
-            <div className="oq-save-meta">{savedMeta ? <><span className="oq-saved-id">{savedMeta.numero ? `Orçamento ${savedMeta.numero}` : 'Orçamento salvo'}</span><span>{isDirty ? 'Alterações ainda não salvas' : <><Check size={13} /> Tudo salvo</>}</span></> : <><span className="oq-saved-id">Novo orçamento</span><span>Rascunho em edição</span></>}</div>
-        </header>
+        <div className="oq-screen" inert={compositionItem ? '' : undefined}>
+            {isDemo && <div className="oq-demo-banner"><strong>Demonstração</strong><span>Preços ilustrativos · salvamento neste navegador</span></div>}
+            <header className="oq-page-header">
+                <div>{onBack && <button type="button" className="oq-back" onClick={onBack} disabled={saving}><ArrowLeft size={15} /> Orçamentos</button>}<h1>Orçamento rápido</h1><p>Escolha o móvel e ajuste o que muda.</p></div>
+                <div className="oq-save-meta"><strong>{savedMeta?.numero || (savedMeta ? 'Orçamento salvo' : 'Novo orçamento')}</strong><span>{savedMeta ? isDirty ? 'Alterações não salvas' : <><Check size={13} /> Salvo</> : 'Rascunho'}</span></div>
+            </header>
+            <div className="oq-workspace">
+                <main className="oq-main">
+                    <section className="oq-project" aria-label="Cliente e projeto">
+                        <Field label="Cliente" error={showValidation && !draft.clienteId ? 'Selecione o cliente para salvar.' : ''}><select value={draft.clienteId || ''} onChange={event => changeDraft({ clienteId: event.target.value })} aria-required="true"><option value="">Selecionar cliente</option>{(setup.clientes || []).map(client => <option key={client.id} value={client.id}>{client.nome}</option>)}</select></Field>
+                        <Field label="Projeto" error={showValidation && !draft.projeto.trim() ? 'Informe o projeto.' : ''}><input value={draft.projeto} onChange={event => changeDraft({ projeto: event.target.value })} placeholder="Ex.: Cozinha · Apartamento Renascença" maxLength={180} aria-required="true" /></Field>
+                    </section>
 
-        <div className="oq-workspace">
-            <main className="oq-main">
-                <section className="oq-panel oq-identification" aria-label="Cliente e projeto">
-                    <Field label="Cliente" error={showValidation && !draft.clienteId ? 'Selecione um cliente.' : ''}><select value={draft.clienteId || ''} onChange={(event) => changeDraft({ clienteId: event.target.value })} aria-required="true"><option value="">Selecionar cliente</option>{(setup.clientes || []).map((client) => <option key={client.id} value={client.id}>{client.nome}</option>)}</select>{!setup.clientes?.length && <span className="oq-field-hint">Cadastre o cliente no ERP para salvar a proposta.</span>}</Field>
-                    <Field label="Nome do projeto" error={showValidation && !draft.projeto.trim() ? 'Informe o projeto.' : ''}><input value={draft.projeto} onChange={(event) => changeDraft({ projeto: event.target.value })} placeholder="Ex.: Cozinha · Apartamento Renascença" maxLength={180} aria-required="true" /></Field>
-                </section>
+                    <details className="oq-defaults">
+                        <summary><span><SlidersHorizontal size={16} /> Padrões do orçamento</span><small>Materiais e ferragens</small><ChevronDown size={16} /></summary>
+                        <div className="oq-defaults-content">
+                            <div className="oq-material-grid">{[['Corpo', 'matInt'], ['Fundo', 'matFundo'], ['Frentes', 'matFrente']].map(([label, key]) => <Field key={key} label={label}><select value={materials[key] || ''} onChange={event => applyMaterials(key, event.target.value)}><option value="">Selecionar material</option>{(key === 'matFrente' ? frontOptions : sheetOptions).map(material => <option key={material.id} value={material.id}>{material.nome}{material.preco <= 0 ? ' · sem preço' : ''}</option>)}</select></Field>)}</div>
+                            <div className="oq-hardware-grid">{[['Puxador', 'puxador'], ['Dobradiça', 'dobradica'], ['Corrediça', 'corredica'], ['Articulador', 'articulador']].map(([label, key]) => <Field key={key} label={label}><select value={draft.padroes?.[key] || ''} onChange={event => changeDraft({ padroes: { ...draft.padroes, [key]: event.target.value } })}><option value="">Padrão do modelo</option>{key === 'puxador' && <option value="__none__">Sem puxador</option>}{hardwareOptions.filter(hardware => hardware.categoria === key && (key === 'puxador' ? normalizeHardwareUnit(hardware.unidade) === 'un' : normalizeHardwareUnit(hardware.unidade) !== 'm')).map(hardware => <option key={hardware.id} value={hardware.id}>{hardware.nome}</option>)}</select></Field>)}</div>
+                            <p className="oq-note">Cada móvel começa com estes padrões. As escolhas individuais são preservadas.</p>
+                        </div>
+                    </details>
 
-                <section className="oq-panel oq-material-panel">
-                    <div className="oq-section-heading"><div><span className="oq-step">01</span><h2>Materiais e ferragens</h2></div><span className="oq-section-caption">Padrão para todos os móveis</span></div>
-                    <div className="oq-material-grid">{[['Corpo', 'matInt'], ['Fundo', 'matFundo'], ['Frentes', 'matFrente']].map(([label, key]) => <Field key={key} label={label}><select value={materials[key] || ''} onChange={(event) => applyMaterials(key, event.target.value)}><option value="">Selecionar material</option>{sheetOptions.map((material) => <option key={material.id} value={material.id}>{material.nome}{material.esp && !material.nome.includes(String(material.esp)) ? ` · ${material.esp} mm` : ''}{material.preco <= 0 ? ' · sem preço' : ''}</option>)}</select></Field>)}</div>
-                    <div className="oq-hardware-grid">{[['Dobradiças', 'dobradica'], ['Corrediças', 'corredica'], ['Puxadores', 'puxador'], ['Articuladores', 'articulador']].map(([label, key]) => <Field key={key} label={label}><select value={draft.padroes?.[key] || ''} onChange={(event) => changeDraft({ padroes: { ...draft.padroes, [key]: event.target.value } })}><option value="">Padrão da receita</option>{key === 'puxador' && <option value="__none__">Sem puxador</option>}{hardwareOptions.filter((hardware) => hardware.categoria === key && (key === 'puxador' ? normalizeHardwareUnit(hardware.unidade) === 'un' : normalizeHardwareUnit(hardware.unidade) !== 'm')).map((hardware) => <option key={hardware.id} value={hardware.id}>{hardware.nome}</option>)}</select></Field>)}</div>
-                    <p className="oq-panel-note">Você pode trocar materiais e ferragens individualmente em “Editar composição”. Puxadores por metro entram como acessórios com a metragem informada.</p>
-                </section>
+                    <section className="oq-composition" aria-label="Móveis por ambiente">
+                        <div className="oq-room-tabs" role="tablist" aria-label="Ambientes">{draft.ambientes.map(room => <button type="button" key={room.id} role="tab" aria-selected={room.id === activeRoom.id} className={room.id === activeRoom.id ? 'is-active' : ''} onClick={() => { setActiveRoomId(room.id); setSelectedItemId(room.itens?.[0]?.id || ''); setPickerOpen(false); }}>{room.nome || 'Sem nome'}<span>{(room.itens || []).length}</span></button>)}<button type="button" className="oq-add-room" onClick={addRoom}><Plus size={14} /> Ambiente</button></div>
+                        <div className="oq-room-heading"><div><input className="oq-room-name" aria-label="Nome do ambiente" value={activeRoom.nome} onChange={event => changeRoom(activeRoom.id, room => ({ ...room, nome: event.target.value }))} maxLength={100} /><span>Medidas em milímetros</span></div><button type="button" className="oq-button oq-button-dark" aria-expanded={pickerOpen || !activeRoom.itens?.length} onClick={() => setPickerOpen(value => !value)}><Plus size={17} /> Adicionar móvel</button></div>
 
-                <section className="oq-panel oq-composition">
-                    <div className="oq-section-heading"><div><span className="oq-step">02</span><h2>Composição dos ambientes</h2></div><span className="oq-section-caption">Medidas em milímetros</span></div>
-                    <div className="oq-room-tabs" role="tablist" aria-label="Ambientes">{draft.ambientes.map((room) => <button type="button" key={room.id} role="tab" aria-selected={room.id === activeRoom.id} className={room.id === activeRoom.id ? 'is-active' : ''} onClick={() => { setActiveRoomId(room.id); setExpandedItem(null); setSelectedItemId(''); setCompositionErrors({}); }}>{room.nome || 'Sem nome'}<span>{(room.itens || []).length}</span></button>)}<button type="button" className="oq-add-room" onClick={addRoom}><Plus size={14} /> Ambiente</button></div>
-                    <div className="oq-room-toolbar"><Field label="Ambiente"><input value={activeRoom.nome} onChange={(event) => changeRoom(activeRoom.id, (room) => ({ ...room, nome: event.target.value }))} maxLength={100} aria-label="Nome do ambiente" /></Field><button type="button" className="oq-example-button" onClick={addExample}><Plus size={14} /> Adicionar cozinha de exemplo</button></div>
+                        {actionError && <div className="oq-action-error" role="alert">{actionError}</div>}
+                        {undo && <div className="oq-undo"><span>{itemLabel(undo.item)} removido.</span><button type="button" onClick={restoreItem}><RotateCcw size={14} /> Desfazer</button></div>}
+                        {(pickerOpen || !activeRoom.itens?.length) && <QuickFurniturePicker catalog={catalog} presets={presets} onAddPreset={addItem} onAddBox={addCatalogBox} onClose={activeRoom.itens?.length ? () => setPickerOpen(false) : undefined} />}
 
-                    <QuoteCatalogBrowser catalog={catalog} presets={presets} bibItems={setup.bibItems || []} selectedItem={selectedItem} items={activeRoom.itens || []} onSelectItem={selectItem} onAddBox={addCatalogBox} onAddPreset={addItem} onAddComponent={addComponentToSelected} onAddHardware={addHardwareToSelected} />
-                    <div className="oq-furniture-heading"><h3>Móveis deste ambiente</h3><span>Selecione um móvel para editar sua composição.</span></div>
+                        <div className="oq-furniture-list">{(activeRoom.itens || []).map((item, index) => <div key={item.id} id={`oq-furniture-${item.id}`}>
+                            <QuickFurnitureCard item={item} index={index} itemCost={readItemCost(totals, item.id)} inputs={rowInputs[item.id] || {}} errors={[...(rowErrors[item.id] || []), ...(totals.errors || []).filter(error => error.itemId === item.id).map(error => error.message)]} controls={controlsById[item.id]} materialOptions={frontOptions} handleOptions={controlsById[item.id]?.handle?.options || []} globalMaterials={materials} expanded={selectedItemId === item.id} onSelect={() => setSelectedItemId(selectedItemId === item.id ? '' : item.id)} onDimensions={patch => updateItem(item, patch)} onCount={(type, value) => applyQuickChange(item, current => setQuickItemCount(current, type, value, catalog, materials))} onHandle={choice => applyQuickChange(item, current => setQuickItemHandle(current, choice, setup.bibItems || []))} onFrontMaterial={choice => applyQuickChange(item, current => setQuickItemFrontMaterial(current, choice, materials))} onCustomize={item.quick?.group === 'extras' ? undefined : () => customizeItem(item)} onDuplicate={() => duplicateItem(item)} onRemove={() => removeItem(item)} />
+                        </div>)}</div>
 
-                    {actionError && <div className="oq-action-error" role="alert">{actionError}</div>}
-                    {undo && <div className="oq-undo"><span>{itemLabel(undo.item)} removido.</span><button type="button" onClick={restoreItem}><RotateCcw size={13} /> Desfazer</button></div>}
+                        <details className="oq-extras"><summary><span><Plus size={15} /> Adicionar lateral, rodapé ou fechamento</span><ChevronDown size={16} /></summary><div className="oq-extra-content"><div className="oq-extra-grid"><Field label="Peça"><select value={extra.tipo} onChange={event => setExtra(prev => ({ ...prev, tipo: event.target.value }))}><option value="lateral">Lateral de acabamento</option><option value="rodape">Rodapé</option><option value="fechamento">Fechamento</option></select></Field><Field label="Largura · mm"><input type="number" min="1" step="1" value={extra.l} onChange={event => setExtra(prev => ({ ...prev, l: event.target.value }))} inputMode="numeric" /></Field><Field label="Altura · mm"><input type="number" min="1" step="1" value={extra.a} onChange={event => setExtra(prev => ({ ...prev, a: event.target.value }))} inputMode="numeric" /></Field><Field label="Quantidade"><input type="number" min="1" step="1" value={extra.qtd} onChange={event => setExtra(prev => ({ ...prev, qtd: event.target.value }))} inputMode="numeric" /></Field></div><div className="oq-extra-material"><Field label="Material"><select value={extra.matId || ''} onChange={event => setExtra(prev => ({ ...prev, matId: event.target.value }))}><option value="">Material das frentes</option>{sheetOptions.map(material => <option key={material.id} value={material.id}>{material.nome}</option>)}</select></Field><button type="button" className="oq-button oq-button-dark" onClick={addExtra}><Plus size={15} /> Adicionar peça</button></div>{extraError && <p className="oq-field-error" role="alert">{extraError}</p>}</div></details>
+                    </section>
 
-                    {!activeRoom.itens?.length ? <div className="oq-empty"><div className="oq-empty-mark" aria-hidden="true"><span /><span /></div><h3>Seu ambiente começa aqui</h3><p>Adicione uma caixa do catálogo e componha com portas, gavetas, puxadores e ferragens.</p><span>Você também pode adicionar uma cozinha de exemplo.</span></div> : <div className="oq-table-wrap"><table className="oq-items-table"><thead><tr><th>Móvel</th><th>Largura</th><th>Altura</th><th>Profund.</th><th>Qtd.</th><th className="oq-cost-heading" title="Materiais, fita e ferragens, considerando a quantidade da linha">Insumos</th><th><span className="oq-sr-only">Ações</span></th></tr></thead><tbody>{activeRoom.itens.map((item, index) => {
-                        const inputs = rowInputs[item.id] || {};
-                        const isExtra = item.quick?.group === 'extras';
-                        const itemCost = readItemCost(totals, item.id);
-                        const expanded = expandedItem === item.id;
-                        const counts = item.quick?.counts || {};
-                        return <ItemRows key={item.id} item={item} index={index} inputs={inputs} expanded={expanded} isExtra={isExtra} counts={counts} itemCost={itemCost} errors={rowErrors[item.id] || []} updateItem={updateItem} toggle={() => { if (expanded) { setExpandedItem(null); setCompositionErrors({}); } else selectItem(item.id); }} remove={() => removeItem(item)} duplicate={() => duplicateItem(item)} />;
-                    })}</tbody></table></div>}
+                    <details className="oq-observations"><summary>Observações do orçamento <ChevronDown size={16} /></summary><textarea aria-label="Observações do orçamento" rows={3} value={draft.obs || ''} onChange={event => changeDraft({ obs: event.target.value })} placeholder="Escopo, acabamentos e combinações com o cliente." /></details>
+                </main>
 
-                    {compositionItem && <div className="oq-composition-detail"><QuoteCompositionEditor key={compositionItem.id} item={compositionItem} catalog={catalog} bibItems={setup.bibItems || []} materials={materials} padroes={draft.padroes} onChange={replaceCompositionItem} onValidationChange={onCompositionValidation} onClose={() => { setExpandedItem(null); setCompositionErrors({}); }} /></div>}
+                <aside className="oq-sidebar" aria-label="Resumo do orçamento">
+                    <section className="oq-total-card"><span className="oq-total-label">Preço de venda</span><strong className="oq-price" aria-live="polite">{hasCalculation ? money(discount.pvComDesconto) : allItems.length ? 'Revisar cálculo' : 'R$ —'}</strong><p>{furnitureCount} {furnitureCount === 1 ? 'móvel' : 'móveis'} · {draft.ambientes.length} {draft.ambientes.length === 1 ? 'ambiente' : 'ambientes'}</p>{number(discount.descontoR) > 0 && <small>{money(totals.pvFinal)} antes do desconto</small>}<div className="oq-manufacture-cost"><span>Custo de fabricação</span><strong>{allItems.length ? money(totals.custoReal) : '—'}</strong></div><div className="oq-summary-actions"><button type="button" className="oq-button oq-button-dark" onClick={() => save(false)} disabled={saving}>{saving && <Loader2 size={16} className="oq-spin" />}{saving ? 'Salvando…' : 'Salvar orçamento'}</button><button type="button" className="oq-button" onClick={() => save(true)} disabled={saving}>{isDemo ? 'Ver proposta' : 'Continuar no ERP'}<ArrowUpRight size={16} /></button></div>{saveStatus && <p className="oq-save-success" role="status"><Check size={14} /> {saveStatus}</p>}</section>
 
-                    <details className="oq-extras"><summary><span><Plus size={16} /> Laterais, rodapés e fechamentos</span><ChevronDown size={16} /></summary><div className="oq-extra-content"><p>Adicione as peças complementares uma vez, com suas próprias medidas.</p><div className="oq-extra-grid"><Field label="Peça"><select value={extra.tipo} onChange={(event) => setExtra((prev) => ({ ...prev, tipo: event.target.value }))}><option value="lateral">Lateral de acabamento</option><option value="rodape">Rodapé</option><option value="fechamento">Fechamento</option></select></Field><Field label="Largura · mm"><input type="number" min="1" step="1" value={extra.l} onChange={(event) => setExtra((prev) => ({ ...prev, l: event.target.value }))} inputMode="numeric" /></Field><Field label="Altura · mm"><input type="number" min="1" step="1" value={extra.a} onChange={(event) => setExtra((prev) => ({ ...prev, a: event.target.value }))} inputMode="numeric" /></Field><Field label="Quantidade"><input type="number" min="1" step="1" value={extra.qtd} onChange={(event) => setExtra((prev) => ({ ...prev, qtd: event.target.value }))} inputMode="numeric" /></Field></div><div className="oq-extra-material"><Field label="Material da peça"><select value={extra.matId || ''} onChange={(event) => setExtra((prev) => ({ ...prev, matId: event.target.value }))}><option value="">Usar material das frentes</option>{sheetOptions.map((material) => <option key={material.id} value={material.id}>{material.nome}</option>)}</select></Field><button type="button" className="oq-button oq-button-dark" onClick={addExtra}><Plus size={15} /> Adicionar peça</button></div>{extraError && <p className="oq-field-error" role="alert">{extraError}</p>}</div></details>
-                </section>
-
-                <section className="oq-panel oq-notes"><Field label="Observações do orçamento" hint="Escopo, detalhes de acabamento e combinações com o cliente."><textarea rows={2} value={draft.obs || ''} onChange={(event) => changeDraft({ obs: event.target.value })} placeholder="Ex.: bancada e eletrodomésticos fornecidos pelo cliente." /></Field></section>
-            </main>
-
-            <aside className="oq-sidebar" aria-label="Resumo do orçamento">
-                <section className="oq-summary"><div className="oq-summary-eyebrow">RESUMO DO ORÇAMENTO</div><div className="oq-summary-title"><h2>{draft.projeto || 'Seu projeto'}</h2><span>{furnitureCount} {furnitureCount === 1 ? 'móvel' : 'móveis'} · {draft.ambientes.length} {draft.ambientes.length === 1 ? 'ambiente' : 'ambientes'}</span></div><dl className="oq-cost-list">{costLines.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{allItems.length ? money(value) : '—'}</dd></div>)}</dl><div className="oq-cost-total"><span>Custo de fabricação</span><strong>{allItems.length ? money(totals.custoReal) : '—'}</strong></div><div className="oq-sale-total"><span>Preço de venda</span><strong>{hasCalculation ? money(discount.pvComDesconto) : allItems.length ? 'Revisar cálculo' : 'R$ —'}</strong>{number(discount.descontoR) > 0 && <small>{money(totals.pvFinal)} antes do desconto de {money(discount.descontoR)}</small>}<p>{hasCalculation ? 'Atualizado com os materiais e as regras de preço selecionados.' : allItems.length ? 'Conclua as pendências para obter o preço.' : 'Adicione o primeiro móvel para calcular.'}</p></div><div className="oq-summary-actions"><button type="button" className="oq-button oq-button-light" onClick={() => save(false)} disabled={saving}>{saving ? <Loader2 size={16} className="oq-spin" /> : null}{saving ? 'Salvando…' : 'Salvar orçamento'}</button><button type="button" className="oq-button oq-button-outline-light" onClick={() => save(true)} disabled={saving}>{isDemo ? 'Ver proposta' : 'Abrir editor completo'}<ArrowUpRight size={16} /></button></div>{saveStatus && <p className="oq-save-success" role="status"><Check size={14} /> {saveStatus}</p>}</section>
-
-                <details className="oq-panel oq-rates"><summary><span><SlidersHorizontal size={16} /> Taxas e desconto</span><ChevronDown size={16} /></summary><div className="oq-rates-content"><p>Percentuais usados na formação do preço.</p><div className="oq-rate-grid">{[['Impostos', 'imp'], ['Comissão', 'com'], ['Lucro configurado', 'lucro'], ['Instalação', 'inst'], ['Frete', 'frete']].map(([label, key]) => <Field key={key} label={label}><div className="oq-percent-input"><input type="number" min="0" step="0.1" value={draft.taxas[key] ?? ''} onChange={(event) => changeDraft({ taxas: { ...draft.taxas, [key]: event.target.value === '' ? '' : Number(event.target.value) } })} inputMode="decimal" /><span>%</span></div></Field>)}</div><div className="oq-discount"><span className="oq-label">Desconto comercial</span><div><select aria-label="Tipo de desconto" value={draft.pagamento?.desconto?.tipo || '%'} onChange={(event) => changeDraft({ pagamento: { ...draft.pagamento, desconto: { ...draft.pagamento?.desconto, tipo: event.target.value } } })}><option value="%">%</option><option value="R$">R$</option></select><input aria-label="Valor do desconto" type="number" min="0" step="0.1" value={draft.pagamento?.desconto?.valor ?? 0} onChange={(event) => changeDraft({ pagamento: { ...draft.pagamento, desconto: { ...draft.pagamento?.desconto, valor: event.target.value === '' ? '' : Number(event.target.value) } } })} inputMode="decimal" /></div></div><p className="oq-rate-footnote">“Lucro configurado” é um parâmetro de preço. Não representa a margem real apurada.</p></div></details>
-                <PendingList messages={calculationErrors} />
-                {warnings.length > 0 && <PendingList title="Premissas deste cálculo" messages={warnings} className="oq-warnings" />}
-                <p className="oq-flow-note">{isDemo ? "Teste medidas e materiais; abra a proposta para conferir o resultado." : "O orçamento salvo segue para a proposta e o acompanhamento do projeto no ERP."}</p>
-            </aside>
+                    <details className="oq-cost-details"><summary>Ver custos <ChevronDown size={16} /></summary><dl>{costLines.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{allItems.length ? money(value) : '—'}</dd></div>)}</dl></details>
+                    <details className="oq-rates"><summary>Taxas e desconto <ChevronDown size={16} /></summary><div className="oq-rates-content"><div className="oq-rate-grid">{[['Impostos', 'imp'], ['Comissão', 'com'], ['Lucro configurado', 'lucro'], ['Instalação', 'inst'], ['Frete', 'frete']].map(([label, key]) => <Field key={key} label={label}><div className="oq-percent-input"><input type="number" min="0" step="0.1" value={draft.taxas[key] ?? ''} onChange={event => changeDraft({ taxas: { ...draft.taxas, [key]: event.target.value === '' ? '' : Number(event.target.value) } })} inputMode="decimal" /><span>%</span></div></Field>)}</div><div className="oq-discount"><span className="oq-label">Desconto comercial</span><div><select aria-label="Tipo de desconto" value={draft.pagamento?.desconto?.tipo || '%'} onChange={event => changeDraft({ pagamento: { ...draft.pagamento, desconto: { ...draft.pagamento?.desconto, tipo: event.target.value } } })}><option value="%">%</option><option value="R$">R$</option></select><input aria-label="Valor do desconto" type="number" min="0" step="0.1" value={draft.pagamento?.desconto?.valor ?? 0} onChange={event => changeDraft({ pagamento: { ...draft.pagamento, desconto: { ...draft.pagamento?.desconto, valor: event.target.value === '' ? '' : Number(event.target.value) } } })} inputMode="decimal" /></div></div><p className="oq-note">Lucro configurado é um parâmetro de preço, não a margem real apurada.</p></div></details>
+                    <PendingList messages={calculationErrors} />
+                    {warnings.length > 0 && <details className="oq-assumptions"><summary>Premissas do cálculo <ChevronDown size={16} /></summary><ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>}
+                </aside>
+            </div>
+            <div className="oq-mobile-total"><div><span>Preço de venda</span><strong>{hasCalculation ? money(discount.pvComDesconto) : allItems.length ? 'Revisar cálculo' : 'R$ —'}</strong></div><button type="button" className="oq-button oq-button-dark" onClick={() => save(false)} disabled={saving}>{saving ? 'Salvando…' : 'Salvar orçamento'}</button></div>
         </div>
+        {compositionItem && <CompositionDialog onClose={closeComposition} label={`Personalizar ${itemLabel(compositionItem)}`}><QuoteCompositionEditor key={compositionItem.id} item={compositionItem} catalog={catalog} bibItems={setup.bibItems || []} materials={materials} padroes={draft.padroes} onChange={replaceCompositionItem} onValidationChange={onCompositionValidation} onClose={closeComposition} /></CompositionDialog>}
     </div>;
 }
 
-function ItemRows({ item, index, inputs, expanded, isExtra, counts, itemCost, errors, updateItem, toggle, remove, duplicate }) {
-    const label = itemLabel(item);
-    const countLabel = isExtra ? 'Peça complementar' : item.composition?.mode === 'catalog' ? `${(item.componentes || []).length} componentes · composição livre` : [counts.doors ? `${counts.doors} ${counts.doors === 1 ? 'porta' : 'portas'}` : '', counts.drawers ? `${counts.drawers} ${counts.drawers === 1 ? 'gaveta' : 'gavetas'}` : '', counts.shelves ? `${counts.shelves} ${counts.shelves === 1 ? 'prateleira' : 'prateleiras'}` : ''].filter(Boolean).join(' · ');
-    return <>
-        <tr className={`oq-item-row ${expanded ? 'is-selected' : ''} ${errors.length ? 'has-error' : ''}`}>
-            <td className="oq-item-name"><span className="oq-item-number">{String(index + 1).padStart(2, '0')}</span><div><strong>{label}</strong>{!isExtra && <small className="oq-item-composition-summary">{countLabel}</small>}{isExtra ? <span className="oq-item-subtitle">{countLabel}</span> : <button type="button" onClick={toggle} aria-expanded={expanded}><span>Editar composição</span><ChevronDown size={12} /></button>}</div></td>
-            {['l', 'a', 'p'].map((key) => <td key={key} data-label={{ l: 'Largura · mm', a: 'Altura · mm', p: 'Profundidade · mm' }[key]}><input type="number" min="1" step="1" inputMode="numeric" aria-label={`${label}: ${{ l: 'largura', a: 'altura', p: 'profundidade' }[key]} em milímetros`} value={isExtra && key === 'p' ? '' : inputs[key] ?? item.dims?.[key] ?? ''} placeholder={isExtra && key === 'p' ? '—' : undefined} disabled={isExtra && key === 'p'} onChange={(event) => updateItem(item, { [key]: event.target.value })} /></td>)}
-            <td data-label="Quantidade"><input type="number" min="1" step="1" inputMode="numeric" aria-label={`${label}: quantidade`} value={inputs.qtd ?? item.qtd ?? 1} onChange={(event) => updateItem(item, { qtd: event.target.value })} /></td>
-            <td className="oq-item-cost" data-label="Insumos">{!errors.length && itemCost != null ? money(itemCost) : '—'}</td>
-            <td className="oq-item-actions"><button type="button" onClick={duplicate} title={`Duplicar ${label}`} aria-label={`Duplicar ${label}`}><Copy size={14} /></button><button type="button" onClick={remove} title={`Remover ${label}`} aria-label={`Remover ${label}`}><Trash2 size={14} /></button></td>
-        </tr>
-
-        {errors.length > 0 && <tr className="oq-row-error"><td colSpan={7}><span role="alert">{errors.join(' ')}</span></td></tr>}
-    </>;
+function CompositionDialog({ children, onClose, label }) {
+    const dialogRef = useRef(null);
+    useEffect(() => {
+        const previousFocus = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const dialog = dialogRef.current;
+        const focusable = () => [...dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex="0"]')].filter(element => element.getClientRects().length);
+        (focusable()[0] || dialog).focus();
+        const handleKey = event => {
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); }
+            if (event.key !== 'Tab') return;
+            const elements = focusable();
+            if (!elements.length) { event.preventDefault(); dialog.focus(); return; }
+            const first = elements[0], last = elements.at(-1);
+            if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+        };
+        dialog.addEventListener('keydown', handleKey);
+        return () => { dialog.removeEventListener('keydown', handleKey); document.body.style.overflow = previousOverflow; if (previousFocus?.isConnected) previousFocus.focus(); };
+    }, [onClose]);
+    return <div className="oq-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className="oq-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>{children}</div></div>;
 }

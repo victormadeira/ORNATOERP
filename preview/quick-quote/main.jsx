@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowLeft, ArrowUpRight, Check, Download, FileText, LayoutGrid, Printer, Zap } from 'lucide-react';
+import { ArrowLeft, Check, Download, Printer } from 'lucide-react';
 import OrcamentoRapido from '../../src/pages/OrcamentoRapido.jsx';
 import { createDemoQuickQuoteAdapter } from './demoAdapter.js';
 import './preview.css';
@@ -55,17 +55,8 @@ function App() {
     }, [toast]);
     const openProposal = saved => { setQuote(saved); setShowProposal(true); window.scrollTo(0, 0); };
     return <div className="demo-shell">
-        <aside className="demo-nav">
-            <div className="demo-brand"><div className="demo-brand-symbol" aria-hidden="true"><i /><i /></div><div className="demo-wordmark">ornato<span>ERP</span></div></div>
-            <div className="demo-company">Studio Ornato<small>Marcenaria sob medida</small></div>
-            <span className="demo-nav-label">COMERCIAL</span>
-            <button className={!showProposal ? 'is-active' : ''} onClick={() => setShowProposal(false)}><Zap size={17} /><span>Orçamento rápido</span><span className="demo-new">NOVO</span></button>
-            {quote && <button className={showProposal ? 'is-active' : ''} onClick={() => setShowProposal(true)}><FileText size={17} /><span>Proposta de exemplo</span></button>}
-            <div className="demo-nav-context"><LayoutGrid size={20} /><strong>Caixa + componentes</strong><p>Escolha a caixa, componha o móvel e defina suas ferragens.</p></div>
-            <div className="demo-nav-footer"><span className="demo-avatar">SO</span><div>Studio Ornato<small>Ambiente de demonstração</small></div></div>
-        </aside>
         <div className="demo-body">
-            <header className="demo-topbar"><div><span>ORNATOERP</span><span className="demo-breadcrumb-separator">/</span><strong>{showProposal ? 'Proposta' : 'Orçamento rápido'}</strong></div><a href="https://github.com/victormadeira/ORNATOERP" target="_blank" rel="noreferrer">Ver sistema no GitHub <ArrowUpRight size={14} /></a></header>
+            <header className="demo-topbar"><div className="demo-wordmark">ornato<span>ERP</span></div><nav aria-label="Demonstração"><button type="button" className={!showProposal ? 'is-active' : ''} onClick={() => setShowProposal(false)}>Orçamento</button>{quote && <button type="button" className={showProposal ? 'is-active' : ''} onClick={() => setShowProposal(true)}>Proposta</button>}</nav><span className="demo-company-name">Studio Ornato</span></header>
             <div hidden={showProposal}><OrcamentoRapido adapter={adapter} onOpenEditor={openProposal} notify={setToast} /></div>
             {showProposal && quote && <Proposal quote={quote} onBack={() => setShowProposal(false)} />}
         </div>

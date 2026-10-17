@@ -183,6 +183,7 @@ export default function QuoteCompositionEditor({ item, onChange, catalog = {}, b
     const selectedHardware = hardwareItems.find((entry) => sameId(entry.id, hardwareId));
     const chosenUnit = normalizeHardwareUnit(selectedHardware?.unidade || selectedHardware?.un || 'un');
     const hasPanelParts = boxParts.some((entry) => entry.source === 'tamponamentos');
+    const hasOwnMaterials = Boolean(item?._matCustom || item?.composition?.frontCustom);
 
     const apply = (operation, success = '') => {
         try {
@@ -197,6 +198,19 @@ export default function QuoteCompositionEditor({ item, onChange, catalog = {}, b
             return message;
         }
     };
+
+    const changeGeneralMaterial = (field, value) => apply((current) => {
+        const frontCustom = field === 'matFrente' ? true : current.composition?.frontCustom ?? Boolean(current._matCustom);
+        const next = updateCatalogItem(current, { materials: { ...itemMaterials, [field]: value }, matCustom: true });
+        next.composition = { ...next.composition, frontCustom };
+        return next;
+    });
+
+    const useBudgetMaterials = () => apply((current) => {
+        const next = updateCatalogItem(current, { materials: { ...materials, matExt: materials.matExt || '' }, matCustom: false });
+        next.composition = { ...next.composition, frontCustom: false };
+        return next;
+    }, 'Materiais do orçamento aplicados a este móvel.');
 
     const applyComponent = (component, updates) => apply((current) => updateCatalogComponent(current, component.id, updates));
     const addComponent = (definition) => {
@@ -245,22 +259,22 @@ export default function QuoteCompositionEditor({ item, onChange, catalog = {}, b
             {status && !actionError && <div className="qce-status" role="status"><Check size={14} />{status}</div>}
 
             <section className="qce-section">
-                <div className="qce-section-heading"><div><span className="qce-step">01</span><h3>Corpo e materiais</h3></div><span className="qce-tag">{item._matCustom ? 'Materiais deste móvel' : 'Padrão do orçamento'}</span></div>
+                <div className="qce-section-heading"><div><span className="qce-step">01</span><h3>Corpo e materiais</h3></div><span className="qce-tag">{hasOwnMaterials ? 'Materiais deste móvel' : 'Padrão do orçamento'}</span></div>
                 <div className="qce-body-grid">
                     <Field label="Identificação do móvel" className="qce-name-field"><input value={item.nome || item.caixaDef?.nome || ''} maxLength={160} onChange={(event) => apply((current) => updateCatalogItem(current, { nome: event.target.value }))} /></Field>
                     {[['Corpo', 'matInt'], ['Fundo', 'matFundo'], ['Frentes', 'matFrente']].map(([label, field]) => <Field key={field} label={label}>
-                        <select value={itemMaterials[field]} onChange={(event) => apply((current) => updateCatalogItem(current, { materials: { ...itemMaterials, [field]: event.target.value }, matCustom: true }))}>
+                        <select value={itemMaterials[field]} onChange={(event) => changeGeneralMaterial(field, event.target.value)}>
                             <option value="">Selecionar material</option>
                             <MaterialOptions options={field === 'matFrente' ? frontOptions : sheetOptions} value={itemMaterials[field]} />
                         </select>
                     </Field>)}
                     {hasPanelParts && <Field label="Tamponamentos da receita" hint="As peças externas entram no cálculo quando há material selecionado.">
-                        <select value={itemMaterials.matExt} onChange={(event) => apply((current) => updateCatalogItem(current, { materials: { ...itemMaterials, matExt: event.target.value }, matCustom: true }))}>
+                        <select value={itemMaterials.matExt} onChange={(event) => changeGeneralMaterial('matExt', event.target.value)}>
                             <option value="">Sem tamponamento</option><MaterialOptions options={frontOptions} value={itemMaterials.matExt} />
                         </select>
                     </Field>}
                 </div>
-                <div className="qce-material-footer"><p>O material das frentes pode ser personalizado novamente em cada componente.</p>{item._matCustom && <button type="button" className="qce-text-button" onClick={() => apply((current) => updateCatalogItem(current, { materials: { ...materials, matExt: materials.matExt || '' }, matCustom: false }), 'Materiais do orçamento aplicados a este móvel.')}><RotateCcw size={13} /> Usar padrão do orçamento</button>}</div>
+                <div className="qce-material-footer"><p>O material das frentes pode ser personalizado novamente em cada componente.</p>{hasOwnMaterials && <button type="button" className="qce-text-button" onClick={useBudgetMaterials}><RotateCcw size={13} /> Usar padrão do orçamento</button>}</div>
                 {boxParts.length > 0 && <details className="qce-box-parts"><summary><span>Peças que compõem a caixa <b>{boxParts.filter((entry) => entry.enabled).length}</b></span><ChevronDown size={15} /></summary>
                     <div className="qce-parts-grid">{boxParts.map((entry) => <label key={`${entry.source}:${entry.pieceId || entry.id}`} className={`qce-part-option ${entry.enabled ? '' : 'is-off'}`}>
                         <input type="checkbox" checked={Boolean(entry.enabled)} onChange={(event) => apply((current) => setBoxPartEnabled(current, entry.pieceId || entry.id, event.target.checked, { source: entry.source }))} />
