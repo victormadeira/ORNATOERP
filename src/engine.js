@@ -40,7 +40,7 @@ export const DB_FERRAGENS = [
 ];
 // Grupos de ferragens com substituição global no orçamento.
 // Mapeamento: chave do grupo → valor do campo `categoria` na biblioteca.
-// Apenas estes 3 grupos têm substituição global — puxadores são trocados individualmente por componente.
+// Os quatro grupos aceitam padrão global; overrides da instância têm prioridade.
 export const FERR_GROUPS = {
     corredica:   'corrediça',
     dobradica:   'dobradiça',
@@ -344,6 +344,27 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         }
         return value;
     };
+    const normalizeHardwareText = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const hardwareUnit = hardware => {
+        const unit = normalizeHardwareText(hardware?.un ?? hardware?.unidade ?? 'un');
+        if (['m', 'ml', 'metro', 'metros', 'metro linear', 'metros lineares'].includes(unit)) return 'm';
+        if (['par', 'pares'].includes(unit)) return 'par';
+        if (['un', 'un.', 'unid', 'unid.', 'unidade', 'unidades', 'pc', 'pç', 'peca', 'pecas'].includes(unit)) return 'un';
+        return unit;
+    };
+    const hardwareQuantity = (subItem, hardware, context, label, explicit = false) => {
+        const quantity = subItem.qtdFormula
+            ? rCalcV2(subItem.qtdFormula, context, formulaError(label))
+            : 1;
+        const linear = hardwareUnit(hardware) === 'm';
+        if (!Number.isFinite(quantity) || quantity <= 0 || (explicit && !linear && !Number.isInteger(quantity))) {
+            issue('quantity_invalid', `Quantidade inválida em ${label}: ${linear ? 'informe uma medida positiva' : 'informe um inteiro positivo'}.`);
+            return 0;
+        }
+        // Consumo em metros conserva a fração; fórmulas de peças discretas
+        // continuam arredondando para cima, como nas receitas do ERP.
+        return linear ? quantity : Math.ceil(quantity);
+    };
     const chapasDB = bib?.chapas || DB_CHAPAS;
     // Mescla ferragens do banco com fallback embutido (evita perder ferragens quando banco tem dados parciais)
     const bibFerr = bib?.ferragens || [];
@@ -447,17 +468,15 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
         if (si.defaultOn === false) return;
         const fe = ferragensDB.find(f => f.id === si.ferrId);
         if (!fe) { issue('hardware_missing', `Ferragem ${si.ferrId} não encontrada.`); return; }
-        const qtdUnit = si.qtdFormula
-            ? Math.ceil(Math.max(1, rCalcV2(si.qtdFormula, D, formulaError(si.nome))))
-            : 1;
-        ferrList.push({ ...fe, qtd: qtdUnit, orig: `${caixaDef.nome || 'Módulo'} / ${si.nome}` });
+        const qtdUnit = hardwareQuantity(si, fe, D, `${caixaDef.nome || 'Módulo'} / ${si.nome || fe.nome}`);
+        if (qtdUnit > 0) ferrList.push({ ...fe, qtd: qtdUnit, orig: `${caixaDef.nome || 'Módulo'} / ${si.nome}` });
     });
 
     // ── 3. Componentes ─────────────────────────────────────
     compInstances.forEach(ci => {
         const {
             compDef, qtd: cQtd = 1, vars: cVars = {}, matExtComp, subItens = {},
-            subItensOvr = {},
+            subItensOvr = {}, composition = null,
             // Overrides de dimensão por instância (0 = auto, herda da caixa)
             dimL = 0, dimA = 0, dimP = 0,
             // Overrides de material por instância ('' = herda da caixa)
@@ -547,26 +566,32 @@ export function calcItemV2(caixaDef, dims, mats, compInstances = [], bib = null,
             const ativo = subItens[si.id] !== undefined ? subItens[si.id] : si.defaultOn;
             if (!ativo) return;
             // Prioridade: 1) override individual (puxador por instância)
-            //             2) padrão global (corredica/dobradica/articulador via categoria)
+            //             2) padrão global (corredica/dobradica/articulador/puxador via categoria)
             //             3) padrão do componente (si.ferrId)
+            const originalHardware = ferragensDB.find(f => f.id === si.ferrId);
+            const siCategoria = normalizeHardwareText(originalHardware?.categoria);
             let effFerrId = subItensOvr[si.id] || si.ferrId;
             if (!subItensOvr[si.id]) {
-                const siCategoria = ferragensDB.find(f => f.id === si.ferrId)?.categoria?.toLowerCase() || '';
                 for (const [grp, cat] of Object.entries(FERR_GROUPS)) {
-                    if (siCategoria === cat.toLowerCase() && globalPadroes[grp]) {
+                    if (siCategoria === normalizeHardwareText(cat) && globalPadroes[grp]) {
                         effFerrId = globalPadroes[grp];
                         break;
                     }
                 }
             }
+            // "Sem puxador" é uma opção explícita, sem quantidade nem custo.
+            // O override local já prevaleceu; um subItem desativado saiu antes.
+            if (siCategoria === normalizeHardwareText(FERR_GROUPS.puxador) && effFerrId === '__none__') return;
             // Uma escolha explícita inválida não pode trocar silenciosamente a ferragem.
             const fe = ferragensDB.find(f => f.id === effFerrId);
             if (!fe) { issue('hardware_missing', `Ferragem ${effFerrId} não encontrada em ${compLabel}.`); return; }
+            if (composition?.kind !== 'loose-hardware' && originalHardware && hardwareUnit(fe) !== hardwareUnit(originalHardware)) {
+                issue('hardware_unit_mismatch', `${compLabel} / ${si.nome || 'ferragem'}: a troca de ${hardwareUnit(originalHardware)} para ${hardwareUnit(fe)} exige outra quantidade. Adicione o item separadamente com a medida correta.`);
+                return;
+            }
             // qtdFormula: ex "1", "Ap<=1600?2:3", "Li/1000"
-            const qtdUnit = si.qtdFormula
-                ? Math.ceil(Math.max(1, rCalcV2(si.qtdFormula, cD, formulaError(`${compLabel} / ${si.nome}`))))
-                : 1;
-            ferrList.push({ ...fe, qtd: qtdUnit * cQtd, orig: `${compLabel} / ${si.nome}` });
+            const qtdUnit = hardwareQuantity(si, fe, cD, `${compLabel} / ${si.nome || fe.nome}`, composition?.kind === 'loose-hardware');
+            if (qtdUnit > 0) ferrList.push({ ...fe, qtd: qtdUnit * cQtd, orig: `${compLabel} / ${si.nome}` });
         });
     });
 

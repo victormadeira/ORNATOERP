@@ -1,4 +1,5 @@
-import { R$, N, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, FERR_GROUPS, DB_FERRAGENS } from '../engine';
+import { R$, N, calcItemV2, calcPainelRipado, calcItemEspecial, TIPOS_ESPECIAIS, precoVenda, DB_FERRAGENS } from '../engine';
+import { getComponentHardware } from '../quoteComposition';
 
 // ── Meios de pagamento (display) ────────────────────────────────────────────
 const MEIO_LABEL = {
@@ -81,6 +82,7 @@ function calcAmbCustos(ambientes, bib, padroes, taxas) {
             }
             try {
                 const res = calcItemV2(item.caixaDef, item.dims, item.mats, item.componentes.map(ci => ({
+                    ...ci,
                     compDef: ci.compDef, qtd: ci.qtd || 1, vars: ci.vars || {},
                     matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                 })), bib, padroes);
@@ -321,24 +323,11 @@ export function buildPropostaHtml({
                 .filter(Boolean);
 
             const ferragensDB = bib?.ferragens || DB_FERRAGENS;
-            const ferragens = (it.componentes || []).flatMap(c => {
-                const subDefs = c.compDef?.sub_itens || [];
-                return Object.entries(c.subItens || {})
-                    .filter(([, v]) => v && v !== 'nenhum' && v !== '' && v !== false)
-                    .map(([siId]) => {
-                        const si = subDefs.find(s => s.id === siId);
-                        if (!si) return '';
-                        // Resolver ferragem efetiva via padrões globais (por categoria)
-                        let effId = si.ferrId;
-                        const siCat = ferragensDB.find(f => f.id === si.ferrId)?.categoria?.toLowerCase() || '';
-                        for (const [grp, cat] of Object.entries(FERR_GROUPS)) {
-                            if (siCat === cat.toLowerCase() && padroes?.[grp]) { effId = padroes[grp]; break; }
-                        }
-                        const fe = ferragensDB.find(f => f.id === effId) || ferragensDB.find(f => f.id === si.ferrId);
-                        return fe?.nome || si.nome || '';
-                    })
-                    .filter(Boolean);
-            });
+            const ferragens = (it.componentes || []).flatMap(c =>
+                getComponentHardware({ componentes: [c] }, c.id, ferragensDB, padroes)
+                    .filter(slot => slot.enabled && slot.hardware?.nome)
+                    .map(slot => slot.hardware.nome)
+            );
 
             const details = [...compNames, ...ferragens];
             const detailsHtml = details.length > 0

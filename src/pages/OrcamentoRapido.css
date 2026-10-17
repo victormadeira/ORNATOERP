@@ -287,3 +287,14 @@
   .orcamento-rapido .oq-preset-text strong { font-size: 12px; }
   .orcamento-rapido .oq-preset-text small { font-size: 11px; }
 }
+
+/* Biblioteca e composição livre do catálogo */
+.orcamento-rapido .oq-furniture-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin: 8px 0 17px; }
+.orcamento-rapido .oq-furniture-heading h3 { font-size: 15px; font-weight: 650; }
+.orcamento-rapido .oq-furniture-heading span { font-size: 11px; color: #737373; text-align: right; }
+.orcamento-rapido .oq-item-row.is-selected td { background: #f0f0ed; }
+.orcamento-rapido .oq-item-row.is-selected td:first-child { box-shadow: inset 3px 0 #3b3b38; }
+.orcamento-rapido .oq-item-composition-summary { display: block; font-size: 11px; color: #737373; margin-top: 5px; line-height: 1.5; }
+.orcamento-rapido .oq-item-name button { color: #454543; font-size: 11px; font-weight: 600; padding: 7px 0 1px; }
+.orcamento-rapido .oq-composition-detail { margin: 17px 0 23px; }
+@media(max-width:650px) { .orcamento-rapido .oq-furniture-heading { align-items:flex-start; flex-direction:column; gap:5px; } .orcamento-rapido .oq-furniture-heading span { text-align:left; } }

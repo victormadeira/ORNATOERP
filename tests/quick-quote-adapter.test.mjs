@@ -4,6 +4,7 @@ import { buildQuickQuotePayload, createErpQuickQuoteAdapter } from '../src/quick
 import { applyQuoteDiscount, buildQuoteLibrary, calculateQuote } from '../src/quoteCalculator.js';
 import { valorFinalOrcamento } from '../server/lib/orcamento-values.js';
 import { createDemoSetup } from '../preview/quick-quote/demoData.js';
+import { createCatalogBoxItem, addCatalogComponent, addLooseHardware, setComponentHardware } from '../src/quoteComposition.js';
 import { createDemoQuickQuoteAdapter, DEMO_STORAGE_KEY } from '../preview/quick-quote/demoAdapter.js';
 
 const fresh = () => {
@@ -122,4 +123,36 @@ test('o valor financeiro aceita o líquido positivo e rejeita valores inválidos
     assert.equal(valorFinalOrcamento({ valor_venda: 9000, pagamento: { desconto: { valor: 10, tipo: '%' } } }), 9000);
     assert.equal(valorFinalOrcamento({ valor_venda: '123.45' }), 123.45);
     for (const value of [-1, NaN, Infinity, undefined]) assert.throws(() => valorFinalOrcamento({ valor_venda: value }), /inválido/);
+});
+
+
+test('composição livre persiste caixas, puxadores individuais e metros de acessórios no contrato ERP', () => {
+    const { setup, draft } = fresh();
+    const materials = setup.initialDraft.materials;
+    let item = createCatalogBoxItem(setup.caixas.find(c => c.nome.includes('Alta')), { l: 800, a: 2100, p: 600 }, materials, { qtd: 2 });
+    item = addCatalogComponent(item, setup.componentes.find(c => c.nome === 'Porta'), { matExtComp: materials.matFrente, vars: { nPortas: 2 } });
+    item = addCatalogComponent(item, setup.componentes.find(c => c.nome === 'Prateleira'), { qtd: 3 });
+    item = setComponentHardware(item, item.componentes[0].id, 'puxador', { ferrId: 'demo_pux256' });
+    item = addLooseHardware(item, setup.bibItems.find(h => h.cod === 'demo_perfil_puxador'), { quantity: 1.25 });
+    draft.ambientes[0].itens = [item];
+    draft.padroes.puxador = '__none__';
+    const payload = buildQuickQuotePayload(draft, setup);
+    const roundtrip = JSON.parse(JSON.stringify({ ...draft, ambientes: payload.ambientes, taxas: payload.taxas, padroes: payload.padroes }));
+    const result = calculate(roundtrip, setup);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    near(result.pvFinal, payload.valor_venda);
+    const unitHardware = result.itemResults[item.id].ferrList;
+    assert.equal(unitHardware.find(h => h.id === 'demo_pux256').qtd, 2);
+    near(unitHardware.find(h => h.id === 'demo_perfil_puxador').qtd, 1.25);
+    assert.equal(result.totNPortas, 4);
+    assert.equal(result.totNPrateleiras, 6);
+    assert.equal(roundtrip.ambientes[0].itens[0].composition.mode, 'catalog');
+});
+
+test('troca de puxador individual não converte unidades em metragem silenciosamente', () => {
+    const { setup, draft } = fresh();
+    const selected = draft.ambientes[0].itens[0];
+    const door = selected.componentes.find(ci => ci.quick.role === 'door');
+    draft.ambientes[0].itens[0] = setComponentHardware(selected, door.id, 'puxador', { ferrId: 'demo_perfil_puxador' });
+    assert.throws(() => buildQuickQuotePayload(draft, setup), /troca de un para m/i);
 });

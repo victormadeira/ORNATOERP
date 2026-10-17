@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Check, ChevronDown, Copy, Loader2, Plus, RotateCcw, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { applyQuoteDiscount, buildQuoteLibrary, calculateQuote } from '../quoteCalculator';
 import { buildQuickExtra, buildQuickItem, createQuickKitchenExample, listQuickPresets, rebuildQuickItem } from '../quickQuote';
+import { addCatalogComponent, addLooseHardware, createCatalogBoxItem, normalizeHardwareUnit, updateCatalogItem } from '../quoteComposition';
+import QuoteCompositionEditor from './QuoteCompositionEditor';
+import QuoteCatalogBrowser from './QuoteCatalogBrowser';
 import './OrcamentoRapido.css';
 
 const money = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
@@ -36,13 +39,6 @@ function Field({ label, children, hint, error, className = '' }) {
     return <label className={`oq-field ${className}`}><span className="oq-label">{label}</span>{children}{hint && <span className="oq-field-hint">{hint}</span>}{error && <span className="oq-field-error">{error}</span>}</label>;
 }
 
-function CabinetMark({ preset }) {
-    const drawers = preset.counts?.drawers > 0 || preset.id === 'gaveteiro3';
-    const single = preset.counts?.doors === 1 || ['balcao1', 'aereo1'].includes(preset.id);
-    const open = preset.id === 'nicho';
-    return <span aria-hidden="true" className={`oq-cabinet-mark ${drawers ? 'is-drawers' : single ? 'is-single' : open ? 'is-open' : 'is-double'} ${preset.group === 'upper' ? 'is-upper' : ''}`}><i /><i /><i /></span>;
-}
-
 function PendingList({ title = 'Revise antes de salvar', messages, className = '' }) {
     if (!messages.length) return null;
     const unique = [...new Set(messages)];
@@ -72,6 +68,9 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     const [saving, setSaving] = useState(false);
     const [savedMeta, setSavedMeta] = useState(null);
     const [expandedItem, setExpandedItem] = useState(null);
+    const [selectedItemId, setSelectedItemId] = useState('');
+    const [compositionErrors, setCompositionErrors] = useState({});
+    const [materialUpdateErrors, setMaterialUpdateErrors] = useState([]);
     const [undo, setUndo] = useState(null);
     const [extra, setExtra] = useState({ tipo: 'lateral', l: 550, a: 720, qtd: 1, matId: '' });
     const [extraError, setExtraError] = useState('');
@@ -100,6 +99,11 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
             setMaterials(selectedMaterials);
             setExtra((prev) => ({ ...prev, matId: selectedMaterials.matFrente || selectedMaterials.matInt }));
             setActiveRoomId(next.ambientes[0].id);
+            const firstItem = next.ambientes[0].itens?.find(item => item.quick?.group !== 'extras');
+            setSelectedItemId(firstItem?.id || '');
+            setExpandedItem(firstItem?.id || null);
+            setCompositionErrors({});
+            setMaterialUpdateErrors([]);
             setRowInputs({});
             setRowErrors({});
             if (next.id) setSavedMeta({ id: next.id, numero: next.numero });
@@ -111,7 +115,7 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     const catalog = useMemo(() => ({ caixas: setup?.caixas || [], componentes: setup?.componentes || [] }), [setup]);
     const presets = useMemo(() => listQuickPresets(catalog), [catalog]);
     const sheetOptions = useMemo(() => materialChoices(setup?.bibItems || []), [setup]);
-    const hardwareOptions = useMemo(() => (setup?.bibItems || []).filter((item) => item.tipo === 'ferragem' || item.tipo === 'acessorio').map((item) => ({ id: item.cod || `bib_${item.id}`, nome: item.nome, categoria: cleanText(item.categoria) })), [setup]);
+    const hardwareOptions = useMemo(() => (setup?.bibItems || []).filter((item) => item.tipo === 'ferragem' || item.tipo === 'acessorio').map((item) => ({ id: item.cod || `bib_${item.id}`, nome: item.nome, unidade: item.unidade || 'un', categoria: cleanText(item.categoria) })), [setup]);
     const bib = useMemo(() => buildQuoteLibrary(setup?.bibItems || []), [setup]);
     const totals = useMemo(() => {
         try { return calculateQuote({ ambientes: draft.ambientes, taxas: draft.taxas, bib, padroes: draft.padroes, bibItems: setup?.bibItems || [], strictCatalog: true }); }
@@ -120,14 +124,10 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     const discount = useMemo(() => applyQuoteDiscount(number(totals.pvFinal), draft.pagamento?.desconto || { tipo: '%', valor: 0 }), [totals.pvFinal, draft.pagamento]);
     const activeRoom = draft.ambientes.find((room) => room.id === activeRoomId) || draft.ambientes[0];
     const allItems = draft.ambientes.flatMap((room) => room.itens || []);
+    const selectedItem = activeRoom.itens?.find(item => item.id === selectedItemId) || activeRoom.itens?.find(item => item.quick?.group !== 'extras');
+    const compositionItem = activeRoom.itens?.find(item => item.id === expandedItem && item.quick?.group !== 'extras');
     const furnitureCount = allItems.filter((item) => item.quick?.group !== 'extras').reduce((sum, item) => sum + number(item.qtd || 1), 0);
-    const modules = allItems.filter((item) => item.quick?.kind !== 'extra');
-    const materialErrors = modules.length ? [
-        !materials.matInt && 'Selecione o material do corpo.',
-        !materials.matFundo && modules.some((item) => item.quick?.presetId !== 'pia2') && 'Selecione o material do fundo.',
-        !materials.matFrente && modules.some((item) => item.quick?.counts?.doors || item.quick?.counts?.drawers) && 'Selecione o material das frentes.',
-    ].filter(Boolean) : [];
-    const calculationErrors = [...materialErrors, ...(totals.errors || []).map((error) => typeof error === 'string' ? error : error.message), ...(discount.errors || []).map((error) => typeof error === 'string' ? error : error.message), ...Object.values(rowErrors).flat()].filter(Boolean);
+    const calculationErrors = [...materialUpdateErrors, ...Object.values(compositionErrors).flat(), ...(totals.errors || []).map((error) => typeof error === 'string' ? error : error.message), ...(discount.errors || []).map((error) => typeof error === 'string' ? error : error.message), ...Object.values(rowErrors).flat()].filter(Boolean);
     const warnings = (totals.warnings || []).map((warning) => typeof warning === 'string' ? warning : warning.message).filter((message) => message && !calculationErrors.includes(message));
     const hasCalculation = allItems.length > 0 && calculationErrors.length === 0 && totals.valid !== false && discount.valid !== false;
     const currentFingerprint = JSON.stringify(draft);
@@ -146,10 +146,52 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     const changeDraft = (updates) => { setDraft((prev) => ({ ...prev, ...updates })); setSaveStatus(''); setActionError(''); };
     const changeRoom = (roomId, update) => { setDraft((prev) => ({ ...prev, ambientes: prev.ambientes.map((room) => room.id === roomId ? update(room) : room) })); setSaveStatus(''); setActionError(''); };
 
+    const onCompositionValidation = useCallback((messages) => {
+        if (!expandedItem) return;
+        setCompositionErrors(prev => JSON.stringify(prev[expandedItem] || []) === JSON.stringify(messages || []) ? prev : { ...prev, [expandedItem]: messages || [] });
+    }, [expandedItem]);
+    const selectItem = id => {
+        setSelectedItemId(id);
+        setExpandedItem(id || null);
+        if (expandedItem !== id) setCompositionErrors({});
+    };
+    const replaceCompositionItem = item => {
+        const previous = activeRoom.itens.find(entry => entry.id === item.id);
+        if (previous && (previous.qtd !== item.qtd || ['l', 'a', 'p'].some(key => previous.dims?.[key] !== item.dims?.[key]))) {
+            setRowInputs(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+            setRowErrors(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+        }
+        changeRoom(activeRoom.id, room => ({ ...room, itens: room.itens.map(entry => entry.id === item.id ? item : entry) }));
+    };
+    const addCatalogBox = (caixaDef, dims) => {
+        try {
+            const item = createCatalogBoxItem(caixaDef, dims, materials, { ordem: activeRoom.itens?.length || 0 });
+            changeRoom(activeRoom.id, room => ({ ...room, itens: [...(room.itens || []), item] }));
+            selectItem(item.id);
+        } catch (error) { setActionError(errorMessages(error).join(' ')); }
+    };
+    const addComponentToSelected = compDef => {
+        if (!selectedItem) { setActionError('Selecione uma caixa ou móvel para adicionar o componente.'); return; }
+        try {
+            const matFrente = selectedItem.composition?.matFrente || selectedItem.componentes?.find(ci => ci.matExtComp)?.matExtComp || materials.matFrente;
+            replaceCompositionItem(addCatalogComponent(selectedItem, compDef, { qtd: 1, matExtComp: matFrente }));
+            selectItem(selectedItem.id);
+        } catch (error) { setActionError(errorMessages(error).join(' ')); }
+    };
+    const addHardwareToSelected = hardware => {
+        if (!selectedItem) { setActionError('Selecione uma caixa ou móvel para adicionar a ferragem.'); return; }
+        try {
+            replaceCompositionItem(addLooseHardware(selectedItem, hardware, { quantity: 1 }));
+            selectItem(selectedItem.id);
+        } catch (error) { setActionError(errorMessages(error).join(' ')); }
+    };
+
+
     const addItem = (preset) => {
         try {
             const item = buildQuickItem(preset, preset.defaultDims, materials, { ordem: activeRoom.itens?.length || 0 });
             changeRoom(activeRoom.id, (room) => ({ ...room, itens: [...(room.itens || []), item] }));
+            selectItem(item.id);
         } catch (error) { setActionError(errorMessages(error).join(' ')); }
     };
 
@@ -166,7 +208,8 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
         setRowInputs((prev) => ({ ...prev, [item.id]: nextInputs }));
         const dims = { l: nextInputs.l ?? item.dims?.l, a: nextInputs.a ?? item.dims?.a, p: nextInputs.p ?? item.dims?.p };
         try {
-            const rebuilt = rebuildQuickItem(item, {
+            const rebuild = item.composition?.mode === 'catalog' ? updateCatalogItem : rebuildQuickItem;
+            const rebuilt = rebuild(item, {
                 dims: { l: Number(dims.l), a: Number(dims.a), p: Number(dims.p) },
                 qtd: Number(nextInputs.qtd ?? item.qtd ?? 1),
                 ...(nextInputs.doorCount !== undefined ? { doorCount: Number(nextInputs.doorCount) } : {}),
@@ -182,19 +225,29 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
         const nextMaterials = { ...materials, [field]: value };
         setMaterials(nextMaterials);
         setActionError('');
-        if (!allItems.length) return;
+        setMaterialUpdateErrors([]);
         try {
-            const ambientes = draft.ambientes.map((room) => ({
-                ...room,
-                matInt: nextMaterials.matInt,
-                matExt: '',
-                itens: (room.itens || []).map((item) => item.quick?.group === 'extras' ? item : rebuildQuickItem(item, { materials: nextMaterials })),
+            const ambientes = draft.ambientes.map(room => ({
+                ...room, matInt: nextMaterials.matInt, matExt: '',
+                itens: (room.itens || []).map(item => {
+                    if (item.quick?.group === 'extras' || item._matCustom) return item;
+                    return item.composition?.mode === 'catalog'
+                        ? updateCatalogItem(item, { materials: nextMaterials })
+                        : rebuildQuickItem(item, { materials: nextMaterials });
+                }),
             }));
-            changeDraft({ ambientes });
-        } catch (error) { setActionError(errorMessages(error).join(' ')); }
+            changeDraft({ ambientes, materials: nextMaterials });
+        } catch (error) {
+            const messages = errorMessages(error);
+            setMaterialUpdateErrors(messages);
+            setActionError(messages.join(' '));
+        }
     };
 
     const removeItem = (item) => {
+        if (expandedItem === item.id) setExpandedItem(null);
+        if (selectedItemId === item.id) setSelectedItemId('');
+        setCompositionErrors(prev => { const next = { ...prev }; delete next[item.id]; return next; });
         setUndo({ roomId: activeRoom.id, item, index: activeRoom.itens.findIndex((entry) => entry.id === item.id) });
         changeRoom(activeRoom.id, (room) => ({ ...room, itens: room.itens.filter((entry) => entry.id !== item.id) }));
         setRowErrors((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
@@ -219,6 +272,8 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
         changeDraft({ ambientes: [...draft.ambientes, room] });
         setActiveRoomId(room.id);
         setExpandedItem(null);
+        setSelectedItemId('');
+        setCompositionErrors({});
     };
 
     const addExtra = () => {
@@ -252,6 +307,7 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
                 pagamento: draft.pagamento,
                 totals: { ...totals, ...discount },
                 obs: draft.obs,
+                materials,
             });
             if (!saved?.id) throw new Error('O salvamento não retornou a identificação do orçamento.');
             const nextDraft = { ...draft, id: saved.id };
@@ -271,7 +327,7 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
     return <div className="orcamento-rapido">
         {isDemo && <div className="oq-demo-banner"><span className="oq-demo-tag">DEMONSTRAÇÃO</span><span>Materiais e valores ilustrativos. Os dados são salvos somente neste navegador.</span></div>}
         <header className="oq-page-header">
-            <div>{onBack && <button type="button" className="oq-back" onClick={onBack} disabled={saving}><ArrowLeft size={15} /> Orçamentos</button>}<div className="oq-title-row"><h1>Orçamento rápido</h1><span className="oq-version">MODULAR</span></div><p>Componha os móveis por medidas, materiais e ferragens.</p></div>
+            <div>{onBack && <button type="button" className="oq-back" onClick={onBack} disabled={saving}><ArrowLeft size={15} /> Orçamentos</button>}<div className="oq-title-row"><h1>Orçamento rápido</h1><span className="oq-version">COMPOSIÇÃO LIVRE</span></div><p>Caixas, componentes, puxadores e acessórios do catálogo, no mesmo orçamento.</p></div>
             <div className="oq-save-meta">{savedMeta ? <><span className="oq-saved-id">{savedMeta.numero ? `Orçamento ${savedMeta.numero}` : 'Orçamento salvo'}</span><span>{isDirty ? 'Alterações ainda não salvas' : <><Check size={13} /> Tudo salvo</>}</span></> : <><span className="oq-saved-id">Novo orçamento</span><span>Rascunho em edição</span></>}</div>
         </header>
 
@@ -285,28 +341,31 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
                 <section className="oq-panel oq-material-panel">
                     <div className="oq-section-heading"><div><span className="oq-step">01</span><h2>Materiais e ferragens</h2></div><span className="oq-section-caption">Padrão para todos os móveis</span></div>
                     <div className="oq-material-grid">{[['Corpo', 'matInt'], ['Fundo', 'matFundo'], ['Frentes', 'matFrente']].map(([label, key]) => <Field key={key} label={label}><select value={materials[key] || ''} onChange={(event) => applyMaterials(key, event.target.value)}><option value="">Selecionar material</option>{sheetOptions.map((material) => <option key={material.id} value={material.id}>{material.nome}{material.esp && !material.nome.includes(String(material.esp)) ? ` · ${material.esp} mm` : ''}{material.preco <= 0 ? ' · sem preço' : ''}</option>)}</select></Field>)}</div>
-                    <div className="oq-hardware-grid">{[['Dobradiças', 'dobradica'], ['Corrediças', 'corredica']].map(([label, key]) => <Field key={key} label={label}><select value={draft.padroes?.[key] || ''} onChange={(event) => changeDraft({ padroes: { ...draft.padroes, [key]: event.target.value } })}><option value="">Padrão do modelo</option>{hardwareOptions.filter((hardware) => hardware.categoria === key).map((hardware) => <option key={hardware.id} value={hardware.id}>{hardware.nome}</option>)}</select></Field>)}</div>
-                    <p className="oq-panel-note">As quantidades acompanham a composição de cada móvel. Laterais e fechamentos usam o material escolhido ao adicioná-los.</p>
+                    <div className="oq-hardware-grid">{[['Dobradiças', 'dobradica'], ['Corrediças', 'corredica'], ['Puxadores', 'puxador'], ['Articuladores', 'articulador']].map(([label, key]) => <Field key={key} label={label}><select value={draft.padroes?.[key] || ''} onChange={(event) => changeDraft({ padroes: { ...draft.padroes, [key]: event.target.value } })}><option value="">Padrão da receita</option>{key === 'puxador' && <option value="__none__">Sem puxador</option>}{hardwareOptions.filter((hardware) => hardware.categoria === key && (key === 'puxador' ? normalizeHardwareUnit(hardware.unidade) === 'un' : normalizeHardwareUnit(hardware.unidade) !== 'm')).map((hardware) => <option key={hardware.id} value={hardware.id}>{hardware.nome}</option>)}</select></Field>)}</div>
+                    <p className="oq-panel-note">Você pode trocar materiais e ferragens individualmente em “Editar composição”. Puxadores por metro entram como acessórios com a metragem informada.</p>
                 </section>
 
                 <section className="oq-panel oq-composition">
                     <div className="oq-section-heading"><div><span className="oq-step">02</span><h2>Composição dos ambientes</h2></div><span className="oq-section-caption">Medidas em milímetros</span></div>
-                    <div className="oq-room-tabs" role="tablist" aria-label="Ambientes">{draft.ambientes.map((room) => <button type="button" key={room.id} role="tab" aria-selected={room.id === activeRoom.id} className={room.id === activeRoom.id ? 'is-active' : ''} onClick={() => { setActiveRoomId(room.id); setExpandedItem(null); }}>{room.nome || 'Sem nome'}<span>{(room.itens || []).length}</span></button>)}<button type="button" className="oq-add-room" onClick={addRoom}><Plus size={14} /> Ambiente</button></div>
+                    <div className="oq-room-tabs" role="tablist" aria-label="Ambientes">{draft.ambientes.map((room) => <button type="button" key={room.id} role="tab" aria-selected={room.id === activeRoom.id} className={room.id === activeRoom.id ? 'is-active' : ''} onClick={() => { setActiveRoomId(room.id); setExpandedItem(null); setSelectedItemId(''); setCompositionErrors({}); }}>{room.nome || 'Sem nome'}<span>{(room.itens || []).length}</span></button>)}<button type="button" className="oq-add-room" onClick={addRoom}><Plus size={14} /> Ambiente</button></div>
                     <div className="oq-room-toolbar"><Field label="Ambiente"><input value={activeRoom.nome} onChange={(event) => changeRoom(activeRoom.id, (room) => ({ ...room, nome: event.target.value }))} maxLength={100} aria-label="Nome do ambiente" /></Field><button type="button" className="oq-example-button" onClick={addExample}><Plus size={14} /> Adicionar cozinha de exemplo</button></div>
 
-                    <div className="oq-presets" aria-label="Modelos de móveis">{presets.map((preset) => <button type="button" key={preset.id} className="oq-preset" disabled={!preset.available} onClick={() => addItem(preset)} title={!preset.available ? `Modelo indisponível: ${(preset.missing || []).join(', ')}` : `Adicionar ${preset.label}`}><CabinetMark preset={preset} /><span className="oq-preset-text"><strong>{preset.label}</strong><small>{preset.available ? `${preset.defaultDims.l} × ${preset.defaultDims.a} × ${preset.defaultDims.p} mm` : 'Indisponível no catálogo'}</small></span><Plus className="oq-preset-add" size={15} /></button>)}</div>
+                    <QuoteCatalogBrowser catalog={catalog} presets={presets} bibItems={setup.bibItems || []} selectedItem={selectedItem} items={activeRoom.itens || []} onSelectItem={selectItem} onAddBox={addCatalogBox} onAddPreset={addItem} onAddComponent={addComponentToSelected} onAddHardware={addHardwareToSelected} />
+                    <div className="oq-furniture-heading"><h3>Móveis deste ambiente</h3><span>Selecione um móvel para editar sua composição.</span></div>
 
                     {actionError && <div className="oq-action-error" role="alert">{actionError}</div>}
                     {undo && <div className="oq-undo"><span>{itemLabel(undo.item)} removido.</span><button type="button" onClick={restoreItem}><RotateCcw size={13} /> Desfazer</button></div>}
 
-                    {!activeRoom.itens?.length ? <div className="oq-empty"><div className="oq-empty-mark" aria-hidden="true"><span /><span /></div><h3>Seu ambiente começa aqui</h3><p>Escolha um móvel acima. Ajuste as medidas e acompanhe o orçamento.</p><span>Você também pode adicionar uma cozinha de exemplo.</span></div> : <div className="oq-table-wrap"><table className="oq-items-table"><thead><tr><th>Móvel</th><th>Largura</th><th>Altura</th><th>Profund.</th><th>Qtd.</th><th className="oq-cost-heading" title="Materiais, fita e ferragens, considerando a quantidade da linha">Insumos</th><th><span className="oq-sr-only">Ações</span></th></tr></thead><tbody>{activeRoom.itens.map((item, index) => {
+                    {!activeRoom.itens?.length ? <div className="oq-empty"><div className="oq-empty-mark" aria-hidden="true"><span /><span /></div><h3>Seu ambiente começa aqui</h3><p>Adicione uma caixa do catálogo e componha com portas, gavetas, puxadores e ferragens.</p><span>Você também pode adicionar uma cozinha de exemplo.</span></div> : <div className="oq-table-wrap"><table className="oq-items-table"><thead><tr><th>Móvel</th><th>Largura</th><th>Altura</th><th>Profund.</th><th>Qtd.</th><th className="oq-cost-heading" title="Materiais, fita e ferragens, considerando a quantidade da linha">Insumos</th><th><span className="oq-sr-only">Ações</span></th></tr></thead><tbody>{activeRoom.itens.map((item, index) => {
                         const inputs = rowInputs[item.id] || {};
                         const isExtra = item.quick?.group === 'extras';
                         const itemCost = readItemCost(totals, item.id);
                         const expanded = expandedItem === item.id;
                         const counts = item.quick?.counts || {};
-                        return <ItemRows key={item.id} item={item} index={index} inputs={inputs} expanded={expanded} isExtra={isExtra} counts={counts} itemCost={itemCost} errors={rowErrors[item.id] || []} updateItem={updateItem} toggle={() => setExpandedItem(expanded ? null : item.id)} remove={() => removeItem(item)} duplicate={() => duplicateItem(item)} />;
+                        return <ItemRows key={item.id} item={item} index={index} inputs={inputs} expanded={expanded} isExtra={isExtra} counts={counts} itemCost={itemCost} errors={rowErrors[item.id] || []} updateItem={updateItem} toggle={() => { if (expanded) { setExpandedItem(null); setCompositionErrors({}); } else selectItem(item.id); }} remove={() => removeItem(item)} duplicate={() => duplicateItem(item)} />;
                     })}</tbody></table></div>}
+
+                    {compositionItem && <div className="oq-composition-detail"><QuoteCompositionEditor key={compositionItem.id} item={compositionItem} catalog={catalog} bibItems={setup.bibItems || []} materials={materials} padroes={draft.padroes} onChange={replaceCompositionItem} onValidationChange={onCompositionValidation} onClose={() => { setExpandedItem(null); setCompositionErrors({}); }} /></div>}
 
                     <details className="oq-extras"><summary><span><Plus size={16} /> Laterais, rodapés e fechamentos</span><ChevronDown size={16} /></summary><div className="oq-extra-content"><p>Adicione as peças complementares uma vez, com suas próprias medidas.</p><div className="oq-extra-grid"><Field label="Peça"><select value={extra.tipo} onChange={(event) => setExtra((prev) => ({ ...prev, tipo: event.target.value }))}><option value="lateral">Lateral de acabamento</option><option value="rodape">Rodapé</option><option value="fechamento">Fechamento</option></select></Field><Field label="Largura · mm"><input type="number" min="1" step="1" value={extra.l} onChange={(event) => setExtra((prev) => ({ ...prev, l: event.target.value }))} inputMode="numeric" /></Field><Field label="Altura · mm"><input type="number" min="1" step="1" value={extra.a} onChange={(event) => setExtra((prev) => ({ ...prev, a: event.target.value }))} inputMode="numeric" /></Field><Field label="Quantidade"><input type="number" min="1" step="1" value={extra.qtd} onChange={(event) => setExtra((prev) => ({ ...prev, qtd: event.target.value }))} inputMode="numeric" /></Field></div><div className="oq-extra-material"><Field label="Material da peça"><select value={extra.matId || ''} onChange={(event) => setExtra((prev) => ({ ...prev, matId: event.target.value }))}><option value="">Usar material das frentes</option>{sheetOptions.map((material) => <option key={material.id} value={material.id}>{material.nome}</option>)}</select></Field><button type="button" className="oq-button oq-button-dark" onClick={addExtra}><Plus size={15} /> Adicionar peça</button></div>{extraError && <p className="oq-field-error" role="alert">{extraError}</p>}</div></details>
                 </section>
@@ -328,16 +387,16 @@ export default function OrcamentoRapido({ adapter, onOpenEditor, onBack, notify 
 
 function ItemRows({ item, index, inputs, expanded, isExtra, counts, itemCost, errors, updateItem, toggle, remove, duplicate }) {
     const label = itemLabel(item);
-    const countLabel = isExtra ? 'Peça complementar' : [counts.doors ? `${counts.doors} ${counts.doors === 1 ? 'porta' : 'portas'}` : '', counts.drawers ? `${counts.drawers} ${counts.drawers === 1 ? 'gaveta' : 'gavetas'}` : '', counts.shelves ? `${counts.shelves} ${counts.shelves === 1 ? 'prateleira' : 'prateleiras'}` : ''].filter(Boolean).join(' · ');
+    const countLabel = isExtra ? 'Peça complementar' : item.composition?.mode === 'catalog' ? `${(item.componentes || []).length} componentes · composição livre` : [counts.doors ? `${counts.doors} ${counts.doors === 1 ? 'porta' : 'portas'}` : '', counts.drawers ? `${counts.drawers} ${counts.drawers === 1 ? 'gaveta' : 'gavetas'}` : '', counts.shelves ? `${counts.shelves} ${counts.shelves === 1 ? 'prateleira' : 'prateleiras'}` : ''].filter(Boolean).join(' · ');
     return <>
-        <tr className={`oq-item-row ${errors.length ? 'has-error' : ''}`}>
-            <td className="oq-item-name"><span className="oq-item-number">{String(index + 1).padStart(2, '0')}</span><div><strong>{label}</strong>{isExtra ? <span className="oq-item-subtitle">{countLabel}</span> : <button type="button" onClick={toggle} aria-expanded={expanded}>{countLabel || 'Configurar composição'}<ChevronDown size={12} /></button>}</div></td>
+        <tr className={`oq-item-row ${expanded ? 'is-selected' : ''} ${errors.length ? 'has-error' : ''}`}>
+            <td className="oq-item-name"><span className="oq-item-number">{String(index + 1).padStart(2, '0')}</span><div><strong>{label}</strong>{!isExtra && <small className="oq-item-composition-summary">{countLabel}</small>}{isExtra ? <span className="oq-item-subtitle">{countLabel}</span> : <button type="button" onClick={toggle} aria-expanded={expanded}><span>Editar composição</span><ChevronDown size={12} /></button>}</div></td>
             {['l', 'a', 'p'].map((key) => <td key={key} data-label={{ l: 'Largura · mm', a: 'Altura · mm', p: 'Profundidade · mm' }[key]}><input type="number" min="1" step="1" inputMode="numeric" aria-label={`${label}: ${{ l: 'largura', a: 'altura', p: 'profundidade' }[key]} em milímetros`} value={isExtra && key === 'p' ? '' : inputs[key] ?? item.dims?.[key] ?? ''} placeholder={isExtra && key === 'p' ? '—' : undefined} disabled={isExtra && key === 'p'} onChange={(event) => updateItem(item, { [key]: event.target.value })} /></td>)}
             <td data-label="Quantidade"><input type="number" min="1" step="1" inputMode="numeric" aria-label={`${label}: quantidade`} value={inputs.qtd ?? item.qtd ?? 1} onChange={(event) => updateItem(item, { qtd: event.target.value })} /></td>
             <td className="oq-item-cost" data-label="Insumos">{!errors.length && itemCost != null ? money(itemCost) : '—'}</td>
             <td className="oq-item-actions"><button type="button" onClick={duplicate} title={`Duplicar ${label}`} aria-label={`Duplicar ${label}`}><Copy size={14} /></button><button type="button" onClick={remove} title={`Remover ${label}`} aria-label={`Remover ${label}`}><Trash2 size={14} /></button></td>
         </tr>
-        {expanded && !isExtra && <tr className="oq-detail-row"><td colSpan={7}><div className="oq-item-details"><span>Composição do móvel</span>{[['Portas', 'doorCount', counts.doors, 'door'], ['Gavetas', 'drawerCount', counts.drawers, 'drawer'], ['Prateleiras', 'shelfCount', counts.shelves, 'shelf']].filter(([, , , role]) => item.quick?.componentTemplates?.some((entry) => entry.role === role)).map(([labelText, key, count]) => <Field key={key} label={labelText}><input type="number" min="0" step="1" inputMode="numeric" aria-label={`${label}: ${labelText.toLowerCase()}`} value={inputs[key] ?? count ?? 0} onChange={(event) => updateItem(item, { [key]: event.target.value })} /></Field>)}<p>As peças e ferragens acompanham essas quantidades.</p></div></td></tr>}
+
         {errors.length > 0 && <tr className="oq-row-error"><td colSpan={7}><span role="alert">{errors.join(' ')}</span></td></tr>}
     </>;
 }

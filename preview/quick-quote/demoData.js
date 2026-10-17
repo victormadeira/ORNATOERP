@@ -88,8 +88,36 @@ export function createDemoSetup() {
     const caixas = [
         demoBox(910001, 'Caixa Baixa / Balcão', 0.30),
         demoBox(910002, 'Caixa Aérea', 0.25),
+        demoBox(910003, 'Caixa Alta / Torre', 0.35),
     ];
     const componentes = demoComponents();
+    componentes.push(
+        {
+            db_id: 910013, nome: 'Divisória', tipo_item: 'componente', cat: 'Internos', coef: 0.08,
+            vars: [], varsDeriv: { Adv: 'Ai', Pdv: 'Pi' },
+            pecas: [{ id: 'div', nome: 'Divisória vertical', qtd: 1, calc: 'Adv*Pdv', mat: 'int', fita: ['f'] }],
+            frente_externa: { ativa: false }, sub_itens: [],
+        },
+        {
+            db_id: 910014, nome: 'Cabideiro', tipo_item: 'componente', cat: 'Internos', coef: 0,
+            vars: [], varsDeriv: {}, pecas: [], frente_externa: { ativa: false },
+            sub_itens: [
+                { id: 'barra', nome: 'Barra de cabideiro', ferrId: 'demo_cabideiro_m', defaultOn: true, qtdFormula: 'Li/1000' },
+                { id: 'apoio', nome: 'Suporte de cabideiro', ferrId: 'demo_apoio_cabideiro', defaultOn: true, qtdFormula: '2' },
+            ],
+        },
+        {
+            db_id: 910015, nome: 'Porta basculante', tipo_item: 'componente', cat: 'Frentes', coef: 0.15,
+            vars: [{ id: 'Ap', label: 'Altura da frente', default: 0, min: 100, max: 1200, unit: 'mm' }],
+            varsDeriv: { Lp: 'Li', Ap: 'A' }, pecas: [],
+            frente_externa: { ativa: true, id: 'basculante', nome: 'Frente basculante', calc: 'Lp*Ap', mat: 'ext_comp', fita: ['all'] },
+            sub_itens: [
+                { id: 'dob', nome: 'Dobradiça', ferrId: 'demo_dob110_soft', defaultOn: true, qtdFormula: '2' },
+                { id: 'pistao', nome: 'Articulador basculante', ferrId: 'demo_articulador', defaultOn: true, qtdFormula: '1' },
+                { id: 'puxador', nome: 'Puxador', ferrId: 'demo_pux128', defaultOn: true, qtdFormula: '1' },
+            ],
+        },
+    );
     const bibItems = [
         sheet(920001, 'demo_mdf_branco18', 'MDF branco · 18 mm (demo)', 18, 325, 1.80),
         sheet(920002, 'demo_mdf_branco15', 'MDF branco · 15 mm (demo)', 15, 295, 1.80),
@@ -103,6 +131,18 @@ export function createDemoSetup() {
         hardware(930004, 'demo_corr500_soft', 'Corrediça oculta com amortecimento · 500 mm (demo)', 'corrediça', 120, 'par'),
         hardware(930005, 'demo_pux128', 'Puxador · 128 mm (demo)', 'puxador', 18),
         hardware(930006, 'demo_suporte', 'Suporte de prateleira (demo)', 'suporte', 1.50),
+        hardware(930007, 'demo_pux160', 'Puxador alça · 160 mm (demo)', 'puxador', 23),
+        hardware(930008, 'demo_pux256', 'Puxador alça · 256 mm (demo)', 'puxador', 32),
+        hardware(930009, 'demo_pux_ponto', 'Puxador ponto (demo)', 'puxador', 17),
+        hardware(930010, 'demo_pux_slim', 'Puxador cava slim · unidade (demo)', 'puxador', 36),
+        hardware(930011, 'demo_perfil_puxador', 'Perfil puxador · metro (demo)', 'puxador', 48, 'm'),
+        hardware(930012, 'demo_articulador', 'Articulador basculante (demo)', 'articulador', 135),
+        hardware(930013, 'demo_pistao', 'Pistão a gás (demo)', 'articulador', 28),
+        hardware(930014, 'demo_cabideiro_m', 'Tubo de cabideiro · metro (demo)', 'cabideiro', 29, 'm'),
+        hardware(930015, 'demo_apoio_cabideiro', 'Suporte de cabideiro (demo)', 'suporte', 6),
+        hardware(930016, 'demo_pe_regulavel', 'Pé regulável para balcão (demo)', 'apoio', 9),
+        { ...hardware(930017, 'demo_cesto', 'Cesto aramado extraível (demo)', 'organizador', 175), tipo: 'acessorio' },
+        { ...hardware(930018, 'demo_led', 'Fita LED · metro (demo)', 'iluminação', 22, 'm'), tipo: 'acessorio' },
         { id: 940001, cod: 'demo_acab_pintura', nome: 'Pintura fosca por m² (demo)', tipo: 'acabamento', unidade: 'm²', preco: 150, preco_m2: 150, descricao: DEMO_NOTE, ativo: 1 },
     ];
 

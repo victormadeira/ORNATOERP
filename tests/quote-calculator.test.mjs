@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { calcItemV2, calcCustoHora, calcPainelRipado } from '../src/engine.js';
 import { calculateQuote, buildQuoteLibrary, resolveItemMats, applyQuoteDiscount } from '../src/quoteCalculator.js';
 import { createDemoSetup } from '../preview/quick-quote/demoData.js';
+import { createCatalogBoxItem, addCatalogComponent, addLooseHardware, promoteToCatalogItem, getComponentHardware, getBoxParts, setBoxPartEnabled, setComponentHardware } from '../src/quoteComposition.js';
 
 const near = (actual, expected, tolerance = 1e-8) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
 const clone = value => structuredClone(value);
@@ -17,6 +18,14 @@ const rawLibrary = [
     { id: 8, cod: 'paint', tipo: 'acabamento', unidade: 'm²', nome: 'Laca', preco: 180 },
 ];
 const bib = buildQuoteLibrary(rawLibrary);
+const hardwareLibrary = [
+    ...rawLibrary,
+    { id: 9, cod: 'handle', tipo: 'ferragem', unidade: 'un', nome: 'Puxador A', categoria: 'puxador', preco: 12 },
+    { id: 10, cod: 'handle_alt', tipo: 'ferragem', unidade: 'un', nome: 'Puxador B', categoria: 'puxador', preco: 25 },
+    { id: 11, cod: 'linear', tipo: 'ferragem', unidade: 'm', nome: 'Perfil por metro', categoria: '', preco: 20 },
+    { id: 12, cod: 'slide_pair', tipo: 'ferragem', unidade: 'par', nome: 'Corrediça por par', categoria: 'corrediça', preco: 40 },
+];
+const hardwareBib = buildQuoteLibrary(hardwareLibrary);
 const taxas = { imp: 8, com: 0, lucro: 20, inst: 5, frete: 2,
     mk_chapas: 1.45, mk_ferragens: 1.15, mk_fita: 1.45, mk_acabamentos: 1.3, mk_acessorios: 1.2, mk_mdo: 0.8 };
 const caixaDef = {
@@ -49,6 +58,260 @@ const item = (quantity = 1) => ({ id: 'module', nome: 'Balcão', caixaDef: clone
 });
 const environment = items => ({ id: 'kitchen', nome: 'Cozinha', tipo: 'calculadora', itens: items, paineis: [], itensEspeciais: [] });
 const quote = (items = [item()], options = {}) => calculateQuote({ ambientes: [environment(items)], taxas, bib, bibItems: rawLibrary, ...options });
+const quoteHardware = (items, options = {}) => quote(items, { bib: hardwareBib, bibItems: hardwareLibrary, strictCatalog: true, ...options });
+
+test('puxador global, override individual e sem puxador conservam prioridade, preço e quantidade', () => {
+    const module = item(2);
+    module.componentes[0].compDef.sub_itens.push({ id: 'handle', nome: 'Puxador', ferrId: 'handle', defaultOn: true, qtdFormula: 'nPortas' });
+    const initial = quoteHardware([module]);
+    const global = quoteHardware([module], { padroes: { puxador: 'handle_alt' } });
+    assert.equal(initial.valid, true, JSON.stringify(initial.errors));
+    assert.equal(global.valid, true, JSON.stringify(global.errors));
+    assert.equal(initial.fa.handle.qtd, 4); // duas portas por caixa, duas caixas
+    assert.equal(global.fa.handle_alt.qtd, 4);
+    assert.equal(global.fa.handle, undefined);
+    near(global.cm - initial.cm, 4 * (25 - 12));
+    near(global.pvFinal - initial.pvFinal, 4 * (25 - 12) * 1.15 / 0.65);
+    assert.equal(global.totNPortas, 4);
+
+    const local = clone(module);
+    local.componentes[0].subItensOvr = { handle: 'handle' };
+    near(quoteHardware([local], { padroes: { puxador: 'handle_alt' } }).cm, initial.cm);
+    near(quoteHardware([local], { padroes: { puxador: '__none__' } }).cm, initial.cm);
+
+    const disabled = clone(module);
+    disabled.componentes[0].subItens = { handle: false };
+    const localOff = quoteHardware([disabled], { padroes: { puxador: 'handle_alt' } });
+    const globalOff = quoteHardware([module], { padroes: { puxador: '__none__' } });
+    assert.equal(globalOff.valid, true, JSON.stringify(globalOff.errors));
+    assert.equal(globalOff.fa.handle, undefined);
+    near(globalOff.cm, initial.cm - 4 * 12);
+    near(localOff.cm, globalOff.cm);
+    assert.equal(globalOff.totNPortas, 4);
+
+    const invalid = quoteHardware([module], { padroes: { puxador: 'missing' } });
+    assert.equal(invalid.valid, false);
+    assert.ok(invalid.errors.some(e => e.code === 'hardware_missing'));
+});
+
+test('troca global ou individual entre unidade, par e metro exige receita compatível', () => {
+    const module = item();
+    module.componentes[0].compDef.sub_itens.push({ id: 'handle', nome: 'Puxador', ferrId: 'handle', defaultOn: true, qtdFormula: 'nPortas' });
+    for (const code of ['linear', 'slide_pair']) {
+        const global = quoteHardware([module], { padroes: { puxador: code } });
+        assert.equal(global.valid, false);
+        assert.ok(global.errors.some(e => e.code === 'hardware_unit_mismatch'));
+        const local = clone(module);
+        local.componentes[0].subItensOvr = { handle: code };
+        const individual = quoteHardware([local]);
+        assert.equal(individual.valid, false);
+        assert.ok(individual.errors.some(e => e.code === 'hardware_unit_mismatch'));
+    }
+});
+
+test('categorias sem acento, maiúsculas e espaços aplicam no custo a mesma ferragem exibida no editor', () => {
+    const setup = createDemoSetup();
+    const library = setup.bibItems.map(entry => ({ ...entry,
+        categoria: entry.categoria === 'dobradiça' ? ' DOBRADICA ' : entry.categoria === 'corrediça' ? ' CORREDICA ' : entry.categoria,
+    }));
+    const calculate = padroes => calculateQuote({ ambientes: setup.initialDraft.ambientes, taxas: setup.taxas,
+        bibItems: library, bib: buildQuoteLibrary(library), padroes, strictCatalog: true });
+    const initial = calculate(setup.padroes);
+    const padroes = { ...setup.padroes, dobradica: 'demo_dob110', corredica: 'demo_corr500_soft' };
+    const changed = calculate(padroes);
+    assert.equal(initial.valid, true, JSON.stringify(initial.errors));
+    assert.equal(changed.valid, true, JSON.stringify(changed.errors));
+    assert.equal(changed.fa.demo_dob110.qtd, 18);
+    assert.equal(changed.fa.demo_corr500_soft.qtd, 3);
+    assert.equal(changed.fa.demo_dob110_soft, undefined);
+    assert.equal(changed.fa.demo_corr500, undefined);
+    near(changed.cm - initial.cm, 18 * (8.2 - 12.5) + 3 * (120 - 55));
+    for (const module of setup.initialDraft.ambientes[0].itens) {
+        for (const ci of module.componentes) {
+            for (const slot of getComponentHardware(module, ci.id, library, padroes).filter(slot => slot.enabled)) {
+                assert.ok(changed.fa[slot.effectiveFerrId], `Ferragem exibida ${slot.effectiveFerrId} ausente do cálculo`);
+            }
+        }
+    }
+});
+
+test('puxadores de gaveta multiplicam a quantidade de gavetas e de caixas uma única vez', () => {
+    const setup = createDemoSetup();
+    const drawer = clone(setup.initialDraft.ambientes[0].itens.find(i => i.quick.counts.drawers > 0));
+    drawer.qtd = 2;
+    const result = calculateQuote({ ambientes: [environment([drawer])], taxas: setup.taxas,
+        bibItems: setup.bibItems, bib: buildQuoteLibrary(setup.bibItems), padroes: setup.padroes, strictCatalog: true });
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    assert.equal(result.fa.demo_pux128.qtd, 6);
+    assert.equal(result.totNGavetas, 6);
+    assert.equal(result.totNPortas, 0);
+    assert.equal(result.totNCaixas, 2);
+});
+
+test('ferragem avulsa em metros conserva frações, fixa a escolha e não cria portas ou caixas', () => {
+    const module = item(2);
+    const loose = {
+        id: 'loose', qtd: 1, vars: { quantidade: 1.25 }, subItensOvr: { loose: 'linear' },
+        composition: { kind: 'loose-hardware', unit: 'm', hardwareId: 'linear' },
+        compDef: { nome: 'Ferragem avulsa para porta', pecas: [], frente_externa: { ativa: false },
+            vars: [{ id: 'quantidade', default: 1 }],
+            sub_itens: [{ id: 'loose', ferrId: 'linear', defaultOn: true, qtdFormula: 'quantidade' }] },
+    };
+    const baseline = quoteHardware([module]);
+    module.componentes.push(loose);
+    const result = quoteHardware([module]);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    near(result.fa.linear.qtd, 2.5);
+    near(result.cm - baseline.cm, 2.5 * 20);
+    assert.equal(result.totNPortas, baseline.totNPortas);
+    assert.equal(result.totNGavetas, baseline.totNGavetas);
+    assert.equal(result.totNCaixas, baseline.totNCaixas);
+    assert.equal(result.totNModulos, baseline.totNModulos);
+    assert.equal(result.totNPecas, baseline.totNPecas);
+
+    const explicitHandle = clone(module);
+    const handle = explicitHandle.componentes.at(-1);
+    handle.vars.quantidade = 3;
+    handle.compDef.sub_itens[0].ferrId = 'handle';
+    handle.subItensOvr.loose = 'handle';
+    handle.composition = { kind: 'loose-hardware', unit: 'un', hardwareId: 'handle' };
+    const fixed = quoteHardware([explicitHandle], { padroes: { puxador: '__none__' } });
+    assert.equal(fixed.valid, true, JSON.stringify(fixed.errors));
+    assert.equal(fixed.fa.handle.qtd, 6);
+
+    for (const code of ['handle', 'slide_pair']) {
+        const invalid = clone(module);
+        const ci = invalid.componentes.at(-1);
+        ci.compDef.sub_itens[0].ferrId = code;
+        ci.subItensOvr.loose = code;
+        const result = quoteHardware([invalid]);
+        assert.equal(result.valid, false);
+        assert.ok(result.errors.some(e => e.code === 'quantity_invalid'));
+    }
+    const zeroPrice = hardwareLibrary.map(m => m.cod === 'linear' ? { ...m, preco: 0 } : m);
+    assert.ok(quoteHardware([module], { bib: buildQuoteLibrary(zeroPrice), bibItems: zeroPrice }).errors.some(e => e.code === 'price_invalid'));
+});
+
+test('fórmula linear da caixa usa consumo real em metros, sem arredondar para unidade', () => {
+    const module = item();
+    const initial = quoteHardware([module]);
+    module.caixaDef.sub_itens.push({ id: 'profile', nome: 'Perfil', ferrId: 'linear', defaultOn: true, qtdFormula: 'Li/1000' });
+    const result = quoteHardware([module]);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    near(result.fa.linear.qtd, 0.764);
+    near(result.cm - initial.cm, 0.764 * 20);
+});
+
+test('caixa livre usa snapshots fora dos presets e mistura componentes sem outro motor', () => {
+    const setup = createDemoSetup();
+    const freeBox = { ...clone(setup.caixas[0]), db_id: 99001, nome: 'Aparador livre do catálogo' };
+    const before = clone(freeBox);
+    let module = createCatalogBoxItem(freeBox, { l: 1100, a: 1400, p: 500 }, setup.initialDraft.materials, { id: 'free', qtd: 1 });
+    module = addCatalogComponent(module, setup.componentes.find(c => c.nome === 'Porta'), { qtd: 1, vars: { nPortas: 3, Ap: 1000 } });
+    module = addCatalogComponent(module, setup.componentes.find(c => c.nome === 'Gaveta'), { qtd: 2 });
+    module = addCatalogComponent(module, setup.componentes.find(c => c.nome === 'Prateleira'), { qtd: 2 });
+    const calculate = items => calculateQuote({ ambientes: [environment(items)], taxas: setup.taxas,
+        bib: buildQuoteLibrary(setup.bibItems), bibItems: setup.bibItems, padroes: setup.padroes, strictCatalog: true });
+    const initial = calculate([module]);
+    assert.equal(initial.valid, true, JSON.stringify(initial.errors));
+    assert.equal(module.quick?.kind, undefined);
+    assert.equal(module.composition.mode, 'catalog');
+    assert.equal(initial.totNPortas, 3);
+    assert.equal(initial.totNGavetas, 2);
+    assert.equal(initial.totNPrateleiras, 2);
+    assert.equal(initial.fa.demo_pux128.qtd, 5);
+    assert.deepEqual(freeBox, before);
+
+    const repeated = { ...module, qtd: 2 };
+    const twice = calculate([repeated]);
+    near(twice.cm, initial.cm * 2);
+    near(twice.pvFinal, initial.pvFinal * 2);
+    assert.equal(twice.totNCaixas, 2);
+    assert.equal(twice.totNModulos, 2);
+    assert.equal(twice.totNPortas, 6);
+    assert.equal(twice.totNGavetas, 4);
+    assert.equal(twice.fa.demo_pux128.qtd, 10);
+
+    const invalid = clone(module);
+    invalid.componentes.find(ci => ci.compDef.nome === 'Gaveta').matExtComp = '';
+    assert.ok(calculate([invalid]).errors.some(e => e.code === 'MISSING_FRONT_MATERIAL'));
+    invalid.componentes = [];
+    invalid.mats.matFundo = '';
+    assert.ok(calculate([invalid]).errors.some(e => e.code === 'MISSING_PIECE_MATERIAL'));
+});
+
+test('builder de ferragem avulsa integra metragem e preserva extras promovidos ao catálogo livre', () => {
+    const source = {
+        id: 'panel', nome: 'Tamponamento', qtd: 2, _matCustom: true,
+        quick: { kind: 'extra', extraType: 'lateral', group: 'extras' }, dims: { l: 720, a: 550, p: 0 },
+        caixaDef: { nome: 'Tamponamento', coef: 0, dimsAplicaveis: ['L', 'A'], pecas: [{ nome: 'Painel', qtd: 1, calc: 'L*A', mat: 'int', fita: ['all'] }], tamponamentos: [] },
+        mats: { matInt: 'front', matExt: '' }, componentes: [],
+    };
+    const original = quoteHardware([source]);
+    const promoted = promoteToCatalogItem(source);
+    const plain = quoteHardware([promoted]);
+    assert.equal(plain.valid, true, JSON.stringify(plain.errors));
+    near(plain.cm, original.cm);
+    near(plain.pvFinal, original.pvFinal);
+    assert.equal(plain.totNCaixas, 0);
+    assert.equal(plain.totNModulos, 0);
+    assert.equal(plain.totNPecas, original.totNPecas);
+    const linear = hardwareLibrary.find(m => m.cod === 'linear');
+    const withHardware = addLooseHardware(promoted, linear, { quantity: 0.75 });
+    const result = quoteHardware([withHardware]);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    near(result.cm - plain.cm, 0.75 * 2 * 20);
+    near(result.fa.linear.qtd, 1.5);
+    assert.equal(result.totNCaixas, 0);
+    assert.equal(result.totNModulos, 0);
+    const synonyms = hardwareLibrary.map(m => m.cod === 'linear' ? { ...m, unidade: 'metro' } : m);
+    const same = quoteHardware([withHardware], { bib: buildQuoteLibrary(synonyms), bibItems: synonyms });
+    assert.equal(same.valid, true, JSON.stringify(same.errors));
+    near(same.cm, result.cm);
+});
+
+test('composição livre vazia pode ser editada, mas só volta a ser válida com conteúdo ativo', () => {
+    const setup = createDemoSetup();
+    const original = createCatalogBoxItem(setup.caixas[0], { l: 600, a: 720, p: 550 }, setup.initialDraft.materials);
+    const parts = getBoxParts(original);
+    const calculate = module => calculateQuote({ ambientes: [environment([module])], taxas: setup.taxas,
+        bibItems: setup.bibItems, bib: buildQuoteLibrary(setup.bibItems), padroes: setup.padroes, strictCatalog: true });
+    let empty = original;
+    for (const part of parts) empty = setBoxPartEnabled(empty, part.id, false, { source: part.source });
+    assert.equal(getBoxParts(empty).filter(part => part.enabled).length, 0);
+    const invalid = calculate(empty);
+    assert.equal(invalid.valid, false);
+    assert.ok(invalid.errors.some(error => error.code === 'composition_empty' && error.itemId === empty.id));
+    assert.equal(invalid.totNModulos, 0);
+    assert.equal(invalid.cm, 0);
+    assert.equal(invalid.itemResults[empty.id].valid, false);
+
+    const restored = setBoxPartEnabled(empty, parts[0].id, true, { source: parts[0].source });
+    const restoredQuote = calculate(restored);
+    assert.equal(restoredQuote.valid, true, JSON.stringify(restoredQuote.errors));
+    assert.ok(restoredQuote.cm > 0);
+    const fullDiscount = applyQuoteDiscount(restoredQuote.pvFinal, { tipo: '%', valor: 100 });
+    assert.equal(fullDiscount.valid, true);
+    assert.equal(fullDiscount.pvComDesconto, 0);
+
+    const hardware = setup.bibItems.find(entry => entry.cod === 'demo_pux128');
+    const hardwareOnly = addLooseHardware(empty, hardware, { quantity: 2 });
+    const hardwareQuote = calculate(hardwareOnly);
+    assert.equal(hardwareQuote.valid, true, JSON.stringify(hardwareQuote.errors));
+    assert.equal(hardwareQuote.totNPecas, 0);
+    assert.equal(hardwareQuote.fa.demo_pux128.qtd, 2);
+    const hardwareOff = setComponentHardware(hardwareOnly, hardwareOnly.componentes[0].id, 'loose', { enabled: false });
+    assert.ok(calculate(hardwareOff).errors.some(error => error.code === 'composition_empty'));
+
+    let frontOnly = addCatalogComponent(empty, setup.componentes.find(component => component.nome === 'Porta'));
+    for (const slot of frontOnly.componentes[0].compDef.sub_itens) {
+        frontOnly = setComponentHardware(frontOnly, frontOnly.componentes[0].id, slot.id, { enabled: false });
+    }
+    const frontQuote = calculate(frontOnly);
+    assert.equal(frontQuote.valid, true, JSON.stringify(frontQuote.errors));
+    assert.equal(frontQuote.totNPecas, 2);
+    assert.equal(frontQuote.totNFerragens, 0);
+});
 
 test('paridade: mantém custo proporcional, markups, coeficiente e divisor do ERP', () => {
     const result = quote([item(2)]);

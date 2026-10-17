@@ -5,6 +5,7 @@ import {
     calcCustoHora, calcConsumiveis, estimarCorteReal,
 } from './engine.js';
 import { validateQuickItem } from './quickQuote.js';
+import { validateCompositionItem } from './quoteComposition.js';
 
 // Contrato compartilhado entre o editor completo e o orçamento rápido.
 // Sem rede, React ou banco de dados; não modifica os objetos recebidos.
@@ -64,6 +65,7 @@ export function applyQuoteDiscount(pvBase, desconto = { tipo: '%', valor: 0 }) {
 function countComponents(components) {
     const counts = { portas: 0, gavetas: 0, prateleiras: 0 };
     for (const ci of components) {
+        if (ci.composition?.kind === 'loose-hardware') continue;
         const def = ci.compDef || {};
         const label = `${def.nome || ''} ${def.grupo || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
         const vars = Object.fromEntries((def.vars || []).map(v => [v.id, v.default]));
@@ -76,7 +78,9 @@ function countComponents(components) {
     return counts;
 }
 
-function validateItem(item) {
+const isPanelExtra = item => item.quick?.kind === 'extra' || item.composition?.kind === 'extra';
+
+function validateItem(item, amb) {
     const errors = [];
     const fail = (code, message) => errors.push({ code, message });
     if (!item.caixaDef || !Array.isArray(item.caixaDef.pecas)) fail('recipe_missing', 'O módulo precisa de uma receita de caixa válida.');
@@ -91,7 +95,9 @@ function validateItem(item) {
         if (!Number.isInteger(ci.qtd ?? 1) || (ci.qtd ?? 1) <= 0) fail('quantity_invalid', 'A quantidade do componente precisa ser um inteiro positivo.');
         for (const key of ['dimL', 'dimA', 'dimP']) if (ci[key] != null && (!Number.isFinite(ci[key]) || ci[key] < 0)) fail('dimension_invalid', `Dimensão ${key} inválida no componente.`);
     }
-    if (item.quick?.kind) errors.push(...validateQuickItem(item));
+    const effectiveItem = { ...item, mats: resolveItemMats(item, amb) };
+    if (item.composition?.mode === 'catalog') errors.push(...validateCompositionItem(effectiveItem));
+    else if (item.quick?.kind) errors.push(...validateQuickItem(effectiveItem));
     return errors;
 }
 
@@ -165,7 +171,7 @@ export function calculateQuote({ ambientes = [], taxas = {}, bib = null, padroes
             if (!cached || cached.valid === false) throw new Error('Receita incompleta');
             return cached;
         }
-        const issues = validateItem(item);
+        const issues = validateItem(item, amb);
         if (issues.length) {
             issues.forEach(issue => report(issue, amb, item));
             cache.set(item, null);
@@ -177,7 +183,14 @@ export function calculateQuote({ ambientes = [], taxas = {}, bib = null, padroes
                 matExtComp: ci.matExtComp || '', subItens: ci.subItens || {}, subItensOvr: ci.subItensOvr || {},
                 dimL: ci.dimL || 0, dimA: ci.dimA || 0, dimP: ci.dimP || 0,
                 matIntInst: ci.matIntInst || '', matExtInst: ci.matExtInst || '',
+                composition: ci.composition || null,
             })), bib, padroes);
+            // O editor pode desativar todas as partes temporariamente, mas uma
+            // composição sem conteúdo ativo não pode ser salva como orçamento.
+            if (item.composition?.mode === 'catalog' && res.valid && !res.pecas.length && !res.ferrList.length) {
+                res.errors.push({ code: 'composition_empty', message: 'A composição está vazia. Ative ou adicione pelo menos uma peça, frente ou ferragem antes de salvar.' });
+                res.valid = false;
+            }
             cache.set(item, res);
             if (item.id) itemResults[item.id] = res;
             (res.errors || []).forEach(issue => report(issue, amb, item));
@@ -373,9 +386,9 @@ export function calculateQuote({ ambientes = [], taxas = {}, bib = null, padroes
                 const res = getItemResult(item, amb);
                 totNPecas += (res.nPecas || 0) * qtd;
                 totNFerragens += (res.nFerragens || 0) * qtd;
-                totNCaixas += item.quick?.kind === 'extra' ? 0 : (res.nCaixas || 0) * qtd;
-                totNJuncoes += item.quick?.kind === 'extra' ? 0 : (res.nJuncoes || 0) * qtd;
-                totNModulos += item.quick?.kind === 'extra' ? 0 : qtd;
+                totNCaixas += isPanelExtra(item) ? 0 : (res.nCaixas || 0) * qtd;
+                totNJuncoes += isPanelExtra(item) ? 0 : (res.nJuncoes || 0) * qtd;
+                totNModulos += isPanelExtra(item) ? 0 : qtd;
                 // Coletar dimensões de cada peça para cálculo preciso CNC + fita
                 res.pecas.forEach(p => {
                     pecasDetalhe.push({ perimetro: p.perimetro || 0, nBordas: p.nBordas || 0, fita: (p.fita || 0) * qtd, qtd: (p.qtd || 1) * qtd });

@@ -1,0 +1,217 @@
+.quote-composition-editor {
+  --qce-ink: #232323;
+  --qce-muted: #707070;
+  --qce-line: #dddddd;
+  color: var(--qce-ink);
+  background: #fff;
+  border: 1px solid #bababa;
+  border-top: 3px solid #272727;
+  border-radius: 12px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color-scheme: light;
+  container-type: inline-size;
+}
+.quote-composition-editor *, .quote-composition-editor *::before, .quote-composition-editor *::after { box-sizing: border-box; }
+.quote-composition-editor h2, .quote-composition-editor h3, .quote-composition-editor h4, .quote-composition-editor p { margin: 0; }
+.quote-composition-editor button, .quote-composition-editor input, .quote-composition-editor select { font-family: inherit; }
+.quote-composition-editor button { cursor: pointer; }
+.quote-composition-editor button:disabled { cursor: not-allowed; opacity: .48; }
+.quote-composition-editor button:focus-visible, .quote-composition-editor summary:focus-visible { outline: 2px solid #303030; outline-offset: 3px; }
+.quote-composition-editor input, .quote-composition-editor select {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid #d4d4d4;
+  background: #fff;
+  color: #272727;
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-size: 14px;
+  line-height: 1.45;
+  box-shadow: none;
+}
+.quote-composition-editor select { padding-right: 27px; text-overflow: ellipsis; }
+.quote-composition-editor input:focus, .quote-composition-editor select:focus { border-color: #555; outline: none; box-shadow: 0 0 0 3px #2020200b; }
+.quote-composition-editor input::placeholder { color: #737373; }
+.quote-composition-editor input:disabled, .quote-composition-editor select:disabled { color: #737373; background: #f3f3f3; }
+.quote-composition-editor .qce-header { display: flex; align-items: center; gap: 14px; padding: 22px; background: #f1f1f1; border-bottom: 1px solid var(--qce-line); }
+.quote-composition-editor .qce-header-icon { display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; border-radius: 9px; background: #262626; color: #fff; flex-shrink: 0; }
+.quote-composition-editor .qce-header-title { min-width: 0; flex: 1; }
+.quote-composition-editor .qce-header-title > span { display: block; font-size: 11px; font-weight: 750; letter-spacing: .1em; color: #737373; margin-bottom: 4px; }
+.quote-composition-editor .qce-header-title h2 { font-size: 20px; font-weight: 700; line-height: 1.25; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.quote-composition-editor .qce-header-title p { font-size: 13px; color: var(--qce-muted); margin-top: 6px; }
+.quote-composition-editor .qce-header-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; font-size: 12px; white-space: nowrap; color: #737373; }
+.quote-composition-editor .qce-header-meta strong { font-weight: 650; color: #444444; }
+.quote-composition-editor .qce-icon-button { display: inline-flex; align-items: center; justify-content: center; padding: 7px; min-height: 32px; min-width: 32px; border: 1px solid transparent; color: #727272; background: transparent; border-radius: 5px; }
+.quote-composition-editor .qce-icon-button:hover { color: #242424; background: #e7e7e7; border-color: #dcdcdc; }
+.quote-composition-editor .qce-close { align-self: flex-start; margin: -4px -4px 0 0; }
+.quote-composition-editor .qce-content { padding: 0 22px; }
+.quote-composition-editor .qce-alert { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; border: 1px solid #c89d92; background: #f9f9f9; color: #843c2c; border-radius: 7px; padding: 12px; font-size: 13px; margin-top: 19px; }
+.quote-composition-editor .qce-alert button { display: inline-flex; background: none; color: inherit; border: 0; padding: 1px; }
+.quote-composition-editor .qce-status { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #606060; padding: 13px 0 0; }
+.quote-composition-editor .qce-status svg { flex-shrink: 0; }
+.quote-composition-editor .qce-section { padding: 24px 0; }
+.quote-composition-editor .qce-section + .qce-section { border-top: 1px solid #e4e4e4; }
+.quote-composition-editor .qce-section-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 17px; }
+.quote-composition-editor .qce-section-heading > div { display: flex; align-items: center; gap: 9px; }
+.quote-composition-editor .qce-section-heading h3 { font-size: 16px; font-weight: 700; letter-spacing: -.025em; }
+.quote-composition-editor .qce-step { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #ececec; color: #727272; border-radius: 5px; font-size: 11px; font-weight: 700; }
+.quote-composition-editor .qce-tag { font-size: 11px; font-weight: 650; color: #747474; background: #f0f0f0; padding: 4px 7px; border-radius: 4px; }
+.quote-composition-editor .qce-section-note { font-size: 12px; color: #737373; }
+.quote-composition-editor .qce-count { min-width: 21px; height: 21px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; background: #303030; color: #fff; font-size: 11px; font-weight: 700; }
+.quote-composition-editor .qce-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.quote-composition-editor .qce-label { font-size: 13px; font-weight: 650; color: #565656; }
+.quote-composition-editor .qce-hint { display: block; font-size: 12px; line-height: 1.6; color: #737373; font-weight: 400; }
+.quote-composition-editor .qce-field-error { color: #95452f; font-size: 12px; line-height: 1.45; }
+.quote-composition-editor .qce-field.has-error input { border-color: #b7715e; background: #fafafa; }
+.quote-composition-editor .qce-body-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.quote-composition-editor .qce-name-field { grid-column: 1 / -1; }
+.quote-composition-editor .qce-material-footer { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.quote-composition-editor .qce-material-footer p { color: #737373; font-size: 12px; flex: 1; min-width: 200px; }
+.quote-composition-editor .qce-text-button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; color: #464646; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.quote-composition-editor .qce-text-button:hover { color: #000; text-decoration: underline; }
+.quote-composition-editor .qce-box-parts { border-top: 1px solid #ebebeb; margin-top: 16px; padding-top: 3px; }
+.quote-composition-editor .qce-box-parts > summary, .quote-composition-editor .qce-component-options > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; list-style: none; cursor: pointer; padding: 12px 0; font-size: 13px; font-weight: 650; color: #656565; }
+.quote-composition-editor summary::-webkit-details-marker { display: none; }
+.quote-composition-editor .qce-box-parts > summary b { display: inline-flex; align-items: center; justify-content: center; width: 21px; height: 21px; background: #efefef; border-radius: 4px; margin-left: 6px; font-size: 11px; }
+.quote-composition-editor details[open] > summary > svg:last-child { transform: rotate(180deg); }
+.quote-composition-editor .qce-parts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; padding: 3px 0; }
+.quote-composition-editor .qce-part-option { display: flex; gap: 9px; align-items: flex-start; padding: 10px; border-radius: 6px; background: #f5f5f5; cursor: pointer; border: 1px solid #e4e4e4; }
+.quote-composition-editor .qce-part-option input[type="checkbox"] { min-width: 16px; width: 16px; height: 16px; min-height: 16px; padding: 0; margin: 3px 0 0; accent-color: #2b2b2b; flex-shrink: 0; box-shadow: none; }
+.quote-composition-editor .qce-part-option span { min-width: 0; }
+.quote-composition-editor .qce-part-option strong { display: block; font-size: 13px; font-weight: 600; }
+.quote-composition-editor .qce-part-option small { display: block; font-size: 11px; color: #737373; margin-top: 3px; }
+.quote-composition-editor .qce-part-option.is-off { background: #fff; color: #737373; border-style: dashed; }
+.quote-composition-editor .qce-part-option.is-off strong { text-decoration: line-through; }
+.quote-composition-editor .qce-component-catalog { border: 1px solid #d5d5d5; border-radius: 8px; padding: 14px; background: #f5f5f5; margin-bottom: 19px; }
+.quote-composition-editor .qce-catalog-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.quote-composition-editor .qce-catalog-heading strong { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; }
+.quote-composition-editor .qce-catalog-heading > span { font-size: 12px; color: #737373; }
+.quote-composition-editor .qce-search { display: flex; align-items: center; gap: 8px; border: 1px solid #d1d1d1; background: #fff; border-radius: 6px; padding: 0 11px; }
+.quote-composition-editor .qce-search > svg { color: #737373; flex-shrink: 0; }
+.quote-composition-editor .qce-search input { border: 0; padding-left: 0; padding-right: 0; background: none; font-size: 13px; box-shadow: none; }
+.quote-composition-editor .qce-search:focus-within { border-color: #555; box-shadow: 0 0 0 3px #2020200a; }
+.quote-composition-editor .qce-search button { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; padding: 4px 0; color: #737373; }
+.quote-composition-editor .qce-catalog-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 7px; max-height: 245px; overflow-y: auto; margin-top: 10px; }
+.quote-composition-editor .qce-catalog-list > button { display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left; border: 1px solid #dedede; border-radius: 5px; background: #fff; padding: 11px; color: #404040; }
+.quote-composition-editor .qce-catalog-list > button:hover { border-color: #606060; background: #fbfbfb; }
+.quote-composition-editor .qce-catalog-list > button > svg { flex-shrink: 0; color: #737373; }
+.quote-composition-editor .qce-catalog-list > button > span { flex: 1; min-width: 0; }
+.quote-composition-editor .qce-catalog-list strong { display: block; font-size: 13px; font-weight: 650; }
+.quote-composition-editor .qce-catalog-list small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12px; line-height: 1.45; margin-top: 3px; color: #737373; }
+.quote-composition-editor .qce-empty-catalog { grid-column: 1 / -1; text-align: center; padding: 15px; font-size: 13px; color: #737373; }
+.quote-composition-editor .qce-search-hint { font-size: 12px; color: #737373; margin-top: 8px; }
+.quote-composition-editor .qce-component-list { display: grid; gap: 13px; }
+.quote-composition-editor .qce-component-card { border: 1px solid #d5d5d5; border-radius: 8px; background: #fff; overflow: hidden; }
+.quote-composition-editor .qce-component-card.has-error { border-color: #c08f7e; }
+.quote-composition-editor .qce-component-header { display: flex; align-items: stretch; justify-content: space-between; gap: 3px; padding: 4px 8px 4px 0; background: #f6f6f6; }
+.quote-composition-editor .qce-component-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 13px; color: #313131; text-align: left; background: none; border: 0; flex: 1; min-width: 0; }
+.quote-composition-editor .qce-component-number { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #e7e7e7; color: #747474; border-radius: 5px; font-size: 12px; font-weight: 650; flex-shrink: 0; }
+.quote-composition-editor .qce-component-toggle > span:nth-child(2) { flex: 1; min-width: 0; }
+.quote-composition-editor .qce-component-toggle strong { display: block; font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.quote-composition-editor .qce-component-toggle small { display: block; color: #737373; font-size: 12px; font-weight: 400; margin-top: 3px; }
+.quote-composition-editor .qce-component-toggle > svg { flex-shrink: 0; color: #737373; }
+.quote-composition-editor .qce-component-toggle > svg.is-rotated { transform: rotate(180deg); }
+.quote-composition-editor .qce-component-actions { display: flex; align-items: center; gap: 1px; }
+.quote-composition-editor .qce-error-badge { font-size: 11px; font-weight: 650; color: #8b4831; background: #e8e8e8; border-radius: 4px; padding: 2px 5px; }
+.quote-composition-editor .qce-component-content { padding: 17px; border-top: 1px solid #e7e7e7; }
+.quote-composition-editor .qce-component-content[hidden] { display: none; }
+.quote-composition-editor .qce-component-basics { display: grid; grid-template-columns: minmax(140px, .65fr) minmax(210px, 1.5fr); gap: 14px; }
+.quote-composition-editor .qce-component-basics > .qce-field:only-child { max-width: 230px; }
+.quote-composition-editor .qce-number-wrap { position: relative; display: flex; align-items: center; }
+.quote-composition-editor .qce-number-wrap > input { padding-right: 68px; font-variant-numeric: tabular-nums; }
+.quote-composition-editor .qce-unit { position: absolute; pointer-events: none; right: 10px; font-size: 11px; font-weight: 500; color: #737373; white-space: nowrap; }
+.quote-composition-editor .qce-variable-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 13px; margin-top: 14px; }
+.quote-composition-editor .qce-hardware-slot { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(200px, 1fr); align-items: center; gap: 12px; border: 1px solid #e0e0e0; border-radius: 6px; padding: 11px; background: #fbfbfb; }
+.quote-composition-editor .qce-hardware-slot + .qce-hardware-slot { margin-top: 7px; }
+.quote-composition-editor .qce-hardware-slot.is-handle { margin-top: 16px; border-color: #c4c4c4; background: #f1f1f1; }
+.quote-composition-editor .qce-hardware-name { display: flex; align-items: center; gap: 9px; min-width: 0; flex-wrap: wrap; }
+.quote-composition-editor .qce-hardware-name > div { flex: 1; min-width: 130px; }
+.quote-composition-editor .qce-hardware-name strong { display: block; font-size: 13px; font-weight: 650; }
+.quote-composition-editor .qce-hardware-name > div > span { display: block; font-size: 12px; line-height: 1.45; margin-top: 3px; color: #737373; }
+.quote-composition-editor .qce-hardware-price { font-size: 12px; font-variant-numeric: tabular-nums; color: #6a6a6a; white-space: nowrap; }
+.quote-composition-editor .qce-hardware-slot select { font-size: 13px; }
+.quote-composition-editor .qce-hardware-unit-note { grid-column: 1 / -1; color: #737373; font-size: 11px; margin-top: -3px; }
+.quote-composition-editor .qce-hardware-slot.is-off { background: #f9f9f9; }
+.quote-composition-editor .qce-hardware-slot.is-off .qce-hardware-name strong { color: #737373; }
+.quote-composition-editor .qce-check-button { display: flex; align-items: center; justify-content: center; min-width: 21px; height: 21px; padding: 0; color: #fff; background: #fff; border: 1px solid #b4b4b4; border-radius: 4px; flex-shrink: 0; }
+.quote-composition-editor .qce-check-button[aria-checked="true"] { background: #373737; border-color: #373737; }
+.quote-composition-editor .qce-component-hardware { margin-top: 19px; }
+.quote-composition-editor .qce-component-hardware h4 { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; color: #717171; font-size: 12px; font-weight: 650; }
+.quote-composition-editor .qce-component-hardware > .qce-hint { margin-top: 10px; }
+.quote-composition-editor .qce-no-handle { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; color: #737373; background: #f6f6f6; border-radius: 5px; padding: 10px; margin-top: 15px; }
+.quote-composition-editor .qce-no-handle svg { flex-shrink: 0; margin-top: 2px; }
+.quote-composition-editor .qce-component-options { margin-top: 16px; border-top: 1px solid #eaeaea; }
+.quote-composition-editor .qce-component-options > summary { padding: 13px 0 0; font-size: 12px; }
+.quote-composition-editor .qce-component-options > summary > span { display: flex; align-items: center; gap: 7px; }
+.quote-composition-editor .qce-option-content { padding-top: 12px; }
+.quote-composition-editor .qce-option-content > p { font-size: 12px; color: #737373; }
+.quote-composition-editor .qce-inner-materials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; margin-top: 14px; }
+.quote-composition-editor .qce-empty-components { display: flex; align-items: center; gap: 15px; color: #737373; padding: 22px 14px; border: 1px dashed #dbdbdb; border-radius: 7px; }
+.quote-composition-editor .qce-empty-components > svg { flex-shrink: 0; }
+.quote-composition-editor .qce-empty-components strong { color: #666666; font-size: 14px; font-weight: 600; }
+.quote-composition-editor .qce-empty-components p { margin-top: 4px; font-size: 13px; }
+.quote-composition-editor .qce-section-description { font-size: 13px; color: #737373; margin: -7px 0 16px; }
+.quote-composition-editor .qce-loose-list { display: grid; gap: 11px; margin-bottom: 17px; }
+.quote-composition-editor .qce-loose-row { display: grid; grid-template-columns: minmax(200px, 1.75fr) minmax(120px, .7fr) minmax(105px, .65fr) 32px; align-items: start; gap: 12px; border: 1px solid #dbdbdb; border-radius: 7px; padding: 13px; background: #fff; }
+.quote-composition-editor .qce-loose-row > .qce-icon-button { margin-top: 28px; }
+.quote-composition-editor .qce-loose-unit-price { display: flex; flex-direction: column; gap: 12px; padding-top: 2px; }
+.quote-composition-editor .qce-loose-unit-price > span { font-size: 12px; color: #737373; }
+.quote-composition-editor .qce-loose-unit-price strong { font-size: 13px; color: #575757; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.quote-composition-editor .qce-loose-unit-price small { color: #737373; font-size: 11px; font-weight: 400; }
+.quote-composition-editor .qce-add-hardware { padding: 14px; border: 1px solid #d4d4d4; border-radius: 8px; background: #f4f4f4; }
+.quote-composition-editor .qce-hardware-add-grid { display: grid; grid-template-columns: minmax(200px, 1.7fr) minmax(100px, .6fr) auto; align-items: end; gap: 11px; margin-top: 12px; }
+.quote-composition-editor .qce-add-hardware > .qce-hint { margin-top: 12px; }
+.quote-composition-editor .qce-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 13px; min-height: 42px; border: 1px solid #cbcbcb; background: #fff; border-radius: 6px; font-size: 13px; font-weight: 650; color: #515151; white-space: nowrap; }
+.quote-composition-editor .qce-button:hover { border-color: #6a6a6a; color: #222; }
+.quote-composition-editor .qce-button-dark { background: #303030; color: #fff; border-color: #303030; }
+.quote-composition-editor .qce-button-dark:hover { background: #171717; color: #fff; }
+.quote-composition-editor .qce-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #f0f0f0; border-top: 1px solid #dadada; padding: 15px 22px; }
+.quote-composition-editor .qce-footer > span { display: inline-flex; align-items: center; gap: 6px; color: #737373; font-size: 12px; }
+.quote-composition-editor .qce-footer > strong { color: #92523a; font-size: 12px; font-weight: 600; }
+
+@container (max-width: 740px) {
+  .quote-composition-editor .qce-header-meta { display: none; }
+  .quote-composition-editor .qce-hardware-slot { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .quote-composition-editor .qce-hardware-name { flex-wrap: nowrap; }
+  .quote-composition-editor .qce-body-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .quote-composition-editor .qce-loose-row { grid-template-columns: minmax(130px, 1fr) minmax(110px, 1fr) 32px; gap: 10px; }
+  .quote-composition-editor .qce-loose-row > .qce-field:first-child { grid-column: 1 / -1; }
+  .quote-composition-editor .qce-loose-row > .qce-icon-button { margin-top: 28px; }
+  .quote-composition-editor .qce-hardware-add-grid { grid-template-columns: 1fr 130px; }
+  .quote-composition-editor .qce-hardware-add-grid > .qce-field:first-child { grid-column: 1 / -1; }
+  .quote-composition-editor .qce-hardware-add-grid > .qce-button { width: 100%; }
+}
+@container (max-width: 480px) {
+  .quote-composition-editor .qce-header { padding: 16px; gap: 10px; }
+  .quote-composition-editor .qce-header-icon { width: 36px; height: 36px; }
+  .quote-composition-editor .qce-header-title h2 { font-size: 18px; }
+  .quote-composition-editor .qce-header-title p { font-size: 12px; }
+  .quote-composition-editor .qce-content { padding: 0 14px; }
+  .quote-composition-editor .qce-section { padding: 20px 0; }
+  .quote-composition-editor .qce-section-heading h3 { font-size: 15px; }
+  .quote-composition-editor .qce-section-note { display: none; }
+  .quote-composition-editor .qce-body-grid { grid-template-columns: minmax(0, 1fr); }
+  .quote-composition-editor .qce-component-catalog { padding: 11px; }
+  .quote-composition-editor .qce-catalog-list { grid-template-columns: minmax(0, 1fr); }
+  .quote-composition-editor .qce-component-toggle { gap: 7px; padding-left: 10px; }
+  .quote-composition-editor .qce-component-toggle small { font-size: 11px; }
+  .quote-composition-editor .qce-component-number { width: 23px; height: 23px; }
+  .quote-composition-editor .qce-component-content { padding: 13px; }
+  .quote-composition-editor .qce-component-basics { grid-template-columns: minmax(0, 1fr); }
+  .quote-composition-editor .qce-component-basics > .qce-field:only-child { max-width: none; }
+  .quote-composition-editor .qce-variable-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+  .quote-composition-editor .qce-inner-materials { grid-template-columns: minmax(0, 1fr); }
+  .quote-composition-editor .qce-hardware-name { flex-wrap: wrap; }
+  .quote-composition-editor .qce-hardware-price { padding-left: 0; }
+  .quote-composition-editor .qce-catalog-heading > span { font-size: 11px; }
+  .quote-composition-editor .qce-hardware-add-grid { grid-template-columns: minmax(0, 1fr); }
+  .quote-composition-editor .qce-hardware-add-grid > .qce-field:first-child { grid-column: auto; }
+  .quote-composition-editor .qce-footer { padding: 14px; }
+  .quote-composition-editor .qce-footer .qce-button { width: 100%; }
+}

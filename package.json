@@ -18,7 +18,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "build:quick-preview": "vite build --config vite.quick-quote.config.js",
-    "test:quick-quote": "node --test tests/quote-calculator.test.mjs tests/quick-quote.test.mjs tests/quick-quote-adapter.test.mjs"
+    "test:quick-quote": "node --test tests/quote-calculator.test.mjs tests/quick-quote.test.mjs tests/quote-composition.test.mjs tests/quick-quote-adapter.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

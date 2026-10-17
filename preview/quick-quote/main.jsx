@@ -31,7 +31,7 @@ function Proposal({ quote, onBack }) {
             <header><div className="demo-wordmark">ornato<span>ERP</span></div><span className="demo-document-label">PROPOSTA DEMONSTRATIVA<br />{quote.numero}</span></header>
             <div className="demo-proposal-intro"><span>PROJETO DE MARCENARIA</span><h1>{quote.projeto}</h1><p>Preparado para {quote.cliente_nome}</p></div>
             <div className="demo-proposal-notice">Documento de demonstração. Os preços são fictícios e não constituem uma proposta comercial da marcenaria.</div>
-            {quote.ambientes.map(amb => <section key={amb.id} className="demo-proposal-room"><h2>{amb.nome}</h2><table><thead><tr><th>Descrição</th><th>Medidas · L × A × P</th><th>Qtd.</th></tr></thead><tbody>{(amb.itens || []).map(item => <tr key={item.id}><td><strong>{item.nome}</strong>{item.quick?.group !== 'extras' && <small>{[
+            {quote.ambientes.map(amb => <section key={amb.id} className="demo-proposal-room"><h2>{amb.nome}</h2><table><thead><tr><th>Descrição</th><th>Medidas · L × A × P</th><th>Qtd.</th></tr></thead><tbody>{(amb.itens || []).map(item => <tr key={item.id}><td><strong>{item.nome}</strong>{item.composition?.mode === 'catalog' ? <small>{(item.componentes || []).map(ci => `${ci.nome || ci.compDef?.nome || 'Componente'} × ${ci.qtd || 1}`).join(' · ')}</small> : item.quick?.group !== 'extras' && <small>{[
                 item.quick?.counts?.doors ? `${item.quick.counts.doors} porta(s)` : '',
                 item.quick?.counts?.drawers ? `${item.quick.counts.drawers} gaveta(s)` : '',
                 item.quick?.counts?.shelves ? `${item.quick.counts.shelves} prateleira(s)` : '',
@@ -61,7 +61,7 @@ function App() {
             <span className="demo-nav-label">COMERCIAL</span>
             <button className={!showProposal ? 'is-active' : ''} onClick={() => setShowProposal(false)}><Zap size={17} /><span>Orçamento rápido</span><span className="demo-new">NOVO</span></button>
             {quote && <button className={showProposal ? 'is-active' : ''} onClick={() => setShowProposal(true)}><FileText size={17} /><span>Proposta de exemplo</span></button>}
-            <div className="demo-nav-context"><LayoutGrid size={20} /><strong>Do módulo ao orçamento</strong><p>Medidas, materiais e composição na mesma tela.</p></div>
+            <div className="demo-nav-context"><LayoutGrid size={20} /><strong>Caixa + componentes</strong><p>Escolha a caixa, componha o móvel e defina suas ferragens.</p></div>
             <div className="demo-nav-footer"><span className="demo-avatar">SO</span><div>Studio Ornato<small>Ambiente de demonstração</small></div></div>
         </aside>
         <div className="demo-body">
